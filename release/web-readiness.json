@@ -1,0 +1,65 @@
+{
+  "target": "web-mobile",
+  "checks": {
+    "public_url_https": {
+      "status": "pending",
+      "evidence": "",
+      "note": "Escolher URL de lançamento; domínio próprio ainda não conectado."
+    },
+    "auth_email_delivery": {
+      "status": "pending",
+      "evidence": "",
+      "note": "Confirmar SMTP próprio, confirmação e recuperação para destinatários externos."
+    },
+    "auth_redirects_captcha": {
+      "status": "pending",
+      "evidence": "",
+      "note": "Validar URLs exatas e hostname Turnstile da URL escolhida."
+    },
+    "two_account_isolation": {
+      "status": "pending",
+      "evidence": "",
+      "note": "Validar leituras/escritas indevidas com duas contas de teste e RLS real."
+    },
+    "private_storage": {
+      "status": "pending",
+      "evidence": "",
+      "note": "Conferir buckets privados e tentativa de acesso de outra conta."
+    },
+    "delete_account": {
+      "status": "pending",
+      "evidence": "",
+      "note": "Validar Edge Function publicada, exclusão com conta descartável e arquivos associados."
+    },
+    "export_restore": {
+      "status": "pending",
+      "evidence": "",
+      "note": "Conferir exportação de conta de teste, fotos separadas e recuperação."
+    },
+    "legal_operations": {
+      "status": "pending",
+      "evidence": "",
+      "note": "Identificação informada; falta revisão de retenção, operadores, direitos e atendimento."
+    },
+    "catalog_release": {
+      "status": "pending",
+      "evidence": "",
+      "note": "Responsável informou revisão do catálogo e remoção da retatrutida. Falta conferir a versão final e validar integração de pagamento antes de operar vendas."
+    },
+    "iphone_android": {
+      "status": "pending",
+      "evidence": "",
+      "note": "Testar Safari/iPhone e Chrome/Android, instalação e atualização PWA, teclado e anexos."
+    },
+    "backup_monitoring": {
+      "status": "pending",
+      "evidence": "",
+      "note": "Definir backups de banco e arquivos, recuperação, alertas e responsável."
+    },
+    "notifications_scope": {
+      "status": "pending",
+      "evidence": "",
+      "note": "Validar push completo ou documentar lançamento com avisos no app/calendário, sem prometer push."
+    }
+  }
+}

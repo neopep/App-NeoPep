@@ -1,0 +1,18 @@
+const fs=require('fs'),path=require('path');
+let html=fs.readFileSync('dist/index.html','utf8');
+// Artefato portátil de revisão. Não usar no hosting: CSP de produção permanece em dist/index.html.
+html=html.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/,'').replace(/<link rel="manifest"[^>]*>/,'');
+const read=f=>fs.readFileSync(path.join('dist',f),'utf8');
+const inlineSvg=f=>'data:image/svg+xml;base64,'+fs.readFileSync(path.join('dist',f)).toString('base64');
+let css=read('style.css');for(const asset of ['background.svg','background-gold.svg'])css=css.replaceAll(`url('assets/${asset}')`,`url('${inlineSvg('assets/'+asset)}')`);
+html=html.replace('<link rel="stylesheet" href="style.css">',()=>'<style>'+css+'</style>');
+for(const name of ['config.js','core.js','cloud.js','captcha.js','push.js','community-alerts.js','shop-core.js','shop-promotions.js','shop.js','support.js','media-links.js','library-files.js','library-shelf.js','community.js','library.js','gestures.js','arrival.js','install.js','app.js']){
+ let code=read(name);
+ if(name==='app.js')code=code.replace("if('serviceWorker'in navigator&&['https:','http:'].includes(location.protocol))",'if(false)');
+ code=code.replaceAll('assets/brands/mercadopago.svg',inlineSvg('assets/brands/mercadopago.svg'));
+ code=code.replace(/assets\/icon.svg/g,inlineSvg('assets/icon.svg')).replace(/<\/script/gi,'<\\/script');
+ html=html.replace(`<script src="${name}"></script>`,()=>'<script>'+code+'</script>');
+}
+html=html.replace(/assets\/icon.svg/g,inlineSvg('assets/icon.svg')).replace('assets/apple-touch-icon.png','data:image/png;base64,'+fs.readFileSync('dist/assets/apple-touch-icon.png').toString('base64'));
+fs.mkdirSync('artifacts',{recursive:true});fs.writeFileSync('artifacts/NeoPeptideos-previa.html',html);
+console.log('Prévia HTML portátil criada; nenhum dado pessoal incluído.');

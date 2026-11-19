@@ -1,0 +1,7 @@
+// Installer aditivo/reexecutável; preserva o conteúdo imutável das migrações.
+const fs=require('fs');
+const source=f=>fs.readFileSync('supabase/migrations/'+f,'utf8').replace(/^begin;\s*$/m,'').replace(/^commit;\s*$/m,'');
+const v1=source('202611120001_neopeptideos.sql'),v2=source('202611120002_multiuser.sql');
+const script=`-- NeoPeptídeos: executar no SQL Editor do SEU projeto Supabase.\n-- Uma transação; não apaga registros; pula etapas já instaladas.\n-- Não contém chaves ou credenciais. Não exige colar segredos.\nbegin;\ndo $neo_install$\nbegin\n if to_regclass('public.neo_profiles') is null then\n  execute $neo_v1$\n${v1}\n$neo_v1$;\n end if;\n if to_regclass('public.neo_consents') is null then\n  execute $neo_v2$\n${v2}\n$neo_v2$;\n end if;\n if to_regclass('public.neo_records') is null or to_regclass('public.neo_photos') is null or to_regclass('public.neo_consent_events') is null or to_regclass('public.neo_migration_receipts') is null or to_regprocedure('public.neo_admin_summary()') is null or to_regprocedure('public.neo_migrate_records(jsonb,text)') is null then\n  raise exception 'Estrutura incompleta. Nada foi confirmado. Revise a instalacao antes de continuar.';\n end if;\nend\n$neo_install$;\ncommit;\nselect 'Estrutura NeoPeptideos instalada; RLS e bucket privado configurados.' as resultado;\n`;
+fs.mkdirSync('supabase/setup',{recursive:true});fs.writeFileSync('supabase/setup/install.sql',script);
+console.log('Instalador Supabase gerado sem credenciais.');
