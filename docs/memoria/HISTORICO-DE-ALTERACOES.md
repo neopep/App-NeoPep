@@ -77,3 +77,19 @@ A ordem entre fatos de fontes diferentes só foi estabelecida quando os registro
 | Limitações e pendências | Validar publicação funcional. [P-009](../conhecimento/PENDENCIAS.md) |
 | Reversão | Se necessário, reverta somente a futura alteração documental correspondente a este registro. |
 | Identificação Git | Branch local `docs/validacao-github-codex-vercel`, base `d5dfe11`. |
+
+## MEM-20261120-006
+
+| Campo | Registro |
+| --- | --- |
+| Data | 20/11/2026, America/Sao_Paulo. |
+| Objetivo e solicitação | Concluir a validação GitHub → Codex Cloud → Vercel e documentar o fluxo das duas contas e o encerramento do teste. |
+| Contexto anterior | O PR #1 confirmou o cancelamento de compilação documental. O ensaio funcional foi preparado no commit `d99bfb5`, de `rafarwr5`. |
+| Decisão e justificativa | Usar a branch isolada `preview/validacao-deploy` e o merge do proprietário para validar o Preview no Vercel Hobby preservando a autoria do colaborador. |
+| Arquivos e impactos | Histórico, integrações, pendências, próximas tarefas, tarefas concluídas e protocolo de desenvolvimento. A atualização é documental. O marcador fica restrito às branches do ensaio. |
+| Dependências | GitHub, identidades autorizadas no Codex Cloud, Vercel Hobby, Ignored Build Step e empacotamento estático. |
+| Testes e resultados | O Git confirma o PR #3 integrado por `neopep` em `f7c6154` com autoria de `rafarwr5` preservada. Segundo a evidência confirmada pelo responsável, o Vercel aceitou o merge, permitiu a compilação, marcou o Preview como Ready em 7 segundos e serviu o marcador no navegador. Os logs confirmaram configuração pública estruturalmente válida, PDF.js e fontes locais preparados, SDK oficial do Supabase empacotado, Build Completed e Deployment completed. |
+| Erros e soluções | Avisos do npm sobre cache-dir e scripts de instalação do esbuild 0.25.12 foram não impeditivos. A limitação de deploy direto do colaborador no Hobby foi tratada com integração autorizada pelo proprietário em Preview. |
+| Limitações e pendências | A compilação não testou conexão real com o Supabase. Produção permaneceu no deployment `8cf6bc7`. Banco, credenciais e domínios de produção permaneceram intactos. P-009 concluída. A proposta de limpeza aguarda autorização. |
+| Reversão | Reverter somente a alteração documental se necessário. A eventual remoção das branches ou do Preview exige autorização separada. |
+| Identificação Git | Branch local `docs/conclusao-validacao-deploy`, base `c1afad6`, com evidência no [PR #3](https://github.com/neopep/App-NeoPep/pull/3). |
