@@ -14,7 +14,7 @@ A árvore de Edge Functions inclui `auth-settings`, `delete-account`, `push-disp
 
 ## Ignored Build Step do Vercel
 
-Em 20/11/2026, o responsável confirmou que salvou no projeto `app-neopep`, no modo Custom, o comando abaixo. A lógica foi validada com o Git local. O resultado da execução no Vercel permanece **não verificado**.
+Em 20/11/2026, o responsável confirmou que salvou no projeto `app-neopep`, no modo Custom, o comando abaixo. A lógica foi validada com o Git local. A execução remota foi confirmada para a integração documental do PR #1. [Validação GitHub, Codex Cloud e Vercel](#validação-github-codex-cloud-e-vercel)
 
 ```sh
 test -n "$VERCEL_GIT_PREVIOUS_SHA" && git diff --quiet --no-renames "$VERCEL_GIT_PREVIOUS_SHA" HEAD -- . ':!docs/**/*.md' ':!AGENTS.md' ':!CLAUDE.md' ':!GEMINI.md' ':!CHANGELOG.md' ':!.github/copilot-instructions.md'
@@ -27,3 +27,9 @@ O Vercel ignora a compilação com saída `0` e pode prosseguir com saída difer
 O responsável informou que o Vercel bloqueou uma publicação porque o e-mail de autoria do commit anterior não estava verificado no GitHub. O checkout herdava a identidade global. A correção gravou nome e e-mail autorizados com `git config --local` e conferiu as identidades efetivas do autor e do committer. A verificação da conta e o reconhecimento pelo Vercel dependem dos respectivos serviços. [Registro técnico](../memoria/HISTORICO-DE-ALTERACOES.md#mem-20261120-003)
 
 A configuração local fica em `.git/config`. O checkout reaberto manteve a identidade, mas uma clonagem nova pode herdar a configuração global. Para provisionamento repetível, o Codex Cloud oferece um script de instalação salvo. Em revisão futura, esse script pode aplicar `git config --local user.name` e `git config --local user.email` com valores autorizados fornecidos nas configurações privadas do ambiente, quando disponíveis. Confira os quatro comandos do [AGENTS.md](../../AGENTS.md) também antes de cada commit, porque uma restauração pode reutilizar o snapshot sem executar o script e variáveis de ambiente podem mudar a identidade efetiva. Preserve a configuração global e mantenha endereços pessoais fora da documentação.
+
+## Validação GitHub, Codex Cloud e Vercel
+
+**Confirmado em 20/11/2026.** A conta proprietária `neopep` integrou o PR #1 na `main` no commit `d5dfe11`. O Git confirma o merge e a presença do commit original `8b229f5`, com autoria de `rafarwr5`. Segundo a evidência confirmada pelo responsável, o Vercel reconheceu a autoria do proprietário, passou pela verificação de identidade e permissões e executou o Ignored Build Step. O comando saiu com código `0` e cancelou intencionalmente a compilação exclusivamente documental. [PR #1](https://github.com/neopep/App-NeoPep/pull/1) · [Registro técnico](../memoria/HISTORICO-DE-ALTERACOES.md#mem-20261120-004)
+
+A validação desse fluxo tem uma única pendência, a publicação com alteração funcional. [P-009](PENDENCIAS.md)
