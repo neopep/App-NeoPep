@@ -9,3 +9,4 @@
 7. Auditar o Supabase em leitura e preparar staging autorizado para MA-03, incluindo ensaio de ativação e reversão. [P-011](../conhecimento/PENDENCIAS.md)
 8. Fechar cadastro público no Auth do staging, provisionar as contas fictícias pelo canal administrativo e concluir login, frontend e Edge autenticados. Revisar os achados do Advisor antes da publicação. [MEM-20261120-015](HISTORICO-DE-ALTERACOES.md#mem-20261120-015)
 9. Projetar a separação de permissões entre administração de plataforma, moderação de comunidade, atendimento e gestão de agentes. [D-010](DECISOES.md)
+10. Concluir o projeto dedicado Vercel, o DNS, a proteção de acesso e o Auth de staging. Só depois validar os disparos de notificações com VAPID e dispositivos fictícios. [MEM-20261120-016](HISTORICO-DE-ALTERACOES.md#mem-20261120-016)

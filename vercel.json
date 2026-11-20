@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run build",
+  "buildCommand": "node scripts/build-staging.cjs && npm run build",
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/neo", "destination": "/" },
@@ -16,6 +16,7 @@
     {
       "source": "/(.*)",
       "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
         { "key": "Permissions-Policy", "value": "camera=(self), microphone=(self), geolocation=()" }

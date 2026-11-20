@@ -229,3 +229,15 @@ Em 20/11/2026 (America/Sao_Paulo), o responsável relatou que a conta principal 
 A separação de administrador de plataforma, moderador da comunidade, operador de atendimento e gestor de agentes fica registrada como melhoria futura. [Decisões](DECISOES.md)
 
 As 31 migrações restantes passaram no projeto autorizado, totalizando 45 históricas e duas multiagente. O ensaio usou as substituições de staging das posições 22, 038 e 039. A revisão automática havia recusado a versão original da 038 por permitir egress de push. As cópias 038 e 039 mantêm os três gatilhos desabilitados e os corpos de despertar sem HTTP ou Vault. O pós-teste adaptado, a auditoria SQL e o teste transacional com usuários fictícios passaram. As duas Edge Functions foram implantadas somente no staging, com JWT obrigatório. [Evidências](../../release/multiagent-staging/install/EVIDENCIAS.md#instalação-concluída-em-20112026)
+
+## MEM-20261120-016
+
+Em 20/11/2026 (America/Sao_Paulo), o proprietário autorizou autonomia para ações rotineiras no escopo das tarefas de homologação. O AGENTS.md e o protocolo registram a autorização, as verificações obrigatórias da plataforma e as exceções de produção, segurança, custos e operações destrutivas.
+
+O ambiente permanente usa `teste.app.neopep.com.br` e o Supabase `qnuluspqfazdppciermw`. A referência remota `staging/multiagentes-homologacao` impede criar a ref `staging`. A branch proposta `staging/permanente` usa build dedicado, URL Supabase fixa, verificação de chave pública, identidade PWA própria e configurações independentes. O build com a chave pública do staging e os dez testes focados passaram.
+
+A revisão do Advisor inventariou 43 avisos SECURITY DEFINER e 48 ocorrências RLS. Nenhuma tabela privada sinalizada tinha grants diretos aos papéis públicos do aplicativo. A única função entre as sinalizadas executável anonimamente é o gatilho DDL `rls_auto_enable()`. A revisão funcional das RPCs com duas contas permanece pendente.
+
+`push-dispatch` versão 1 foi implantada somente em staging com JWT obrigatório. POST sem JWT retornou 401. POST com JWT anon do staging retornou 503 de configuração pendente. A entrega inclui scripts de ativação, fallback e reversão, e regressão do payload de biblioteca e loja. Gatilhos e cron permanecem desativados. O Auth ainda aceita cadastro público no backend, e o ensaio autenticado depende de gestão administrativa do staging.
+
+A configuração manual e o inventário de funções estão no [roteiro permanente](../processos/HOMOLOGACAO-PERMANENTE.md). A [revisão de segurança](../processos/AUDITORIA-HOMOLOGACAO.md) registra os grants e a matriz de verificação. Produção ficou fora do escopo operacional.

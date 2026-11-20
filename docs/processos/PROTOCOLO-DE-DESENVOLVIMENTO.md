@@ -10,13 +10,13 @@
 
 4. Use branch de trabalho. Preserve alterações existentes e funcionalidades fora do escopo.
 5. Reutilize arquitetura, contratos e identidade visual. Proteja dados, autenticação, compatibilidade de origem e controle de acesso.
-6. Prepare mudanças de banco em migração nova, com revisão de compatibilidade e plano de recuperação. Operações remotas exigem autorização.
+6. Prepare mudanças de banco em migração nova, com revisão de compatibilidade e plano de recuperação. Confira a referência do projeto antes de cada execução remota em homologação.
 
 ## Depois
 
 7. Execute os [testes aplicáveis](PROTOCOLO-DE-VALIDACAO.md) e registre resultados, limitações e erros.
 8. Atualize o guia do módulo, histórico, pendências e próximas tarefas na mesma entrega do código. [Protocolo de atualização](PROTOCOLO-DE-ATUALIZACAO.md)
-9. Apresente escopo, branch, commit, impactos, resultado dos testes e pendências para aprovação. Aguarde autorização para integração e publicação.
+9. Registre escopo, branch, commit, impactos, testes e pendências. Execute as operações rotineiras de homologação cobertas pela tarefa sem confirmação adicional.
 
 ## Verificação da integração com o Vercel
 
@@ -34,3 +34,7 @@ Confira identidade local, autoria e committer com os comandos do [AGENTS.md](../
 1. Preserve o PR #3, os SHAs `d99bfb5` e `f7c6154`, os logs e a evidência do marcador e do deployment de produção. Confirme que a `main` segue sem o marcador.
 2. Antes de excluir referências, confirme que as pontas das branches continuam correspondendo ao teste, que não há PR aberto ou trabalho posterior que dependa delas e que o Preview não atende domínio de produção. Confirme a política de retenção do deployment de Preview, pois apagar a branch pode não remover sua URL.
 3. Após autorização específica, proponha remover primeiro `teste/validacao-deploy-funcional` e depois `preview/validacao-deploy`, com o proprietário responsável pela revisão das referências remotas. Remova cópias locais apenas após verificar seu conteúdo. Se houver autorização para retirar a URL de Preview, encerre somente esse deployment. Confira ao final a referência da `main` e o deployment de produção. [PR #3](https://github.com/neopep/App-NeoPep/pull/3)
+
+## Autonomia em homologação
+
+O escopo autorizado de cada tarefa cobre desenvolvimento, testes, commits, push, migrações e publicação rotineira em homologação. Verifique identidade Git, destino, testes e isolamento antes de executar. Respeite as verificações obrigatórias e registre recusas e bloqueios. Peça autorização específica para ações destrutivas, novos custos, alterações sensíveis de segurança, merge na main e publicação em produção. [Ambiente permanente](HOMOLOGACAO-PERMANENTE.md)
