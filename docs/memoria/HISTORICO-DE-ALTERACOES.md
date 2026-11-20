@@ -269,3 +269,9 @@ Em 20/11/2026 (America/Sao_Paulo), o responsável confirmou a instalação das q
 O preflight no staging confirmou zero dispositivos, zero jobs nas quatro filas de push, fila HTTP vazia, três gatilhos desativados e catálogo de cron ausente. O POST a `push-dispatch` com JWT anon do staging e a cópia Cloud anterior do segredo retornou HTTP 401 com `{"error":"unauthorized"}`. Pelo código do worker, o segredo em execução passou pela verificação inicial de comprimento, mas a autenticação do segredo apresentado falhou antes da leitura das variáveis VAPID e das filas. O aceite HTTP 200 com contadores zerados depende de um teste com o segredo efetivamente instalado, fornecido por canal autenticado sem exposição. Nenhum dispositivo, registro de teste ou disparo foi criado.
 
 A requisição a `https://teste.app.neopep.com.br/neo/` recebeu 403 no CONNECT do proxy Cloud, antes de obter resposta da Vercel. A resolução do 404 permanece sem confirmação independente.
+
+## MEM-20261120-020
+
+Em 20/11/2026, a atualização para NeoPep foi preparada localmente em staging e em uma branch independente baseada na main. Os nomes em interface, instalação, manifesto, títulos, notificações e textos institucionais foram atualizados. O build de staging usa NeoPep Teste como nome completo e NeoPep como nome curto. Identificadores da PWA, rotas, dados e contratos de serviços foram preservados. O cache do shell foi versionado para a atualização.
+
+As imagens apareceram na mensagem, mas os PNGs originais não estavam disponíveis no sistema de arquivos da sessão. Logotipo e ícones novos, publicação em staging e validação interativa seguem pendentes. A promoção de produção depende dessas etapas. As verificações estáticas passaram e os testes focados tiveram 65/67 em cada base. As duas falhas de privacidade de push foram reproduzidas na base de staging e não foram corrigidas no escopo de marca.

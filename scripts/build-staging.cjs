@@ -19,6 +19,7 @@ async function prepare() {
   const base = context.window.NEO_CONFIG;
   const config = {
     ...base,
+    appDisplayName: 'NeoPep Teste',
     pushVapidPublicKey: vapid,
     providers: {
       ...base.providers,
@@ -30,11 +31,12 @@ async function prepare() {
 
   const manifestPath = 'dist/manifest.webmanifest';
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  Object.assign(manifest, { id: '/neo/', name: 'NeoPep Teste', short_name: 'NeoPep Teste', start_url: '/neo/', scope: '/neo/' });
+  Object.assign(manifest, { id: '/neo/', name: 'NeoPep Teste', short_name: 'NeoPep', start_url: '/neo/', scope: '/neo/' });
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   for (const path of ['dist/index.html', 'dist/admin/index.html', 'dist/excluir-conta/index.html']) {
     const html = fs.readFileSync(path, 'utf8')
-      .replace(/<title>([^<]*?)(?: — Homologação)?<\/title>/, '<title>$1 — Homologação</title>')
+      .replace(/<title>([^<]*?)(?: — Homologação)?<\/title>/, (_, title) => '<title>' + title.replace(/NeoPep(?! Teste)/, 'NeoPep Teste') + '</title>')
+      .replace('name="apple-mobile-web-app-title" content="NeoPep"', 'name="apple-mobile-web-app-title" content="NeoPep Teste"')
       .replaceAll('https://*.supabase.co', staging)
       .replaceAll('wss://*.supabase.co', staging.replace('https:', 'wss:'));
     fs.writeFileSync(path, html);

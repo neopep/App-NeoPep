@@ -8,7 +8,7 @@ function writeConfig(dist, key = '') {
     supabaseUrl: key ? staging : '', supabasePublishableKey: key, authRedirectPath: '/neo/',
     providers: { google: false, apple: false, email: true },
     pushVapidPublicKey: '', captchaSiteKey: '', captchaRequired: false,
-    privacyContact: '', controllerName: 'NeoPeptídeos — homologação',
+    privacyContact: '', controllerName: 'NeoPep — homologação',
     cloudValidated: false, publicRegistration: false, previewRegistration: false, legalVersion: '2026-11-v1'
   };
   fs.writeFileSync(path.join(dist, 'config.js'), `window.NEO_CONFIG = Object.freeze(${JSON.stringify(config, null, 2)});\n`);

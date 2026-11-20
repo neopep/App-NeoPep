@@ -11,7 +11,7 @@ window.NEO_CONFIG = Object.freeze({
   "captchaSiteKey": "",
   "captchaRequired": false,
   "privacyContact": "",
-  "controllerName": "NeoPeptídeos — homologação",
+  "controllerName": "NeoPep — homologação",
   "cloudValidated": false,
   "publicRegistration": false,
   "previewRegistration": false,
