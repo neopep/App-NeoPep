@@ -61,3 +61,19 @@ A ordem entre fatos de fontes diferentes só foi estabelecida quando os registro
 | Limitações e pendências | Associação da conta e resultado do Vercel exigem evidência dos serviços. Persistência em clone novo depende do provisionamento. |
 | Reversão | Reverter o commit documental na branch de trabalho e, se autorizado e necessário, restaurar separadamente a configuração local anterior. |
 | Identificação Git | Branch docs/identidade-git. Localize o registro com git log --all --oneline --grep=MEM-20261120-003. |
+
+## MEM-20261120-004
+
+| Campo | Registro |
+| --- | --- |
+| Data | 20/11/2026, America/Sao_Paulo. |
+| Objetivo e solicitação | Registrar a conclusão da validação documental GitHub, Codex Cloud e Vercel e propor um teste funcional isolado. |
+| Contexto anterior | Os registros MEM-20261120-002 e MEM-20261120-003 aguardavam evidência do provedor. |
+| Decisão e justificativa | Encerrar a validação documental com as evidências do PR #1 e manter a publicação funcional como única pendência desta integração. A conta proprietária executará o teste em Preview após autorização, considerando a restrição de autoria relatada para o Vercel Hobby. |
+| Arquivos e impactos | Integrações, histórico, pendências, próximas tarefas, tarefas concluídas e protocolo de desenvolvimento. Impactos funcionais e de banco não aplicáveis. |
+| Dependências | GitHub, Codex Cloud e configuração existente do Ignored Build Step no Vercel. |
+| Testes e resultados | O Git confirma o merge pela conta `neopep` em `d5dfe11` e a preservação do commit `8b229f5` de `rafarwr5`. O responsável confirmou que o Vercel reconheceu o proprietário, passou pela verificação de permissões e cancelou a compilação documental com saída `0`. A entrega documental passou em `npm run check`, checagem de links e revisão do diff. [PR #1](https://github.com/neopep/App-NeoPep/pull/1) |
+| Erros e soluções | A integração validada passou pela etapa de identidade e permissões. O cancelamento foi o resultado esperado da regra documental. |
+| Limitações e pendências | Validar publicação funcional. [P-009](../conhecimento/PENDENCIAS.md) |
+| Reversão | Se necessário, reverta somente a futura alteração documental correspondente a este registro. |
+| Identificação Git | Branch local `docs/validacao-github-codex-vercel`, base `d5dfe11`. |
