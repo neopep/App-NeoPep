@@ -29,7 +29,8 @@ test('staging installs at the root and keeps the former launch and worker routes
   const manifest = JSON.parse(read('manifest.webmanifest'));
   assert.deepEqual([manifest.id, manifest.start_url, manifest.scope], ['/', '/', '/']);
   assert.equal(manifest.name, 'NeoPep Teste');
-  assert.equal(manifest.short_name, 'NeoPep');
+  assert.equal(manifest.short_name, 'NeoPep Teste');
+  assert.match(read('index.html'), /name="apple-mobile-web-app-title" content="NeoPep Teste"/);
   assert.equal(read('neo/index.html'), read('index.html'));
   const window = {};
   vm.runInNewContext(read('config.js'), { window });

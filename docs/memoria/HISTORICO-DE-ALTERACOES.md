@@ -283,3 +283,7 @@ Complemento: o ZIP com os PNGs oficiais foi recebido. O logotipo molecular foi p
 O build exclusivo de staging gera o manifesto NeoPep Teste com ID, start_url e scope na raiz. Mantém uma página estática de compatibilidade em `/neo/`, as rotas antigas de assets e do service worker na Vercel e o redirect Auth existente. Os caches da raiz e do escopo legado são separados e a limpeza de cache fica limitada ao próprio escopo. A raiz reaproveita uma inscrição push antiga acessível pelo mesmo navegador quando ainda não tem inscrição própria. A correção não desregistra workers, não recadastra VAPID e não apaga armazenamento local. A identidade visual permanece a publicada.
 
 O teste de build confirmou o manifesto, a página legada, o callback, os caches e a configuração de revalidação do worker legado. As simulações de UI e instalação passaram. As duas falhas preexistentes de privacidade em push foram preservadas. Abertura nativa em Windows, iPhone e Android fica para confirmação em dispositivos.
+
+## MEM-20261120-022
+
+Em 20/11/2026, o proprietário confirmou que o PWA já instalado voltou a abrir no Windows após o commit `52b49a9`. O build de homologação passou a gerar `name` e `short_name` como NeoPep Teste, com ID, abertura e escopo em `/`. O teste de build verificou o manifesto usado por Windows e Android e o título Apple da tela inicial do iPhone. A compatibilidade com `/neo/`, os logotipos e as notificações foram preservados.

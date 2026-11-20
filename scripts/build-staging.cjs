@@ -32,7 +32,7 @@ async function prepare() {
 
   const manifestPath = 'dist/manifest.webmanifest';
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  Object.assign(manifest, { id: '/', name: 'NeoPep Teste', short_name: 'NeoPep', start_url: '/', scope: '/' });
+  Object.assign(manifest, { id: '/', name: 'NeoPep Teste', short_name: 'NeoPep Teste', start_url: '/', scope: '/' });
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   for (const path of ['dist/index.html', 'dist/admin/index.html', 'dist/excluir-conta/index.html']) {
     const html = fs.readFileSync(path, 'utf8')
