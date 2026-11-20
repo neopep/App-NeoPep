@@ -3,12 +3,20 @@
   "buildCommand": "node scripts/build-staging.cjs && npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/neo", "destination": "/" },
+    { "source": "/neo", "destination": "/index.html" },
+    { "source": "/neo/", "destination": "/index.html" },
+    { "source": "/neo/sw.js", "destination": "/sw.js" },
     { "source": "/neo/:path*", "destination": "/:path*" }
   ],
   "headers": [
     {
       "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/neo/sw.js",
       "headers": [
         { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
       ]

@@ -20,6 +20,7 @@ async function prepare() {
   const config = {
     ...base,
     appDisplayName: 'NeoPep Teste',
+    legacyPushScope: '/neo/',
     pushVapidPublicKey: vapid,
     providers: {
       ...base.providers,
@@ -31,7 +32,7 @@ async function prepare() {
 
   const manifestPath = 'dist/manifest.webmanifest';
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  Object.assign(manifest, { id: '/neo/', name: 'NeoPep Teste', short_name: 'NeoPep', start_url: '/neo/', scope: '/neo/' });
+  Object.assign(manifest, { id: '/', name: 'NeoPep Teste', short_name: 'NeoPep', start_url: '/', scope: '/' });
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   for (const path of ['dist/index.html', 'dist/admin/index.html', 'dist/excluir-conta/index.html']) {
     const html = fs.readFileSync(path, 'utf8')
@@ -41,10 +42,15 @@ async function prepare() {
       .replaceAll('wss://*.supabase.co', staging.replace('https:', 'wss:'));
     fs.writeFileSync(path, html);
   }
+  // Keep the former launch URL and Auth callback as real pages at the same origin.
+  fs.mkdirSync('dist/neo', { recursive: true });
+  fs.copyFileSync('dist/index.html', 'dist/neo/index.html');
+
   const serviceWorker = 'dist/sw.js';
   const worker = fs.readFileSync(serviceWorker, 'utf8')
-    .replace("const CACHE='neopeptideos-shell-", "const CACHE='staging-neopeptideos-shell-")
-    .replace("key.startsWith('neopeptideos-shell-')", "key.startsWith('staging-neopeptideos-shell-')");
+    .replace(/^const CACHE=.*;$/m,
+      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v2';")
+    .replace(/key\.startsWith\((?:'[^']+'|CACHE_PREFIX)\)/, 'key.startsWith(CACHE_PREFIX)');
   fs.writeFileSync(serviceWorker, worker);
 }
 

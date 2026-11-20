@@ -21,6 +21,11 @@ window.NeoPush=(()=>{
  }
  async function registration(){
   let reg=await timeout(navigator.serviceWorker.getRegistration('./'),8000,'O aplicativo demorou para localizar o serviço de notificações.');
+  const legacyScope=window.NEO_CONFIG?.legacyPushScope;
+  if(legacyScope&&location.pathname==='/'&&(!reg||!await reg.pushManager.getSubscription())){
+   const legacy=await timeout(navigator.serviceWorker.getRegistration(legacyScope),8000,'Não foi possível consultar a inscrição anterior.');
+   if(legacy?.scope===new URL(legacyScope,location.origin).href&&await legacy.pushManager.getSubscription())reg=legacy;
+  }
   if(!reg)reg=await timeout(navigator.serviceWorker.register('./sw.js',{scope:'./'}),15000,'Não foi possível instalar o serviço de notificações.');
   reg.update().catch(()=>{});
   if(reg.active)return reg;
