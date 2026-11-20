@@ -205,3 +205,19 @@ Os mesmos 67 casos da linha de base continuam catalogados em dez classes, sem al
 | Testes | PostgreSQL 17 isolado com Auth/Storage/Vault e pg_net simulados executou a ordem completa e a auditoria. A fixture repetida manteve dois perfis, dois agentes adicionais inativos, três itens de conhecimento e nenhuma credencial de IA. O artefato web foi ensaiado com gateway e chave fictícios. |
 | Limitações e pendências | O proxy retornou 403 para o staging. Aplicação remota, credenciais próprias de homologação e testes reais de Auth, Edge e frontend aguardam a conta conectada. A recuperação do backup real exige alvo separado e autorização. |
 | Impacto e reversão | Preparação local. Nenhuma migração original, configuração operacional ou dado de produção foi alterado. Reexecução parcial em staging exige revisar o último arquivo concluído. [Manual](../processos/HOMOLOGACAO-MULTIAGENTE.md) |
+
+## MEM-20261120-013
+
+Em 20/11/2026 (America/Sao_Paulo), a configuração publicada do App-NeoPep foi verificada no ambiente Cloud. O proxy retornou `CONNECT 200` com validação TLS para `mcp.supabase.com`, `api.supabase.com` e `qnuluspqfazdppciermw.supabase.co`. As rotas testadas responderam `HTTP 401` às chamadas sem credenciais. O `403` do proxy deixou de ocorrer nos três testes.
+
+A integração oficial do Supabase via OAuth confirmou `neopep-staging` (`qnuluspqfazdppciermw`). A consulta `SELECT 1 AS ok` retornou `1`. Na retomada de `staging/multiagentes-homologacao` em `08a5a87`, a integração gravou em uma tabela temporária e executou `ROLLBACK`. O preflight versionado passou com `pg_net` 0.20.4. [Roteiro de homologação](../processos/HOMOLOGACAO-MULTIAGENTE.md)
+
+A instalação remota aplicou os seis primeiros arquivos históricos, individualmente pelo SQL da integração oficial e com as transações originais. O registro de execução fica nesta documentação. A revisão automática recusou `202611120007_community_alerts.sql` porque a migração cria a fila de push comunitário e permite ativar push antes da validação específica. A execução parou na primeira recusa. A presença de `community_snapshot(uuid,jsonb)` confirmou o sexto arquivo. A auditoria parcial e o ponto de retomada estão nas [evidências](../../release/multiagent-staging/install/EVIDENCIAS.md).
+
+## MEM-20261120-014
+
+Em 20/11/2026 (America/Sao_Paulo), a retomada de `staging/multiagentes-homologacao` em `08a5a87` verificou os objetos das seis primeiras migrações no projeto `neopep-staging` (`qnuluspqfazdppciermw`). As migrações 7 a 16 foram aplicadas em ordem. A revisão automática recusou o SQL original da 10 porque ele habilita push por padrão. A cópia de staging manteve o padrão desativado e acrescentou uma restrição para rejeitar novas preferências ativas. A cópia preparada para a migração 22 preserva esse padrão e aguarda aplicação. Os originais permanecem no pacote versionado.
+
+A revisão automática recusou a migração 17 porque ela estende os privilégios de administrador da plataforma aos moderadores da comunidade. A verificação remota confirmou que `neo_admin_access()` ainda mantém os papéis separados. Para retomar, revise e aprove o contrato de privilégios da migração 17. Antes de reaplicar arquivos, confira os objetos do staging e a ordem registrada. Em caso de reversão, revise uma migração compensatória de staging considerando os objetos já instalados e suas dependências.
+
+O conector GitHub confirmou `rafarwr5`. O repositório local foi configurado com o nome da conta e o endereço registrado no commit-base, e as identidades efetivas de autoria e committer passaram na conferência. O CLI GitHub recebeu HTTP 403 ao consultar a identidade. O registro está na branch local `docs/homologacao-app-neopep`. Consulte os [resultados de segurança e testes](../../release/multiagent-staging/install/EVIDENCIAS.md#segunda-retomada-em-20112026).

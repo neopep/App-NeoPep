@@ -4,12 +4,16 @@
 
 Os arquivos individuais ficam no [diretório de instalação](../../release/multiagent-staging/install/README.md).
 
+Em 20/11/2026 a validação da configuração publicada do App-NeoPep confirmou conectividade HTTPS aos três domínios autorizados e acesso OAuth de leitura e escrita ao staging pela integração oficial do Supabase. Consulte o [registro de rede e preflight](../memoria/HISTORICO-DE-ALTERACOES.md#mem-20261120-013) e as [evidências do ensaio](../../release/multiagent-staging/install/EVIDENCIAS.md).
+
 ## SQL e dependências
 
 1. No projeto separado, confira Auth, Storage, os papéis padrão, Supabase Vault e a assinatura de `net.http_post` do `pg_net`. Habilite extensões ausentes somente se autorizado no staging. Mantenha todos os cron jobs e segredos de push/IA por cron ausentes durante a homologação inicial. Não use instaladores históricos de `supabase/setup/` em paralelo.
 2. Rode `00-preflight.sql`. Após sucesso, siga `ORDEM.txt` com as 45 migrações históricas em ordem lexicográfica, seguidas por MA-01/02 e MA-03, e finalize com `99-postflight.sql`. Execute uma por vez no SQL Editor, interrompendo no primeiro erro. Em psql conectado comprovadamente ao staging, `aplicar-psql.sql` aplica a mesma ordem com `ON_ERROR_STOP`. Mantenha cada transação original. Se houver falha parcial, registre o último arquivo concluído, confira os objetos em leitura e revise a retomada antes de executar novos arquivos.
 3. As cópias das migrações 202611160038 e 202611160039 redirecionam os dois triggers HTTP para o projeto de homologação. As outras 45 cópias preservam o SQL da referência. A instalação verifica grants de usuário e worker, RLS e destinos dos triggers. O catálogo inicial contém somente o padrão desabilitado, pois o staging começa vazio. Não copie dados, configurações de pagamentos, credenciais, tokens nem segredos da produção.
 4. Rode `auditoria-somente-leitura.sql`. Se a instalação foi feita no SQL Editor, registre os arquivos aplicados. Essa via pode não alimentar o histórico do CLI automaticamente. Valide as duas funções de disparo, as RPCs e os grants antes de criar usuários.
+
+Na retomada de 20/11/2026, as cópias em [staging-overrides](../../release/multiagent-staging/install/staging-overrides/) mantêm push desativado nas posições 10 e 22, com uma restrição de banco instalada na posição 10. A execução remota chegou à posição 16. A posição 17 requer revisão do escopo de moderadores. [Evidências e ponto de retomada](../../release/multiagent-staging/install/EVIDENCIAS.md#segunda-retomada-em-20112026)
 
 ## Dados fictícios e Edge Functions
 
