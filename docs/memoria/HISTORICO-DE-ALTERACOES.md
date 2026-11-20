@@ -140,3 +140,19 @@ A ordem entre fatos de fontes diferentes só foi estabelecida quando os registro
 | Verificações | npm run check, build em cópia isolada da main remota e git diff --check. |
 | Limpeza e reversão | O proprietário autorizou a limpeza. A remoção de produção é um commit separado com apenas dist/diagnostico-producao.txt. As referências de arquivo usam o prefixo arquivo/testes-20261120/. Preserve os SHAs, o PR #3 e o MEM-20261120-005. A exclusão de branches não confirma retirada das URLs de Preview. |
 | Identificação Git | Base documental `3f9be64`. Localize a consolidação e a remoção separada com `git log --oneline --grep=MEM-20261120-008`. A confirmação do deployment da remoção é uma etapa posterior. |
+
+## MEM-20261120-009
+
+| Campo | Registro |
+| --- | --- |
+| Data | 20/11/2026, America/Sao_Paulo. |
+| Objetivo | Implementar MA-01 e MA-02, a fundação multiagente e a transição compatível do agente existente. |
+| Contexto anterior | A main em `d55b85c` contém a remoção do marcador de produção posterior ao registro MEM-20261120-008. No código, `agent_settings` tem uma linha singleton e `agent_knowledge`, `support_threads` e `ai_jobs` ainda não possuíam UUID de agente. O frontend administrativo consome `neo_agent` e a Edge Function usa claim e finish da fila legada. |
+| Decisão e justificativa | Identificar o padrão por UUID fixo e projetar suas configurações e conhecimento ao vivo. Adicionar catálogo, RPC administrativa e referências de execução sem copiar credenciais, alterar o worker ou ativar agentes adicionais. |
+| Arquivos e impacto | Migração `202611200001_multiagent_foundation.sql`, teste PGlite e documentação de banco, IA e memória. Painel, Edge Functions, consentimentos e layout mantêm o fluxo legado. |
+| Dependências | Workspace legado e RPCs de autorização, integrações cadastradas e PostgreSQL/Supabase. |
+| Testes | Linha de base com 229 aprovados e 67 falhas. Com a fundação, 230 aprovados e os mesmos 67 casos com falha. O teste novo verificou segurança, isolamento, reexecução, credenciais intactas, lease sem duplicação e modos manual, sugestão e automático. Check, build isolado e diff passaram. |
+| Erros e soluções | Corrigida a expressão SQL de limite no teste isolado. A consulta remota de metadados foi bloqueada pelo proxy com 403. O esquema privado remoto permanece sem verificação. |
+| Limitações e pendências | MA-03 deve integrar painel e processamento por agente em staging, com revisão de permissões e estratégia de corte. A implantação depende de auditoria de metadados, validação do tempo de bloqueio, revisão de capacidade e autorização. |
+| Reversão | Suspender o uso da RPC nova e manter o runtime legado. Preserve catálogo e histórico até eventual migração compensatória revisada. [Banco de dados](../conhecimento/BANCO-DE-DADOS.md#fundação-multiagente) |
+| Identificação Git | Branch local `feature/multiagentes-fundacao`, base `d55b85c`. |
