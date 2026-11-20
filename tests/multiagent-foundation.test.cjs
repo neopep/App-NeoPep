@@ -83,6 +83,8 @@ test('multiagent foundation preserves a pending legacy job and isolates the admi
     const first = (await call('create', { public_name: 'Biblioteca', admin_name: 'Materiais' })).agent;
     const second = (await call('create', { public_name: 'Loja', admin_name: 'Catálogo' })).agent;
     assert.notEqual(first.id, second.id);
+    assert.equal(first.status, 'inactive');
+    assert.equal(second.status, 'inactive');
     const save = (agent, settings) => call('save', {
       agent_id: agent.id, expected_revision: agent.settings.revision, settings
     });

@@ -180,3 +180,28 @@ A revisão tornou manual a conversa que volta de um agente adicional ao padrão,
 A consulta remota ao Supabase foi bloqueada por 403 no proxy. Nenhum staging Supabase foi identificado no ambiente de desenvolvimento. A compatibilidade remota depende do catálogo real e permanece pendente. [Auditoria somente leitura](../../release/auditoria-multiagentes.sql)
 
 Os mesmos 67 casos da linha de base continuam catalogados em dez classes, sem alterações fora do escopo. [Triagem](TRIAGEM-TESTES-BASE-MA03.md) · [Plano de publicação e reversão](../processos/PUBLICACAO-MULTIAGENTE.md)
+
+## MEM-20261120-011
+
+| Campo | Registro |
+| --- | --- |
+| Data | 20/11/2026, America/Sao_Paulo. |
+| Objetivo | Preparar a implantação integral de MA-01 a MA-03 e separar evidência local de requisitos remotos. |
+| Base | Branch `feature/multiagentes-fundacao` em `c770682`, confirmada no GitHub sem commits posteriores na revisão. |
+| Recuperação e preservação | O PostgreSQL 17.12 isolado restaurou um backup lógico sintético em outro banco do contêiner. O fingerprint confirmou configurações, conhecimento, integração, conversa, mensagens, consentimento e job preservados após as migrações. O padrão preexistente continuou ativo. A migração deixou o catálogo sem agentes adicionais, e o teste de cadastro confirma estado inicial inativo. |
+| Concorrência e Edge | O ensaio repetiu os testes de cotas, leases, finalização única e horários. Os bundles de ai-reply e agent-integrations passaram na checagem sintática. A execução de contratos usou SDK e provedor simulados. |
+| Pendências efetivas | O proxy retornou 403 para o Supabase e para o Preview. Backup, PITR, Storage, estrutura remota e staging Supabase separado aguardam evidência. [Verificações pela conta conectada](../processos/PUBLICACAO-MULTIAGENTE.md#evidências-a-obter-pela-conta-com-acesso) |
+| Impacto e aprovação | Trabalho local de teste e documentação. A homologação em staging e a publicação definitiva exigem autorizações separadas. O plano de ativação e reversão continua em [Publicação multiagente](../processos/PUBLICACAO-MULTIAGENTE.md). |
+
+## MEM-20261120-012
+
+| Campo | Registro |
+| --- | --- |
+| Data | 20/11/2026, America/Sao_Paulo. |
+| Objetivo | Preparar a instalação limpa de MA-01 a MA-03 no novo projeto de homologação. |
+| Infraestrutura confirmada | A conta principal informou conexão com `neopep-staging` (`qnuluspqfazdppciermw`, PostgreSQL 17.12), sem tabelas do aplicativo nem usuários. O projeto operacional `neopep` permanece em PostgreSQL 17.11. |
+| Backup informado | `pg_dump` 17.12 retornou 0 e produziu 1.067.243 bytes. O índice foi lido e a leitura integral por `pg_restore` com destino NUL passou. A restauração do backup real está pendente. Nenhum dado operacional entrou neste pacote. |
+| Decisão | Gerar cópias de 47 migrações de `c770682`. Ajustar apenas as URLs dos dois triggers de push nas cópias. A instalação usa preflight, pós-teste e sem segredos ou cron ativos. Configurar a aplicação de homologação somente com a chave publishable e o host do staging. |
+| Testes | PostgreSQL 17 isolado com Auth/Storage/Vault e pg_net simulados executou a ordem completa e a auditoria. A fixture repetida manteve dois perfis, dois agentes adicionais inativos, três itens de conhecimento e nenhuma credencial de IA. O artefato web foi ensaiado com gateway e chave fictícios. |
+| Limitações e pendências | O proxy retornou 403 para o staging. Aplicação remota, credenciais próprias de homologação e testes reais de Auth, Edge e frontend aguardam a conta conectada. A recuperação do backup real exige alvo separado e autorização. |
+| Impacto e reversão | Preparação local. Nenhuma migração original, configuração operacional ou dado de produção foi alterado. Reexecução parcial em staging exige revisar o último arquivo concluído. [Manual](../processos/HOMOLOGACAO-MULTIAGENTE.md) |

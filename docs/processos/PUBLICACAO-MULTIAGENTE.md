@@ -2,6 +2,8 @@
 
 ## Evidência e pré-requisitos
 
+O staging `neopep-staging` foi criado e confirmado pela conta principal. Use o [manual de homologação](HOMOLOGACAO-MULTIAGENTE.md) e as cópias de migração, que trocam os destinos HTTP de produção por staging. O backup operacional foi verificado quanto à leitura. A execução remota e a recuperação do backup real aguardam evidência. [MEM-20261120-012](../memoria/HISTORICO-DE-ALTERACOES.md#mem-20261120-012)
+
 A aplicação integral das migrações e a reexecução da MA-03 passaram em PostgreSQL 17 isolado, com papéis Auth/Storage/Vault simulados e dados sintéticos. Isso cobre uma instalação de referência e disputas reais entre sessões no PostgreSQL. A configuração e o volume reais do Supabase ainda precisam de validação. O Cloud não encontrou binding ou conector de staging, e a consulta de leitura ao destino Supabase recebeu 403 do proxy. Use um projeto de staging separado e autorizado. Mantenha chaves de Auth, Storage, provedor e rotinas exclusivas desse ambiente.
 
 Execute [a auditoria SQL em leitura](../../release/auditoria-multiagentes.sql) no console autorizado, primeiro no destino homologado e depois em produção somente em leitura. A consulta retorna metadados, não dados de usuários ou corpos de funções. Registre o servidor, versões das migrações, colunas e dependências. Compare o resultado com o clone isolado antes de mudar qualquer objeto.
@@ -13,6 +15,13 @@ Execute [a auditoria SQL em leitura](../../release/auditoria-multiagentes.sql) n
 | Auth e RLS | Papéis `anon`, `authenticated` e `service_role`, integração e funções privadas protegidas, RPCs de administração com teste de identidade e tabelas privadas com RLS. Confirme ausência de grants efetivos inesperados. |
 | Regras de execução | Termos, perfil de administrador, relações da fila, Vault/rotinas existentes e notificação de sugestões. Verifique que trabalhos pendentes e versões antigas continuam operando antes de ativar agentes adicionais. |
 | Objetos reexecutados | Confirme nomes, tipos e constraints mesmo quando houver `IF NOT EXISTS`. A existência de um nome não garante o contrato. Nunca reaplique só a fundação sobre a MA-03 para corrigir drift. |
+
+## Evidências a obter pela conta com acesso
+
+1. No Console do Supabase, identifique os projetos de produção e staging pela referência e confirme que são distintos. Rode a [auditoria em leitura](../../release/auditoria-multiagentes.sql) em cada projeto e, se a tabela existir, consulte `select version from supabase_migrations.schema_migrations order by version` em transação somente leitura. Retorne apenas metadados. Não envie chaves, conversas ou dados de usuários.
+2. Confirme no relatório as versões presentes, tipo das colunas preexistentes, FKs e unicidade por mensagem, extensões, trigger de fila, assinaturas e fingerprints do workspace, grants por papel e RLS. Antes de aplicar, qualquer versão já aplicada ou nome novo preexistente exige explicar o estado. Em staging, compare antes/depois. Em caso de diferença de fingerprint, revise a definição diretamente no console autorizado e descreva apenas o desvio.
+3. Confira no painel de produção o ponto de recuperação mais recente, tipo e retenção do backup, janela de PITR quando contratada, cobertura do Storage, responsável pela restauração e caminho de recuperação de segredos. Confirme um destino isolado e capacidade de ensaiar a recuperação sem credenciais de produção. Registre identificadores, datas e limites, sem exportar conteúdo para este repositório.
+4. Confirme no painel o deploy estável da Vercel e as versões em uso de `ai-reply` e `agent-integrations`. O `dist/config.js` versionado aponta para o projeto operacional. Para homologar funcionalmente, gere o artefato de staging com configuração pública do projeto isolado em cópia separada e confirme seu destino no navegador antes de autenticar ou enviar mensagens. Uma URL Preview por si só não garante isolamento.
 
 ## Backup e ensaio
 

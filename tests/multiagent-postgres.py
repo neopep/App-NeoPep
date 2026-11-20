@@ -17,9 +17,9 @@ AGENT_B = '00000000-0000-4000-8000-000000000202'
 NAME = 'neopep-ma03-' + uuid.uuid4().hex[:10]
 
 
-def sql(statement):
+def sql(statement, database="postgres"):
     result = subprocess.run(
-        ['docker', 'exec', '-i', NAME, 'psql', '-U', 'postgres', '-XqAt', '-v', 'ON_ERROR_STOP=1'],
+        ['docker', 'exec', '-i', NAME, 'psql', '-U', 'postgres', '-d', database, '-XqAt', '-v', 'ON_ERROR_STOP=1'],
         input=statement, text=True, capture_output=True, timeout=45,
     )
     if result.returncode:
@@ -71,6 +71,60 @@ def claim(pair):
 
 def finish(job):
     return f"public.neo_ai_finish('{job['id']}','{job['lease']}','Resposta sintética')"
+
+
+def seed_legacy():
+    user, thread, message = (str(uuid.uuid4()) for _ in range(3))
+    sql(f"""
+      update neo_private.ai_integrations set encrypted_key='{{"synthetic":true}}',
+        model='legacy-model', validated_at=now(), validated_revision=revision where id='{INTEGRATION}';
+      update neo_private.agent_settings set configured=true, enabled=true,
+        name='Padrão existente', instructions='Instrução pré-migração' where singleton;
+      insert into neo_private.agent_knowledge(category,title,content)
+        values('faq','Procedimento','Conhecimento pré-migração');
+      insert into auth.users(id) values('{user}');
+      insert into public.neo_consents(user_id,purpose,granted) values('{user}','terms',true);
+      insert into neo_private.support_threads(id,user_id,next_seq) values('{thread}','{user}',1);
+      insert into neo_private.support_messages(id,thread_id,sender_id,sender_alias,sender_type,seq,body)
+        values('{message}','{thread}','{user}','Participante','member',1,'Texto sintético pré-migração');
+    """)
+    assert sql(f"select count(*) from neo_private.ai_jobs where message_id='{message}';") == '1'
+
+
+def legacy_fingerprint(database="postgres", migrated=False):
+    thread = "to_jsonb(t)"
+    jobs = "to_jsonb(j)"
+    if migrated:
+        thread += " - array['agent_id','planned_agent_id','runtime_consent_provider']"
+        jobs += " - array['agent_id','knowledge_revision']"
+    return sql(f"""
+      select md5(jsonb_build_array(
+        (select to_jsonb(s) from neo_private.agent_settings s where singleton),
+        (select jsonb_agg(to_jsonb(k) order by id) from neo_private.agent_knowledge k),
+        (select jsonb_agg(to_jsonb(i) order by id) from neo_private.ai_integrations i),
+        (select jsonb_agg({thread} order by id) from neo_private.support_threads t),
+        (select jsonb_agg(to_jsonb(m) order by id) from neo_private.support_messages m),
+        (select jsonb_agg(to_jsonb(c) order by user_id,purpose,version) from public.neo_consents c),
+        (select jsonb_agg({jobs} order by id) from neo_private.ai_jobs j)
+      )::text);
+    """, database)
+
+
+def restore_legacy_snapshot(expected):
+    dump = subprocess.run(
+        ['docker', 'exec', NAME, 'pg_dump', '-U', 'postgres', '-Fc', 'postgres'],
+        capture_output=True, check=True, timeout=45,
+    )
+    subprocess.run(
+        ['docker', 'exec', NAME, 'createdb', '-U', 'postgres', 'restore_check'],
+        capture_output=True, check=True, timeout=45,
+    )
+    subprocess.run(
+        ['docker', 'exec', '-i', NAME, 'pg_restore', '-U', 'postgres', '-d', 'restore_check', '--exit-on-error'],
+        input=dump.stdout, capture_output=True, check=True, timeout=45,
+    )
+    assert legacy_fingerprint('restore_check') == expected
+    print('OK: backup lógico anterior às migrações restaurado em banco descartável e conteúdo sintético conferido.')
 
 
 def check_runtime():
@@ -133,8 +187,15 @@ def main():
         for migration in sorted(MIGRATIONS.glob('*.sql')):
             if migration.name == FOUNDATION:
                 assert 'agent_settings' in sql(audit)
+                seed_legacy()
+                before = legacy_fingerprint()
+                restore_legacy_snapshot(before)
             sql(migration.read_text())
         assert 'neo_multiagent_tested' in sql(audit)
+        assert legacy_fingerprint(migrated=True) == before
+        assert sql("select count(*) from neo_private.agents where not is_default;") == '0'
+        assert sql("select status from neo_private.agent_catalog where is_default;") == 'active'
+        print('OK: migração manteve padrão ativo, configurações, conhecimento, integração, conversa, consentimento e job; nenhum agente adicional criado.')
         sql((MIGRATIONS / RUNTIME).read_text())
         print('OK: histórico, auditoria antes/depois e reexecução da MA-03.')
         check_runtime()

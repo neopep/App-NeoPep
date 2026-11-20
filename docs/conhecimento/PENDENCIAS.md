@@ -13,6 +13,6 @@
 | P-009 | Concluído | Publicação funcional confirmada em Preview no PR #3. A limpeza das branches é uma operação separada, sujeita a autorização. A conectividade real do Supabase continua coberta por P-002. [Registro](../memoria/HISTORICO-DE-ALTERACOES.md#mem-20261120-006) |
 | P-010 | Parcialmente validado | Push direto e deployment Production Ready confirmados. A entrega do marcador pelo domínio permanece sem evidência. Limpeza autorizada em commits separados. Falta confirmar o deployment da remoção. [MEM-20261120-008](../memoria/HISTORICO-DE-ALTERACOES.md#mem-20261120-008) |
 
-| P-011 | Parcialmente validado | Executar a auditoria do catálogo remoto em leitura e homologar MA-01 a MA-03 em staging Supabase dedicado. PostgreSQL local isolado e concorrência foram validados. A ativação e a publicação dependem de autorização. [Plano de implantação](BANCO-DE-DADOS.md#runtime-multiagente-e-implantação) [Fundação multiagente](BANCO-DE-DADOS.md#fundação-multiagente) |
+| P-011 | Parcialmente validado | Staging Supabase separado criado e backup manual operacional legível, conforme confirmação do responsável. Pacote sem dados ensaiado localmente. Restam aplicar e auditar o pacote no staging, homologar Auth/Edge/frontend e testar recuperação do backup real em alvo autorizado separado. [MEM-20261120-012](../memoria/HISTORICO-DE-ALTERACOES.md#mem-20261120-012) |
 
 As evidências para lançamento continuam registradas no [checklist de release](../../release/web-readiness.json).
