@@ -7,13 +7,13 @@
   <meta name="robots" content="noindex,nofollow">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <title>Pagamento — NeoPep</title>
-  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/favicon-32.png" type="image/png">
   <link rel="stylesheet" href="style.css">
   <style>
     body.payment-return{min-height:100dvh;display:grid;place-items:center;padding:24px;background:#111210}
     .payment-return-main{width:min(100%,520px)}
     .payment-return-brand{display:flex;align-items:center;gap:12px;margin:0 0 24px;color:var(--ink);font-size:19px;font-weight:700}
-    .payment-return-brand img{width:42px;height:42px;border-radius:12px}
+    .payment-return-brand img{width:42px;height:42px;object-fit:contain}
     .payment-return-card{text-align:center;padding:34px 28px}
     .payment-return-mark{width:66px;height:66px;display:grid;place-items:center;margin:0 auto 20px;border-radius:50%;background:rgba(222,185,105,.16);border:1px solid rgba(222,185,105,.5);font-size:30px;color:#e6c77f;transition:.3s ease}
     .payment-return-mark.confirmed{background:rgba(78,180,111,.16);border-color:rgba(78,180,111,.55);color:#9ee0ad}
@@ -28,7 +28,7 @@
 </head>
 <body class="payment-return">
   <main class="payment-return-main">
-    <div class="payment-return-brand"><img src="assets/icon.svg" alt=""><span>NeoPep</span></div>
+    <div class="payment-return-brand"><img src="assets/logo-neopep.png" alt=""><span>NeoPep</span></div>
     <section class="card payment-return-card" aria-live="polite">
       <div class="payment-return-mark" data-return-mark>…</div>
       <h1 data-return-title>Confirmando pagamento</h1>
