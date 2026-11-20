@@ -241,3 +241,5 @@ A revisão do Advisor inventariou 43 avisos SECURITY DEFINER e 48 ocorrências R
 `push-dispatch` versão 1 foi implantada somente em staging com JWT obrigatório. POST sem JWT retornou 401. POST com JWT anon do staging retornou 503 de configuração pendente. A entrega inclui scripts de ativação, fallback e reversão, e regressão do payload de biblioteca e loja. Gatilhos e cron permanecem desativados. O Auth ainda aceita cadastro público no backend, e o ensaio autenticado depende de gestão administrativa do staging.
 
 A configuração manual e o inventário de funções estão no [roteiro permanente](../processos/HOMOLOGACAO-PERMANENTE.md). A [revisão de segurança](../processos/AUDITORIA-HOMOLOGACAO.md) registra os grants e a matriz de verificação. Produção ficou fora do escopo operacional.
+
+A publicação da branch `staging/permanente` foi confirmada no GitHub. A referência da `main` continuou em `d55b85c`. A checagem remota posterior encontrou três gatilhos de push desativados, zero dispositivos, fila HTTP vazia e catálogo de cron ausente. O GUC de URL usado pelos scripts de push não estava definido.
