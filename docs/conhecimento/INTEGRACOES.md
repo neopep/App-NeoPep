@@ -21,3 +21,9 @@ test -n "$VERCEL_GIT_PREVIOUS_SHA" && git diff --quiet --no-renames "$VERCEL_GIT
 ```
 
 O Vercel ignora a compilação com saída `0` e pode prosseguir com saída diferente de zero. As aspas preservam o padrão para o Git, com os asteriscos sem barras invertidas. A exclusão abrange apenas os caminhos listados. O passo pode permitir a compilação se o SHA anterior estiver vazio (`1`), se o objeto estiver ausente no checkout (`128` na simulação) ou se o diff acumulado incluir alterações fora da lista (`1`). O SHA usado pelo Vercel pode anteceder a ponta anterior da `main`. Um resultado local com a base esperada cobre somente essa comparação. [Registro da validação](../memoria/HISTORICO-DE-ALTERACOES.md#mem-20261120-002)
+
+## Identidade Git e Vercel
+
+O responsável informou que o Vercel bloqueou uma publicação porque o e-mail de autoria do commit anterior não estava verificado no GitHub. O checkout herdava a identidade global. A correção gravou nome e e-mail autorizados com `git config --local` e conferiu as identidades efetivas do autor e do committer. A verificação da conta e o reconhecimento pelo Vercel dependem dos respectivos serviços. [Registro técnico](../memoria/HISTORICO-DE-ALTERACOES.md#mem-20261120-003)
+
+A configuração local fica em `.git/config`. O checkout reaberto manteve a identidade, mas uma clonagem nova pode herdar a configuração global. Para provisionamento repetível, o Codex Cloud oferece um script de instalação salvo. Em revisão futura, esse script pode aplicar `git config --local user.name` e `git config --local user.email` com valores autorizados fornecidos nas configurações privadas do ambiente, quando disponíveis. Confira os quatro comandos do [AGENTS.md](../../AGENTS.md) também antes de cada commit, porque uma restauração pode reutilizar o snapshot sem executar o script e variáveis de ambiente podem mudar a identidade efetiva. Preserve a configuração global e mantenha endereços pessoais fora da documentação.

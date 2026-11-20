@@ -9,3 +9,4 @@
 | D-005 | Implementado | Manter sugestão privada, entrega automática governada e atendimento humano como modos da mesma operação. | [Agente](../AGENTE-DE-ATENDIMENTO.md) |
 | D-006 | Planejado | Reaproveitar web e Supabase em pacotes Capacitor com assets locais e integrações nativas de sessão, callbacks e notificações. | [Mobile](../../mobile/README.md) |
 | D-007 | Implementado | Versionar uma central única. Os arquivos de entrada dos assistentes levam ao mesmo contexto, e relatórios anteriores permanecem íntegros. | [MEM-20261120-001](HISTORICO-DE-ALTERACOES.md#mem-20261120-001) |
+| D-008 | Implementado | Conferir autoria e committer antes de cada commit e aplicar somente a identidade autorizada no checkout local. A associação remota exige verificação própria. | [MEM-20261120-003](HISTORICO-DE-ALTERACOES.md#mem-20261120-003) |

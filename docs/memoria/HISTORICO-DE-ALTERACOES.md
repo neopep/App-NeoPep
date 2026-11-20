@@ -45,3 +45,19 @@ A ordem entre fatos de fontes diferentes só foi estabelecida quando os registro
 | Limitações e pendências | A execução do Ignored Build Step no Vercel depende de evidência do provedor. [Integrações](../conhecimento/INTEGRACOES.md#ignored-build-step-do-vercel) |
 | Reversão | Reverter este commit documental em branch de trabalho se necessário. Uma eventual mudança no painel é operação separada, sujeita a autorização. |
 | Identificação Git | Base documental 2b938fb09eeb3e08111ac7c8fa1be938b8d46353. Localize o registro com git log --all --oneline --grep=MEM-20261120-002. |
+
+## MEM-20261120-003
+
+| Campo | Registro |
+| --- | --- |
+| Data | 20/11/2026, America/Sao_Paulo. |
+| Objetivo e solicitação | Consolidar a correção de identidade Git e testar a associação do commit em uma branch documental. |
+| Contexto anterior | O responsável relatou bloqueio de publicação pelo Vercel por e-mail de autoria sem verificação no GitHub. A identidade anterior vinha da configuração global. |
+| Decisão e justificativa | Usar a identidade autorizada somente no checkout e conferir autoria e committer antes de cada commit, evitando metadados incorretos em novos commits. |
+| Arquivos e impactos | AGENTS.md, integrações, pendências, decisões, histórico e próximas tarefas. Escopo restrito à documentação e à identidade local. Alteração de banco não aplicável. |
+| Dependências | Configuração local do Git, associação da conta no GitHub e critérios de publicação do Vercel. |
+| Testes e resultados | A configuração local permaneceu disponível ao reabrir o checkout. Autoria e committer foram conferidos localmente. [Pendências](../conhecimento/PENDENCIAS.md) |
+| Erros e soluções | A identidade global foi substituída neste checkout pela configuração local autorizada. |
+| Limitações e pendências | Associação da conta e resultado do Vercel exigem evidência dos serviços. Persistência em clone novo depende do provisionamento. |
+| Reversão | Reverter o commit documental na branch de trabalho e, se autorizado e necessário, restaurar separadamente a configuração local anterior. |
+| Identificação Git | Branch docs/identidade-git. Localize o registro com git log --all --oneline --grep=MEM-20261120-003. |
