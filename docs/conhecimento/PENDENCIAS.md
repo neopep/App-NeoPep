@@ -10,6 +10,6 @@
 | P-006 | Planejado | Receber a fonte integral das 140 etapas e verificar o acervo autorizado. [Estudo original](../estudo-original/README.md) |
 | P-007 | Planejado | Implementar verificações documentais após aprovação. [Estratégia](../processos/PROTOCOLO-DE-VALIDACAO.md) |
 | P-008 | Planejado | Revisar prontidão e privacidade, decidir lançamento e implementar a preparação nativa em entregas posteriores. [Roadmap](ROADMAP.md) |
-| P-009 | Planejado | Validar uma publicação com alteração funcional. A integração documental, a identidade do proprietário, a preservação da autoria do colaborador e o cancelamento por código 0 foram confirmados no PR #1. [Proposta de teste](../processos/PROTOCOLO-DE-DESENVOLVIMENTO.md#proposta-de-teste-controlado-de-publicação-funcional) |
+| P-009 | Planejado | Validar uma publicação com alteração funcional em Preview isolado após aprovação do proprietário. O marcador e as verificações locais estão registrados em [MEM-20261120-005](../memoria/HISTORICO-DE-ALTERACOES.md#mem-20261120-005). A integração documental, a identidade do proprietário, a preservação da autoria do colaborador e o cancelamento por código 0 foram confirmados no PR #1. [Proposta de teste](../processos/PROTOCOLO-DE-DESENVOLVIMENTO.md#proposta-de-teste-controlado-de-publicação-funcional) |
 
 As evidências para lançamento continuam registradas no [checklist de release](../../release/web-readiness.json).

@@ -77,3 +77,19 @@ A ordem entre fatos de fontes diferentes só foi estabelecida quando os registro
 | Limitações e pendências | Validar publicação funcional. [P-009](../conhecimento/PENDENCIAS.md) |
 | Reversão | Se necessário, reverta somente a futura alteração documental correspondente a este registro. |
 | Identificação Git | Branch local `docs/validacao-github-codex-vercel`, base `d5dfe11`. |
+
+## MEM-20261120-005
+
+| Campo | Registro |
+| --- | --- |
+| Data | 20/11/2026, America/Sao_Paulo. |
+| Objetivo e solicitação | Preparar e validar localmente um marcador estático para testar a publicação funcional. |
+| Contexto anterior | A compilação documental do PR #1 foi ignorada conforme esperado. A publicação funcional segue pendente. |
+| Decisão e justificativa | Adicionar um recurso de texto sintético fora da navegação e preservar a autoria real do colaborador. A publicação isolada depende de aprovação do proprietário. |
+| Arquivos e impactos | `dist/diagnostico-preview.txt`, integrações, pendências, histórico e próximas tarefas. Nenhum fluxo existente, configuração ou banco alterado. |
+| Dependências | Build estático, empacotador de prévia e regra de comparação Git do Vercel. |
+| Testes e resultados | `npm run check`, build, geração da prévia e `git diff --check` passaram. O marcador foi conferido no pacote da raiz e de `/neo/`. A simulação com a base da main retornou 1 para o diff do marcador. |
+| Erros e soluções | O build rodou em cópia de trabalho para isolar a regeneração de arquivos rastreados. |
+| Limitações e pendências | O Vercel Hobby pode bloquear Preview do colaborador. O ensaio local cobre a regra de diff com o SHA conhecido. [P-009](../conhecimento/PENDENCIAS.md) |
+| Reversão | Descartar a branch após autorização ou reverter o commit de teste caso esteja numa branch que precise ser preservada. |
+| Identificação Git | Branch `teste/validacao-deploy-funcional`, base `c1afad6`. Localize o commit com `git log --all --oneline --grep=MEM-20261120-005`. |
