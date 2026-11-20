@@ -261,3 +261,11 @@ Em 20/11/2026 (America/Sao_Paulo), a origem fixa de homologação foi vinculada 
 O ensaio verificou zero dispositivos, zero jobs das quatro filas de push, fila HTTP vazia, três gatilhos desativados e catálogo cron ausente. O worker respondeu 503 usando JWT anon do staging. Foi gerado um par VAPID exclusivo e um segredo em arquivos privados do ambiente Cloud, sem transferência para serviços nesta sessão. O gerador reproduz a preparação local, com a variável pública separada. O escopo manual e os cinco casos de teste estão no [roteiro permanente](../processos/HOMOLOGACAO-PERMANENTE.md).
 
 Os 19 testes focados de Edge passaram. O ensaio SQL emulado `platform-ai` apresentou a dependência ausente `vault.decrypted_secrets`. O GitHub registrou sucesso do projeto Vercel de staging no commit `f498f89`. O proxy Cloud negou o acesso direto ao domínio do frontend.
+
+## MEM-20261120-019
+
+Em 20/11/2026 (America/Sao_Paulo), o responsável confirmou a instalação das quatro variáveis de push nas Edge Functions de `qnuluspqfazdppciermw`, o redeploy Ready na Vercel de staging e `pushVapidPublicKey` preenchida no frontend publicado.
+
+O preflight no staging confirmou zero dispositivos, zero jobs nas quatro filas de push, fila HTTP vazia, três gatilhos desativados e catálogo de cron ausente. O POST a `push-dispatch` com JWT anon do staging e a cópia Cloud anterior do segredo retornou HTTP 401 com `{"error":"unauthorized"}`. Pelo código do worker, o segredo em execução passou pela verificação inicial de comprimento, mas a autenticação do segredo apresentado falhou antes da leitura das variáveis VAPID e das filas. O aceite HTTP 200 com contadores zerados depende de um teste com o segredo efetivamente instalado, fornecido por canal autenticado sem exposição. Nenhum dispositivo, registro de teste ou disparo foi criado.
+
+A requisição a `https://teste.app.neopep.com.br/neo/` recebeu 403 no CONNECT do proxy Cloud, antes de obter resposta da Vercel. A resolução do 404 permanece sem confirmação independente.
