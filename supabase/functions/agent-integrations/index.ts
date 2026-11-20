@@ -46,6 +46,23 @@ Deno.serve(async req=>{
    await rpc('save',{id,name:payload.name.trim(),provider:payload.provider,model:payload.model,workspace:payload.workspace||'',expected_revision:payload.expected_revision,...(encrypted?{encrypted_key:encrypted}:{})});
    return out(200,{saved:true,id});
   }
+  if(action==='preview_agent'){
+   if(!uuid(payload.agent_id)||typeof payload.message!=='string'||!payload.message.trim()||payload.message.length>2000)
+    return out(400,{error:'invalid_message'});
+   const config=await db.rpc('neo_multiagent_test',{p_actor:actor,p_agent:payload.agent_id});
+   if(config.error||!config.data)return out(409,{error:'configuration_changed'});
+   if(clinical(payload.message))return out(200,{reply:handoffText});
+   const job=config.data,saved=await db.rpc('neo_agent_credentials',{p_id:job.integration_id});
+   if(saved.error||!saved.data||saved.data.revision!==job.integration_revision)
+    return out(409,{error:'configuration_changed'});
+   const reply=await generate({...saved.data,model:job.model},await integrationKey(saved.data),
+    job.instructions,[{role:'user',content:payload.message}]);
+   const confirmed=await db.rpc('neo_multiagent_tested',{p_actor:actor,p_agent:payload.agent_id,
+    p_agent_revision:job.agent_revision,p_integration:job.integration_id,
+    p_integration_revision:job.integration_revision,p_model:job.model});
+   if(confirmed.error)return out(409,{error:'configuration_changed'});
+   return out(200,{reply:clinical(reply)?handoffText:reply});
+  }
   if(!uuid(payload.id))return out(400,{error:'invalid_id'});
   if(action==='delete'){await rpc('delete',{id:payload.id});return out(200,{deleted:true});}
   if(!['test','preview'].includes(action))return out(400,{error:'invalid_action'});

@@ -48,3 +48,14 @@ rollback;
 ```
 
 Confira também as restrições e assinaturas das RPCs com [a auditoria existente](../../release/auditoria-supabase.sql).
+
+## Runtime multiagente e implantação
+
+A [MA-03](../../supabase/migrations/202611200002_multiagent_runtime.sql) acrescenta validação de modelo por agente, tentativas operacionais privadas, provedor do consentimento vigente e revisão de conhecimento no job. `neo_support` trata a seleção e autorização da conversa. `neo_ai_claim` e `neo_ai_finish` conservam as assinaturas e encaminham o padrão para suas funções anteriores. Novos fluxos verificam lease, perfil, integração, revisão da conversa e conhecimento. `neo_multiagent_test` e `neo_multiagent_tested` são RPCs exclusivas do servidor. As cotas dos agentes adicionais contam testes e retentativas por dia UTC, separadas do contador legado.
+
+1. Com autorização, audite os metadados remotos e ensaie as duas migrações em staging com backup representativo, cuidando para que a cópia use dados sintéticos ou anonimizados. Compare objetos de suporte, grants e fila antes e depois. Meça o tempo de bloqueio e repita a migração para verificar idempotência.
+2. Publique as versões coordenadas de `ai-reply`, `agent-integrations` e frontend no ambiente autorizado antes de ativar agentes adicionais. O worker atualizado é necessário para respeitar um modelo alternativo. Preserve segredos e conexões existentes.
+3. Teste primeiro com agente inativo e mensagem sintética. Em conversa descartável, confira consentimento ligado ao provedor, alteração de agente, sugestão revisável, encaminhamento humano, cotas e recusa de lease antigo. Só depois solicite aprovação para ativação real.
+4. Para reverter, desative os agentes adicionais e interrompa novas atribuições. Mantenha as conversas afetadas em manual, cancele jobs e descarte sugestões pendentes sem apagar dados. Verifique leases já emitidos antes de voltar às funções e ao frontend legados. Ao retornar conversas ao padrão em um rollback, mantenha essas conversas em manual até revisão do consentimento. Para retirar objetos, use uma migração compensatória revisada com backup e validação das dependências. [Fundação e auditoria](#fundação-multiagente)
+
+Para comparação autorizada em outra conta, execute a [auditoria do catálogo em modo somente leitura](../../release/auditoria-multiagentes.sql). O [plano de publicação](../processos/PUBLICACAO-MULTIAGENTE.md) detalha compatibilidade, dependências, backup e ordem de ativação. O roteiro de concorrência com PostgreSQL 17 está em [testes](../../tests/multiagent-postgres.py).

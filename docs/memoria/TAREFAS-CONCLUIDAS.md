@@ -7,3 +7,5 @@
 - **Confirmado na infraestrutura.** Publicação funcional em Preview no PR #3, com merge do proprietário, autoria do colaborador preservada e marcador verificado no navegador. [MEM-20261120-006](HISTORICO-DE-ALTERACOES.md#mem-20261120-006)
 - **Confirmado na infraestrutura pelo proprietário.** Preview direto por `rafarwr5` Ready em 6 segundos, com marcador visualizado. [MEM-20261120-007](HISTORICO-DE-ALTERACOES.md#mem-20261120-007)
 - **Confirmado na infraestrutura pelo proprietário.** Push direto por `rafarwr5` e deployment Production Ready em 7 segundos. A entrega do marcador no domínio segue sem evidência. [MEM-20261120-008](HISTORICO-DE-ALTERACOES.md#mem-20261120-008)
+- **Validado por testes locais.** Fundação multiagente MA-01/02 revisada e enviada à branch de trabalho no commit `0285b37`. [MEM-20261120-009](HISTORICO-DE-ALTERACOES.md#mem-20261120-009)
+- **Validado por testes locais.** Catálogo e processamento MA-03, com consentimento ligado ao provedor, cotas independentes e manutenção do agente padrão. [MEM-20261120-010](HISTORICO-DE-ALTERACOES.md#mem-20261120-010)

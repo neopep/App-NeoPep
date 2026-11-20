@@ -28,30 +28,7 @@ async function as(db, role, user = '') {
 test('multiagent foundation preserves a pending legacy job and isolates the administrative catalog', async () => {
   const db = new PGlite();
   try {
-    await db.exec(`
-      create role service_role;
-      create role anon;
-      create role authenticated;
-      create schema auth;
-      create table auth.users(id uuid primary key, created_at timestamptz default now(),
-        raw_user_meta_data jsonb default '{}');
-      create function auth.uid() returns uuid language sql stable as $$
-        select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
-      $$;
-      grant usage on schema auth to authenticated;
-      create schema storage;
-      create table storage.buckets(id text primary key, name text, public boolean,
-        file_size_limit bigint, allowed_mime_types text[]);
-      create table storage.objects(id uuid, name text, bucket_id text);
-      alter table storage.objects enable row level security;
-      grant usage on schema storage to authenticated;
-      grant select,insert,delete on storage.objects to authenticated;
-      create function storage.foldername(text) returns text[] language sql immutable as $$
-        select string_to_array($1, '/')
-      $$;
-      create schema vault;
-      create table vault.decrypted_secrets(name text, decrypted_secret text);
-    `);
+    await db.exec(fs.readFileSync(path.join(__dirname, 'fixtures', 'multiagent-postgres.sql'), 'utf8'));
     for (const file of fs.readdirSync(migrations).sort()) {
       if (file === foundation) break;
       await db.exec(fs.readFileSync(path.join(migrations, file), 'utf8'));
@@ -179,6 +156,107 @@ test('multiagent foundation preserves a pending legacy job and isolates the admi
     await rpc(db, 'neo_support', 'send', { thread_id: thread, id: manualMessage, body: 'Preciso da equipe.' });
     await as(db, 'service_role');
     assert.equal(await rpc(db, 'neo_ai_claim', member, manualMessage), null);
+
+    await db.exec('reset role');
+    const runtime = fs.readFileSync(path.join(migrations, '202611200002_multiagent_runtime.sql'), 'utf8');
+    await db.exec(runtime);
+    await db.exec(runtime);
+    await as(db, 'authenticated', member);
+    await assert.rejects(rpc(db, 'neo_support', 'agent_select', { thread_id: thread, agent_id: first.id }), { code: '42501' });
+    await assert.rejects(rpc(db, 'neo_multiagent_test', admin, first.id), { code: '42501' });
+
+    await as(db, 'authenticated', admin);
+    await rpc(db, 'neo_complete_onboarding',
+      { ...core.defaultProfile(), name: 'Equipe', height: 174, initialWeight: 80, goal: 75, consent: true },
+      core.blank().settings, true, true);
+    const firstBefore = (await call('read', { agent_id: first.id })).agent;
+    const secondBefore = (await call('read', { agent_id: second.id })).agent;
+    await assert.rejects(save(secondBefore, { status: 'active' }), /modelo validado/);
+    const active = (await save(firstBefore, { status: 'active', mode: 'suggest', daily_limit: 2 })).agent;
+    assert.equal(active.status, 'active');
+    await call('knowledge_save', { ...knowledge, agent_id: second.id, title: 'Exclusivo da loja' });
+    const options = await rpc(db, 'neo_support', 'open', { thread_id: thread });
+    assert.ok(options.agent_choices.some(row => row.id===first.id));
+    assert.ok(!options.agent_choices.some(row => row.id===second.id));
+    await rpc(db, 'neo_support', 'agent_select', { thread_id: thread, agent_id: first.id });
+
+    await as(db, 'authenticated', member);
+    const withoutConsent = await rpc(db, 'neo_support', 'open', {});
+    assert.equal(withoutConsent.ai_opt_in, false);
+    assert.equal(withoutConsent.ai_provider, 'openai');
+    assert.equal(withoutConsent.agent_choices, undefined);
+    await assert.rejects(rpc(db, 'neo_support', 'ai_consent', { thread_id: thread, granted: true, provider: 'gemini' }), /provedor alterado/);
+    await rpc(db, 'neo_support', 'ai_consent', { thread_id: thread, granted: true, provider: 'openai' });
+    const selectedMessage = '00000000-0000-4000-8000-000000000106';
+    const selectedSend = await rpc(db, 'neo_support', 'send', { thread_id: thread, id: selectedMessage, body: 'Mensagem autorizada' });
+    assert.equal(selectedSend.agent_dispatch, true);
+
+    await as(db, 'service_role');
+    await assert.rejects(rpc(db, 'neo_multiagent_test', member, first.id), { code: '42501' });
+    const isolated = await rpc(db, 'neo_multiagent_test', admin, first.id);
+    assert.match(isolated.instructions, /Compartilhado/);
+    assert.doesNotMatch(isolated.instructions, /Exclusivo da loja|Conteúdo original/);
+    const selectedJob = await rpc(db, 'neo_ai_claim', member, selectedMessage);
+    assert.equal(selectedJob.integration_id, integration);
+    assert.equal(selectedJob.model, 'test-model');
+    assert.match(selectedJob.instructions, /Ajude com materiais/);
+    assert.doesNotMatch(selectedJob.instructions, /Exclusivo da loja/);
+    assert.deepEqual(selectedJob.messages.map(x=>x.content), ['Mensagem autorizada']);
+    assert.equal(await rpc(db, 'neo_ai_claim', member, selectedMessage), null);
+    await assert.rejects(rpc(db, 'neo_multiagent_test', admin, first.id), /daily limit/);
+    const otherTest = await rpc(db, 'neo_multiagent_test', admin, second.id);
+    assert.match(otherTest.instructions, /Exclusivo da loja/);
+    assert.equal((await rpc(db, 'neo_ai_finish', selectedJob.id, selectedJob.lease, 'Resposta revisável', false, false)).drafted, true);
+    assert.equal((await rpc(db, 'neo_ai_finish', selectedJob.id, selectedJob.lease, 'Resposta duplicada', false, false)).published, false);
+
+    await as(db, 'authenticated', admin);
+    const withDraft = await rpc(db, 'neo_support', 'open', { thread_id: thread });
+    assert.equal(withDraft.agent_id, first.id);
+    assert.equal(withDraft.agent_draft.body, 'Resposta revisável');
+    const approved = await rpc(db, 'neo_support', 'agent_approve', { thread_id: thread, draft_id: withDraft.agent_draft.id });
+    assert.ok(approved);
+    await rpc(db, 'neo_support', 'agent_approve', { thread_id: thread, draft_id: withDraft.agent_draft.id });
+    await as(db, 'authenticated', member);
+    assert.equal((await rpc(db, 'neo_support', 'open', {})).messages.filter(row=>row.body==='Resposta revisável').length, 1);
+
+    await as(db, 'service_role');
+    await rpc(db, 'neo_multiagent_tested', admin, second.id, otherTest.agent_revision,
+      otherTest.integration_id, otherTest.integration_revision, otherTest.model);
+    await as(db, 'authenticated', admin);
+    const readySecond = (await call('read', { agent_id: second.id })).agent;
+    assert.equal(readySecond.integration_validated, true);
+    await save(readySecond, { status: 'active', mode: 'auto' });
+    await rpc(db, 'neo_support', 'agent_select', { thread_id: thread, agent_id: second.id });
+    await rpc(db, 'neo_support', 'agent_mode', { thread_id: thread, mode: 'auto' });
+
+    await as(db, 'authenticated', member);
+    const revokedMessage = '00000000-0000-4000-8000-000000000107';
+    assert.equal((await rpc(db, 'neo_support', 'open', {})).ai_opt_in, false);
+    await rpc(db, 'neo_support', 'send', { thread_id: thread, id: revokedMessage, body: 'Antes do novo consentimento' });
+    await as(db, 'service_role');
+    assert.equal(await rpc(db, 'neo_ai_claim', member, revokedMessage), null);
+    await as(db, 'authenticated', member);
+    await rpc(db, 'neo_support', 'ai_consent', { thread_id: thread, granted: true, provider: 'openai' });
+    const automaticMessage = '00000000-0000-4000-8000-000000000108';
+    await rpc(db, 'neo_support', 'send', { thread_id: thread, id: automaticMessage, body: 'Nova mensagem permitida' });
+    await as(db, 'service_role');
+    const automatic = await rpc(db, 'neo_ai_claim', member, automaticMessage);
+    assert.equal(automatic.model,'other-model');
+    assert.match(automatic.instructions,/Exclusivo da loja/);
+    assert.doesNotMatch(automatic.instructions,/Ajude com materiais/);
+    assert.deepEqual(automatic.messages.map(x=>x.content), ['Nova mensagem permitida']);
+    await as(db, 'authenticated', admin);
+    await rpc(db, 'neo_agent', 'save', { tone: 'Atualização do agente padrão' });
+    await as(db, 'service_role');
+    assert.equal((await rpc(db, 'neo_ai_finish', automatic.id, automatic.lease, 'Encaminhado à equipe', true, false)).published,true);
+    assert.equal((await rpc(db, 'neo_ai_finish', automatic.id, automatic.lease, 'Duplicada', false, false)).published,false);
+    await as(db, 'authenticated', member);
+    assert.equal((await rpc(db, 'neo_support', 'open', {})).ai_opt_in,false);
+    await as(db, 'authenticated', admin);
+    assert.equal((await rpc(db, 'neo_support', 'open', { thread_id: thread })).agent_mode,'manual');
+    await rpc(db, 'neo_support', 'agent_mode', { thread_id: thread, mode: 'auto' });
+    await rpc(db, 'neo_support', 'agent_select', { thread_id: thread, agent_id: defaultAgent });
+    assert.equal((await rpc(db, 'neo_support', 'open', { thread_id: thread })).agent_mode,'manual');
   } finally {
     await db.close();
   }

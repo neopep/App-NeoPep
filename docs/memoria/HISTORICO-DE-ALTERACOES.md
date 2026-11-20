@@ -155,4 +155,28 @@ A ordem entre fatos de fontes diferentes só foi estabelecida quando os registro
 | Erros e soluções | Corrigida a expressão SQL de limite no teste isolado. A consulta remota de metadados foi bloqueada pelo proxy com 403. O esquema privado remoto permanece sem verificação. |
 | Limitações e pendências | MA-03 deve integrar painel e processamento por agente em staging, com revisão de permissões e estratégia de corte. A implantação depende de auditoria de metadados, validação do tempo de bloqueio, revisão de capacidade e autorização. |
 | Reversão | Suspender o uso da RPC nova e manter o runtime legado. Preserve catálogo e histórico até eventual migração compensatória revisada. [Banco de dados](../conhecimento/BANCO-DE-DADOS.md#fundação-multiagente) |
-| Identificação Git | Branch local `feature/multiagentes-fundacao`, base `d55b85c`. |
+| Identificação Git | Branch `feature/multiagentes-fundacao`, base `d55b85c`. Revisão e teste isolado confirmados antes do envio de `0285b37` por `rafarwr5`. O pacote web e as funções Edge permaneceram intactos na fundação. |
+
+## MEM-20261120-010
+
+| Campo | Registro |
+| --- | --- |
+| Data | 20/11/2026, America/Sao_Paulo. |
+| Objetivo | Implementar MA-03, com administração do catálogo e processamento efetivo por agente. |
+| Contexto anterior | A fundação foi publicada na branch de trabalho em `0285b37`. Seus agentes adicionais podiam ser cadastrados, e seus vínculos ainda eram apenas planejados. |
+| Decisão e justificativa | Integrar o catálogo aos componentes atuais. Usar seleção explícita por conversa, consentimento ligado ao provedor, revisão e cota por agente. Validar modelo alternativo por chamada de teste da integração já cadastrada. Manter as RPCs anteriores disponíveis para a execução padrão e para reversão. |
+| Arquivos e impacto | Painel, controles do atendimento, adaptador Supabase, pacote PWA, build, migração MA-03, Edge Functions, testes e documentação. Sem credencial, cobrança, roteamento automático ou troca de configuração de produção. |
+| Dependências | Fundação MA-01/02, Supabase Auth e PostgreSQL, funções de atendimento, worker ai-reply, agent-integrations e conexões de provedor existentes. |
+| Testes e resultados | Check, build, diff, prévia HTTP nas duas rotas e testes focados passaram. Na suíte completa, 232 de 299 passaram. Os mesmos 67 casos falharam na linha de base de 296 casos. O cenário isolado verificou reexecução, isolamento, troca com nova autorização, modelo e cota por agente, sugestão privada, recusa de duplicata e encaminhamento humano. A Edge Function foi testada com provedor simulado. |
+| Erros e soluções | O build regenerado expôs espaço final em um literal do SDK no diff. A geração passa a escapar os caracteres iniciais do literal sem mudar seu valor. |
+| Limitações e pendências | Esquema remoto, timing de locks e concorrência em infraestrutura real, layout em aparelhos reais e provedores reais aguardam validação autorizada em staging. Uma resposta já solicitada ao provedor pode terminar externamente, embora o lease inválido impeça publicar no aplicativo. |
+| Reversão | Desativar agentes adicionais, manter as conversas afetadas em manual e drenar a fila antes de restaurar código anterior. Preservar históricos e manter consentimentos sob revisão. [Plano completo](../conhecimento/BANCO-DE-DADOS.md#runtime-multiagente-e-implantação) |
+| Identificação Git | Branch `feature/multiagentes-fundacao`, base `0285b37`. A consolidação pode ser encontrada com `git log --oneline --grep=MEM-20261120-010`. |
+
+### Consolidação da MA-03
+
+A revisão tornou manual a conversa que volta de um agente adicional ao padrão, evitando transição automática sem revisão da equipe. Foram aplicadas as migrações em PostgreSQL 17.12 descartável, sem rede e sem credenciais de produção. A auditoria de metadados executou antes e depois, e a MA-03 foi reaplicada. Sessões PostgreSQL independentes confirmaram cota isolada, lease único, retomada após expiração e publicação única. O teste DOM e o transporte Edge simulado permanecem complementares. [Roteiro de concorrência](../../tests/multiagent-postgres.py)
+
+A consulta remota ao Supabase foi bloqueada por 403 no proxy. Nenhum staging Supabase foi identificado no ambiente de desenvolvimento. A compatibilidade remota depende do catálogo real e permanece pendente. [Auditoria somente leitura](../../release/auditoria-multiagentes.sql)
+
+Os mesmos 67 casos da linha de base continuam catalogados em dez classes, sem alterações fora do escopo. [Triagem](TRIAGEM-TESTES-BASE-MA03.md) · [Plano de publicação e reversão](../processos/PUBLICACAO-MULTIAGENTE.md)
