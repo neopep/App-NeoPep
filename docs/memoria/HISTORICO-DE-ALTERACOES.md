@@ -253,3 +253,11 @@ O script versionado `release/staging/preparar-contas.sql` passou com todas as gu
 `ai-reply`, `agent-integrations` e `push-dispatch` estão ativas com verificação JWT. OPTIONS com a origem do staging retornou, respectivamente para as duas funções de IA, 405 e 403 sem permitir a origem. O próximo ensaio autenticado depende da configuração CORS e de sessões de teste obtidas pelo fluxo seguro da aplicação. Há zero credenciais de IA, agentes adicionais ou agentes padrão habilitados. Seis funções continuam pendentes conforme o inventário.
 
 Push permanece inativo: três gatilhos desabilitados, zero inscrições, zero entradas de push no Vault, fila HTTP vazia e catálogo cron ausente. O próximo ensaio exige VAPID e segredo independentes, chamada do worker autenticada com filas vazias e opt-in em dispositivo isolado. A ativação e o fallback seguem o [roteiro permanente](../processos/HOMOLOGACAO-PERMANENTE.md).
+
+## MEM-20261120-018
+
+Em 20/11/2026 (America/Sao_Paulo), a origem fixa de homologação foi vinculada em código à URL Supabase do projeto `qnuluspqfazdppciermw`. O conector não oferece gestão das variáveis de Edge. As funções `ai-reply` e `agent-integrations` foram reimplantadas na versão 2, e `platform-integrations` foi instalada na versão 1, com JWT obrigatório. As três retornaram 204 com CORS para a origem autorizada, 403 sem permissão de origem externa e 401 em POST sem JWT. A revisão automática bloqueou `delete-account` pela natureza irreversível do endpoint. As dependências das demais funções estão no roteiro.
+
+O ensaio verificou zero dispositivos, zero jobs das quatro filas de push, fila HTTP vazia, três gatilhos desativados e catálogo cron ausente. O worker respondeu 503 usando JWT anon do staging. Foi gerado um par VAPID exclusivo e um segredo em arquivos privados do ambiente Cloud, sem transferência para serviços nesta sessão. O gerador reproduz a preparação local, com a variável pública separada. O escopo manual e os cinco casos de teste estão no [roteiro permanente](../processos/HOMOLOGACAO-PERMANENTE.md).
+
+Os 19 testes focados de Edge passaram. O ensaio SQL emulado `platform-ai` apresentou a dependência ausente `vault.decrypted_secrets`. O GitHub registrou sucesso do projeto Vercel de staging no commit `f498f89`. O proxy Cloud negou o acesso direto ao domínio do frontend.

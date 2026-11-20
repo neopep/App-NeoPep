@@ -40,3 +40,26 @@ O Supabase de homologação é `qnuluspqfazdppciermw`. Contas, sessões, arquivo
 ## Revisão de segurança
 
 [Inventário dos 43 avisos e 48 ocorrências](AUDITORIA-HOMOLOGACAO.md). Execute a matriz de autorizações com contas fictícias antes de liberar acesso. Registre aceite dos grants usados pelo cliente e a decisão sobre o gatilho `rls_auto_enable()`. Mantenha a granularidade de papéis como trabalho separado.
+
+## Ensaio de notificações com dispositivo descartável
+
+Gere o par e o segredo em uma estação confiável com `node scripts/generate-staging-push.cjs /caminho/privado/novo https://teste.app.neopep.com.br`. O utilitário grava `edge.env` e `vercel-public.env` com permissões restritas. Importe o primeiro somente no Supabase de staging pelo painel ou CLI autenticada. Importe do segundo apenas `NEO_STAGING_VAPID_PUBLIC_KEY` na Vercel de staging. Replique o segredo no Vault pelo canal administrativo e use o JWT anon do mesmo projeto para o gateway. Use o mesmo par nos dois serviços.
+
+Com gatilhos e cron desativados, chame o worker manualmente com JWT de staging e `x-neo-cron-secret` pelo canal seguro. Exija HTTP 200 com `sent=0`, `failed=0` e disponibilidade das filas. Antes de continuar, confira a proteção do domínio e a ausência de inscrições reais. Depois habilite o opt-in apenas no perfil descartável. Acione o worker manualmente para cada teste, confira o contador e registre apenas identificadores sintéticos.
+
+| Caso sintético | Resultado esperado |
+| --- | --- |
+| Lembrete pessoal em janela vencida | Uma notificação pessoal e clique na seção de lembretes. |
+| Post publicado por outra conta fictícia | Aviso de comunidade e clique na comunidade. |
+| Mensagem entre admin e participante | Aviso discreto sem conteúdo da conversa e clique no atendimento. |
+| Publicação de material fictício | Categoria biblioteca e clique na biblioteca. |
+| Mudança de pedido Sandbox | Categoria loja e clique nos pedidos, sem cobrança real. |
+
+Repita o disparo para checar deduplicação, teste opt-out e confira o tratamento de inscrição expirada. Habilite cron somente após sucesso no envio manual. Para eventos imediatos, aplique o roteiro de restauração de gatilhos e repita os cenários de atendimento, biblioteca e pedido.
+
+## Edge e dependências verificadas
+
+- `platform-integrations` instalada com JWT e guarda administrativa. Teste externo exige modelo e credencial de IA de staging, com custo autorizado.
+- `delete-account` aguarda autorização específica de implantação. A revisão automática bloqueou a exposição do endpoint de exclusão irreversível. Teste com conta descartável exclusiva e autorização própria.
+- `auth-settings` aguarda credencial de gestão com escopo de staging, referência explícita e IDs administrativos. O painel já permite o fluxo de configuração atual.
+- `shop-integrations`, `mercadopago-create` e `mercadopago-webhook` aguardam validação de isolamento Sandbox. Use credenciais Sandbox, collector de teste, segredo de assinatura, origem e retorno do staging. Restrinja qualquer seleção de configuração à modalidade de teste antes de implantar. Valide assinatura e idempotência com pedido fictício.
