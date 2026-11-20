@@ -7,4 +7,5 @@
 5. Seguir o plano de lançamento com evidências de web e infraestrutura autorizada antes das etapas nativas. [Roadmap](../conhecimento/ROADMAP.md)
 6. Decidir quando encerrar os Previews e se a visibilidade temporariamente pública pode ser revertida. Antes de voltar ao modo privado, revisar a elegibilidade de publicação direta no Vercel Hobby. [Integrações](../conhecimento/INTEGRACOES.md)
 7. Auditar o Supabase em leitura e preparar staging autorizado para MA-03, incluindo ensaio de ativação e reversão. [P-011](../conhecimento/PENDENCIAS.md)
-8. Retomar em `202611120017_unified_administrators.sql` após definir o contrato de autorização de moderadores e administradores. Conferir as 16 migrações aplicadas e seguir com os 31 arquivos restantes, pós-teste, auditoria completa, fixture e ensaio Auth, Edge e frontend. [MEM-20261120-014](HISTORICO-DE-ALTERACOES.md#mem-20261120-014)
+8. Fechar cadastro público no Auth do staging, provisionar as contas fictícias pelo canal administrativo e concluir login, frontend e Edge autenticados. Revisar os achados do Advisor antes da publicação. [MEM-20261120-015](HISTORICO-DE-ALTERACOES.md#mem-20261120-015)
+9. Projetar a separação de permissões entre administração de plataforma, moderação de comunidade, atendimento e gestão de agentes. [D-010](DECISOES.md)

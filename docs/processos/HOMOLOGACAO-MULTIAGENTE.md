@@ -13,7 +13,7 @@ Em 20/11/2026 a validação da configuração publicada do App-NeoPep confirmou 
 3. As cópias das migrações 202611160038 e 202611160039 redirecionam os dois triggers HTTP para o projeto de homologação. As outras 45 cópias preservam o SQL da referência. A instalação verifica grants de usuário e worker, RLS e destinos dos triggers. O catálogo inicial contém somente o padrão desabilitado, pois o staging começa vazio. Não copie dados, configurações de pagamentos, credenciais, tokens nem segredos da produção.
 4. Rode `auditoria-somente-leitura.sql`. Se a instalação foi feita no SQL Editor, registre os arquivos aplicados. Essa via pode não alimentar o histórico do CLI automaticamente. Valide as duas funções de disparo, as RPCs e os grants antes de criar usuários.
 
-Na retomada de 20/11/2026, as cópias em [staging-overrides](../../release/multiagent-staging/install/staging-overrides/) mantêm push desativado nas posições 10 e 22, com uma restrição de banco instalada na posição 10. A execução remota chegou à posição 16. A posição 17 requer revisão do escopo de moderadores. [Evidências e ponto de retomada](../../release/multiagent-staging/install/EVIDENCIAS.md#segunda-retomada-em-20112026)
+Em 20/11/2026, as 47 migrações foram aplicadas usando o [perfil exclusivo de staging](../../release/multiagent-staging/install/staging-overrides/README.md), que mantém push desativado. A compatibilidade do contrato de autorização da migração 17 foi verificada com papéis fictícios e rollback. [Evidências](../../release/multiagent-staging/install/EVIDENCIAS.md#instalação-concluída-em-20112026)
 
 ## Dados fictícios e Edge Functions
 

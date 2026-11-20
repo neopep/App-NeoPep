@@ -35,3 +35,16 @@ Os bundles Edge correspondem ao código em `c770682`. Esta pasta contém apenas 
 | Testes locais | `npm run check` e 14/14 testes focados passaram. O ensaio Docker com PostgreSQL 17.12 e rede desativada confirmou restauração de backup sintético, preservação de conhecimento e consentimento legados, cotas por agente, concorrência de leases e publicação única de resposta. |
 | Frontend | O gerador validou a chave pública no Auth do staging e gerou o pacote sem instalação remota. A configuração e a CSP em `/` e `/neo/` apontam exclusivamente ao projeto de staging. Cadastro público, push e provedores Google/Apple estão desativados na configuração. |
 | Pendências | Revisar a separação dos papéis na migração 17, aplicar 31 migrações restantes, executar pós-teste e auditoria completos e validar cenário real de Auth, Edge e frontend. O conector não tem criação de usuários Auth e o painel de usuários não carregou no navegador Cloud. |
+
+## Instalação concluída em 20/11/2026
+
+| Etapa | Evidência |
+| --- | --- |
+| Migrações | 47/47 aplicadas em ordem, incluindo MA-01, MA-02 e MA-03. Último arquivo `202611200002_multiagent_runtime.sql`. O SQL da integração não criou o histórico de migrações do CLI. |
+| Segurança e pós-teste | Pós-teste de staging e auditoria somente leitura concluídos. Catálogo anônimo e claim do worker pelo papel authenticated negados. Claim pelo service_role permitido. |
+| Advisor | 48 ocorrências informativas de RLS sem políticas. 43 avisos sobre execução de funções SECURITY DEFINER, sendo 1 para anon e 42 para authenticated. As ocorrências exigem revisão antes da publicação. |
+| Fixture | Transação com administrador, moderador e participante fictícios em Auth. Confirmou negação ao participante, compatibilidade do moderador, consentimento e isolamento de conhecimento. Rollback verificado por contagens zeradas de contas, papéis, agentes adicionais e conhecimento da fixture. |
+| Isolamento | Três gatilhos de push desabilitados e funções de despertar sem leitura de Vault ou HTTP. Zero pedidos na fila HTTP, dispositivos, preferências push ativas, segredos do Vault, chaves de IA e configurações de pagamento. Agente padrão desativado e catálogo cron ausente. |
+| Edge | `ai-reply` e `agent-integrations` ativas no staging, versão 1, com JWT verificado. POST anônimo retornou 401 para ambas. Preflight de origem não autorizada retornou 405 e 403, respectivamente, sem cabeçalho de permissão de origem. |
+| Frontend e Auth | Pacote isolado com chave pública verificada e HTTP 200 em `/`, `/neo/`, `/neo/admin/` e nas duas rotas de configuração. O endpoint Auth confirmou e-mail disponível e cadastro público habilitado. O proxy negou CONNECT com 403 para o painel `supabase.com`. O conector não expõe administração de usuários nem configuração de cadastro. Login e chamadas Edge autenticadas seguem pendentes. |
+| Concorrência local | PostgreSQL 17.12 sem rede confirmou cotas por agente, exclusividade e retomada de leases, recusa de lease antigo e uma única publicação sob finalizações concorrentes. |
