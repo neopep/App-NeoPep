@@ -78,6 +78,22 @@ A ordem entre fatos de fontes diferentes só foi estabelecida quando os registro
 | Reversão | Se necessário, reverta somente a futura alteração documental correspondente a este registro. |
 | Identificação Git | Branch local `docs/validacao-github-codex-vercel`, base `d5dfe11`. |
 
+## MEM-20261120-005
+
+| Campo | Registro |
+| --- | --- |
+| Data | 20/11/2026, America/Sao_Paulo. |
+| Objetivo e solicitação | Preparar e validar localmente um marcador estático para testar a publicação funcional. |
+| Contexto anterior | A compilação documental do PR #1 foi ignorada conforme esperado. A publicação funcional segue pendente. |
+| Decisão e justificativa | Adicionar um recurso de texto sintético fora da navegação e preservar a autoria real do colaborador. A publicação isolada depende de aprovação do proprietário. |
+| Arquivos e impactos | `dist/diagnostico-preview.txt`, integrações, pendências, histórico e próximas tarefas. Nenhum fluxo existente, configuração ou banco alterado. |
+| Dependências | Build estático, empacotador de prévia e regra de comparação Git do Vercel. |
+| Testes e resultados | `npm run check`, build, geração da prévia e `git diff --check` passaram. O marcador foi conferido no pacote da raiz e de `/neo/`. A simulação com a base da main retornou 1 para o diff do marcador. |
+| Erros e soluções | O build rodou em cópia de trabalho para isolar a regeneração de arquivos rastreados. |
+| Limitações e pendências | O Vercel Hobby pode bloquear Preview do colaborador. O ensaio local cobre a regra de diff com o SHA conhecido. [P-009](../conhecimento/PENDENCIAS.md) |
+| Reversão | Descartar a branch após autorização ou reverter o commit de teste caso esteja numa branch que precise ser preservada. |
+| Identificação Git | Branch `teste/validacao-deploy-funcional`, base `c1afad6`. Localize o commit com `git log --all --oneline --grep=MEM-20261120-005`. |
+
 ## MEM-20261120-006
 
 | Campo | Registro |
@@ -93,3 +109,34 @@ A ordem entre fatos de fontes diferentes só foi estabelecida quando os registro
 | Limitações e pendências | A compilação não testou conexão real com o Supabase. Produção permaneceu no deployment `8cf6bc7`. Banco, credenciais e domínios de produção permaneceram intactos. P-009 concluída. A proposta de limpeza aguarda autorização. |
 | Reversão | Reverter somente a alteração documental se necessário. A eventual remoção das branches ou do Preview exige autorização separada. |
 | Identificação Git | Branch local `docs/conclusao-validacao-deploy`, base `c1afad6`, com evidência no [PR #3](https://github.com/neopep/App-NeoPep/pull/3). |
+
+## MEM-20261120-007
+
+| Campo | Registro |
+| --- | --- |
+| Data | 20/11/2026, America/Sao_Paulo. |
+| Objetivo | Registrar o Preview direto do colaborador e atualizar o procedimento das duas contas. |
+| Contexto | O fluxo anterior via merge do proprietário (MEM-20261120-006) foi confirmado antes do teste com o repositório temporariamente público. |
+| Decisão | Ambas as contas podem desenvolver e publicar nos limites da autorização de cada tarefa, preservando a identidade real. O Preview direto dispensa merge do proprietário nas condições verificadas. |
+| Evidências | O Git registra `b290acf` com autoria de `rafarwr5`. O proprietário confirmou Preview automático Ready em 6 segundos, abertura normal pelo botão Visit e marcador `NEOPEP-PUBLIC-PREVIEW-OK` visível, sem intervenção da conta proprietária. |
+| Arquivos e impactos | Integrações, histórico, protocolo, pendências e próximas tarefas. Escopo documental, sem mudança em dados, credenciais, domínios ou configurações. |
+| Dependências | GitHub, visibilidade do repositório, identidade autorizada e elegibilidade no Vercel Hobby. |
+| Limitações e pendências | Este registro cobre o Preview. A evidência posterior de Production Ready consta no MEM-20261120-008. [Pendências](../conhecimento/PENDENCIAS.md) |
+| Reversão | Reverter apenas o registro documental se necessário. Qualquer ensaio de produção tem preparação e reversão separadas. |
+| Identificação Git | Branch local `docs/preview-direto-validado`, base `b76844b`. [Commit do Preview](https://github.com/neopep/App-NeoPep/commit/b290acfd5c8d631d889b5e704777e1e8f9480bfd) |
+
+## MEM-20261120-008
+
+| Campo | Registro |
+| --- | --- |
+| Data | 20/11/2026, America/Sao_Paulo. |
+| Objetivo | Consolidar a validação GitHub, Codex Cloud e Vercel em produção e preparar o encerramento dos testes. |
+| Contexto | O Preview direto do colaborador foi confirmado no MEM-20261120-007 com o repositório temporariamente público. |
+| Decisão | Ambas as contas podem desenvolver, editar, criar commits, enviar alterações e publicar diretamente com identidade real, respeitando a autorização de cada tarefa. |
+| Evidência Git | A main remota contém `3f9be6465961640d7209d64a9a7b93ea69451fb6`, de autoria e committer `rafarwr5`, com somente a adição de `dist/diagnostico-producao.txt`. [Commit](https://github.com/neopep/App-NeoPep/commit/3f9be6465961640d7209d64a9a7b93ea69451fb6) |
+| Evidência Vercel | O proprietário confirmou no painel que o push direto gerou Production Ready em 7 segundos, sem intervenção de `neopep`. |
+| Limitações | O proxy bloqueou a consulta ao domínio com 403 no túnel. A entrega do marcador em produção segue sem evidência. O repositório permanece público temporariamente e voltar ao modo privado pode restabelecer a limitação do Vercel Hobby. |
+| Arquivos e impactos | AGENTS.md, integrações, procedimento, histórico e acompanhamento. Consolidação exclusivamente documental, sem alterações funcionais, de banco, credenciais, domínios ou configurações. |
+| Verificações | npm run check, build em cópia isolada da main remota e git diff --check. |
+| Limpeza e reversão | O proprietário autorizou a limpeza. A remoção de produção é um commit separado com apenas dist/diagnostico-producao.txt. As referências de arquivo usam o prefixo arquivo/testes-20261120/. Preserve os SHAs, o PR #3 e o MEM-20261120-005. A exclusão de branches não confirma retirada das URLs de Preview. |
+| Identificação Git | Base documental `3f9be64`. Localize a consolidação e a remoção separada com `git log --oneline --grep=MEM-20261120-008`. A confirmação do deployment da remoção é uma etapa posterior. |

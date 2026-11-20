@@ -11,5 +11,7 @@
 | P-007 | Planejado | Implementar verificações documentais após aprovação. [Estratégia](../processos/PROTOCOLO-DE-VALIDACAO.md) |
 | P-008 | Planejado | Revisar prontidão e privacidade, decidir lançamento e implementar a preparação nativa em entregas posteriores. [Roadmap](ROADMAP.md) |
 | P-009 | Concluído | Publicação funcional confirmada em Preview no PR #3. A limpeza das branches é uma operação separada, sujeita a autorização. A conectividade real do Supabase continua coberta por P-002. [Registro](../memoria/HISTORICO-DE-ALTERACOES.md#mem-20261120-006) |
+| P-010 | Parcialmente validado | Push direto e deployment Production Ready confirmados. A entrega do marcador pelo domínio permanece sem evidência. Limpeza autorizada em commits separados. Falta confirmar o deployment da remoção. [MEM-20261120-008](../memoria/HISTORICO-DE-ALTERACOES.md#mem-20261120-008) |
+
 
 As evidências para lançamento continuam registradas no [checklist de release](../../release/web-readiness.json).

@@ -5,3 +5,5 @@
 - **Implementado.** Entradas de agentes, central de conhecimento, cronologia, memória evolutiva e protocolos. [MEM-20261120-001](HISTORICO-DE-ALTERACOES.md#mem-20261120-001)
 - **Confirmado na infraestrutura.** Integração documental do PR #1 com autoria preservada, identidade e permissões aceitas pelo Vercel e compilação cancelada intencionalmente com saída `0`. [MEM-20261120-004](HISTORICO-DE-ALTERACOES.md#mem-20261120-004)
 - **Confirmado na infraestrutura.** Publicação funcional em Preview no PR #3, com merge do proprietário, autoria do colaborador preservada e marcador verificado no navegador. [MEM-20261120-006](HISTORICO-DE-ALTERACOES.md#mem-20261120-006)
+- **Confirmado na infraestrutura pelo proprietário.** Preview direto por `rafarwr5` Ready em 6 segundos, com marcador visualizado. [MEM-20261120-007](HISTORICO-DE-ALTERACOES.md#mem-20261120-007)
+- **Confirmado na infraestrutura pelo proprietário.** Push direto por `rafarwr5` e deployment Production Ready em 7 segundos. A entrega do marcador no domínio segue sem evidência. [MEM-20261120-008](HISTORICO-DE-ALTERACOES.md#mem-20261120-008)

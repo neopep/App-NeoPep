@@ -19,3 +19,5 @@ NeoPeptídeos é um aplicativo web mobile de acompanhamento pessoal, com registr
    git var GIT_AUTHOR_IDENT
    git var GIT_COMMITTER_IDENT
    ```
+
+10. As contas `neopep` e `rafarwr5` estão autorizadas pelo proprietário a desenvolver, editar, criar commits, enviar alterações e publicar diretamente, respeitando a autorização de cada tarefa e as permissões da plataforma. Use sempre a identidade real. O repositório permanece público temporariamente. Se voltar a ser privado, revalide a elegibilidade no Vercel Hobby antes de publicar. [Fluxo das duas contas](docs/processos/PROTOCOLO-DE-DESENVOLVIMENTO.md#fluxo-operacional-entre-as-duas-contas)
