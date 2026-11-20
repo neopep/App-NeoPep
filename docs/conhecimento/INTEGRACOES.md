@@ -33,3 +33,5 @@ A configuração local fica em `.git/config`. O checkout reaberto manteve a iden
 **Confirmado em 20/11/2026.** A conta proprietária `neopep` integrou o PR #1 na `main` no commit `d5dfe11`. O Git confirma o merge e a presença do commit original `8b229f5`, com autoria de `rafarwr5`. Segundo a evidência confirmada pelo responsável, o Vercel reconheceu a autoria do proprietário, passou pela verificação de identidade e permissões e executou o Ignored Build Step. O comando saiu com código `0` e cancelou intencionalmente a compilação exclusivamente documental. [PR #1](https://github.com/neopep/App-NeoPep/pull/1) · [Registro técnico](../memoria/HISTORICO-DE-ALTERACOES.md#mem-20261120-004)
 
 A validação desse fluxo tem uma única pendência, a publicação com alteração funcional. [P-009](PENDENCIAS.md)
+
+O ensaio funcional usa o marcador estático `dist/diagnostico-preview.txt`, fora da navegação, em branch descartável. A inspeção do pacote local e a simulação da regra foram registradas como evidência local. O resultado do Vercel permanece pendente. [MEM-20261120-005](../memoria/HISTORICO-DE-ALTERACOES.md#mem-20261120-005)
