@@ -243,3 +243,13 @@ A revisão do Advisor inventariou 43 avisos SECURITY DEFINER e 48 ocorrências R
 A configuração manual e o inventário de funções estão no [roteiro permanente](../processos/HOMOLOGACAO-PERMANENTE.md). A [revisão de segurança](../processos/AUDITORIA-HOMOLOGACAO.md) registra os grants e a matriz de verificação. Produção ficou fora do escopo operacional.
 
 A publicação da branch `staging/permanente` foi confirmada no GitHub. A referência da `main` continuou em `d55b85c`. A checagem remota posterior encontrou três gatilhos de push desativados, zero dispositivos, fila HTTP vazia e catálogo de cron ausente. O GUC de URL usado pelos scripts de push não estava definido.
+
+## MEM-20261120-017
+
+Em 20/11/2026 (America/Sao_Paulo), o proprietário informou a primeira publicação de `staging/permanente` no projeto Vercel `app-neopep-staging`, com HTTPS e proteção All Deployments em `https://teste.app.neopep.com.br`. O proprietário confirmou o backend de staging e as URLs de Auth. A sessão confirmou a branch remota e o Auth do projeto `qnuluspqfazdppciermw`: cadastro público e anônimo desativados, e-mail ativo e as duas contas fictícias confirmadas administrativamente. O proxy Cloud negou CONNECT ao domínio do frontend com 403, portanto HTTPS, proteção, artefato servido e redirects exatos não foram verificados independentemente nesta sessão.
+
+O script versionado `release/staging/preparar-contas.sql` passou com todas as guardas. A conta fictícia administrativa foi a única com o vínculo de administração; não havia moderadores. Em transação com rollback, o papel authenticated com as identidades fictícias confirmou acesso administrativo e ao catálogo para a conta admin e recusa para a conta comum. A primeira tentativa em transação somente leitura falhou porque a listagem mantém um contador de rate limit; a repetição com rollback passou. O ensaio SQL não utilizou login ou senha.
+
+`ai-reply`, `agent-integrations` e `push-dispatch` estão ativas com verificação JWT. OPTIONS com a origem do staging retornou, respectivamente para as duas funções de IA, 405 e 403 sem permitir a origem. O próximo ensaio autenticado depende da configuração CORS e de sessões de teste obtidas pelo fluxo seguro da aplicação. Há zero credenciais de IA, agentes adicionais ou agentes padrão habilitados. Seis funções continuam pendentes conforme o inventário.
+
+Push permanece inativo: três gatilhos desabilitados, zero inscrições, zero entradas de push no Vault, fila HTTP vazia e catálogo cron ausente. O próximo ensaio exige VAPID e segredo independentes, chamada do worker autenticada com filas vazias e opt-in em dispositivo isolado. A ativação e o fallback seguem o [roteiro permanente](../processos/HOMOLOGACAO-PERMANENTE.md).
