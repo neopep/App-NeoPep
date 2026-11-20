@@ -5,3 +5,4 @@
 3. Reproduzir e agrupar falhas da suíte com a mesma base e toolchain. Tratar correções e ambientes de teste em entregas próprias. [P-001](../conhecimento/PENDENCIAS.md)
 4. Após aprovação, preparar a validação documental em modo informativo e calibrar a associação entre módulos e guias. [P-007](../conhecimento/PENDENCIAS.md) · [Estratégia de validação](../processos/PROTOCOLO-DE-VALIDACAO.md)
 5. Seguir o plano de lançamento com evidências de web e infraestrutura autorizada antes das etapas nativas. [Roadmap](../conhecimento/ROADMAP.md)
+6. Confirmar a associação remota da autoria e verificar a identidade em um checkout novo antes do primeiro commit. [P-009](../conhecimento/PENDENCIAS.md)
