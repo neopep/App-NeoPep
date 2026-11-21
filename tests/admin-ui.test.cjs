@@ -217,7 +217,7 @@ test('painel de campanhas escapa conteúdo e confirma ações via servidor',asyn
  panel.querySelector('[data-campaign-action=activate]').click();
  await new Promise(setImmediate);
  assert.equal(calls.at(-2).action,'activate');
- assert.match(panel.textContent,/Ativa ou agendada/);
+ assert.match(panel.textContent,/✓ Ativa/);
  panel.querySelector('[data-campaign-action=pause]').click();
  await new Promise(setImmediate);
  assert.equal(calls.at(-2).id,'sample');
@@ -248,4 +248,47 @@ test('ajudas de campanha preservam campos e manual usa leitor interno',async()=>
  assert.equal(openings.length,1);
  assert.equal(openings[0].path,'assets/manual-campanhas-neopep.pdf');
  assert.equal(account.value,'Rascunho');
+});
+
+test('central separa canais e oferece balões WhatsApp sem deslocar o formulário',async()=>{
+ const screen=app({signups_daily:[],app_errors_7d:[]}),calls=[];
+ screen.cloud.campaignAdmin=async()=>[
+  {id:'app',title:'Somente App',status:'active',display_state:'scheduled',popup_enabled:true,views:0,clicks:0},
+  {id:'wa',title:'Somente WhatsApp',status:'draft',popup_enabled:false,whatsapp_enabled:true,views:0,clicks:0}
+ ];
+ screen.cloud.campaignWhatsApp=async(action,id)=>{
+  calls.push(action);
+  if(action==='prepare')return {id,title:'Fictícia',message:'Mensagem manual',link_url:'/#loja'};
+  if(action==='queue')return [{id:'job',campaign_id:'wa',title:'Fictícia',group_name:'Grupo teste',state:'pending',timezone:'America/Sao_Paulo'}];
+  return [];
+ };
+ screen.run("globalThis.setInterval=()=>1;globalThis.location={origin:'https://teste.app.neopep.com.br'};globalThis.URL=class {constructor(){this.href='https://teste.app.neopep.com.br/#loja';this.protocol='https:'}};window.innerWidth=320;window.innerHeight=600;");
+ screen.run(fs.readFileSync('dist/admin/admin-whatsapp.js','utf8'));
+ await screen.select('campaigns');await new Promise(setImmediate);
+ const list=screen.document.querySelector('[data-campaign-list]');
+ assert.match(list.textContent,/Somente App.*Agendada/s);
+ assert.doesNotMatch(list.textContent,/Somente WhatsApp/);
+ assert.equal(Boolean(screen.document.querySelector('[data-campaign-action=next]')),false);
+ screen.document.querySelector('[data-campaign-action=whatsapp]').click();await new Promise(setImmediate);
+ assert.match(list.textContent,/Somente WhatsApp/);
+ const invite=screen.document.querySelector('[name=invite]');
+ const select=screen.document.querySelector('[name=campaign_id]');Object.defineProperty(select,'value',{value:'',writable:true});
+ invite.value='https://chat.whatsapp.com/abcdefghij';
+ const help=screen.document.querySelector('[aria-controls=wa-group-invite]');
+ const tip=screen.document.getElementById('wa-group-invite'),parent=tip.parentElement;
+ help.getBoundingClientRect=()=>({width:44,top:50,bottom:94,right:318});
+ tip.getBoundingClientRect=()=>({width:280,height:75});
+ help.click();
+ assert.equal(tip.parentElement,screen.document.body);
+ assert.equal(tip.style.left,'32px');
+ assert.equal(tip.style.top,'102px');
+ assert.match(tip.textContent,/não permite publicação automática/);
+ screen.document.querySelector('[data-wa=prepare]').click();await new Promise(setImmediate);
+ assert.equal(tip.parentElement,parent);
+ for(const key of ['preview','title','message','link','share','copy_message','copy_link','confirm','cancel']){
+  assert.ok(screen.document.querySelector('[aria-controls=wa-preview-'+key+']'),key+' '+screen.document.querySelector('[data-wa-status]').textContent);
+ }
+ assert.equal(invite.value,'https://chat.whatsapp.com/abcdefghij');
+ assert.ok(calls.includes('prepare'));
+ assert.ok(!calls.some(action=>['confirm','send'].includes(action)));
 });

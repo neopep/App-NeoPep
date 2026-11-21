@@ -16,6 +16,15 @@ Para retirar a funcionalidade, pause as campanhas, preserve o bloqueio do worker
 
 ## Manual e dicas
 
-A aba Campanhas oferece **Como criar uma campanha** ao lado de **Nova campanha**. O manual original integra o pacote estático. O diálogo mantém o formulário montado e restaura foco e rolagem ao fechar. As setas mudam de página, **Ajustar** retorna à escala automática e os controles de zoom funcionam também por pinça. **Texto da página** oferece o conteúdo extraído para leitura assistida. Os 26 textos de ajuda aparecem nos respectivos campos. Escape ou um toque fora recolhe a dica.
+O ícone circular ao lado de **Nova campanha** abre o manual original em tela cheia. As páginas seguem na vertical. O leitor renderiza as páginas próximas da área visível e descarta as demais da memória. O leitor tem zoom por pinça e texto acessível, e restaura o foco e a rolagem ao fechar. O balão dos 26 textos orienta os campos do aplicativo sem mudar o layout. Toque fora ou pressione Escape para fechar.
 
 O leitor administrativo é independente da Biblioteca e usa o PDF.js local. Para outro documento administrativo público, inclua o arquivo em `dist/assets/` e passe caminho, título e botão de origem a `NeoAdminPDF.open`. Documentos privados exigem um fluxo autenticado próprio.
+
+
+## Divulgação manual pelo WhatsApp
+
+Use **Campanhas WhatsApp** para cadastrar grupos, selecionar conteúdo de uma campanha compartilhada e programar divulgações. O link de convite serve para acesso ao grupo. Cada publicação é registrada por grupo. Imagens reutilizam a campanha e os anexos da Biblioteca precisam estar autorizados para download. A autorização é conferida na preparação. Em aparelhos com compartilhamento nativo, o sistema entrega o conteúdo à interface do dispositivo. No desktop é possível copiar a mensagem ou o link e preparar arquivos para anexar separadamente.
+
+Escolha manualmente WhatsApp e o grupo. A abertura do aplicativo não registra envio. **Confirmar publicação** grava o administrador e a hora. Se houver recorrência, a próxima ocorrência segue os dias e o fuso informados. Lembretes são consultados enquanto a área WhatsApp estiver aberta, sem push. Cada administrador recebe uma vez o lembrete por ocorrência. A lista de grupos aceita busca por nome e categoria. A fila apresenta até 100 registros, priorizando pendências.
+
+A ajuda contextual usa o mesmo balão de Campanhas App. O cabeçalho aceita um futuro manual pelo leitor administrativo quando houver um PDF aprovado. Nenhum manual provisório é fornecido. O envio manual não depende de credenciais de WhatsApp, contratação ou integração externa. Uma futura automação exige autorização própria, API oficial, revisão das condições do WhatsApp, limites, possíveis custos e risco de bloqueio.

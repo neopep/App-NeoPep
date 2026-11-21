@@ -14,6 +14,8 @@ test('campanhas protegem administração e recibos e aplicam agenda, prioridade,
    create table storage.objects(bucket_id text,name text);
    alter table storage.objects enable row level security;
    create table neo_private.community_materials(id uuid primary key,title text);
+   create table neo_private.library_uploads(path text primary key,name text,mime text,allow_download boolean,material_id uuid,size integer);
+   insert into neo_private.library_uploads values ('file','Arquivo','application/pdf',true,'${other}',900),('private','Privado','application/pdf',false,'${other}',100);
    create table neo_private.shop_products(id uuid primary key,name text,active boolean);
    create table neo_private.shop_promotions(id uuid primary key,name text,active boolean,restricted_to_user boolean,
     restricted_user_id uuid,kind text,starts_at timestamptz,ends_at timestamptz);
@@ -38,6 +40,8 @@ test('campanhas protegem administração e recibos e aplicam agenda, prioridade,
   await db.exec(fs.readFileSync('supabase/migrations/20261121195231_admin_campaigns.sql','utf8'));
   await db.exec(fs.readFileSync('supabase/migrations/20261121195245_campaign_push.sql','utf8'));
   await db.exec(fs.readFileSync('supabase/migrations/20261121200721_campaign_editor_completion.sql','utf8'));
+  await db.exec(fs.readFileSync('supabase/migrations/20261121231451_campaign_whatsapp.sql','utf8'));
+  const wa=(action,id=null,data={})=>db.query('select public.neo_campaign_wa($1,$2,$3) value',[action,id,JSON.stringify(data)]).then(r=>r.rows[0].value);
   const allowed=(path,write=false)=>db.query('select public.neo_campaign_image_allowed($1,$2) value',[path,write]).then(r=>r.rows[0].value);
   const image=admin+'/'+other+'.jpg';
   const as=async id=>{
@@ -51,6 +55,8 @@ test('campanhas protegem administração e recibos e aplicam agenda, prioridade,
   await assert.rejects(visit(),{code:'42501'});
   await as(member);
   await assert.rejects(manage('list'),{code:'42501'});
+  await assert.rejects(wa('groups'),{code:'42501'});
+  await assert.rejects(db.query('select * from neo_private.campaign_wa_groups'),{code:'42501'});
   await assert.rejects(db.query('select * from neo_private.campaigns'),{code:'42501'});
   await as(admin);
   await assert.rejects(manage('save',null,{title:'Inválida',link_url:'//destino.example.invalid'}),{code:'23514'});
@@ -63,6 +69,26 @@ test('campanhas protegem administração e recibos e aplicam agenda, prioridade,
   assert.equal(new Date(scheduled.starts_at).toISOString(),'2026-11-22T12:30:00.000Z');
   assert.equal((await manage('list')).find(x=>x.id===scheduled.id).starts_local,'2026-11-22T09:30');
   const pushOnly=await manage('save',null,{title:'Push independente',popup_enabled:false,push_requested:true,audience:'plan',targets:['plus'],priority:50});
+  const whatsapp=await manage('save',null,{title:'Só WhatsApp',popup_enabled:false,whatsapp_enabled:true,body:'Comum',whatsapp_message:'Mensagem exclusiva'});
+  await manage('activate',whatsapp.id);
+  assert.equal((await wa('prepare',whatsapp.id)).message,'Mensagem exclusiva');
+  const group=await wa('group_save',null,{name:'Grupo fictício',category:'Teste'});
+  await assert.rejects(wa('group_save',null,{name:'Inválido',invite:'https://outro.invalid/link'}),{code:'23514'});
+  assert.equal((await wa('groups',null,{search:'teste'}))[0].id,group.id);
+  assert.deepEqual((await wa('attachments')).map(x=>x.path),['file']);
+  const planned={campaign_id:whatsapp.id,groups:[group.id],local_time:'2020-01-01T12:00',timezone:'America/Sao_Paulo',weekdays:[1,2],remind:true};
+  await assert.rejects(wa('schedule',null,{...planned,attachments:['private']}),/Anexo indisponível/);
+  await wa('schedule',null,{...planned,attachments:['file']});
+  const [job]=await wa('queue');
+  assert.equal(job.state,'late');
+  assert.equal((await wa('prepare',whatsapp.id,{publication:job.id})).attachments[0].path,'file');
+  assert.equal((await wa('reminders')).length,1);
+  assert.equal((await wa('reminders')).length,0);
+  await wa('confirm',job.id,{expected_at:job.scheduled_at});
+  assert.equal((await wa('queue'))[0].state,'scheduled');
+  await assert.rejects(wa('confirm',job.id,{expected_at:job.scheduled_at}),/ocorrência mudou/);
+  await wa('cancel',job.id);
+  assert.equal((await wa('queue'))[0].state,'cancelled');
   const first=await manage('save',null,{title:'Primeira',audience:'plan',targets:['plus'],priority:10,image_path:image,kind:'product',content_id:other});
   const second=await manage('save',null,{title:'Segunda',audience:'segment',targets:['recent']});
   const future=await manage('save',null,{title:'Futura',starts_at:'2200-01-01T00:00:00Z',priority:99});
@@ -111,5 +137,18 @@ test('campanhas protegem administração e recibos e aplicam agenda, prioridade,
   assert.equal((await manage('list')).find(c=>c.id===first.id).clicks,1);
   assert.equal((await manage('pause',second.id)).status,'paused');
   assert.equal((await manage('archive',first.id)).status,'archived');
+  const both=await manage('save',null,{title:'Dois canais',whatsapp_enabled:true,popup_enabled:true});
+  assert.equal(both.whatsapp_enabled&&both.popup_enabled,true);
+  const expired=await manage('save',null,{title:'Encerrada',ends_local:'2001-04-01T10:00'});
+  await manage('activate',expired.id);
+  const statuses=await manage('list');
+  assert.equal(statuses.find(row=>row.id===future.id).display_state,'scheduled');
+  assert.equal(statuses.find(row=>row.id===expired.id).display_state,'expired');
+  for(let i=0;i<50;i++)await manage('duplicate',both.id);
+  const page=await manage('list');
+  const next=await manage('list',null,{offset:50});
+  assert.equal(page.length,50);
+  assert.ok(next.length>0&&!next.some(row=>page.some(first=>first.id===row.id)));
+
  }finally{await db.close()}
 });

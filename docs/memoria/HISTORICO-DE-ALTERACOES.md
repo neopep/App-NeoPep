@@ -449,3 +449,9 @@ No Supabase de homologação, após aplicar a migração `20261121200721`, o tes
 A aba Campanhas recebeu o manual estático original de 10 páginas, leitor administrativo com PDF.js, navegação, zoom, pinça e restauração de foco e rolagem, e os 26 textos de ajuda da especificação fornecida. A abertura do manual preserva o formulário e não inicia download. A prévia na raiz e em `/neo/` serviu o PDF original com HTTP 200 e `application/pdf`. PDF.js extraiu o texto das 10 páginas e renderizou as páginas 1, 5 e 10 em larguras de 320 e 800 px.
 
 Build, checagem e os 22 testes focados passaram. A suíte completa teve 287 aprovações em 349 testes. Os 62 casos reprovados coincidem com a linha de base registrada no commit a216cc1.
+
+## MEM-20261121-026
+
+A Central de Campanhas recebeu áreas App e WhatsApp, canais independentes no cadastro comum, listagem progressiva ordenada por estado e uma ajuda flutuante compartilhada. O leitor PDF administrativo passou a exibir páginas contínuas em tela cheia, com renderização progressiva e zoom por pinça. O leitor da Biblioteca não foi alterado.
+
+A migração `20261121231451` foi aplicada somente ao Supabase de teste. O ensaio transacional confirmou recusa da conta comum, cadastro administrativo, campanha exclusiva WhatsApp, divulgação atrasada, lembrete deduplicado, confirmação e próxima ocorrência. Todos os dados do ensaio foram revertidos. O Supabase Advisor sinalizou as quatro tabelas privadas sem política de cliente e o RPC autenticado com segurança do definidor. A fila opera por confirmação manual, sem envio automático ou push. [Guia da Central](../conhecimento/CAMPANHAS.md)

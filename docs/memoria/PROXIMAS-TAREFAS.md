@@ -14,3 +14,5 @@
 12. Conferir a composição Antes e Depois no Safari e no PWA de um iPhone físico, incluindo os botões empilhados, a posição da marca nas fotos e o compartilhamento e salvamento do JPEG. [MEM-20261121-012](HISTORICO-DE-ALTERACOES.md#mem-20261121-012)
 
 - Campanhas de homologação: validar o painel autenticado, as prévias e o pop-up no iPhone/PWA, Android e desktop. Configurar vínculo confiável de planos para as contas fictícias e ensaiar push com dispositivo isolado antes de habilitar o consumo da fila. [Guia](../conhecimento/CAMPANHAS.md)
+
+- Central de Campanhas: conferir balões na borda e na abertura de campos condicionais no Safari do iPhone e no PWA. Ensaiar escolha manual de destinatário, compartilhamento de arquivo e o aviso de agenda com contas fictícias. Publicar o manual WhatsApp quando houver PDF aprovado.
