@@ -21,12 +21,17 @@ test('manual original tem 10 páginas e texto pesquisável em português',async(
  }finally{await task.destroy();}
 });
 
-test('leitor mantém formulário, navega, amplia, ajusta e restaura foco e rolagem',async()=>{
+test('leitor contínuo carrega páginas próximas, amplia com pinça e restaura formulário, foco e rolagem',async()=>{
  const {document,Event}=parseHTML('<html><body><form><input value="Rascunho"><button type="button">Manual</button></form></body></html>');
  Object.defineProperty(document,'currentScript',{value:{src:'https://teste.example/neo/admin/admin-pdf.js'}});
  const original=document.createElement.bind(document),renders=[],opened=[],scroll=[];
  document.createElement=name=>{
   const node=original(name);
+  if(name==='section')node.getBoundingClientRect=()=>{
+   const view=document.querySelector('.admin-pdf-view');
+   const top=(Number(node.getAttribute('aria-label')?.split(' ').at(-1))-1)*430-(view?.scrollTop||0);
+   return {top,bottom:top+420};
+  };
   if(name==='dialog'){
    node.showModal=()=>node.setAttribute('open','');
    node.close=()=>node.dispatchEvent(new Event('close'));
@@ -45,24 +50,26 @@ test('leitor mantém formulário, navega, amplia, ajusta e restaura foco e rolag
   }})};
  }};
  const window={scrollX:8,scrollY:42,scrollTo:(...position)=>scroll.push(position)};
- const context={window,document,URL,setTimeout,clearTimeout,loadLibrary:async()=>library};
+ const context={window,document,URL,requestAnimationFrame:callback=>setTimeout(callback,0),cancelAnimationFrame:clearTimeout,loadLibrary:async()=>library};
  vm.runInNewContext(fs.readFileSync('dist/admin/admin-pdf.js','utf8').replace('import(asset(', 'loadLibrary(asset('),context);
  await window.NeoAdminPDF.open({path:'assets/manual-campanhas-neopep.pdf',title:'Manual',trigger});
- await new Promise(setImmediate);
+ const dialog=document.querySelector('dialog'),view=dialog.querySelector('.admin-pdf-view');
+ Object.defineProperty(view,'clientWidth',{value:336});
+ view.getBoundingClientRect=()=>({top:0,bottom:360,height:360,left:0});
+ view.scrollTop=view.scrollLeft=0;
+ await new Promise(resolve=>setTimeout(resolve,30));
  assert.equal(opened[0],'https://teste.example/neo/assets/manual-campanhas-neopep.pdf');
  assert.equal(library.GlobalWorkerOptions.workerSrc,'https://teste.example/neo/vendor/pdfjs/pdf.worker.mjs');
- assert.equal(document.querySelector('[data-pdf-page]').textContent,'Página 1 de 10');
- const dialog=document.querySelector('dialog'),view=dialog.querySelector('.admin-pdf-view');
- Object.defineProperty(view,'clientWidth',{value:344});
- dialog.querySelector('[data-pdf=next]').click();
- await new Promise(setImmediate);
- assert.deepEqual(renders.at(-1),[2,320]);
- dialog.querySelector('[data-pdf=more]').click();
- await new Promise(resolve=>setTimeout(resolve,100));
- assert.deepEqual(renders.at(-1),[2,400]);
- dialog.querySelector('[data-pdf=fit]').click();
- await new Promise(resolve=>setTimeout(resolve,100));
- assert.deepEqual(renders.at(-1),[2,320]);
+ assert.equal(dialog.querySelectorAll('.admin-pdf-page').length,10);
+ assert.equal(dialog.querySelectorAll('button').length,1);
+ assert.deepEqual(renders[0],[1,320]);
+ assert.ok(dialog.querySelectorAll('canvas').length<4);
+ view.scrollTop=1600;
+ view.dispatchEvent(new Event('scroll'));
+ await new Promise(resolve=>setTimeout(resolve,30));
+ assert.ok(renders.some(([page])=>page===5));
+ assert.equal(Boolean(dialog.querySelector('.admin-pdf-page').querySelector('canvas')),false);
+ assert.match(dialog.querySelector('.admin-pdf-accessible').textContent,/Página 1/);
  const pinch=(type,x)=>{
   const event=new Event(type,{cancelable:true});
   Object.defineProperty(event,'touches',{value:[{clientX:0,clientY:0},{clientX:x,clientY:0}]});
@@ -70,7 +77,7 @@ test('leitor mantém formulário, navega, amplia, ajusta e restaura foco e rolag
  };
  pinch('touchstart',100);pinch('touchmove',150);
  await new Promise(resolve=>setTimeout(resolve,100));
- assert.deepEqual(renders.at(-1),[2,480]);
+ assert.equal(renders.at(-1)[1],480);
  assert.equal(dialog.querySelector('a,[download],iframe'),null);
  dialog.querySelector('[data-pdf=close]').click();
  assert.equal(document.querySelector('dialog'),null);
