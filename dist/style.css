@@ -426,3 +426,25 @@ body:has(.comparison-export-dialog[open]){overflow:hidden}
 .neo-campaign-dialog .neo-campaign-actions{justify-content:flex-end;}
 .neo-campaign-dialog .neo-campaign-actions form{margin:0;}
 .campaign-preview-mobile{max-width:22rem;}
+
+.campaign-field-help{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:.35rem;}
+.campaign-field-help>label[hidden],.campaign-field-help>label[hidden]~*{display:none;}
+legend>.campaign-field-help{display:inline-grid;grid-template-columns:auto;vertical-align:middle;}
+.campaign-info{display:inline-grid;place-items:center;width:44px;height:44px;margin:0;padding:0;border:0;background:transparent;color:var(--gold,#e9b855);font-weight:700;}
+.campaign-info:focus-visible,.admin-pdf :focus-visible{outline:2px solid #e9b855;outline-offset:2px;}
+.campaign-info-text{grid-column:1/-1;margin:.2rem 0 .65rem;padding:.55rem .7rem;border-inline-start:2px solid var(--gold,#e9b855);font-size:.9rem;max-width:34rem;}
+.admin-pdf{box-sizing:border-box;width:min(58rem,calc(100% - 1rem));max-width:none;height:min(56rem,calc(100dvh - 1rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)));max-height:calc(100% - 1rem);padding:0;background:#171613;color:#f5ede0;border:1px solid #8c6937;}
+.admin-pdf::backdrop{background:rgba(8,7,5,.78);}
+.admin-pdf-shell{display:grid;height:100%;grid-template-rows:auto auto minmax(0,1fr) auto;}
+.admin-pdf header,.admin-pdf-toolbar{display:flex;align-items:center;gap:.4rem;padding:.4rem .65rem;}
+.admin-pdf header{justify-content:space-between;border-bottom:1px solid #8c6937;}
+.admin-pdf h2{margin:0;font-size:1rem;}
+.admin-pdf-toolbar{flex-wrap:wrap;}
+.admin-pdf button{min-height:44px;min-width:44px;padding:.35rem .6rem;}
+.admin-pdf [data-pdf-page]{min-width:7.1rem;text-align:center;color:#f4cb83;}
+.admin-pdf-view{overflow:auto;overscroll-behavior:contain;touch-action:pan-x pan-y;padding:0 12px .6rem;}
+.admin-pdf-view canvas{display:block;margin-inline:auto;max-width:none;background:white;}
+.admin-pdf-view canvas[hidden]{display:none;}
+.admin-pdf-text{padding:.4rem .65rem;max-height:25dvh;overflow:auto;}
+.campaign-info span{display:grid;place-items:center;width:1.2rem;height:1.2rem;border:1px solid currentColor;border-radius:50%;font-size:.78rem;}
+[data-theme=light] .campaign-info{color:#755014;}

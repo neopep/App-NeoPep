@@ -13,3 +13,9 @@ O pop-up espera a sessão e o cadastro, respeita a prioridade, a frequência e o
 O consumo da fila exige um worker publicado no Supabase `qnuluspqfazdppciermw` com `NEO_STAGING_CAMPAIGN_PUSH=1`. Mantenha essa opção desligada até testar consentimento e destinatário com um único dispositivo fictício. O ensaio pode ser manual, com cron desligado. Nenhuma alteração de VAPID é necessária.
 
 Para retirar a funcionalidade, pause as campanhas, preserve o bloqueio do worker de push e restaure o frontend anterior. As migrações são aditivas e mantêm os registros já criados.
+
+## Manual e dicas
+
+A aba Campanhas oferece **Como criar uma campanha** ao lado de **Nova campanha**. O manual original integra o pacote estático. O diálogo mantém o formulário montado e restaura foco e rolagem ao fechar. As setas mudam de página, **Ajustar** retorna à escala automática e os controles de zoom funcionam também por pinça. **Texto da página** oferece o conteúdo extraído para leitura assistida. Os 26 textos de ajuda aparecem nos respectivos campos. Escape ou um toque fora recolhe a dica.
+
+O leitor administrativo é independente da Biblioteca e usa o PDF.js local. Para outro documento administrativo público, inclua o arquivo em `dist/assets/` e passe caminho, título e botão de origem a `NeoAdminPDF.open`. Documentos privados exigem um fluxo autenticado próprio.

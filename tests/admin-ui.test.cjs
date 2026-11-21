@@ -223,3 +223,29 @@ test('painel de campanhas escapa conteúdo e confirma ações via servidor',asyn
  assert.equal(calls.at(-2).id,'sample');
  assert.match(panel.textContent,/Pausada/);
 });
+
+test('ajudas de campanha preservam campos e manual usa leitor interno',async()=>{
+ const screen=app({signups_daily:[],app_errors_7d:[]});
+ screen.cloud.campaignAdmin=async()=>[];
+ const openings=[];
+ const reader={open:async payload=>openings.push(payload)};
+ screen.run('window.NeoAdminPDF = {}').open=reader.open;
+ await screen.select('campaigns');
+ await new Promise(setImmediate);
+ assert.equal(screen.run('Object.keys(campaignHelp).length'),26);
+ const account=screen.document.querySelector('[name=account]');
+ account.value='Rascunho';
+ const help=screen.document.querySelector('[aria-controls=campaign-help-account]');
+ assert.equal(help.type,'button');
+ help.click();
+ assert.equal(help.getAttribute('aria-expanded'),'true');
+ assert.equal(screen.document.getElementById('campaign-help-account').textContent,'Informe o UUID da conta cujo plano será administrado.');
+ const escape=new screen.document.defaultView.Event('keydown',{bubbles:true,cancelable:true});
+ Object.defineProperty(escape,'key',{value:'Escape'});
+ help.dispatchEvent(escape);
+ assert.equal(help.getAttribute('aria-expanded'),'false');
+ screen.document.querySelector('[data-campaign-action=manual]').click();
+ assert.equal(openings.length,1);
+ assert.equal(openings[0].path,'assets/manual-campanhas-neopep.pdf');
+ assert.equal(account.value,'Rascunho');
+});

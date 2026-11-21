@@ -443,3 +443,9 @@ Migrações remotas: `20261121195231` e `20261121195245`. O teste remoto de ACL 
 O editor de campanhas recebeu upload privado com URLs assinadas, seleção de Biblioteca e Loja, datas e horas no fuso local, vínculo de plano restrito a administradores e canal push independente. O catálogo, a Biblioteca e as regras de compra existentes continuam sendo os executores dos destinos selecionados. A fila foi testada de forma reversível, sem disparo real.
 
 No Supabase de homologação, após aplicar a migração `20261121200721`, o teste com contas fictícias conferiu horário local, vínculo por plano, destino da Biblioteca, recusa de alteração por participante, pop-up e fila independente com deduplicação. O bucket privado limita uploads a 5 MB. Build, checagem, prévia portátil e testes focados passaram. A suíte completa executou 346 testes, com 284 aprovações e os mesmos 62 reprovados da linha de base. [Guia de campanhas](../conhecimento/CAMPANHAS.md)
+
+## MEM-20261121-025
+
+A aba Campanhas recebeu o manual estático original de 10 páginas, leitor administrativo com PDF.js, navegação, zoom, pinça e restauração de foco e rolagem, e os 26 textos de ajuda da especificação fornecida. A abertura do manual preserva o formulário e não inicia download. A prévia na raiz e em `/neo/` serviu o PDF original com HTTP 200 e `application/pdf`. PDF.js extraiu o texto das 10 páginas e renderizou as páginas 1, 5 e 10 em larguras de 320 e 800 px.
+
+Build, checagem e os 22 testes focados passaram. A suíte completa teve 287 aprovações em 349 testes. Os 62 casos reprovados coincidem com a linha de base registrada no commit a216cc1.

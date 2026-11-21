@@ -916,6 +916,76 @@ $('#adminRefresh').onclick=refresh;
 window.NeoGestures?.configure({refresh,back:()=>history.length>1?history.back():location.assign('../')});
 window.NeoCloud.init((event,user)=>{if(event==='TOKEN_REFRESHED')return;if(signupVisit?.account!==user?.id){clearSignupToast();signupVisit=null}generation++;window.NeoAgent?.reset();authorized=false;$('#adminTabs').hidden=true;$('#adminContent').innerHTML='';if(user)refresh();else $('#adminStatus').textContent='Sessão ausente. Entre no aplicativo.';}).then(user=>{if(user)refresh();else if(!window.NeoCloud.configured)refresh();else $('#adminStatus').textContent='Entre na sua conta pelo aplicativo.';}).catch(()=>{$('#adminStatus').textContent='Não foi possível verificar a sessão.';});
 
+const campaignHelp={
+ title:["Título", "Escreva o título que aparece no topo do pop-up."],
+ body:["Texto", "Descreva a mensagem. Prefira frases curtas e uma ação principal."],
+ image_url:["Imagem publicada", "Informe o caminho de uma imagem estática já disponível no app."],
+ image_file:["Enviar imagem", "Escolha JPEG, PNG ou WebP de até 5 MB."],
+ remove_image:["Remover imagem", "Desvincula a imagem atual da campanha."],
+ kind:["Tipo de destino", "Escolha se o botão abrirá link, material, produto ou oferta."],
+ link_label:["Texto do botão", "Escreva o texto da chamada para ação."],
+ content_search:["Buscar no catálogo", "Pesquise conteúdos já cadastrados na Biblioteca ou Loja."],
+ content_id:["Conteúdo selecionado", "Vincule um resultado para abrir seu destino próprio."],
+ link_url:["Endereço do destino", "Cole um endereço interno ou HTTPS se não selecionar conteúdo."],
+ audience:["Público", "Defina quem pode receber esta campanha."],
+ segments:["Segmentos", "Escolha contas recentes, antigas ou da comunidade."],
+ plans:["Códigos de planos", "Informe códigos de planos separados por vírgula."],
+ account:["ID da conta", "Informe o UUID da conta cujo plano será administrado."],
+ plan:["Código do plano", "Associe um código de plano; deixe vazio para remover o vínculo."],
+ starts_local:["Início no fuso informado", "Data e hora em que a campanha fica disponível."],
+ ends_local:["Encerramento no fuso informado", "Data e hora a partir da qual ela não aparece mais."],
+ opens_at:["Hora inicial", "Quando começa a janela diária de exibição."],
+ closes_at:["Hora final", "Quando a janela termina; vazio significa meia-noite."],
+ timezone:["Fuso das recorrências", "Use o nome IANA, como America/Sao_Paulo."],
+ weekdays:["Repetir nos dias", "Marque os dias da semana permitidos."],
+ frequency_hours:["Intervalo mínimo (horas)", "Horas mínimas entre duas exibições por conta."],
+ max_views:["Limite por conta", "Número máximo de exibições por participante."],
+ priority:["Prioridade", "Quanto maior o número, maior a preferência de entrega."],
+ popup_enabled:["Exibir pop-up interno", "Mostra a campanha como janela dentro do NeoPep."],
+ push_requested:["Usar o canal independente de push", "Requer consentimento e worker habilitado após teste."],
+};
+function addCampaignHelp(form){
+ for(const [key,[name,description]] of Object.entries(campaignHelp)){
+  const control=form.querySelector(`[name="${key}"],[data-campaign-legend="${key}"]`);
+  if(!control)continue;
+  const legend=control.tagName==='LEGEND';
+  const label=legend?control:control.closest('label');
+  const row=document.createElement(legend?'span':'div'),button=document.createElement('button'),message=document.createElement(legend?'span':'p');
+  row.className='campaign-field-help';
+  button.type='button';button.className='campaign-info';
+  const icon=document.createElement('span');icon.textContent='i';icon.setAttribute('aria-hidden','true');button.append(icon);
+  button.setAttribute('aria-label','Ajuda: '+name);button.setAttribute('aria-expanded','false');
+  button.setAttribute('aria-controls','campaign-help-'+key);
+  message.id='campaign-help-'+key;message.hidden=true;message.className='campaign-info-text';message.textContent=description;
+  if(legend)label.append(row);
+  else{label.before(row);row.append(label);}
+  row.append(button,message);
+ }
+}
+let shownCampaignHelp=null;
+function closeCampaignHelp(restoreFocus=false){
+ if(!shownCampaignHelp)return;
+ const {button,message}=shownCampaignHelp;
+ message.hidden=true;button.setAttribute('aria-expanded','false');
+ shownCampaignHelp=null;
+ if(restoreFocus&&button.isConnected)button.focus({preventScroll:true});
+}
+document.addEventListener('click',event=>{
+ const button=event.target.closest?.('.campaign-info');
+ if(button===shownCampaignHelp?.button){closeCampaignHelp();return;}
+ if(shownCampaignHelp?.message.contains(event.target))return;
+ closeCampaignHelp();
+ if(!button)return;
+ const message=document.getElementById(button.getAttribute('aria-controls'));
+ if(!message)return;
+ message.hidden=false;button.setAttribute('aria-expanded','true');
+ shownCampaignHelp={button,message};
+});
+document.addEventListener('keydown',event=>{
+ if(event.key==='Escape'&&shownCampaignHelp){
+  event.preventDefault();closeCampaignHelp(true);
+ }
+});
 async function mountCampaigns(root){
  const cloud=window.NeoCloud;
  const statusNames={draft:'Rascunho',active:'Ativa ou agendada',paused:'Pausada',archived:'Arquivada'};
@@ -923,9 +993,10 @@ async function mountCampaigns(root){
  const options=(values,value)=>Object.entries(values).map(([key,label])=>`<option value="${key}" ${value===key?'selected':''}>${label}</option>`).join('');
  const field=(row,key,label,attrs,fallback='')=>input(key,label,row[key]??fallback,attrs);
  let offset=0,rows=[],editing=null,busy=false;
- root.innerHTML='<section class="card"><div class="between"><h2>Campanhas</h2><button type="button" class="primary" data-campaign-action="new">Nova campanha</button></div><p role="status" data-campaign-status></p><details class="space"><summary>Vincular plano a uma conta</summary><form data-campaign-plan class="space"><label>ID da conta<input name="account" required pattern="[a-fA-F0-9-]{36}"></label><label>Código do plano (vazio para desvincular)<input name="plan" pattern="[a-z0-9_-]{1,40}" maxlength="40"></label><button class="secondary" type="submit">Salvar vínculo</button></form></details><div data-campaign-edit></div><div data-campaign-list></div></section>';
+ root.innerHTML='<section class="card"><div class="between"><h2>Campanhas</h2><div class="neo-campaign-actions"><button type="button" class="secondary" data-campaign-action="manual">Como criar uma campanha</button><button type="button" class="primary" data-campaign-action="new">Nova campanha</button></div></div><p role="status" data-campaign-status></p><details class="space"><summary>Vincular plano a uma conta</summary><form data-campaign-plan class="space"><label>ID da conta<input name="account" required pattern="[a-fA-F0-9-]{36}"></label><label>Código do plano (vazio para desvincular)<input name="plan" pattern="[a-z0-9_-]{1,40}" maxlength="40"></label><button class="secondary" type="submit">Salvar vínculo</button></form></details><div data-campaign-edit></div><div data-campaign-list></div></section>';
  const find=selector=>root.querySelector(selector);
  const status=find('[data-campaign-status]'),editor=find('[data-campaign-edit]'),list=find('[data-campaign-list]');
+ addCampaignHelp(find('[data-campaign-plan]'));
  function edit(row={}){
   editing=row.id??null;
   let imagePath=row.image_path||null;
@@ -944,13 +1015,13 @@ async function mountCampaigns(root){
    <label>Conteúdo selecionado<select name="content_id"><option value="">Usar endereço manual</option>${row.content_id?`<option selected value="${esc(row.content_id)}">Vínculo atual</option>`:''}</select></label></div>
    ${field(row,'link_url','Endereço do destino','maxlength="1000" placeholder="/#loja"')}
    <label>Público<select name="audience">${options({all:'Todas as contas elegíveis',segment:'Segmentos selecionados',plan:'Planos selecionados'},row.audience)}</select></label>
-   <fieldset data-campaign-segments><legend>Segmentos</legend>${Object.entries({recent:'Cadastro nos últimos 30 dias',established:'Cadastro há mais de 30 dias',community:'Membro da comunidade'}).map(([key,label])=>`<label class="check"><input type="checkbox" name="segment" value="${key}" ${row.targets?.includes(key)?'checked':''}>${label}</label>`).join('')}</fieldset>
+   <fieldset data-campaign-segments><legend data-campaign-legend="segments">Segmentos</legend>${Object.entries({recent:'Cadastro nos últimos 30 dias',established:'Cadastro há mais de 30 dias',community:'Membro da comunidade'}).map(([key,label])=>`<label class="check"><input type="checkbox" name="segment" value="${key}" ${row.targets?.includes(key)?'checked':''}>${label}</label>`).join('')}</fieldset>
    ${field({...row,plans:row.audience==='plan'?row.targets.join(', '):''},'plans','Códigos de planos separados por vírgula','maxlength="500"')}
    <div class="form-grid">${input('starts_local','Início no fuso informado',row.starts_local||'','type="datetime-local"')}${input('ends_local','Encerramento no fuso informado',row.ends_local||'','type="datetime-local"')}
    ${field(row,'opens_at','Hora inicial','type="time" required','00:00')}
    ${input('closes_at','Hora final (vazio até meia-noite)',row.closes_at&&row.closes_at!=='24:00:00'?row.closes_at.slice(0,5):'','type="time"')}</div>
    ${field(row,'timezone','Fuso das recorrências (IANA)','required maxlength="80"','America/Sao_Paulo')}
-   <fieldset><legend>Repetir nos dias</legend><div class="campaign-weekdays">${weekdays.map((day,i)=>`<label class="check"><input type="checkbox" name="weekday" value="${i}" ${!row.weekdays||row.weekdays.includes(i)?'checked':''}>${day}</label>`).join('')}</div></fieldset>
+   <fieldset><legend data-campaign-legend="weekdays">Repetir nos dias</legend><div class="campaign-weekdays">${weekdays.map((day,i)=>`<label class="check"><input type="checkbox" name="weekday" value="${i}" ${!row.weekdays||row.weekdays.includes(i)?'checked':''}>${day}</label>`).join('')}</div></fieldset>
    <div class="form-grid">${field(row,'frequency_hours','Intervalo mínimo (horas)','type="number" required min="1" max="8760"',24)}
    ${field(row,'max_views','Limite por conta','type="number" required min="1" max="100"',1)}
    ${field(row,'priority','Prioridade','type="number" required min="0" max="100"',0)}</div>
@@ -962,6 +1033,7 @@ async function mountCampaigns(root){
    <button class="secondary" type="button" data-campaign-action="cancel">Fechar edição</button></div>
    <div data-campaign-preview></div></form>`;
   const form=editor.querySelector('form');
+  addCampaignHelp(form);
   function audience(){
    form.querySelector('[data-campaign-segments]').hidden=form.elements.audience.value!=='segment';
    form.elements.plans.closest('label').hidden=form.elements.audience.value!=='plan';
@@ -1023,6 +1095,12 @@ async function mountCampaigns(root){
   const button=event.target.closest('[data-campaign-action]');
   if(!button||busy||!root.isConnected)return;
   const action=button.dataset.campaignAction,id=button.dataset.id;
+  if(action==='manual'){
+   closeCampaignHelp();
+   try{await window.NeoAdminPDF.open({path:'assets/manual-campanhas-neopep.pdf',title:'Manual de campanhas',trigger:button});}
+   catch{status.textContent='Não foi possível abrir o manual de campanhas.';}
+   return;
+  }
   if(action==='new'||action==='edit'){edit(rows.find(row=>row.id===id));return;}
   if(action==='cancel'){editor.replaceChildren();editing=null;return;}
   if(action==='search'){
