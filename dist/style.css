@@ -256,22 +256,52 @@ body:has(.photo-viewer[open]){overflow:hidden}
 .session-start img{width:64px;height:64px;object-fit:contain}
 .photo-item-progress{max-width:3.5rem;width:20%}
 
-.photo-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem;align-items:start}
-.photo-comparison figure{margin:0;min-width:0}
-.photo-comparison label{display:block;font-size:.82rem;margin-bottom:.35rem}
-.photo-comparison select{width:100%;min-height:44px;font-size:16px;padding-inline:.4rem}
-.photo-comparison .comparison-preview{display:grid;place-items:center;overflow:hidden;border-radius:.65rem}
+/* Comparação compartilhada entre Início, Evolução e Fotos. */
+.photo-comparison{
+ --comparison-date-height:44px;--comparison-caption-height:2.65rem;
+ --photo-gold:#dfbd78;--photo-rail:rgba(135,124,109,.38);
+ display:grid;grid-template-columns:repeat(2,minmax(0,240px));justify-content:center;gap:.65rem;align-items:start
+}
+.photo-comparison figure{
+ display:grid;grid-template-rows:var(--comparison-date-height) auto var(--comparison-caption-height) 44px;
+ margin:0;min-width:0;align-content:start
+}
+.comparison-date{position:relative;min-width:0}
+.comparison-date::after{
+ content:"";position:absolute;right:.45rem;top:50%;width:.4rem;height:.4rem;
+ border:solid currentColor;border-width:0 1px 1px 0;transform:translateY(-70%) rotate(45deg);pointer-events:none
+}
+.photo-comparison [data-photo-date]{
+ appearance:none;-webkit-appearance:none;display:block;width:100%;height:44px;min-width:0;
+ margin:0;padding:0 1.25rem 0 .25rem;border:0;border-radius:0;box-shadow:none;
+ background:none;color:var(--ink);font-size:16px
+}
+[data-theme=dark] .photo-comparison [data-photo-date],[data-theme=dark] .photo-comparison .comparison-date{color:var(--photo-gold)}
+.photo-comparison .comparison-preview{
+ display:grid;place-items:center;position:relative;box-sizing:border-box;width:100%;aspect-ratio:9/16;
+ min-width:0;min-height:0;padding:0;overflow:hidden;border-radius:.65rem;background:var(--solid);text-align:center
+}
+.photo-comparison .comparison-preview img{
+ position:absolute;inset:0;display:block;width:100%;height:100%;max-width:100%;max-height:100%;padding:0;
+ object-fit:contain;object-position:center
+}
 .photo-comparison .comparison-preview img[hidden],.photo-comparison [data-photo-slider][hidden]{display:none}
-.photo-comparison figcaption{margin:.35rem 0}
-
-/* A geometria da comparação é igual no acompanhamento e na galeria. */
-.photo-comparison{--comparison-height:clamp(120px,36vw,218px);--comparison-date-height:4.3rem;--comparison-caption-height:2.65rem}
-.photo-comparison figure{display:grid;grid-template-rows:var(--comparison-date-height) var(--comparison-height) var(--comparison-caption-height) 44px;align-content:start}
-.photo-comparison figure>label,.comparison-date-spacer{height:var(--comparison-date-height);margin:0;white-space:nowrap}
-.photo-comparison select{display:block;margin-top:.22rem;height:44px;min-width:0}
-.photo-comparison .comparison-preview{position:relative;width:100%;height:var(--comparison-height);aspect-ratio:auto;background:var(--solid);min-width:0;min-height:0;padding:0}
-.photo-comparison .comparison-preview{box-sizing:border-box;padding:.25rem;text-align:center}
-.photo-comparison .comparison-preview img{position:absolute;inset:0;display:block;width:100%;height:100%;max-width:100%;max-height:100%;padding:0;object-fit:contain;object-position:center}
 .photo-comparison figcaption{height:var(--comparison-caption-height);margin:0;padding:.3rem .15rem;overflow:hidden}
 .photo-comparison figcaption strong,.photo-comparison [data-photo-position]{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .comparison-slider-slot,.comparison-slider-spacer{min-height:44px}
+.photo-comparison [data-photo-slider]{
+ appearance:none;-webkit-appearance:none;display:block;width:100%;height:44px;min-height:44px;
+ margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;
+ accent-color:var(--photo-gold);touch-action:pan-y;cursor:pointer
+}
+.photo-comparison [data-photo-slider]::-webkit-slider-runnable-track{
+ height:4px;border-radius:4px;background:linear-gradient(to right,var(--photo-gold) var(--photo-progress,0%),var(--photo-rail) var(--photo-progress,0%))
+}
+.photo-comparison [data-photo-slider]::-webkit-slider-thumb{
+ -webkit-appearance:none;width:18px;height:18px;margin-top:-7px;border:1px solid var(--solid);border-radius:50%;background:var(--photo-gold)
+}
+.photo-comparison [data-photo-slider]::-moz-range-track{
+ height:4px;border-radius:4px;background:linear-gradient(to right,var(--photo-gold) var(--photo-progress,0%),var(--photo-rail) var(--photo-progress,0%))
+}
+.photo-comparison [data-photo-slider]::-moz-range-thumb{width:18px;height:18px;border:1px solid var(--solid);border-radius:50%;background:var(--photo-gold)}
+.photo-comparison :is([data-photo-date],[data-photo-slider]):focus-visible{outline:2px solid var(--ink);outline-offset:2px}

@@ -266,25 +266,26 @@ function comparisonCard(home){
    const rows=comparisonDays.get(state?.day)||comparisonDays.get(fallback.date);
    const selected=rows.find(row=>row.id===state?.id)||(!state?fallback:rows[0]);
    comparisonSelection[side]={day:selected.date,id:selected.id};
-   const index=rows.indexOf(selected),position=`${date(selected.date)} · Foto ${index+1} de ${rows.length}`;
+   const index=rows.indexOf(selected),position=`Foto ${index+1} de ${rows.length}`;
    const options=[...comparisonDays.keys()].map(day=>`<option value="${esc(day)}" ${day===selected.date?'selected':''}>${date(day)}</option>`).join('');
    return `<figure data-photo-side="${side}">
-   <label>${label} · Data<select data-photo-date aria-label="Data ${label}">${options}</select></label>
+   <div class="comparison-date"><select data-photo-date aria-label="Data ${label}">${options}</select></div>
    <div data-photo-preview></div>
-   <figcaption><strong>${label}</strong> · <span data-photo-position>${position}</span></figcaption>
-   <div class="comparison-slider-slot"><input type="range" data-photo-slider="${label}" aria-label="Fotografia ${label}" aria-valuetext="${position}" min="0" step="1" max="${rows.length-1}" value="${index}" ${rows.length===1?'disabled hidden':''}></div></figure>`;
+   <figcaption><strong>${label}</strong><span data-photo-position>${position}</span></figcaption>
+   <div class="comparison-slider-slot"><input type="range" data-photo-slider="${label}" aria-label="Fotografia ${label}" aria-valuetext="${date(selected.date)}, ${position}" min="0" step="1" max="${rows.length-1}" value="${index}" style="--photo-progress:${rows.length>1?100*index/(rows.length-1):0}%" ${rows.length===1?'disabled hidden':''}></div></figure>`;
   }).join('')}</div>${comparisonDays.size<2?addBtn('photo',photos.length?'Adicionar foto de outro dia':'Adicionar minhas fotos'):''}</section>`;
 }
 function paintComparison(figure,day,index,warm=false){
  const side=Number(figure.dataset.photoSide),label=side?'Depois':'Antes',rows=comparisonDays.get(day),photo=rows?.[index];
  if(!photo)return;
  comparisonSelection[side]={day,id:photo.id};
- const slider=figure.querySelector('[data-photo-slider]'),position=`${date(day)} · Foto ${index+1} de ${rows.length}`;
+ const slider=figure.querySelector('[data-photo-slider]'),position=`Foto ${index+1} de ${rows.length}`;
  slider.max=String(rows.length-1);
  slider.value=String(index);
  slider.disabled=rows.length===1;
  slider.hidden=rows.length===1;
- slider.setAttribute('aria-valuetext',position);
+ slider.setAttribute('aria-valuetext',date(day)+', '+position);
+ slider.style.setProperty('--photo-progress',`${rows.length>1?100*index/(rows.length-1):0}%`);
  figure.querySelector('[data-photo-position]').textContent=position;
  const preview=figure.querySelector('[data-photo-preview]');
  const home=figure.closest('[data-photo-comparison]').dataset.comparisonHome==='true';

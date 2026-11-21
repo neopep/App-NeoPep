@@ -339,3 +339,9 @@ Em 21/11/2026, a comparação do Início passou a aparecer imediatamente após S
 O CSS removeu as alturas conflitantes de imagens. A moldura tem tamanho definido independentemente da imagem, usa contain e centralização e mantém controles e legendas em linhas alinhadas. A prévia privada de até 800 px e o cache de sessão foram preservados. Em staging havia oito fotos de evolução sem prévia intermediária, todas com miniatura antiga. Essas oito dependem de backfill posterior para ganhar resolução; nenhum original foi baixado ou regravado para esse fim.
 
 Build, npm run check e 102 testes pertinentes passaram. A verificação de staging por política RLS confirmou acesso apenas aos metadados próprios. Uma fixture transacional com rollback confirmou que o participante enxerga seu metadado sintético e um administrador de outra conta não o vê. A tentativa de validação visual no Chromium local não concluiu no sandbox. Safari, PWA e proporções com fotos reais no iPhone ainda precisam de conferência. Publicação exclusiva de staging/permanente.
+
+## MEM-20261121-010
+
+Em 21/11/2026, a comparação compartilhada de Início, Evolução e Fotos passou a usar duas molduras 9:16 iguais, fundo neutro e imagens centralizadas com proporção preservada. Seletores nativos de data ganharam área de toque de 44 px, chevron e aparência sem contorno. As legendas mostram Antes ou Depois e Foto X de Y. Os sliders têm trilha preenchida em dourado, restante neutro, foco visível e estilos para WebKit e Gecko.
+
+A seleção por dia, o carregamento, o cache de sessão e a privacidade das fotos foram preservados. O build renovou a revisão do shell do PWA de staging para servir os recursos atualizados. Build, npm run check e 102 testes pertinentes passaram. Os testes automatizados verificam as regras da moldura, dos controles e do PWA. A conferência visual com fotos verticais, horizontais e quadradas no Safari de um iPhone físico segue pendente. Publicação restrita a staging/permanente.

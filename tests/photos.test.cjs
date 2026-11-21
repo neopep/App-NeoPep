@@ -151,6 +151,10 @@ test('sliders ficam limitados à data e a seleção é compartilhada com o Iníc
  before.value='1';
  before.dispatchEvent(new run.document.defaultView.Event('input',{bubbles:true}));
  assert.match(before.getAttribute('aria-valuetext'),/Foto 2 de 2/);
+ assert.equal(before.style.getPropertyValue('--photo-progress'),'100%');
+ assert.equal(before.closest('figure').querySelector('figcaption').textContent,'AntesFoto 2 de 2');
+ assert.equal(before.closest('figure').querySelector('[data-photo-date]').getAttribute('aria-label'),'Data Antes');
+ assert.doesNotMatch(before.closest('figure').textContent,/Antes · Data/);
  assert.equal(before.closest('figure').querySelector('[data-photo-open]').dataset.photoOpen,'second');
  assert.equal(after.closest('figure').querySelector('[data-photo-open]').dataset.photoOpen,'third');
  run("page='inicio';document.querySelector('#content').innerHTML=overview();setHomeDetails(true)");
@@ -278,9 +282,12 @@ test('a comparação do Início pertence ao acompanhamento e Ver fotos usa a nav
 
 test('layout reserva linhas fixas para seletores, fotos, legendas e sliders dos dois lados',()=>{
  const css=fs.readFileSync('dist/style.css','utf8');
- assert.match(css,/grid-template-rows:var\(--comparison-date-height\) var\(--comparison-height\) var\(--comparison-caption-height\) 44px/);
+ assert.match(css,/grid-template-rows:var\(--comparison-date-height\) auto var\(--comparison-caption-height\) 44px/);
  assert.match(css,/\.comparison-slider-slot,\.comparison-slider-spacer\{min-height:44px/);
  assert.match(css,/\.photo-comparison \.comparison-preview img\{[^}]*object-fit:contain/);
+ assert.match(css,/aspect-ratio:9\/16/);
+ assert.match(css,/::-webkit-slider-thumb/);
+ assert.match(css,/::-moz-range-thumb/);
 });
 
 test('prévia legada recorre à miniatura privada e nunca lê o original',async()=>{
