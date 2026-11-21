@@ -703,7 +703,91 @@ document.addEventListener('toggle',event=>{
  if(event.target.open)openedPhotoSections.add(id);else openedPhotoSections.delete(id);
  hydratePhotoImages();
 },true);
-function profilePage(){const p={...state.profile,theme:appearance,consent:mode==='cloud'&&!demo?Cloud.hasConsent('health'):state.profile.consent};return head('Seu espaço, do seu jeito.','Perfil, preferências e controle dos seus dados.')+`<div class="two-cols"><section class="card"><div class="profile-head"><div class="avatar">${avatarURL?`<img src="${esc(avatarURL)}" alt="Sua foto">`:esc(p.name.slice(0,1).toUpperCase()||'N')}</div><div><h2>${esc(p.name||'Como podemos chamar você?')}</h2><p class="sub">${mode==='cloud'?esc(Cloud.user?.email||'Conta conectada'):'Perfil local · neste navegador'}</p><button class="text-btn" data-add="avatar">Alterar foto</button></div></div><form id="profileForm"><label>Nome<input name="name" value="${esc(p.name)}" maxlength="100" autocomplete="given-name" required placeholder="Seu nome"></label>${mode==='cloud'?`<label>E-mail da conta<input type="email" disabled value="${esc(Cloud.user?.email||'')}"></label>`:''}<div class="form-grid"><label class="profile-birth-date">Nascimento (opcional)<input name="birthDate" type="date" value="${esc(p.birthDate)}" max="${C.today()}"></label><label class="profile-height">Altura (cm)<input name="height" type="number" min="40" max="260" step="0.1" inputmode="decimal" value="${p.height??''}"></label><label>Peso inicial (kg)<input name="initialWeight" type="number" min="1" max="650" step="0.01" inputmode="decimal" value="${p.initialWeight??''}"></label><label>Meta de peso (kg)<input name="goal" type="number" min="1" max="650" step="0.01" inputmode="decimal" value="${p.goal??''}"></label></div><div class="form-grid"><label>Unidades de exibição<select name="units"><option value="metric" ${p.units==='metric'?'selected':''}>kg e cm</option><option value="imperial" ${p.units==='imperial'?'selected':''}>lb e polegadas</option></select></label><label>Aparência<select name="theme" id="themeSelect">${[['system','Automática'],['light','Clara'],['dark','Escura']].map(([v,t])=>`<option value="${v}" ${p.theme===v?'selected':''}>${t}</option>`).join('')}</select></label></div><p class="form-help">Os formulários guardam valores em kg e cm; a preferência altera a exibição de peso e medidas.</p>${mode!=='cloud'||demo?profilePermissions(p):''}${trackingFields(p)}<button class="primary full">Salvar perfil</button></form></section><section><div class="card"><h2>Conta e sincronização</h2>${mode==='cloud'&&!Cloud.onboardingComplete?'<button class="primary full space" data-go="onboarding">Concluir cadastro inicial</button>':''}<p class="sub space">${mode==='cloud'?'Sua conta está conectada. Alterações confirmadas são persistidas na nuvem.':'Você está no modo local. Os dados deste dispositivo não são enviados à nuvem automaticamente.'}</p>${mode==='cloud'?`<button class="secondary full space" id="refresh">${icon('refresh')} Atualizar dados da nuvem</button><button class="text-btn full" id="logout">${icon('logout')} Sair da conta</button><button class="text-btn full" id="logoutAll">Sair de todos os dispositivos</button>`:`<button class="primary full space" data-go="bemvindo">${icon('user')} Entrar ou criar conta</button><p class="not-configured space">${Cloud.configured?'Integração configurada; valide o acesso na sua conta.':'Apple, Google e e-mail aguardam configuração externa.'}</p>`}</div><div class="profile-settings space"><details class="card profile-setting"><summary><span class="profile-setting-icon">${icon('download')}</span><span>Meus dados<small>Exportar, importar e excluir</small></span><span class="profile-setting-chevron" aria-hidden="true">⌄</span></summary><div class="profile-setting-content"><div class="profile-data-actions"><button class="secondary" id="backup">${icon('download')} Exportar backup</button><button class="secondary" id="restore">Importar backup</button><button class="secondary" id="csv">Exportar planilha</button></div><p class="sub space">O backup inclui seu perfil e registros. As fotos são exportadas separadamente na galeria. A importação adiciona registros sem apagar os existentes ou substituir seu perfil.</p><button class="text-btn" data-go="fotos">Abrir minhas fotos</button>${legacyExists&&!demo?`<details class="space"><summary>Recuperar registros anteriores</summary><p class="sub">Exporte o original antes de revisar a importação.</p><button class="secondary space" id="legacyBackup">Exportar registros originais</button><button class="secondary space" id="legacyImport" ${legacyBackupDone?'':'disabled'}>Revisar importação</button></details>`:''}${localError?'<button class="secondary full space" id="rawBackup">Exportar dados locais brutos</button>':''}<div class="danger-zone">${mode==='cloud'?'<button class="delete" id="deleteAccount">Excluir minha conta</button><p class="sub">A exclusão é permanente e exige confirmação de identidade. Exportar os dados antes é opcional.</p>':'<button class="delete" id="clearLocal">Excluir dados deste dispositivo</button><p class="sub">A exclusão é permanente e afeta os dados locais neste navegador. Exportar antes é opcional.</p>'}</div></div></details><details class="card profile-setting"><summary><span class="profile-setting-icon">${icon('shield')}</span><span>Privacidade<small>Autorizações e documentos</small></span><span class="profile-setting-chevron" aria-hidden="true">⌄</span></summary><div class="profile-setting-content">${mode==='cloud'&&!demo?profilePermissions(p):'<p class="sub">Você controla os dados que registra. Consulte os documentos e as opções de exclusão em Meus dados.</p>'}${mode==='cloud'?'<div class="privacy-controls"><button class="text-btn" id="withdrawHealth">Retirar autorização de saúde</button><button class="text-btn" id="withdrawPhotos">Retirar autorização de fotos</button></div><p class="sub">Retirar uma autorização bloqueia novas gravações correspondentes; não apaga automaticamente os dados anteriores.</p>':''}<div class="privacy-documents"><button class="text-btn" data-go="termos">Termos de uso</button><button class="text-btn" data-go="privacidade">Política de Privacidade</button></div></div></details><details class="card profile-setting"><summary><span class="profile-setting-icon">${icon('download')}</span><span>Instalar aplicativo<small>Adicionar à tela inicial</small></span><span class="profile-setting-chevron" aria-hidden="true">⌄</span></summary><div class="profile-setting-content">${window.NeoInstall?.guide()||'<p class="sub">Abra o menu do navegador e escolha adicionar à tela inicial.</p>'}</div></details></div></section></div>`}
+const audienceCampaign=(()=>{
+ const result={};
+ const query=new URL(location.href,"https://invalid.invalid").searchParams;
+ for(const key of ['utm_source','utm_medium','utm_campaign','utm_content','utm_term']){
+  const value=query.get(key);
+  if(value&&/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(value))result[key]=value;
+ }
+ if(document.referrer){
+  try{
+   const origin=new URL(document.referrer),host=origin.hostname;
+   if(origin.origin!==new URL(location.href).origin){
+    result.referrer=/(^|\.)instagram\.com$/.test(host)?'Instagram':/(^|\.)facebook\.com$/.test(host)?'Facebook':
+     /(^|\.)google\.(com|com\.br|co\.uk)$/.test(host)?'Google':'Outra referência';
+   }
+  }catch{}
+ }
+ return result;
+})();
+let audienceAccount=null,audienceAllowed=null,audienceCheck=null,audienceObservedAt=0,audienceCampaignPending=true;
+function audienceDevice(){
+ const ua=navigator.userAgent||'';
+ const ipad=/iPad/.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1);
+ const os=ipad||/iPhone|iPod/.test(ua)?'iOS':/Android/.test(ua)?'Android':/Windows/.test(ua)?'Windows':
+  /Macintosh/.test(ua)?'macOS':/Linux/.test(ua)?'Linux':null;
+ const category=ipad||os==='Android'&&!/Mobile/.test(ua)?'tablet':/Mobile|iPhone|iPod/.test(ua)?'mobile':os?'desktop':null;
+ const patterns=[['Edge',/Edg(?:A|iOS)?\/(\d+)/],['Opera',/OPR\/(\d+)/],
+  ['Samsung Internet',/SamsungBrowser\/(\d+)/],['Firefox',/(?:Firefox|FxiOS)\/(\d+)/],
+  ['Chrome',/(?:Chrome|CriOS)\/(\d+)/],['Safari',/Version\/(\d+).*Safari/]];
+ const match=patterns.find(([,pattern])=>pattern.test(ua));
+ const context=navigator.standalone===true||matchMedia('(display-mode: standalone)').matches?'pwa':
+  navigator.standalone===false||matchMedia('(display-mode: browser)').matches?'browser':null;
+ return {category,os,browser:match?.[0],major:match?.[1].exec(ua)?.[1],context};
+}
+function paintAudienceControls(){
+ const root=$('[data-audience-controls]');
+ if(!root)return;
+ root.querySelector('[data-audience-status]').textContent=audienceAllowed===true?'Coleta opcional ativa.':audienceAllowed===false?'Coleta opcional desativada.':'Preferência ainda não confirmada.';
+ for(const button of root.querySelectorAll('button'))button.hidden=button.dataset.audienceAction==='allow'?audienceAllowed===true:audienceAllowed!==true;
+}
+async function syncAudience(){
+ const account=mode==='cloud'&&!demo?Cloud.user?.id:null;
+ if(audienceAccount!==account){
+  if(audienceAccount)audienceCampaignPending=false;
+  audienceAccount=account;audienceAllowed=null;audienceCheck=null;audienceObservedAt=0;
+ }
+ paintAudienceControls();
+ if(!account||!Cloud.audience||audienceCheck||document.visibilityState==='hidden'||navigator.onLine===false||audienceAllowed===false)return;
+ const request={};audienceCheck=request;
+ try{
+  if(audienceAllowed===null){
+   const status=await Cloud.audience('status');
+   if(audienceCheck!==request||Cloud.user?.id!==account)return;
+   audienceAllowed=status.allowed===true;
+   paintAudienceControls();
+  }
+  if(!audienceAllowed||Date.now()-audienceObservedAt<300000)return;
+  const result=await Cloud.audience('observe',audienceDevice(),audienceCampaignPending?audienceCampaign:null);
+  if(audienceCheck!==request||Cloud.user?.id!==account)return;
+  audienceAllowed=result.allowed===true;
+  audienceObservedAt=Date.now();
+  audienceCampaignPending=false;
+  paintAudienceControls();
+ }catch{}finally{if(audienceCheck===request)audienceCheck=null}
+}
+document.addEventListener('click',async event=>{
+ const button=event.target.closest?.('[data-audience-action]');
+ if(!button||mode!=='cloud'||demo||!Cloud.user||!Cloud.audience||button.disabled)return;
+ const kind=button.dataset.audienceAction,account=Cloud.user.id,root=button.closest('[data-audience-controls]');
+ for(const action of root.querySelectorAll('button'))action.disabled=true;
+ audienceCheck=null;
+ try{
+  const result=await Cloud.audience(kind);
+  if(Cloud.user?.id!==account)return;
+  audienceAccount=account;
+  audienceAllowed=result.allowed===true;
+  if(kind==='remove'){audienceCampaignPending=false;audienceObservedAt=0}
+  if(kind==='export')download('neopep-dados-de-publico.json',JSON.stringify(result,null,2),'application/json');
+  paintAudienceControls();
+  if(kind==='allow')void syncAudience();
+ }catch{if(Cloud.user?.id===account)toast('Não foi possível atualizar os dados opcionais.')}
+ finally{for(const action of root.querySelectorAll('button'))action.disabled=false}
+});
+window.addEventListener('pageshow',syncAudience);
+setInterval(syncAudience,300000);
+function profilePage(){const audience=mode==='cloud'&&!demo?`<section class="card space" data-audience-controls><h2>Estatísticas opcionais</h2><p class="sub">Permita guardar a categoria do dispositivo, navegador e campanhas para melhorar o NeoPep. Os dados ficam disponíveis por até 90 dias. Você pode exportá-los ou apagar a coleta a qualquer momento.</p><p data-audience-status role="status"></p><button type="button" class="secondary" data-audience-action="allow">Permitir coleta</button> <button type="button" class="secondary" data-audience-action="export" hidden>Exportar dados</button> <button type="button" class="secondary" data-audience-action="remove" hidden>Desativar e apagar</button></section>`:'';const p={...state.profile,theme:appearance,consent:mode==='cloud'&&!demo?Cloud.hasConsent('health'):state.profile.consent};return head('Seu espaço, do seu jeito.','Perfil, preferências e controle dos seus dados.')+`<div class="two-cols"><section class="card"><div class="profile-head"><div class="avatar">${avatarURL?`<img src="${esc(avatarURL)}" alt="Sua foto">`:esc(p.name.slice(0,1).toUpperCase()||'N')}</div><div><h2>${esc(p.name||'Como podemos chamar você?')}</h2><p class="sub">${mode==='cloud'?esc(Cloud.user?.email||'Conta conectada'):'Perfil local · neste navegador'}</p><button class="text-btn" data-add="avatar">Alterar foto</button></div></div><form id="profileForm"><label>Nome<input name="name" value="${esc(p.name)}" maxlength="100" autocomplete="given-name" required placeholder="Seu nome"></label>${mode==='cloud'?`<label>E-mail da conta<input type="email" disabled value="${esc(Cloud.user?.email||'')}"></label>`:''}<div class="form-grid"><label class="profile-birth-date">Nascimento (opcional)<input name="birthDate" type="date" value="${esc(p.birthDate)}" max="${C.today()}"></label><label class="profile-height">Altura (cm)<input name="height" type="number" min="40" max="260" step="0.1" inputmode="decimal" value="${p.height??''}"></label><label>Peso inicial (kg)<input name="initialWeight" type="number" min="1" max="650" step="0.01" inputmode="decimal" value="${p.initialWeight??''}"></label><label>Meta de peso (kg)<input name="goal" type="number" min="1" max="650" step="0.01" inputmode="decimal" value="${p.goal??''}"></label></div><div class="form-grid"><label>Unidades de exibição<select name="units"><option value="metric" ${p.units==='metric'?'selected':''}>kg e cm</option><option value="imperial" ${p.units==='imperial'?'selected':''}>lb e polegadas</option></select></label><label>Aparência<select name="theme" id="themeSelect">${[['system','Automática'],['light','Clara'],['dark','Escura']].map(([v,t])=>`<option value="${v}" ${p.theme===v?'selected':''}>${t}</option>`).join('')}</select></label></div><p class="form-help">Os formulários guardam valores em kg e cm; a preferência altera a exibição de peso e medidas.</p>${mode!=='cloud'||demo?profilePermissions(p):''}${trackingFields(p)}<button class="primary full">Salvar perfil</button></form></section><section><div class="card"><h2>Conta e sincronização</h2>${mode==='cloud'&&!Cloud.onboardingComplete?'<button class="primary full space" data-go="onboarding">Concluir cadastro inicial</button>':''}<p class="sub space">${mode==='cloud'?'Sua conta está conectada. Alterações confirmadas são persistidas na nuvem.':'Você está no modo local. Os dados deste dispositivo não são enviados à nuvem automaticamente.'}</p>${mode==='cloud'?`<button class="secondary full space" id="refresh">${icon('refresh')} Atualizar dados da nuvem</button><button class="text-btn full" id="logout">${icon('logout')} Sair da conta</button><button class="text-btn full" id="logoutAll">Sair de todos os dispositivos</button>`:`<button class="primary full space" data-go="bemvindo">${icon('user')} Entrar ou criar conta</button><p class="not-configured space">${Cloud.configured?'Integração configurada; valide o acesso na sua conta.':'Apple, Google e e-mail aguardam configuração externa.'}</p>`}</div><div class="profile-settings space"><details class="card profile-setting"><summary><span class="profile-setting-icon">${icon('download')}</span><span>Meus dados<small>Exportar, importar e excluir</small></span><span class="profile-setting-chevron" aria-hidden="true">⌄</span></summary><div class="profile-setting-content"><div class="profile-data-actions"><button class="secondary" id="backup">${icon('download')} Exportar backup</button><button class="secondary" id="restore">Importar backup</button><button class="secondary" id="csv">Exportar planilha</button></div><p class="sub space">O backup inclui seu perfil e registros. As fotos são exportadas separadamente na galeria. A importação adiciona registros sem apagar os existentes ou substituir seu perfil.</p><button class="text-btn" data-go="fotos">Abrir minhas fotos</button>${legacyExists&&!demo?`<details class="space"><summary>Recuperar registros anteriores</summary><p class="sub">Exporte o original antes de revisar a importação.</p><button class="secondary space" id="legacyBackup">Exportar registros originais</button><button class="secondary space" id="legacyImport" ${legacyBackupDone?'':'disabled'}>Revisar importação</button></details>`:''}${localError?'<button class="secondary full space" id="rawBackup">Exportar dados locais brutos</button>':''}<div class="danger-zone">${mode==='cloud'?'<button class="delete" id="deleteAccount">Excluir minha conta</button><p class="sub">A exclusão é permanente e exige confirmação de identidade. Exportar os dados antes é opcional.</p>':'<button class="delete" id="clearLocal">Excluir dados deste dispositivo</button><p class="sub">A exclusão é permanente e afeta os dados locais neste navegador. Exportar antes é opcional.</p>'}</div></div></details><details class="card profile-setting"><summary><span class="profile-setting-icon">${icon('shield')}</span><span>Privacidade<small>Autorizações e documentos</small></span><span class="profile-setting-chevron" aria-hidden="true">⌄</span></summary><div class="profile-setting-content">${mode==='cloud'&&!demo?profilePermissions(p):'<p class="sub">Você controla os dados que registra. Consulte os documentos e as opções de exclusão em Meus dados.</p>'}${mode==='cloud'?'<div class="privacy-controls"><button class="text-btn" id="withdrawHealth">Retirar autorização de saúde</button><button class="text-btn" id="withdrawPhotos">Retirar autorização de fotos</button></div><p class="sub">Retirar uma autorização bloqueia novas gravações correspondentes; não apaga automaticamente os dados anteriores.</p>':''}<div class="privacy-documents"><button class="text-btn" data-go="termos">Termos de uso</button><button class="text-btn" data-go="privacidade">Política de Privacidade</button></div></div></details><details class="card profile-setting"><summary><span class="profile-setting-icon">${icon('download')}</span><span>Instalar aplicativo<small>Adicionar à tela inicial</small></span><span class="profile-setting-chevron" aria-hidden="true">⌄</span></summary><div class="profile-setting-content">${window.NeoInstall?.guide()||'<p class="sub">Abra o menu do navegador e escolha adicionar à tela inicial.</p>'}</div></details></div></section></div>`+audience}
 function rememberRecovery(stage){try{window.sessionStorage?.setItem('neo-recovery-request',JSON.stringify({email:authEmail,stage,requestedAt:Date.now()}));}catch{}}
 function clearRecovery(){try{window.sessionStorage?.removeItem('neo-recovery-request');}catch{}}
 function restoreRecovery(){try{const saved=JSON.parse(window.sessionStorage?.getItem('neo-recovery-request')||'null');if(!saved||!/^\S+@\S+\.\S+$/.test(saved.email)||!Number.isFinite(saved.requestedAt)||Date.now()-saved.requestedAt>3600000||saved.requestedAt>Date.now()||!['verifycode','newpassword'].includes(saved.stage))return;authEmail=saved.email;authMode=saved.stage;recoveryFlow=true;resetNextAt=saved.stage==='verifycode'?saved.requestedAt+60000:0;page='bemvindo';}catch{}}
@@ -792,7 +876,7 @@ async function refreshSignupBadge(){
 setInterval(refreshSignupBadge,30000);
 window.addEventListener('focus',refreshSignupBadge);
 window.addEventListener('pageshow',refreshSignupBadge);
-function render(){applyTheme();if(sessionLoading){
+function render(){applyTheme();void Promise.resolve().then(syncAudience);if(sessionLoading){
  document.body.classList.add('auth-screen');
  document.querySelector('.app-header').hidden=true;
  $('#nav').hidden=true;

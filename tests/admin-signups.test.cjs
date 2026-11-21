@@ -85,5 +85,34 @@ test('cadastros têm leitura individual, paginação estável e acesso restrito'
   assert.equal(bulk.read_count,2500);
   assert.equal(bulk.rows.length,5);
   assert.equal((await rpc("'count'")).count,0);
+  await db.exec('reset role');
+  await db.exec(fs.readFileSync('supabase/migrations/20261121181510_admin_audience.sql','utf8'));
+  async function audience(name,args,params=[]){
+   return (await db.query(`select public.neo_${name}(${args}) result`,params)).rows[0].result;
+  }
+  await as(regular);
+  await assert.rejects(audience('admin_audience',''),{code:'42501'});
+  await assert.rejects(db.query('select * from neo_private.audience_observations'),{code:'42501'});
+  const observe=(d,c)=>audience('audience_self',"'observe',$1,$2",[JSON.stringify(d),JSON.stringify(c)]);
+  assert.equal((await observe({browser:'Safari'},{utm_source:'ig'})).allowed,false);
+  assert.equal((await audience('audience_self',"'allow'")).allowed,true);
+  await observe({browser:'Safari',os:'iOS',category:'mobile',major:'18',context:'pwa',ip:'203.0.113.1'},
+   {referrer:'Instagram',utm_source:'ig',utm_campaign:'lancamento',utm_term:'pessoa@example.invalid'});
+  await observe({browser:'Edge',os:'Windows',category:'desktop',context:'browser'},{utm_source:'newsletter'});
+  const own=await audience('audience_self',"'export'");
+  assert.equal(own.first_device.os,'iOS');
+  assert.equal(own.last_device.os,'Windows');
+  assert.equal(own.first_campaign.utm_source,'ig');
+  assert.equal(own.last_campaign.utm_source,'newsletter');
+  assert.equal(own.first_device.ip,undefined);
+  assert.equal(own.first_campaign.utm_term,undefined);
+  await as(adminA);
+  const stats=await audience('admin_audience','');
+  assert.equal(stats.today,2502);
+  assert.equal(stats.groups.length,0);
+  assert.equal((await audience('admin_audience','p_users=>$1',[[regular]]))[regular].last_device.os,'Windows');
+  await as(regular);
+  assert.equal((await audience('audience_self',"'remove'")).allowed,false);
+  assert.equal((await audience('audience_self',"'export'")).allowed,false);
  }finally{await db.close()}
 });

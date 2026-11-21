@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),vm=require('vm'),fs=require('fs'),{parseHTML}=require('linkedom'),C=require('../dist/core.js');
-function app(summary,configured=true){const {document}=parseHTML(fs.readFileSync('dist/admin/index.html','utf8'));const cloud={configured,user:configured?{id:'user'}:null,init:async()=>null,adminSummary:async()=>{if(summary instanceof Error)throw summary;return summary}};const timers=[];const ctx={document,setTimeout:(callback,delay)=>timers.push({callback,delay}),window:{NeoCore:C,NeoCloud:cloud},Number,confirm:()=>true};vm.createContext(ctx);vm.runInContext(fs.readFileSync('dist/admin/admin.js','utf8'),ctx);return {document,cloud,timers,refresh:()=>vm.runInContext('refresh()',ctx)}}
+function app(summary,configured=true){const {document}=parseHTML(fs.readFileSync('dist/admin/index.html','utf8'));const cloud={configured,user:configured?{id:'user'}:null,init:async()=>null,adminSummary:async()=>{if(summary instanceof Error)throw summary;return summary}};const timers=[];let now=10000;const fakeDate=class extends Date{static now(){return now}};const ctx={document,Date:fakeDate,setTimeout:(callback,delay)=>{const timer={callback,delay,active:true};timers.push(timer);return timer},clearTimeout:timer=>{if(timer)timer.active=false},window:{NeoCore:C,NeoCloud:cloud},Number,confirm:()=>true};vm.createContext(ctx);vm.runInContext(fs.readFileSync('dist/admin/admin.js','utf8'),ctx);return {document,cloud,timers,advance(ms){now+=ms;timers.findLast(timer=>timer.active)?.callback()},refresh:()=>vm.runInContext('refresh()',ctx)}}
 test('painel administrativo não apresenta métricas inventadas sem backend nem dados após recusa',async()=>{const a=app(null,false);await a.refresh();assert.match(a.document.querySelector('#adminStatus').textContent,/não configurado/);assert.equal(a.document.querySelectorAll('.stat-value').length,0);const b=app(Error('administrator required'));await b.refresh();assert.match(b.document.querySelector('#adminStatus').textContent,/administrator required/);assert.equal(b.document.querySelectorAll('.stat-value').length,0)});
 test('renderização administrativa usa apenas indicadores permitidos, sem dados individuais extras',async()=>{const data={users_total:12,signups_7d:3,active_24h:2,active_7d:6,active_30d:10,profiles_total:10,records_total:25,photos_total:8,server_time:'2026-11-12T00:00:00Z',private_storage:true,database_status:'reachable',schema_version:'202611120002',signups_daily:[{day:'2026-11-12',count:null}],app_errors_7d:[],email:'private@example.invalid',health:{weight:91},photo_url:'https://private/photo.jpg'};const a=app(data);await a.refresh();const text=a.document.querySelector('#adminContent').textContent;assert.equal(a.document.querySelectorAll('.stat-value').length,8);assert.ok(!text.includes('private@example.invalid'));assert.ok(!text.includes('photo.jpg'));assert.ok(!text.includes('91'));assert.match(text,/célula suprimida/)});
 
@@ -28,6 +28,10 @@ test('cadastros ficam na visão geral e o aviso temporário preserva a lista pag
  await new Promise(setImmediate);
  const doc=a.document,notice=doc.querySelector('[data-signup-notice]');
  assert.match(notice.textContent,/40 novos cadastros/);
+ assert.equal(notice.parentNode,doc.body);
+ assert.equal(notice.querySelector('[data-signup-seconds]').textContent,'9 s');
+ a.advance(1000);
+ assert.equal(notice.querySelector('[data-signup-seconds]').textContent,'8 s');
  assert.equal(notice.querySelectorAll('li').length,5);
  assert.equal(doc.querySelectorAll('.admin-signup').length,20);
  const first=doc.querySelector('.admin-signup');
@@ -40,10 +44,55 @@ test('cadastros ficam na visão geral e o aviso temporário preserva a lista pag
  await new Promise(setImmediate);
  assert.equal(calls.at(-1)[1].p_before_id,'fixture-19');
  assert.equal(doc.querySelectorAll('.admin-signup').length,21);
- a.timers.find(timer=>timer.delay>8000).callback();
- assert.equal(notice.hidden,true);
+ a.advance(8000);
+ assert.equal(notice.querySelector('[data-signup-seconds]').textContent,'0 s');
+ assert.ok(notice.classList.contains('is-closing'));
+ a.advance(200);
+ assert.equal(notice.isConnected,false);
  assert.equal(doc.querySelectorAll('.admin-signup').length,21);
  await a.refresh();
  await new Promise(setImmediate);
- assert.equal(doc.querySelector('[data-signup-notice]').hidden,true);
+ assert.equal(doc.querySelector('[data-signup-notice]'),null);
+});
+
+test('visão geral coloca cadastros e estatísticas entre indicadores e funcionamento',async()=>{
+ const a=app({signups_daily:[],app_errors_7d:[]});
+ a.cloud.adminSignups=async action=>action==='open'?{read_count:1,rows:[]}: {rows:[]};
+ a.cloud.adminAudience=async()=>({today:3,signups_7:4,signups_30:5,period_signups:5,active_1:1,active_7:2,
+  active_30:3,new_active:null,returning_active:0,from:'2026-11-01',to:'2026-11-21',groups:[],daily:[],monthly:[]});
+ await a.refresh();
+ await new Promise(setImmediate);
+ const root=a.document.querySelector('#adminContent');
+ assert.deepEqual([...root.children].slice(0,4).map(el=>el.hasAttribute('data-admin-signups')?'cadastros':
+  el.hasAttribute('data-admin-audience')?'público':el.className),['stats','cadastros','público','two-cols']);
+ assert.match(root.querySelector('[data-admin-audience]').textContent,/Estatísticas de público.*Dados insuficientes/s);
+ const toast=a.document.querySelector('[data-signup-notice]');
+ toast.querySelector('button').click();
+ a.advance(200);
+ assert.equal(toast.isConnected,false);
+ assert.equal(a.timers.filter(timer=>timer.active&&timer.delay===100).length,0);
+});
+
+test('aviso aguarda aba visível e pausa a contagem enquanto fica oculta',async()=>{
+ const a=app({signups_daily:[],app_errors_7d:[]});
+ let visibility='hidden';
+ Object.defineProperty(a.document,'visibilityState',{get:()=>visibility});
+ a.cloud.adminSignups=async action=>action==='open'?{read_count:1,rows:[]}: {rows:[]};
+ await a.refresh();
+ await new Promise(setImmediate);
+ const toast=a.document.querySelector('[data-signup-notice]');
+ const remaining=()=>toast.querySelector('[data-signup-seconds]').textContent;
+ a.advance(12000);
+ assert.equal(remaining(),'9 s');
+ const change=value=>{visibility=value;a.document.dispatchEvent(new a.document.defaultView.Event('visibilitychange'))};
+ change('visible');
+ a.advance(2000);
+ assert.equal(remaining(),'7 s');
+ change('hidden');
+ a.advance(30000);
+ assert.equal(remaining(),'7 s');
+ change('visible');
+ a.advance(7000);
+ a.advance(200);
+ assert.equal(toast.isConnected,false);
 });

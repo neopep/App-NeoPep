@@ -330,8 +330,6 @@ body:has(.comparison-export-dialog[open]){overflow:hidden}
 
 .admin-shortcut{position:relative}
 .admin-signup-badge{position:absolute;inset-block-start:-.38rem;inset-inline-end:-.4rem;min-width:1.3rem;padding:0 .24rem;border-radius:1rem;background:#dfbd78;color:#211a14;font-size:.65rem;font-weight:800;line-height:1.3rem;text-align:center;pointer-events:none}
-.admin-signup-notice{padding:.65rem .8rem;margin-block:.6rem;border-inline-start:2px solid #dfbd78;background:var(--soft);overflow-wrap:anywhere}
-.admin-signup-notice ul{margin:.3rem 0;padding-inline-start:1.15rem}
 .admin-signup-filters{display:grid;grid-template-columns:2fr repeat(3,minmax(0,1fr)) auto;align-items:end;gap:.5rem}
 .admin-signup-filters label{margin:0;min-width:0}
 .admin-signup-filters input,.admin-signup-filters select{min-width:0;width:100%}
@@ -356,3 +354,20 @@ body:has(.comparison-export-dialog[open]){overflow:hidden}
  .admin-signup summary time{grid-row:2;grid-column:1}
  .admin-signup dl{grid-template-columns:minmax(0,1fr)}
 }
+
+.admin-signup-toast{position:fixed;z-index:1001;inset-block-start:calc(env(safe-area-inset-top) + 4.7rem);inset-inline-end:max(.65rem,env(safe-area-inset-right));width:min(25rem,calc(100% - max(.65rem,env(safe-area-inset-right)) - max(.65rem,env(safe-area-inset-left))));padding:.7rem .85rem;border:1px solid #a8874e;border-radius:1rem;background:rgba(31,25,20,.97);color:#f8eddb;box-shadow:0 12px 30px #0006;overflow-wrap:anywhere;transition:opacity .2s,transform .2s}
+.admin-signup-toast.is-closing{opacity:0;transform:translateY(-.5rem);pointer-events:none}
+.admin-signup-toast-main{display:flex;justify-content:space-between;gap:.5rem}
+.admin-signup-toast strong,.admin-signup-toast-actions span{color:#dfbd78}
+.admin-signup-toast ul{margin:.25rem 0;padding-inline-start:1.1rem}
+.admin-signup-toast-actions{display:grid;justify-items:center;align-content:start;flex:none;font-size:.75rem}
+.admin-signup-toast-actions .icon-btn{width:44px;height:44px;color:#f8eddb}
+.admin-signup-toast progress{display:block;width:100%;height:.2rem;margin-top:.5rem;accent-color:#dfbd78}
+.audience-kpis,.audience-charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,10rem),1fr));gap:.6rem;margin-block:.65rem}
+.audience-kpis>div,.audience-chart{min-width:0;padding:.6rem;border:1px solid var(--border);border-radius:.7rem}
+.audience-kpis strong{display:block;font-size:1.3rem}
+.audience-chart summary{cursor:pointer;min-height:32px}
+.audience-bar{display:grid;grid-template-columns:minmax(0,1fr) minmax(1rem,.9fr) auto;align-items:center;gap:.3rem;font-size:.8rem;overflow-wrap:anywhere}
+.audience-bar meter{width:100%;accent-color:#dfbd78}
+.audience-bar meter::-webkit-meter-optimum-value{background:#dfbd78}
+@media(prefers-reduced-motion:reduce){.admin-signup-toast{transition:none}}

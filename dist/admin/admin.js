@@ -1,9 +1,9 @@
 'use strict';
 const $=s=>document.querySelector(s),esc=window.NeoCore.escape;let generation=0,loading=false,authorized=false,tab='overview',platform=null,dirty=false,authConfirmation=null;
-function overview(d){const metrics=[['Usuários cadastrados',d.users_total],['Cadastros em 7 dias',d.signups_7d],['Ativos em 24 horas',d.active_24h],['Ativos em 7 dias',d.active_7d],['Ativos em 30 dias',d.active_30d],['Perfis configurados',d.profiles_total],['Registros totais',d.records_total],['Fotos armazenadas',d.photos_total]];return `<div class="stats">${metrics.map(([title,value])=>`<article class="card stat"><div class="stat-label">${title}</div><div class="stat-value">${Number.isFinite(value)?value.toLocaleString('pt-BR'):'—'}</div></article>`).join('')}</div><div class="two-cols"><section class="card"><h2>Funcionamento</h2><p class="sub space">Banco: ${d.database_status==='reachable'?'respondeu à consulta':'não confirmado'}<br>Storage privado: ${d.private_storage===true?'confirmado':'não confirmado'}<br>Schema: ${esc(d.schema_version)}<br>Horário do servidor: ${esc(d.server_time)}</p><div class="notice">“Ativo” significa acesso autenticado informado pelo aplicativo. Esta consulta não mede disponibilidade externa, latência de todas as funções ou entrega de e-mails.</div></section><section class="card"><h2>Erros informados pelo app · 7 dias</h2>${d.app_errors_7d.length?d.app_errors_7d.map(r=>`<div class="task"><b>${esc(r.code)}</b><span>${Number(r.count)}</span></div>`).join(''):'<p class="sub space">Nenhum erro de categoria permitida foi informado.</p>'}<p class="sub space">Contadores limitados por conta. Não contêm mensagens livres, notas, identificadores ou valores de saúde.</p></section></div><section class="card space"><h2>Cadastros por dia</h2>${d.signups_daily.map(r=>`<div class="task"><b>${esc(r.day)}</b><span>${r.count===null?'Menos de 5 · célula suprimida':Number(r.count)}</span></div>`).join('')||'<p class="sub">Sem cadastros no período.</p>'}</section>`;}
+function overview(d){const metrics=[['Usuários cadastrados',d.users_total],['Cadastros em 7 dias',d.signups_7d],['Ativos em 24 horas',d.active_24h],['Ativos em 7 dias',d.active_7d],['Ativos em 30 dias',d.active_30d],['Perfis configurados',d.profiles_total],['Registros totais',d.records_total],['Fotos armazenadas',d.photos_total]];return `<div class="stats">${metrics.map(([title,value])=>`<article class="card stat"><div class="stat-label">${title}</div><div class="stat-value">${Number.isFinite(value)?value.toLocaleString('pt-BR'):'—'}</div></article>`).join('')}</div><div data-admin-signups></div><div data-admin-audience></div><div class="two-cols"><section class="card"><h2>Funcionamento</h2><p class="sub space">Banco: ${d.database_status==='reachable'?'respondeu à consulta':'não confirmado'}<br>Storage privado: ${d.private_storage===true?'confirmado':'não confirmado'}<br>Schema: ${esc(d.schema_version)}<br>Horário do servidor: ${esc(d.server_time)}</p><div class="notice">“Ativo” significa acesso autenticado informado pelo aplicativo. Esta consulta não mede disponibilidade externa, latência de todas as funções ou entrega de e-mails.</div></section><section class="card"><h2>Erros informados pelo app · 7 dias</h2>${d.app_errors_7d.length?d.app_errors_7d.map(r=>`<div class="task"><b>${esc(r.code)}</b><span>${Number(r.count)}</span></div>`).join(''):'<p class="sub space">Nenhum erro de categoria permitida foi informado.</p>'}<p class="sub space">Contadores limitados por conta. Não contêm mensagens livres, notas, identificadores ou valores de saúde.</p></section></div><section class="card space"><h2>Cadastros por dia</h2>${d.signups_daily.map(r=>`<div class="task"><b>${esc(r.day)}</b><span>${r.count===null?'Menos de 5 · célula suprimida':Number(r.count)}</span></div>`).join('')||'<p class="sub">Sem cadastros no período.</p>'}</section>`;}
 function input(name,label,value='',extra=''){return `<label>${label}<input name="${name}" value="${esc(value)}" ${extra}></label>`;}
 function settingsView(p){const c=p.config,s=p.shop||{},publicCfg=window.NEO_CONFIG||{};return `<section class="card space"><h2>Cadastro e confirmação de e-mail</h2><p class="sub">Controle exclusivo do administrador principal. Desativar permite criar conta e entrar sem confirmar a propriedade do e-mail. Recuperação de senha ainda depende de envio de e-mail. Reativar vale para novos cadastros.</p><p id="authSettingsStatus" role="status">Estado ainda não consultado no Supabase.</p><button class="secondary" type="button" id="authSettingsRead">Consultar estado atual</button><form id="authSettingsForm" class="space"><label class="check"><input type="checkbox" id="requireEmailConfirmation" disabled> Exigir confirmação de e-mail nos novos cadastros</label><button class="primary" type="submit" disabled>Aplicar no Supabase</button></form></section><form id="platformForm"><section class="card space"><h2>Configurações gerais</h2><p class="sub">Referências operacionais do suporte. Alterar a URL aqui não conecta um domínio nem muda as permissões do CAPTCHA.</p>${input('support_email','E-mail operacional de atendimento',c.support_email||publicCfg.privacyContact||'','type="email" maxlength="254"')}${input('site_url','Endereço público de referência',c.site_url||'','type="url" maxlength="2000" placeholder="https://…"')}<label class="check"><input type="checkbox" name="require_approval" ${p.require_approval?'checked':''}> Exigir aprovação das novas mensagens do Grupo</label></section><button class="primary full space" type="submit">Salvar configurações</button></form><div data-agent-admin></div><section class="card space"><h2>Pagamentos e entrega</h2><p class="sub">Mercado Pago: ${s.payments_ready?'habilitado no ambiente '+esc(s.payment_environment):'configuração e homologação pendentes'}. Retorno do navegador não confirma pagamento.</p><details class="admin-secret-help"><summary>Integração com Mercado Pago</summary><p class="sub">As credenciais MP_ACCESS_TOKEN, MP_COLLECTOR_ID, MP_WEBHOOK_SECRET, MP_MODE e SHOP_APP_URL ficam nos Secrets do Supabase. Teste completo e webhook são necessários antes de ativar pagamentos. Não coloque essas chaves no formulário.</p><p class="sub">Webhook: <code>${esc(publicCfg.supabaseUrl||'')}/functions/v1/mercadopago-webhook</code></p></details><form id="adminShopForm" class="space">${input('seller_name','Responsável pela loja',s.seller_name||'','required maxlength="120"')}${input('seller_document','CPF ou CNPJ',s.seller_document||'','required maxlength="14" inputmode="numeric"')}${input('business_address','Endereço comercial',s.business_address||'','required maxlength="250"')}${input('support_email','E-mail de atendimento da loja',s.support_email||'','required type="email" maxlength="254"')}<label>Condições de troca<textarea name="returns_policy" rows="4" required maxlength="4000">${esc(s.returns_policy||'')}</textarea></label><div class="form-grid">${input('shipping','Frete fixo (R$)',String((s.shipping_cents??0)/100).replace('.',','),'required inputmode="decimal"')}${input('delivery_min','Prazo mínimo em dias úteis',s.delivery_min??3,'required type="number" min="1" max="90"')}${input('delivery_max','Prazo máximo em dias úteis',s.delivery_max??10,'required type="number" min="1" max="120"')}</div><label class="check"><input type="checkbox" name="shipping_ready" ${s.shipping_ready?'checked':''}> Entrega e prazo conferidos</label><button class="secondary full" type="submit">Salvar entrega e condições</button></form></section>`;}
-async function refresh(){if(loading)return;window.NeoAgent?.reset();authConfirmation=null;const gen=++generation;loading=true;$('#adminContent').innerHTML='';$('#adminStatus').textContent='Verificando autorização no servidor…';$('#adminRefresh').disabled=true;try{if(!window.NeoCloud.configured)throw Error('Supabase não configurado. O painel não apresenta métricas fictícias.');if(!window.NeoCloud.user)throw Error('Entre na sua conta pelo aplicativo e abra novamente o painel.');const d=await window.NeoCloud.adminSummary();if(gen!==generation)return;authorized=true;$('#adminTabs').hidden=false;$('#adminTitle').textContent=tab==='settings'?'Configurações da plataforma':'Visão da plataforma';$('#adminSubtitle').textContent=tab==='settings'?'Geral, atendimento com IA e integrações da loja.':'Indicadores e cadastros. Autorização verificada no servidor.';for(const button of document.querySelectorAll('[data-admin-tab]')){const active=button.dataset.adminTab===tab;button.className=active?'primary':'secondary';button.setAttribute('aria-pressed',String(active));}if(tab==='settings'){try{platform=await window.NeoCloud.platform();if(gen!==generation)return;$('#adminContent').innerHTML=settingsView(platform);window.NeoAgent?.mount($('#adminContent [data-agent-admin]'));}catch(err){$('#adminContent').innerHTML='<section class="card"><h2>Ativação das configurações</h2><p class="sub">Execute a atualização de Biblioteca e integrações no Supabase. As configurações são autorizadas pelo servidor e não são simuladas neste painel.</p></section>';throw err;}}else {$('#adminContent').innerHTML=overview(d)+'<div data-admin-signups></div>';void mountAdminSignups($('[data-admin-signups]'));}$('#adminStatus').textContent='Consulta autorizada. Atualizado agora.';dirty=false;}catch(err){if(gen!==generation)return;$('#adminStatus').textContent='Acesso não disponível: '+err.message;if(!authorized){$('#adminTabs').hidden=true;$('#adminContent').innerHTML='<div class="notice">Somente uma permissão concedida pelo responsável no banco habilita este painel. Editar perfil ou dados do navegador não concede acesso.</div>';}}finally{loading=false;$('#adminRefresh').disabled=false;}}
+async function refresh(){if(loading)return;if(tab!=='overview')clearSignupToast();window.NeoAgent?.reset();authConfirmation=null;const gen=++generation;loading=true;$('#adminContent').innerHTML='';$('#adminStatus').textContent='Verificando autorização no servidor…';$('#adminRefresh').disabled=true;try{if(!window.NeoCloud.configured)throw Error('Supabase não configurado. O painel não apresenta métricas fictícias.');if(!window.NeoCloud.user)throw Error('Entre na sua conta pelo aplicativo e abra novamente o painel.');const d=await window.NeoCloud.adminSummary();if(gen!==generation)return;authorized=true;$('#adminTabs').hidden=false;$('#adminTitle').textContent=tab==='settings'?'Configurações da plataforma':'Visão da plataforma';$('#adminSubtitle').textContent=tab==='settings'?'Geral, atendimento com IA e integrações da loja.':'Indicadores e cadastros. Autorização verificada no servidor.';for(const button of document.querySelectorAll('[data-admin-tab]')){const active=button.dataset.adminTab===tab;button.className=active?'primary':'secondary';button.setAttribute('aria-pressed',String(active));}if(tab==='settings'){try{platform=await window.NeoCloud.platform();if(gen!==generation)return;$('#adminContent').innerHTML=settingsView(platform);window.NeoAgent?.mount($('#adminContent [data-agent-admin]'));}catch(err){$('#adminContent').innerHTML='<section class="card"><h2>Ativação das configurações</h2><p class="sub">Execute a atualização de Biblioteca e integrações no Supabase. As configurações são autorizadas pelo servidor e não são simuladas neste painel.</p></section>';throw err;}}else {$('#adminContent').innerHTML=overview(d);void mountAdminSignups($('[data-admin-signups]'));mountAdminAudience($('[data-admin-audience]'));}$('#adminStatus').textContent='Consulta autorizada. Atualizado agora.';dirty=false;}catch(err){if(gen!==generation)return;$('#adminStatus').textContent='Acesso não disponível: '+err.message;if(!authorized){$('#adminTabs').hidden=true;$('#adminContent').innerHTML='<div class="notice">Somente uma permissão concedida pelo responsável no banco habilita este painel. Editar perfil ou dados do navegador não concede acesso.</div>';}}finally{loading=false;$('#adminRefresh').disabled=false;}}
 async function integration(action){if(loading||!authorized)return;if(action==='test_ai'&&dirty){$('#adminStatus').textContent='Salve as configurações antes de testar a conexão.';return;}const gen=generation;loading=true;try{const r=await window.NeoCloud.integrations(action);if(gen!==generation)return;if(action==='test_ai'){loading=false;await refresh();$('#adminStatus').textContent='Conexão com IA validada. Você já pode ativar as respostas automáticas.';}else $('#integrationStatus').textContent=`Chave OpenAI: ${r.openai_key_present?'presente':'pendente'} · Mercado Pago: ${r.mercadopago_keys_present?'chaves presentes, homologação deve ser conferida':'chaves pendentes'} · Rotina da IA: ${r.ai_worker_secret_present?'segredo presente; agendamento deve ser conferido':'pendente'}`;}catch{if(gen===generation)$('#adminStatus').textContent='Não foi possível conferir a integração. Verifique a função publicada, as chaves e o modelo no Supabase.';}finally{loading=false;}}
 async function authSettings(save=false){if(loading||!authorized)return;const status=$('#authSettingsStatus'),box=$('#requireEmailConfirmation'),button=$('#authSettingsForm [type=submit]'),gen=generation;if(!status||!box||!button)return;const desired=box.checked;if(save&&authConfirmation===null)return;if(save&&!confirm(desired?'Exigir confirmação de e-mail nos novos cadastros? Confira o SMTP antes de ativar.':'Permitir novos cadastros sem confirmar a propriedade do e-mail?'))return;loading=true;box.disabled=true;button.disabled=true;$('#authSettingsRead').disabled=true;status.textContent=save?'Aplicando e conferindo no Supabase…':'Consultando o Supabase…';try{const r=await window.NeoCloud.authSettings(save?'set':'status',save?{require_email_confirmation:desired,expected_confirmation:authConfirmation}:{});if(gen!==generation)return;if(typeof r.require_email_confirmation!=='boolean')throw Error('invalid_state');authConfirmation=r.require_email_confirmation;box.checked=authConfirmation;box.disabled=false;button.disabled=false;status.textContent=(save?'Alteração confirmada no Supabase. ':'Estado conferido no Supabase. ')+(authConfirmation?'Confirmação de e-mail ativada.':'Confirmação de e-mail desativada.');}catch{if(gen===generation){authConfirmation=null;box.checked=false;status.textContent='Não foi possível confirmar o estado. Consulte novamente. A função auth-settings e os Secrets precisam estar configurados, e sua conta deve ser administrador principal.';}}finally{loading=false;if(gen===generation)$('#authSettingsRead').disabled=false;}}
 document.addEventListener('submit',event=>{if(event.target.id==='authSettingsForm'){event.preventDefault();authSettings(true);}});
@@ -19,6 +19,55 @@ async function loadPaymentConfig(){if(paymentBusy||!authorized||tab!=='settings'
 document.addEventListener('submit',event=>{const form=event.target;if(form.id!=='adminPaymentForm')return;event.preventDefault();event.stopImmediatePropagation();if(paymentBusy||!form.reportValidity())return;const values=Object.fromEntries(new FormData(form));paymentBusy=true;paymentMessage='Salvando credenciais…';redrawPayment();window.NeoCloud.shopPaymentIntegration('save',values).then(()=>{paymentBusy=false;paymentMessage='Credenciais salvas no servidor.';return loadPaymentConfig()}).catch(err=>{paymentBusy=false;paymentMessage=err.message;redrawPayment()})},true);
 document.addEventListener('click',event=>{const environment=event.target.closest('[data-admin-payment-environment]');if(environment&&!paymentBusy){paymentSelected=environment.dataset.adminPaymentEnvironment;paymentMessage='';redrawPayment();return}const copy=event.target.closest('[data-admin-copy-webhook]');if(copy){navigator.clipboard?.writeText(document.querySelector('[data-admin-webhook]')?.value||'').then(()=>{paymentMessage='URL copiada.';redrawPayment()});return}const activate=event.target.closest('[data-admin-payment-activate]');if(activate&&!paymentBusy){paymentBusy=true;paymentMessage='Ativando '+(paymentSelected==='production'?'Produção':'Teste')+'…';redrawPayment();window.NeoCloud.shopPaymentIntegration('activate',{environment:paymentSelected}).then(()=>{paymentBusy=false;paymentMessage=(paymentSelected==='production'?'Produção':'Teste')+' ativado para novas compras.';return loadPaymentConfig()}).catch(err=>{paymentBusy=false;paymentMessage=err.message;redrawPayment()});return}if(event.target.closest('[data-admin-payment-test]')&&!paymentBusy){paymentBusy=true;paymentMessage='Testando conexão '+(paymentSelected==='production'?'de Produção':'de Teste')+'…';redrawPayment();window.NeoCloud.shopPaymentIntegration('test',{environment:paymentSelected}).then(()=>{paymentBusy=false;paymentMessage='Conexão '+(paymentSelected==='production'?'de Produção':'de Teste')+' validada.';return loadPaymentConfig()}).catch(err=>{paymentBusy=false;paymentMessage=err.message;redrawPayment()})}});
 let signupVisit=null;
+let activeSignupToast=null;
+function clearSignupToast(){activeSignupToast?.()}
+function showSignupToast(pending){
+ if(activeSignupToast)return;
+ const toast=document.createElement('aside'),amount=Number(pending.count);
+ toast.className='admin-signup-toast';
+ toast.dataset.signupNotice='';
+ toast.innerHTML=`<div class="admin-signup-toast-main"><div role="status">
+  <strong>${amount.toLocaleString('pt-BR')} ${amount===1?'novo cadastro':'novos cadastros'}</strong>
+  <ul>${pending.rows.slice(0,5).map(row=>`<li>${esc(row.full_name||row.email||'Nome não informado')} · ${signupDate(row.created_at,signupHour)}</li>`).join('')}</ul>
+  ${amount>pending.rows.length?'<small>Veja os demais na lista de cadastros.</small>':''}
+ </div><div class="admin-signup-toast-actions"><button type="button" aria-label="Fechar aviso" class="icon-btn">×</button><span aria-hidden="true" data-signup-seconds>9 s</span></div></div>
+ <progress value="9000" max="9000" aria-label="Tempo restante do aviso"></progress>`;
+ const seconds=toast.querySelector('[data-signup-seconds]'),progress=toast.querySelector('progress');
+ let timer=null,fade=null,remaining=9000,started=null;
+ function dispose(){
+  clearTimeout(timer);clearTimeout(fade);
+  document.removeEventListener('visibilitychange',update);
+  toast.remove();
+  if(activeSignupToast===dispose)activeSignupToast=null;
+ }
+ function close(){
+  if(fade!==null)return;
+  clearTimeout(timer);
+  document.removeEventListener('visibilitychange',update);
+  toast.classList.add('is-closing');
+  fade=setTimeout(dispose,200);
+ }
+ function update(){
+  clearTimeout(timer);
+  if(!toast.isConnected){dispose();return}
+  const now=Date.now();
+  if(started!==null)remaining=Math.max(0,remaining-(now-started));
+  started=null;
+  seconds.textContent=Math.ceil(remaining/1000)+' s';
+  progress.value=remaining;
+  if(!remaining){close();return}
+  if(document.visibilityState==='hidden')return;
+  started=now;
+  timer=setTimeout(update,Math.min(100,remaining));
+ }
+ activeSignupToast=dispose;
+ toast.querySelector('button').addEventListener('click',close,{once:true});
+ document.addEventListener('visibilitychange',update);
+ document.body.append(toast);
+ if(typeof requestAnimationFrame==='function')requestAnimationFrame(()=>{if(activeSignupToast===dispose)update()});
+ else update();
+}
+window.addEventListener?.('pagehide',clearSignupToast);
 const signupFullTime=new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'medium'});
 const signupShortTime=new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'});
 const signupHour=new Intl.DateTimeFormat('pt-BR',{hour:'2-digit',minute:'2-digit'});
@@ -26,7 +75,7 @@ function signupDate(value,formatter){
  const time=value?new Date(value):null;
  return time&&Number.isFinite(+time)?formatter.format(time):'Ainda não registrado';
 }
-function signupRow(row){
+function signupRow(row,observed={}){
  const name=esc(row.full_name||'Nome não informado'),email=esc(row.email||'E-mail não informado');
  const method={email:'E-mail',google:'Google',apple:'Apple'}[row.provider]||'Não informado';
  return `<details class="admin-signup"><summary>
@@ -35,10 +84,15 @@ function signupRow(row){
   ${row.is_new?'<span class="admin-signup-new">Novo</span>':''}<span aria-hidden="true" class="admin-signup-chevron">⌄</span>
  </summary><dl>
   <div><dt>Nome completo</dt><dd>${name}</dd></div><div><dt>E-mail</dt><dd>${email}</dd></div>
-  <div><dt>Origem</dt><dd>Localização não disponível</dd></div><div><dt>Método</dt><dd>${method}</dd></div>
+  <div><dt>Local de origem</dt><dd>Localização não disponível</dd></div>
+  <div><dt>Local do último acesso</dt><dd>Localização não disponível</dd></div><div><dt>Método</dt><dd>${method}</dd></div>
   <div><dt>Cadastro</dt><dd>${signupDate(row.created_at,signupFullTime)}</dd></div>
   <div><dt>Último acesso</dt><dd>${signupDate(row.last_access,signupFullTime)}</dd></div>
   <div><dt>Identificador</dt><dd>${esc(row.id)}</dd></div>
+  <div><dt>Primeiro dispositivo observado</dt><dd>${audienceDeviceSummary(observed.first_device)}</dd></div>
+  <div><dt>Último dispositivo observado</dt><dd>${audienceDeviceSummary(observed.last_device)}</dd></div>
+  <div><dt>Primeira origem / campanha observada</dt><dd>${audienceCampaignSummary(observed.first_campaign)}</dd></div>
+  <div><dt>Última origem / campanha observada</dt><dd>${audienceCampaignSummary(observed.last_campaign)}</dd></div>
  </dl></details>`;
 }
 async function mountAdminSignups(root){
@@ -47,7 +101,6 @@ async function mountAdminSignups(root){
  if(signupVisit?.account!==account)signupVisit={account,batch:null,notice:null,opening:null};
  const visit=signupVisit,current=()=>root.isConnected&&cloud.user?.id===account&&signupVisit===visit;
  root.innerHTML=`<section class="card space"><h2>Cadastros</h2>
-  <div data-signup-notice aria-live="polite" hidden class="admin-signup-notice"></div>
   <form class="admin-signup-filters space">
    <label>Buscar nome ou e-mail<input name="query" type="search" maxlength="120"></label>
    <label>Exibir<select name="scope"><option value="all">Todos</option><option value="new">Novos</option></select></label>
@@ -60,7 +113,7 @@ async function mountAdminSignups(root){
  </section>`;
  const find=selector=>root.querySelector(selector);
  const form=find('form'),status=find('[data-signup-status]'),list=find('[data-signup-rows]');
- const more=find('[data-signup-more]'),notice=find('[data-signup-notice]');
+ const more=find('[data-signup-more]');
  let sequence=0,cursor=null,filters={};
  async function load(next=false){
   const request=++sequence;
@@ -71,9 +124,14 @@ async function mountAdminSignups(root){
     p_before:next?cursor?.created_at:null,p_before_id:next?cursor?.id:null});
    if(!current()||request!==sequence)return;
    const rows=page.rows.slice(0,20);
+   let observations={};
+   if(rows.length&&cloud.adminAudience){
+    try{observations=await cloud.adminAudience({p_users:rows.map(row=>row.id)})}catch{}
+   }
+   if(!current()||request!==sequence)return;
    cursor=rows.at(-1);
    if(!next)list.replaceChildren();
-   list.insertAdjacentHTML('beforeend',rows.map(signupRow).join(''));
+   list.insertAdjacentHTML('beforeend',rows.map(row=>signupRow(row,observations?.[row.id])).join(''));
    more.hidden=page.rows.length<=20;
    status.textContent=rows.length?'':'Nenhum cadastro encontrado.';
   }catch{
@@ -97,7 +155,7 @@ async function mountAdminSignups(root){
   visit.opening??=cloud.adminSignups('open').then(opened=>{
    if(opened.read_count>0){
     visit.batch=opened.batch;
-    visit.notice={count:opened.read_count,rows:opened.rows,until:Date.now()+9000};
+    visit.notice={count:opened.read_count,rows:opened.rows};
    }
   }).finally(()=>{visit.opening=null});
   await visit.opening;
@@ -108,18 +166,77 @@ async function mountAdminSignups(root){
   return;
  }
  if(!current())return;
- const pending=visit.notice;
- if(pending&&pending.until>Date.now()){
-  const amount=Number(pending.count);
-  root.closest('#adminContent').prepend(notice);
-  notice.hidden=false;
-  notice.innerHTML=`<strong>${amount.toLocaleString('pt-BR')} ${amount===1?'novo cadastro':'novos cadastros'}</strong>`+
-   `<ul>${pending.rows.map(row=>`<li>${esc(row.full_name||row.email||'Nome não informado')} · ${signupDate(row.created_at,signupHour)}</li>`).join('')}</ul>`+
-   (amount>pending.rows.length?'<small>Consulte a lista abaixo para ver os demais cadastros.</small>':'');
-  setTimeout(()=>{notice.hidden=true;notice.replaceChildren();if(visit.notice===pending)visit.notice=null},pending.until-Date.now());
+ if(visit.notice&&!activeSignupToast){
+  showSignupToast(visit.notice);
+  visit.notice=null;
  }
+ void load();
+}
+const audienceLabels={mobile:'Celular',tablet:'Tablet',desktop:'Desktop',pwa:'PWA',browser:'Navegador'};
+function audienceDeviceSummary(d){
+ if(!d)return 'Não disponível';
+ return esc([audienceLabels[d.category],d.os,d.browser&&[d.browser,d.major].filter(Boolean).join(' '),audienceLabels[d.context],
+  signupDate(d.at,signupFullTime)].filter(Boolean).join(' · '));
+}
+function audienceCampaignSummary(c){
+ if(!c)return 'Não disponível';
+ return esc([c.referrer,c.utm_source,c.utm_medium,c.utm_campaign,c.utm_content,c.utm_term,
+  signupDate(c.at,signupFullTime)].filter(Boolean).join(' · '));
+}
+function audienceChart(title,rows){
+ const shown=rows.filter(row=>Number.isFinite(row.count));
+ const max=Math.max(1,...shown.map(row=>row.count));
+ return `<details class="audience-chart"><summary>${title}</summary>${
+  shown.length?shown.map(row=>`<div class="audience-bar"><span>${esc(row.label)}</span>
+   <meter value="${row.count}" max="${max}" aria-label="${esc(row.label)}"></meter><b>${row.count}${row.total?' · '+Math.round(row.count/row.total*100)+'%':''}</b></div>`).join('')
+  :'<p class="sub">Dados insuficientes no período.</p>'}</details>`;
+}
+function mountAdminAudience(root){
+ const cloud=window.NeoCloud,account=cloud.user?.id;
+ if(!root||!account||!cloud.adminAudience)return;
+ root.innerHTML=`<section class="card space"><h2>Estatísticas de público</h2>
+  <form class="admin-signup-filters space"><label>Período<select name="window"><option value="7">7 dias</option><option value="30" selected>30 dias</option><option value="90">90 dias</option><option value="custom">Personalizado</option></select></label>
+  <label>De<input type="date" name="from"></label><label>Até<input type="date" name="to"></label><button type="submit" class="secondary">Aplicar</button></form>
+  <p data-audience-message role="status" class="sub"></p><div data-audience-results></div></section>`;
+ const form=root.querySelector('form'),message=root.querySelector('[data-audience-message]'),results=root.querySelector('[data-audience-results]');
+ let sequence=0;
+ async function load(windowDays=30,customFrom=null,customTo=null){
+  const request=++sequence,today=new Date(),end=today.toISOString().slice(0,10);
+  today.setUTCDate(today.getUTCDate()-windowDays+1);
+  const from=customFrom||today.toISOString().slice(0,10),to=customTo||end;
+  message.textContent='Carregando estatísticas…';
+  try{
+   const d=await cloud.adminAudience({p_from:from,p_to:to});
+   if(request!==sequence||!root.isConnected||cloud.user?.id!==account)return;
+   const kpis=[['Cadastros hoje (UTC)',d.today],['Cadastros em 7 dias',d.signups_7],['Cadastros em 30 dias',d.signups_30],
+    ['Cadastros no período',d.period_signups],['Ativos em 24 h',d.active_1],['Ativos em 7 dias',d.active_7],['Ativos em 30 dias',d.active_30]];
+   const group=(kind,title)=>audienceChart(title,d.groups.filter(row=>row.kind===kind).map(row=>({label:audienceLabels[row.label]||row.label,count:row.n,total:row.visible_total})));
+   results.innerHTML=`<div class="audience-kpis">${kpis.map(([label,count])=>`<div><small>${label}</small><strong>${Number(count).toLocaleString('pt-BR')}</strong></div>`).join('')}</div>
+   <p class="sub">Último acesso registrado: ${signupDate(d.last_access,signupFullTime)}.</p>
+   <div class="audience-charts">${audienceChart('Cadastros por dia',d.daily)}${audienceChart('Cadastros por mês',d.monthly)}
+   ${audienceChart('Último acesso no período', [{label:'Contas criadas no período',count:d.new_active},{label:'Contas anteriores',count:d.returning_active}])}
+   ${group('device','Tipos de dispositivo')}${group('os','Sistemas operacionais')}${group('browser','Navegadores')}${group('context','PWA e navegador')}
+   ${group('referral','Referências identificadas')}${group('campaign','Campanhas identificadas')}</div>
+   <p class="sub">Dispositivos e campanhas usam observações autorizadas das contas cadastradas no período. Grupos pequenos são omitidos, e os percentuais representam os grupos exibidos.</p>
+   <p class="sub">Geografia: localização indisponível para os cadastros. Conversão, frequência e retenção dependem de dados adicionais.</p>`;
+   message.textContent='Período: '+d.from+' a '+d.to+' (UTC).';
+  }catch(error){
+   if(request!==sequence||!root.isConnected||cloud.user?.id!==account)return;
+   if(error.code==='42501')root.replaceChildren();
+   else{results.replaceChildren();message.textContent='Não foi possível carregar as estatísticas para esse período.'}
+  }
+ }
+ form.addEventListener('submit',event=>{
+  event.preventDefault();
+  const values=new FormData(form),period=values.get('window');
+  if(period==='custom'){
+   const from=values.get('from'),to=values.get('to');
+   if(!from||!to||from>to){message.textContent='Informe as datas do período personalizado.';return}
+   void load(30,from,to);
+  }else void load(Number(period));
+ });
  void load();
 }
 $('#adminRefresh').onclick=refresh;
 window.NeoGestures?.configure({refresh,back:()=>history.length>1?history.back():location.assign('../')});
-window.NeoCloud.init((event,user)=>{if(event==='TOKEN_REFRESHED')return;if(signupVisit?.account!==user?.id)signupVisit=null;generation++;window.NeoAgent?.reset();authorized=false;$('#adminTabs').hidden=true;$('#adminContent').innerHTML='';if(user)refresh();else $('#adminStatus').textContent='Sessão ausente. Entre no aplicativo.';}).then(user=>{if(user)refresh();else if(!window.NeoCloud.configured)refresh();else $('#adminStatus').textContent='Entre na sua conta pelo aplicativo.';}).catch(()=>{$('#adminStatus').textContent='Não foi possível verificar a sessão.';});
+window.NeoCloud.init((event,user)=>{if(event==='TOKEN_REFRESHED')return;if(signupVisit?.account!==user?.id){clearSignupToast();signupVisit=null}generation++;window.NeoAgent?.reset();authorized=false;$('#adminTabs').hidden=true;$('#adminContent').innerHTML='';if(user)refresh();else $('#adminStatus').textContent='Sessão ausente. Entre no aplicativo.';}).then(user=>{if(user)refresh();else if(!window.NeoCloud.configured)refresh();else $('#adminStatus').textContent='Entre na sua conta pelo aplicativo.';}).catch(()=>{$('#adminStatus').textContent='Não foi possível verificar a sessão.';});
