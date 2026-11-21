@@ -130,13 +130,13 @@ const api={configured,get remember(){return rememberSession},get persistenceLimi
   need();
   const account=user.id,version=identityVersion;
   if(!photo.path?.startsWith(account+'/'))throw Error('Foto indisponível nesta conta.');
-  const thumb=variant==='thumbnail';
-  const result=await client.storage.from('neo-private').createSignedUrl(thumb?photo.path+'.thumb.jpg':photo.path,300);
+  const suffix=variant==='thumbnail'?'.thumb.jpg':variant==='preview'?'.preview.jpg':'';
+  const result=await client.storage.from('neo-private').createSignedUrl(photo.path+suffix,300);
   if(version!==identityVersion)throw Error('A conta mudou.');
-  if(thumb&&result.error&&(/not found|does not exist/i.test(result.error.message||'')||String(result.error.statusCode)==='404'))return null;
+  if(suffix&&result.error&&(/not found|does not exist/i.test(result.error.message||'')||String(result.error.statusCode)==='404'))return null;
   return ok(result).signedUrl;
  },
- async uploadProgressPhoto(blob,thumbnail,date,id){
+ async uploadProgressPhoto(blob,thumbnail,date,id,preview){
   needsHealth();
   if(!api.hasConsent('photos'))throw Error('Autorize o armazenamento de fotografias antes do envio.');
   if(!C.validDate(date)||date>C.today()||!/^[-a-f0-9]{36}$/i.test(id)||blob.type!=='image/jpeg'||!blob.size||blob.size>5242880||thumbnail.type!=='image/jpeg'||!thumbnail.size||thumbnail.size>262144)throw Error('Foto inválida.');
@@ -148,7 +148,10 @@ const api={configured,get remember(){return rememberSession},get persistenceLimi
    if(existing.path!==path||existing.date!==date)throw Error('Esta seleção já foi salva com outra data.');
    return existing;
   }
-  for(const [key,data] of [[path+'.thumb.jpg',thumbnail],[path,blob]]){
+  if(preview&&(preview.type!=='image/jpeg'||!preview.size||preview.size>524288))throw Error('Prévia inválida.');
+  const images=[[path+'.thumb.jpg',thumbnail],[path,blob]];
+  if(preview)images.splice(1,0,[path+'.preview.jpg',preview]);
+  for(const [key,data] of images){
    current();
    const result=await bucket.upload(key,data,{contentType:'image/jpeg',upsert:false});current();
    if(result.error&&!(['409','Duplicate','ResourceAlreadyExists','KeyAlreadyExists'].includes(String(result.error.statusCode||result.error.code||result.error.error))||/already exists|duplicate/i.test(result.error.message||'')))ok(result);
@@ -162,7 +165,7 @@ const api={configured,get remember(){return rememberSession},get persistenceLimi
   return {id,path,date};
  },
  async uploadPhoto(blob,date,role='progress',thumbnail){needsHealth();if(!api.hasConsent('photos'))throw Error('Autorize o armazenamento de fotografias antes do envio.');if(!C.validDate(date)||date>C.today()||blob.size>5*1024*1024||!['image/jpeg','image/png','image/webp'].includes(blob.type))throw Error('Foto inválida. Use JPEG, PNG ou WebP com até 5 MB.');const previous=role==='avatar'?ok(await client.from('neo_photos').select('id,path').eq('user_id',user.id).eq('role','avatar')):[],id=crypto.randomUUID(),path=`${user.id}/${id}.${blob.type==='image/png'?'png':blob.type==='image/webp'?'webp':'jpg'}`;ok(await client.storage.from('neo-private').upload(path,blob,{contentType:blob.type,upsert:false}));try{ok(await client.from('neo_photos').insert({id,user_id:user.id,path,date,role}))}catch(e){await client.storage.from('neo-private').remove([path]);throw e}if(thumbnail?.type==='image/jpeg'&&thumbnail.size<=262144)await client.storage.from('neo-private').upload(path+'.thumb.jpg',thumbnail,{contentType:'image/jpeg',upsert:false});const signed=ok(await client.storage.from('neo-private').createSignedUrl(path,600)).signedUrl,photo={id,user_id:user.id,path,date,role,created_at:new Date().toISOString(),url:signed};if(role==='avatar'){if(previous.length){await client.storage.from('neo-private').remove(previous.flatMap(p=>[p.path,p.path+'.thumb.jpg']));await client.from('neo_photos').delete().eq('user_id',user.id).eq('role','avatar').neq('id',id)}try{const avatarPath=`${user.id}/avatar.jpg`;await client.storage.from('neo-community-avatars').remove([avatarPath]);ok(await client.storage.from('neo-community-avatars').upload(avatarPath,blob,{contentType:'image/jpeg',upsert:false}));ok(await client.rpc('neo_community_avatar',{p_path:avatarPath}));photo.url=ok(await client.storage.from('neo-community-avatars').createSignedUrl(avatarPath,3600)).signedUrl;photo.communitySynced=true}catch{photo.communitySynced=false}}return photo},
- async deletePhoto(p){need();ok(await client.storage.from('neo-private').remove([p.path,p.path+'.thumb.jpg']));ok(await client.from('neo_photos').delete().eq('user_id',user.id).eq('id',p.id))},
+ async deletePhoto(p){need();ok(await client.storage.from('neo-private').remove([p.path,p.path+'.thumb.jpg',p.path+'.preview.jpg']));ok(await client.from('neo_photos').delete().eq('user_id',user.id).eq('id',p.id))},
  async photoBlob(p){need();return ok(await client.storage.from('neo-private').download(p.path))},
  async deleteAccount(password,captchaToken,expectedAccount){
   need();const account=user.id,version=identityVersion;if(expectedAccount&&expectedAccount!==account)throw Error('Sua conta mudou. Abra novamente a opção de exclusão.');

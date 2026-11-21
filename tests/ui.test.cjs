@@ -239,11 +239,13 @@ test('acompanhamento inicia oculto abaixo da jornada, abre no botão e recolhe a
  const a=setup();await a.run("go('inicio',false)");
  let panel=a.document.querySelector('#homeJourneyDetails'),button=a.document.querySelector('[data-home-details]');
  assert.equal(panel.hidden,true);assert.equal(button.getAttribute('aria-expanded'),'false');assert.ok(button.closest('.home-journey'));assert.equal(a.document.querySelector('.home-journey').nextElementSibling.id,'homeJourneyDetails');
- assert.deepEqual([...panel.querySelectorAll('h2')].map(h=>h.textContent),['Seu resumo','Seu cuidado de hoje','Seus últimos passos']);
+ assert.deepEqual([...panel.querySelectorAll('h2')].map(h=>h.textContent),['Seu resumo','Seu cuidado de hoje','Seus últimos passos','Minha evolução — Antes e Depois']);
  button.click();assert.equal(panel.hidden,false);assert.equal(button.getAttribute('aria-expanded'),'true');assert.match(button.textContent,/Ocultar acompanhamento/);
  a.run('render()');assert.equal(a.document.querySelector('#homeJourneyDetails').hidden,false);
  a.document.querySelector('[data-home-details]').click();assert.equal(a.document.querySelector('#homeJourneyDetails').hidden,true);
- a.document.querySelector('[data-home-details]').click();await a.run("go('registros',false);go('inicio',false)");
+ a.document.querySelector('[data-home-details]').click();
+ a.document.querySelector('#homeJourneyDetails [data-go=fotos]').click();assert.equal(a.run('page'),'fotos');
+ await a.run("go('inicio',false)");
  assert.equal(a.document.querySelector('#homeJourneyDetails').hidden,true);assert.equal(a.document.querySelector('[data-home-details]').getAttribute('aria-expanded'),'false');
 });
 

@@ -103,15 +103,16 @@ test('nuvem lista metadados, assina apenas a variante pedida e recupera retentat
  await cloud.init(()=>{});
  vm.runInContext("consents=[{purpose:'health',version:'2026-11-v1',granted:true},{purpose:'terms',version:'2026-11-v1',granted:true},{purpose:'photos',version:'2026-11-v1',granted:true}]",ctx);
  const id='00000000-0000-4000-8000-000000000001',blob=new Blob(['fixture'],{type:'image/jpeg'});
- await assert.rejects(cloud.uploadProgressPhoto(blob,blob,'2026-01-01',id),/interrompido/);
- await cloud.uploadProgressPhoto(blob,blob,'2026-01-01',id);
- await cloud.uploadProgressPhoto(blob,blob,'2026-01-01',id);
- assert.equal(rows.size,1);assert.equal(objects.size,2);
+ await assert.rejects(cloud.uploadProgressPhoto(blob,blob,'2026-01-01',id,blob),/interrompido/);
+ await cloud.uploadProgressPhoto(blob,blob,'2026-01-01',id,blob);
+ await cloud.uploadProgressPhoto(blob,blob,'2026-01-01',id,blob);
+ assert.equal(rows.size,1);assert.equal(objects.size,3);
  const [photo]=await cloud.photos();
  assert.ok(!calls.some(([action])=>action==='sign'));
  assert.equal(await cloud.photoURL({path:account.id+'/legacy.jpg'},'thumbnail'),null);
  await cloud.photoURL(photo,'thumbnail');
- assert.deepEqual(calls.filter(([action])=>action==='sign').map(([,key])=>key),[account.id+'/legacy.jpg.thumb.jpg',photo.path+'.thumb.jpg']);
+ await cloud.photoURL(photo,'preview');
+ assert.deepEqual(calls.filter(([action])=>action==='sign').map(([,key])=>key),[account.id+'/legacy.jpg.thumb.jpg',photo.path+'.thumb.jpg',photo.path+'.preview.jpg']);
  await assert.rejects(cloud.photoURL({path:'another-account/image.jpg'},'original'),/nesta conta/);
 });
 
@@ -152,7 +153,7 @@ test('sliders ficam limitados à data e a seleção é compartilhada com o Iníc
  assert.match(before.getAttribute('aria-valuetext'),/Foto 2 de 2/);
  assert.equal(before.closest('figure').querySelector('[data-photo-open]').dataset.photoOpen,'second');
  assert.equal(after.closest('figure').querySelector('[data-photo-open]').dataset.photoOpen,'third');
- run("page='inicio';document.querySelector('#content').innerHTML=overview();hydratePhotoImages()");
+ run("page='inicio';document.querySelector('#content').innerHTML=overview();setHomeDetails(true)");
  assert.match(run.document.querySelector('[data-photo-slider=Antes]').getAttribute('aria-valuetext'),/Foto 2 de 2/);
  assert.equal(run.document.querySelector('[data-photo-comparison] [data-photo-open]'),null);
  const select=run.document.querySelector('[data-photo-side="0"] [data-photo-date]');
@@ -233,7 +234,7 @@ test('fila de miniaturas usa até dois pedidos e descarta resultado atrasado ao 
  assert.equal(run('window.requests.length'),4);
  assert.equal(run("window.requests[2].photo.date"),'2026-02-02');
  assert.equal(run("window.requests[2].photo.id"),'photo-50');
- assert.ok(run("window.requests.every(r=>r.variant==='thumbnail')"));
+ assert.ok(run("window.requests.every(r=>r.variant==='preview')"));
  assert.equal(run.document.querySelectorAll('details img[src]').length,0);
  assert.equal(run.document.querySelector('[data-photo-side="0"] img').hasAttribute('src'),false);
  run("window.requests[2].resolve('current')");
@@ -259,4 +260,55 @@ test('miniaturas prontas são reutilizadas e foto antiga nunca recorre ao origin
   return JSON.stringify({calls,downloads,reused:first===second&&first===again,unavailable,cache:comparisonThumbs.size});
  })()`);
  assert.deepEqual(JSON.parse(result),{calls:2,downloads:1,reused:true,unavailable:null,cache:0});
+});
+
+test('a comparação do Início pertence ao acompanhamento e Ver fotos usa a navegação existente',()=>{
+ const run=app();
+ run("page='inicio';document.querySelector('#content').innerHTML=overview()");
+ const details=run.document.getElementById('homeJourneyDetails');
+ const card=run.document.querySelector('[data-photo-comparison]');
+ assert.equal(details.contains(card),true);
+ assert.equal(details.hidden,true);
+ assert.equal(card.querySelector('[data-go=fotos]').textContent,'Ver fotos');
+ assert.equal(run.document.querySelectorAll('[data-photo-comparison]').length,1);
+ run('setHomeDetails(true)');
+ assert.equal(details.hidden,false);
+ assert.equal(card.querySelectorAll('.photo-example').length,2);
+});
+
+test('layout reserva linhas fixas para seletores, fotos, legendas e sliders dos dois lados',()=>{
+ const css=fs.readFileSync('dist/style.css','utf8');
+ assert.match(css,/grid-template-rows:var\(--comparison-date-height\) var\(--comparison-height\) var\(--comparison-caption-height\) 44px/);
+ assert.match(css,/\.comparison-slider-slot,\.comparison-slider-spacer\{min-height:44px/);
+ assert.match(css,/\.photo-comparison \.comparison-preview img,\.photo-comparison \.photo-example\{[^}]*object-fit:contain/);
+});
+
+test('prévia legada recorre à miniatura privada e nunca lê o original',async()=>{
+ const run=app();
+ const result=await run(`(async()=>{
+  const variants=[];
+  photoSource=async(_,variant)=>{variants.push(variant);return variant==='thumbnail'?'thumb':null};
+  window.fetch=async()=>({ok:true,blob:async()=>new Blob(['thumb'])});
+  await warmPhotoThumb({id:'legacy-preview'},()=>true,true,'preview');
+  return JSON.stringify(variants);
+ })()`);
+ assert.deepEqual(JSON.parse(result),['preview','thumbnail']);
+});
+
+test('cache de prévias descarta as menos usadas ao passar do limite de memória',async()=>{
+ const run=app();
+ const result=await run(`(async()=>{
+  photoSource=async()=> 'https://example.invalid/private-preview';
+  window.fetch=async()=>({ok:true,blob:async()=>new Blob(['private'])});
+  window.Image=class{constructor(){this.naturalWidth=800;this.naturalHeight=800}async decode(){}};
+  for(let i=0;i<16;i++)await warmPhotoThumb({id:String(i)},()=>true,true,'preview');
+  const report={size:comparisonThumbs.size,bytes:[...comparisonThumbs.values()].reduce((sum,item)=>sum+item.bytes,0),old:comparisonThumbs.has('0:preview'),last:comparisonThumbs.has('15:preview')};
+  clearPhotoURLs();
+  return JSON.stringify(report);
+ })()`);
+ const stats=JSON.parse(result);
+ assert.ok(stats.bytes<=24*1024*1024);
+ assert.ok(stats.size<16);
+ assert.equal(stats.old,false);
+ assert.equal(stats.last,true);
 });

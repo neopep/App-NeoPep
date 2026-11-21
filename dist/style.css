@@ -265,3 +265,17 @@ body:has(.photo-viewer[open]){overflow:hidden}
 .photo-comparison .comparison-preview img[hidden],.photo-comparison [data-photo-slider][hidden]{display:none}
 .photo-comparison figcaption{margin:.35rem 0}
 .comparison-add{display:grid;align-content:center;min-height:7rem;text-align:center}
+
+/* A geometria da comparação é igual no acompanhamento e na galeria. */
+.photo-comparison{--comparison-height:clamp(120px,36vw,218px);--comparison-date-height:4.3rem;--comparison-caption-height:2.65rem}
+.photo-comparison figure{display:grid;grid-template-rows:var(--comparison-date-height) var(--comparison-height) var(--comparison-caption-height) 44px;align-content:start}
+.photo-comparison figure>label,.comparison-date-spacer{height:var(--comparison-date-height);margin:0;white-space:nowrap}
+.photo-comparison select{display:block;margin-top:.22rem;height:44px;min-width:0}
+.photo-comparison .comparison-preview,.photo-comparison .photo-example{height:var(--comparison-height);aspect-ratio:auto;background:var(--solid);min-height:0}
+.photo-comparison .comparison-preview{box-sizing:border-box;padding:.25rem;text-align:center}
+.photo-comparison .comparison-preview img,.photo-comparison .photo-example{max-width:100%;max-height:100%;object-fit:contain;object-position:center}
+.photo-comparison figcaption{height:var(--comparison-caption-height);margin:0;padding:.3rem .15rem;overflow:hidden}
+.photo-comparison figcaption strong,.photo-comparison [data-photo-position]{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.comparison-slider-slot,.comparison-slider-spacer{min-height:44px}
+.photo-comparison:has(.photo-example) figure{grid-template-rows:var(--comparison-height) var(--comparison-caption-height)}
+.photo-comparison .comparison-add .comparison-preview{align-content:center;gap:.25rem}.comparison-add p{margin:0;font-size:.8rem}
