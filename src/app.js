@@ -41,7 +41,7 @@ function journeyProgress(m){const j=C.weightJourney(m),delta=m.current!=null&&m.
 let homeDetailsOpen=false;
 function setHomeDetails(open){homeDetailsOpen=!!open;const panel=document.getElementById('homeJourneyDetails'),button=document.querySelector('[data-home-details]');if(panel)panel.hidden=!homeDetailsOpen;if(button){button.setAttribute('aria-expanded',String(homeDetailsOpen));button.querySelector('span').textContent=homeDetailsOpen?'Ocultar acompanhamento':'Ver meu acompanhamento';}}
 function homeJourneyDetails(done){return stats(true,true)+`<div class="home-today"><section class="card"><div class="card-head"><div><h2>Seu cuidado de hoje</h2><p class="sub">Um momento para você.</p></div><span class="tag">${done?icon('check'):'Hoje'}</span></div>${dailyTasks(done)}<button class="text-btn full" data-go="lembretes">${icon('bell')} Personalizar lembretes</button></section></div><div class="space"><section class="card"><div class="card-head"><h2>Seus últimos passos</h2><button class="text-btn" data-go="registros">Ver todos</button></div>${recent().length?recent().map(r=>`<div class="task"><div class="task-icon">${icon(r.icon)}</div><div><b>${r.title}</b><small>${esc(r.detail.slice(0,75))} · ${date(r.date)}</small></div><button class="icon-btn" data-go="${r.route}" aria-label="Ver ${r.title}">${icon('chevron')}</button></div>`).join(''):empty('Seu primeiro passo pode ser hoje','Registre um peso, medida ou momento do seu dia.','','journal')}</section></div>`}
-function overview(){const m=C.metrics(state),name=state.profile.name.trim().split(/\s+/)[0],hour=new Date().getHours(),greeting=hour<12?'Bom dia':hour<18?'Boa tarde':'Boa noite',next=C.nextReminders(state)[0],done=state.weights.some(r=>r.date===C.today());return head(greeting+(name?', '+esc(name):'')+'.','Um novo dia para acompanhar sua evolução.','')+`<section class="card home-journey"><div class="card-head"><h2>Uma jornada com propósito</h2><div class="home-quick-actions"><button class="primary home-quick-add" data-add="weight" aria-label="Adicionar registro de peso">${icon('plus')}</button><button class="home-dose-shortcut" data-go="calculadora" aria-label="Dose: abrir calculadora">${icon('calc')}<span>Dose</span></button></div></div>${m.goal?journeyProgress(m):`<p class="sub">Defina uma meta pessoal e acompanhe a distância entre seu ponto de partida e seu objetivo.</p><button class="text-btn" data-go="perfil">Definir minha meta ${icon('arrow')}</button>`}<div class="task"><div class="task-icon">${icon('clock')}</div><div><b>Próximo lembrete</b><small>${next?esc(next.title)+' · '+next.next.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'Nenhum lembrete'}</small></div></div><button type="button" class="secondary full home-details-toggle" data-home-details aria-controls="homeJourneyDetails" aria-expanded="${homeDetailsOpen}"><span>${homeDetailsOpen?'Ocultar acompanhamento':'Ver meu acompanhamento'}</span>${icon('chevron')}</button></section>`+`<div id="homeJourneyDetails" class="home-journey-details" role="region" aria-label="Resumo e registros da sua jornada" ${homeDetailsOpen?'':'hidden'}>${homeJourneyDetails(done)}</div>`+(window.NeoLibrary?.home?.()||'')+(window.NeoShop?.home?.()||'')+`<div class="card insight space"><div class="task-icon">${icon('calc')}</div><div style="flex:1"><h3>Clareza em cada cálculo.</h3><p class="sub">Converta a dose prescrita em volume e marcações U-100.</p></div><button class="icon-btn" data-go="calculadora" aria-label="Abrir calculadora">${icon('arrow')}</button></div>`}
+function overview(){const m=C.metrics(state),name=state.profile.name.trim().split(/\s+/)[0],hour=new Date().getHours(),greeting=hour<12?'Bom dia':hour<18?'Boa tarde':'Boa noite',next=C.nextReminders(state)[0],done=state.weights.some(r=>r.date===C.today());return head(greeting+(name?', '+esc(name):'')+'.','Um novo dia para acompanhar sua evolução.','')+`<section class="card home-journey"><div class="card-head"><h2>Uma jornada com propósito</h2><div class="home-quick-actions"><button class="primary home-quick-add" data-add="weight" aria-label="Adicionar registro de peso">${icon('plus')}</button><button class="home-dose-shortcut" data-go="calculadora" aria-label="Dose: abrir calculadora">${icon('calc')}<span>Dose</span></button></div></div>${m.goal?journeyProgress(m):`<p class="sub">Defina uma meta pessoal e acompanhe a distância entre seu ponto de partida e seu objetivo.</p><button class="text-btn" data-go="perfil">Definir minha meta ${icon('arrow')}</button>`}<div class="task"><div class="task-icon">${icon('clock')}</div><div><b>Próximo lembrete</b><small>${next?esc(next.title)+' · '+next.next.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'Nenhum lembrete'}</small></div></div><button type="button" class="secondary full home-details-toggle" data-home-details aria-controls="homeJourneyDetails" aria-expanded="${homeDetailsOpen}"><span>${homeDetailsOpen?'Ocultar acompanhamento':'Ver meu acompanhamento'}</span>${icon('chevron')}</button></section>`+`<div id="homeJourneyDetails" class="home-journey-details" role="region" aria-label="Resumo e registros da sua jornada" ${homeDetailsOpen?'':'hidden'}>${homeJourneyDetails(done)}</div>` +comparisonCard(true)+(window.NeoLibrary?.home?.()||'')+(window.NeoShop?.home?.()||'')+`<div class="card insight space"><div class="task-icon">${icon('calc')}</div><div style="flex:1"><h3>Clareza em cada cálculo.</h3><p class="sub">Converta a dose prescrita em volume e marcações U-100.</p></div><button class="icon-btn" data-go="calculadora" aria-label="Abrir calculadora">${icon('arrow')}</button></div>`}
 function historyTable(type,rows=state[type]){const preferences=historyPrefs[type]||{query:'',from:'',to:'',page:0};const searchable=rows.map(r=>type==='doses'?{...r,protocolName:state.protocols.find(p=>p.id===r.protocolId)?.name||''}:r),data=C.filterRecords(searchable,preferences).reverse(),size=12,pages=Math.max(1,Math.ceil(data.length/size)),current=Math.min(preferences.page||0,pages-1),start=current*size;const headers={weights:['Data','Peso','Gordura','Nota'],measures:['Data','Cintura','Quadril','Peito','Braço','Coxa','Gordura'],doses:['Data','Produto','Dose informada','Local','Protocolo','Nota'],journal:['Data','Bem-estar','Energia','Sono','Apetite','Água','Atividade','Nota'],protocols:['Início','Nome','Fim','Status','Observações'],reminders:['Início','Título','Horário','Repetição','Status']};const value=(n,u,display=fmt)=>n==null?'—':display(n)+' '+u;
 const values=r=>type==='weights'?[date(r.date),value(r.value,unit(),weight),value(r.fat,'%'),r.note]:type==='measures'?[date(r.date),...['waist','hip','chest','arm','thigh'].map(k=>value(r[k],measureUnit(),cm)),value(r.fat,'%')]:type==='doses'?[date(r.date),r.product,fmt(r.amount,4)+' '+r.unit,r.site,r.protocolName||(r.protocolId?'Protocolo não disponível':'Sem vínculo'),r.note]:type==='journal'?[date(r.date),value(r.wellbeing,'/ 5'),value(r.energy,'/ 5'),value(r.sleep,'h'),value(r.appetite,'/ 5'),value(r.water,'L'),value(r.activity,'min'),r.note]:type==='protocols'?[date(r.date),r.name,r.end?date(r.end):'—',r.status==='active'?'Em acompanhamento':'Encerrado',r.note]:[date(r.date),r.title,r.time,{once:'Uma vez',daily:'Diário',weekly:'Semanal'}[r.repeat],r.enabled?'Ativo':'Pausado'];
 const actions=r=>`<button class="text-btn" data-edit="${type}:${esc(r.id)}" aria-label="Editar registro de ${date(r.date)}">Editar</button>${type==='reminders'?`<button class="text-btn" data-toggle-reminder="${esc(r.id)}">${r.enabled?'Pausar':'Ativar'}</button>`:''}<button class="delete" data-delete="${type}:${esc(r.id)}" aria-label="Excluir registro de ${date(r.date)}">${icon('trash')}</button>`;
@@ -72,14 +72,17 @@ function calendarPage(){const anchor=new Date(calendarDate),start=new Date(ancho
 function remindersPage(){return head('Lembretes','Organize os horários e as notificações do seu dispositivo.',addBtn('reminder','Novo lembrete'))+`<div class="two-cols"><section class="card"><h2>Horários da sua rotina</h2><form id="settingsForm" class="space"><label>Peso · todos os dias<input name="weightTime" type="time" required value="${esc(state.settings.weightTime)}"></label><div class="form-grid"><label>Medidas · dia da semana<select name="measureDay">${['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'].map((d,i)=>`<option value="${i}" ${String(i)===String(state.settings.measureDay)?'selected':''}>${d}</option>`).join('')}</select></label><label>Horário<input name="measureTime" type="time" required value="${esc(state.settings.measureTime)}"></label></div><button class="primary full">Salvar horários</button></form></section>${window.NeoPush?.panel({cloud:mode==='cloud'&&!demo})||''}</div><section class="card space"><h2>Outros lembretes</h2>${historyTable('reminders')}</section><section class="card space"><h2>Próximos</h2>${C.nextReminders(state,new Date()).slice(0,8).map(r=>`<div class="upcoming-reminder"><div><strong>${esc(r.title)}</strong><p class="sub">${esc(r.next.toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}))}</p></div><button class="text-btn" data-go="registros">Registrar agora</button></div>`).join('')||'<p class="sub">Nenhum aviso programado.</p>'}</section>`}
 async function openDB(){return new Promise((resolve,reject)=>{if(!window.indexedDB)return reject(Error('Armazenamento de fotos indisponível neste navegador.'));const r=indexedDB.open('neopeptideos-private',1);r.onupgradeneeded=()=>r.result.createObjectStore('photos',{keyPath:'id'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(Error('Não foi possível abrir o armazenamento privado de fotos.'))})}
 async function photoStore(action,item){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction('photos',action==='all'?'readonly':'readwrite'),store=tx.objectStore('photos');let value;const req=action==='all'?store.getAll():action==='put'?store.put(item):store.delete(item);req.onsuccess=()=>value=req.result;tx.oncomplete=()=>{db.close();resolve(value)};tx.onerror=()=>{db.close();reject(Error('Falha ao salvar a foto. O armazenamento pode estar cheio.'))};tx.onabort=()=>{db.close();reject(Error('Operação de foto interrompida.'))}})}
-let photoCache=new Map(),photoObserver=null;
+let photoCache=new Map(),photoObserver=null,photoMetadataLoaded=false;
 function clearPhotoURLs(){
  photoObserver?.disconnect();
  clearPhotoBatch();
  for(const entry of photoCache.values())if(entry.objectURL)URL.revokeObjectURL(entry.objectURL);
  photoCache.clear();
  openedPhotoSections.clear();
- comparisonRows=[];
+ comparisonSelection.fill(null);
+ comparisonDays.clear();
+ clearComparisonThumbs();
+ photoMetadataLoaded=false;
  photoList=[];
  avatarURL='';
  const viewer=$('#photoViewer');if(viewer){viewer.close();viewer.remove()}
@@ -113,7 +116,9 @@ async function loadPhotos(){
   if(entry.objectURL)URL.revokeObjectURL(entry.objectURL);
   photoCache.delete(key);
  }
+ for(const [id,item] of comparisonThumbs)if(!ids.has(id)){if(item.url)URL.revokeObjectURL(item.url);comparisonThumbs.delete(id)}
  photoList=list;
+ photoMetadataLoaded=true;
  const avatar=sortedPhotos('avatar').sort((a,b)=>String(a.created_at||a.id).localeCompare(String(b.created_at||b.id))).at(-1);
  let url='';
  if(avatar)try{url=await photoSource(avatar,'original')||''}catch{}
@@ -130,77 +135,188 @@ function photoTiles(list){
   </button></article>`).join('')}</div></section>`).join('');
 }
 const openedPhotoSections=new Set();
-let comparisonRows=[];
 function photosPage(){
  const list=sortedPhotos('progress'),avatars=sortedPhotos('avatar');
- comparisonRows=list;
  const history=(id,title,rows)=>`<details class="card space" data-photo-section="${id}" ${openedPhotoSections.has(id)?'open':''}><summary>${title} · ${rows.length}</summary>${rows.length?photoTiles(rows):'<p class="sub">Nenhuma foto neste histórico.</p>'}</details>`;
  return head('Um olhar sobre sua evolução.','Fotos privadas, organizadas por data.',addBtn('photo','Adicionar foto'))+`
   <div class="notice">${demo?'Fotos reais não aparecem na demonstração.':mode==='cloud'?'As fotos ficam em armazenamento privado e os links expiram.':'Fotos locais ficam neste perfil do navegador, sem isolamento entre pessoas que o compartilham.'} As fotos não entram no backup JSON. Exporte-as individualmente.</div>
-  ${list.length>=2?`<section class="card space" data-photo-comparison aria-labelledby="comparisonTitle"><h2 id="comparisonTitle">Antes e Depois</h2>
-  <div class="compare" id="comparisonPhotos">${comparisonPhotos(list)}</div></section>`:''}
+  ${comparisonCard(false)}
   ${history('progress','Histórico de evolução',list)}${history('avatar','Histórico de fotos de perfil',avatars)}
   <button class="text-btn" id="refreshPhotos">${icon('refresh')} Atualizar fotos</button>`;
 }
-function photoComparisonPreview(photo,label){
- return `<button type="button" class="photo-open" data-photo-open="${esc(photo.id)}" aria-label="Ampliar ${label}">
- <span data-photo-placeholder>Ver foto</span><img hidden data-photo-media="${esc(photo.id)}" data-photo-variant="thumbnail" alt="${label} em ${date(photo.date)}">
- </button>`;
+const comparisonSelection=[null,null];
+let comparisonDays=new Map();
+const comparisonThumbs=new Map(),thumbQueue=[];
+let activeThumbs=0;
+function clearComparisonThumbs(){
+ for(const entry of comparisonThumbs.values()){entry.controller?.abort();if(entry.url)URL.revokeObjectURL(entry.url)}
+ comparisonThumbs.clear();
 }
-function photoPosition(photo,index,total){return `${date(photo.date)} · ${index+1} de ${total}`}
-function comparisonPhotos(list){
- return [0,list.length-1].map((index,side)=>{
-  const label=side?'Depois':'Antes',photo=list[index],position=photoPosition(photo,index,list.length);
-  return `<figure><div data-photo-preview>${photoComparisonPreview(photo,label)}</div>
+function drainThumbQueue(){
+ while(activeThumbs<2&&thumbQueue.length){
+  const item=thumbQueue.shift();
+  if(item.generation!==loadGeneration||!item.needs.some(check=>check())){
+   if(comparisonThumbs.get(item.photo.id)===item)comparisonThumbs.delete(item.photo.id);
+   item.finish(undefined);continue;
+  }
+  item.started=true;
+  activeThumbs++;
+  void (async()=>{
+   try{
+    const source=await photoSource(item.photo,'thumbnail');
+    if(item.generation!==loadGeneration||comparisonThumbs.get(item.photo.id)!==item||!item.needs.some(check=>check())){
+     if(comparisonThumbs.get(item.photo.id)===item)comparisonThumbs.delete(item.photo.id);
+     item.finish(undefined);return;
+    }
+    let blob=null;
+    if(source){
+     item.controller=typeof AbortController==='function'?new AbortController():null;
+     const response=await fetch(source,{cache:'no-store',credentials:'omit',signal:item.controller?.signal});
+     if(response.ok)blob=await response.blob();
+     else if(response.status!==404)throw Error('Miniatura indisponível.');
+    }
+    if(item.generation!==loadGeneration||comparisonThumbs.get(item.photo.id)!==item||!item.needs.some(check=>check())){
+     if(comparisonThumbs.get(item.photo.id)===item)comparisonThumbs.delete(item.photo.id);
+     item.finish(undefined);return;
+    }
+    item.url=blob&&blob.size<=262144?URL.createObjectURL(blob):null;
+    item.ready=true;
+    item.needs=[];
+    item.finish(item.url);
+    const old=[...comparisonThumbs].filter(([,entry])=>entry.ready);
+    if(old.length>32){
+     const [id,entry]=old[0];if(entry.url)URL.revokeObjectURL(entry.url);comparisonThumbs.delete(id);
+    }
+   }catch{
+    if(comparisonThumbs.get(item.photo.id)===item)comparisonThumbs.delete(item.photo.id);
+    item.finish(undefined);
+   }finally{activeThumbs--;drainThumbQueue()}
+  })();
+ }
+}
+function warmPhotoThumb(photo,needed,priority=false){
+ const existing=comparisonThumbs.get(photo.id);
+ if(existing){
+  if(existing.ready){comparisonThumbs.delete(photo.id);comparisonThumbs.set(photo.id,existing)}
+  else{
+   if(existing.needs.length>32)existing.needs=existing.needs.filter(check=>check());
+   existing.needs.push(needed);
+   if(priority&&!existing.started){const i=thumbQueue.indexOf(existing);if(i>=0){thumbQueue.splice(i,1);thumbQueue.unshift(existing)}}
+  }
+  return existing.promise;
+ }
+ const item={photo,generation:loadGeneration,needs:[needed],ready:false,url:null};
+ item.promise=new Promise(resolve=>{item.finish=resolve});
+ comparisonThumbs.set(photo.id,item);
+ if(priority)thumbQueue.unshift(item);else thumbQueue.push(item);
+ drainThumbQueue();
+ return item.promise;
+}
+function comparisonCard(home){
+ const photos=sortedPhotos('progress');
+ comparisonDays=new Map();
+ for(const photo of photos){
+  if(!comparisonDays.has(photo.date))comparisonDays.set(photo.date,[]);
+  comparisonDays.get(photo.date).push(photo);
+ }
+ if(!home&&photos.length<2)return '';
+ const title=home?'Minha evolução — Antes e Depois':'Antes e Depois';
+ if(!photos.length)return `<section class="card space" data-photo-comparison><h2>${title}</h2>
+  <div class="compare photo-comparison">${['Antes','Depois'].map((name,i)=>`<figure><img class="photo-example" src="assets/photo-example-${i+1}.png" alt="Ilustração fictícia"><figcaption><strong>${name}</strong> · Exemplo</figcaption></figure>`).join('')}</div>
+  ${addBtn('photo','Adicionar minhas fotos')}</section>`;
+ return `<section class="card space" data-photo-comparison data-comparison-home="${home}"><h2>${title}</h2>
+  <div class="compare photo-comparison" id="comparisonPhotos">${[0,1].map(side=>{
+   const label=side?'Depois':'Antes';
+   if(side&&photos.length===1)return `<figure class="comparison-add"><p>Adicione uma segunda foto.</p>${addBtn('photo','Adicionar foto')}</figure>`;
+   const state=comparisonSelection[side],fallback=side?photos.at(-1):photos[0];
+   const rows=comparisonDays.get(state?.day)||comparisonDays.get(fallback.date);
+   const selected=rows.find(row=>row.id===state?.id)||(!state?fallback:rows[0]);
+   comparisonSelection[side]={day:selected.date,id:selected.id};
+   const index=rows.indexOf(selected),position=`${date(selected.date)} · Foto ${index+1} de ${rows.length}`;
+   const options=[...comparisonDays.keys()].map(day=>`<option value="${esc(day)}" ${day===selected.date?'selected':''}>${date(day)}</option>`).join('');
+   return `<figure data-photo-side="${side}">
+   <label>${label} · Data<select data-photo-date aria-label="Data ${label}">${options}</select></label>
+   <div data-photo-preview></div>
    <figcaption><strong>${label}</strong> · <span data-photo-position>${position}</span></figcaption>
-   <input type="range" data-photo-slider="${label}" aria-label="Fotografia ${label}" aria-valuetext="${position}" min="0" max="${list.length-1}" step="1" value="${index}"></figure>`;
- }).join('');
+   <input type="range" data-photo-slider="${label}" aria-label="Fotografia ${label}" aria-valuetext="${position}" min="0" step="1" max="${rows.length-1}" value="${index}" ${rows.length===1?'disabled hidden':''}></figure>`;
+  }).join('')}</div></section>`;
 }
-const previewTimers=new WeakMap();
-function changePhotoComparison(slider){
- const list=comparisonRows,index=Number(slider.value),photo=list[index],figure=slider.closest('figure');
- if(!photo||!figure)return;
- const position=photoPosition(photo,index,list.length),label=slider.dataset.photoSlider;
+function paintComparison(figure,day,index,warm=false){
+ const side=Number(figure.dataset.photoSide),label=side?'Depois':'Antes',rows=comparisonDays.get(day),photo=rows?.[index];
+ if(!photo)return;
+ comparisonSelection[side]={day,id:photo.id};
+ const slider=figure.querySelector('[data-photo-slider]'),position=`${date(day)} · Foto ${index+1} de ${rows.length}`;
+ slider.max=String(rows.length-1);
+ slider.value=String(index);
+ slider.disabled=rows.length===1;
+ slider.hidden=rows.length===1;
  slider.setAttribute('aria-valuetext',position);
  figure.querySelector('[data-photo-position]').textContent=position;
  const preview=figure.querySelector('[data-photo-preview]');
- preview.innerHTML=photoComparisonPreview(photo,label);
- const image=preview.querySelector('img');
- image.dataset.photoWaiting='1';
- clearTimeout(previewTimers.get(slider));
- previewTimers.set(slider,setTimeout(()=>{
-  if(!image.isConnected)return;
-  delete image.dataset.photoWaiting;
-  hydratePhotoImages();
- },100));
+ const home=figure.closest('[data-photo-comparison]').dataset.comparisonHome==='true';
+ const element=document.createElement(home?'div':'button');
+ element.className='photo-open comparison-preview';
+ if(!home){element.type='button';element.dataset.photoOpen=photo.id;element.setAttribute('aria-label','Ampliar '+label)}
+ const image=document.createElement('img'),status=document.createElement('span');
+ image.alt=label+' em '+date(day);image.hidden=true;
+ status.textContent='Preparando prévia…';
+ element.append(status,image);
+ preview.replaceChildren(element);
+ const needed=()=>element.isConnected&&comparisonSelection[side]?.day===day;
+ const display=url=>{
+  if(!needed())return;
+  if(!url){status.textContent=home?'Prévia indisponível':'Ver foto';return}
+  image.src=url;image.hidden=false;status.hidden=true;
+ };
+ const existing=comparisonThumbs.get(photo.id);
+ if(existing?.ready)display(existing.url);
+ if(!warm)return;
+ if(!existing?.ready)void warmPhotoThumb(photo,needed,true).then(display);
+ const neighborhood=[...rows.slice(index+1,index+8),...rows.slice(Math.max(0,index-7),index).reverse()].slice(0,7);
+ for(const neighbor of neighborhood)void warmPhotoThumb(neighbor,()=>needed()&&comparisonSelection[side]?.id===photo.id);
+}
+function changePhotoComparison(control){
+ const figure=control.closest('[data-photo-side]'),select=figure.querySelector('[data-photo-date]');
+ const index=control===select?0:Number(control.value);
+ paintComparison(figure,select.value,index,true);
 }
 document.addEventListener('input',event=>{
  if(event.target.matches?.('[data-photo-slider]'))changePhotoComparison(event.target);
 });
+document.addEventListener('change',event=>{
+ if(event.target.matches?.('[data-photo-date]'))changePhotoComparison(event.target);
+});
 function hydratePhotoImages(){
  photoObserver?.disconnect();
- if(page!=='fotos')return;
- const generation=loadGeneration;
- const visible=img=>img?.isConnected&&!img.dataset.photoWaiting&&(img.closest('[data-photo-comparison]')||img.closest('details')?.open);
- const load=async img=>{
-  if(!visible(img))return;
-  const p=photoList.find(row=>row.id===img.dataset.photoMedia);
-  if(!p||img.hasAttribute('src'))return;
-  try{
-   const url=await photoSource(p,img.dataset.photoVariant);
-   if(!url||!visible(img)||generation!==loadGeneration)return;
-   img.onerror=()=>{img.hidden=true;img.parentElement.querySelector('[data-photo-placeholder]')?.removeAttribute('hidden')};
-   img.src=url;
-   img.hidden=false;
-   img.parentElement.querySelector('[data-photo-placeholder]')?.setAttribute('hidden','');
-  }catch{/* Fotos antigas e falhas temporárias continuam acessíveis em Ver foto. */}
+ if(page!=='fotos'&&page!=='inicio')return;
+ const root=$('#content'),generation=loadGeneration;
+ const figures=root.querySelectorAll('[data-photo-side]');
+ const loadFigure=(figure,warm)=>{
+  const side=Number(figure.dataset.photoSide),selection=comparisonSelection[side],rows=comparisonDays.get(selection?.day);
+  if(rows)paintComparison(figure,selection.day,Math.max(0,rows.findIndex(p=>p.id===selection.id)),warm);
  };
- const images=$('#content').querySelectorAll('details[open] [data-photo-media], [data-photo-comparison] [data-photo-media]:not([data-photo-waiting])');
- if(typeof IntersectionObserver!=='function')return;
+ const loadHistory=async button=>{
+  const image=button.querySelector('[data-photo-media]');
+  const needed=()=>image.isConnected&&image.closest('details')?.open&&generation===loadGeneration;
+  if(!needed()||image.hasAttribute('src'))return;
+  const photo=photoList.find(row=>row.id===image.dataset.photoMedia);
+  if(!photo)return;
+  const url=await warmPhotoThumb(photo,needed,true);
+  if(!url||!needed())return;
+  image.src=url;image.hidden=false;
+  button.querySelector('[data-photo-placeholder]').hidden=true;
+ };
+ for(const figure of figures)if(!figure.querySelector('[data-photo-preview]').firstChild)loadFigure(figure,false);
+ if(typeof IntersectionObserver!=='function'){figures.forEach(figure=>loadFigure(figure,true));return}
  photoObserver=new IntersectionObserver(entries=>{
-  for(const entry of entries)if(entry.isIntersecting){photoObserver.unobserve(entry.target);void load(entry.target.querySelector('img'))}
+  for(const entry of entries)if(entry.isIntersecting){
+   photoObserver.unobserve(entry.target);
+   if(entry.target.matches('[data-photo-side]'))loadFigure(entry.target,true);
+   else void loadHistory(entry.target);
+  }
  },{rootMargin:'96px 0px'});
- images.forEach(img=>photoObserver.observe(img.closest('button')));
+ figures.forEach(figure=>photoObserver.observe(figure));
+ root.querySelectorAll('details[open] [data-photo-media]').forEach(image=>photoObserver.observe(image.closest('button')));
 }
 async function showPhoto(id,trigger=document.activeElement){
  const photo=photoList.find(row=>row.id===id),generation=loadGeneration;
@@ -303,7 +419,7 @@ function navigateBack(fallback='auto'){if(formDirty&&!confirm('Há alterações 
 const validSharedMaterial=value=>/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(String(value||''));
 function pendingLibraryMaterial(){let fromURL='';try{fromURL=new URL(location.href).searchParams.get('material')||'';}catch{}if(validSharedMaterial(fromURL)){try{if(typeof sessionStorage!=='undefined')sessionStorage.setItem('neo-library-destination',fromURL);}catch{}return fromURL;}try{const saved=typeof sessionStorage!=='undefined'?sessionStorage.getItem('neo-library-destination'):'';return validSharedMaterial(saved)?saved:'';}catch{return '';}}
 async function openAccountDestination(){const material=pendingLibraryMaterial();if(material){await go('comunidade',true,false,'library',material);try{if(typeof sessionStorage!=='undefined')sessionStorage.removeItem('neo-library-destination');const url=new URL(location.href);url.searchParams.delete('material');history.replaceState(history.state||null,'',url.href);}catch{}return;}if(/[?&]conversa=1(?:&|$)/.test(location.search||''))await go('comunidade',true,true);else await go('inicio');}
-async function go(p,focus=true,direct=false,communityTab='feed',materialID=''){if(!routes[p])p='inicio';if(p==='inicio')homeDetailsOpen=false;if(p==='comunidade')window.NeoCommunity?.beginVisit(direct,communityTab,materialID);if(mode==='cloud'&&!demo&&Cloud.onboardingComplete===false&&!['preparar','onboarding','perfil','bemvindo','termos','privacidade'].includes(p))p=arrivalWelcomeStarted?'onboarding':'preparar';formDirty=false;page=p;const previous=history.state?.neoDepth||0;const nav={neoPage:p,neoDepth:previous+(focus&&location.hash!=='#'+p?1:0),direct,communityTab,materialID};if(focus&&location.hash!=='#'+p&&typeof history.pushState==='function')history.pushState(nav,'','#'+p);else history.replaceState(nav,'','#'+p);render();if(p==='comunidade')window.NeoCommunity.load({cloud:mode==='cloud'&&!demo,user:Cloud.user,admin:Cloud.admin,demo,sanitizePhoto,profileName:state.profile.name,avatarURL});if(typeof $('#content').animate==='function'&&!matchMedia('(prefers-reduced-motion: reduce)').matches)$('#content').animate([{opacity:.5,transform:'translateY(4px)'},{opacity:1,transform:'translateY(0)'}],{duration:180,easing:'ease-out'});if(p==='fotos'||p==='perfil'){try{await loadPhotos();if(page===p)render()}catch(e){if(p==='fotos')toast(e.message)}}if(focus){window.scrollTo({top:0,behavior:'auto'});$('#content').focus({preventScroll:true})}}
+async function go(p,focus=true,direct=false,communityTab='feed',materialID=''){if(!routes[p])p='inicio';if(p==='inicio')homeDetailsOpen=false;if(p==='comunidade')window.NeoCommunity?.beginVisit(direct,communityTab,materialID);if(mode==='cloud'&&!demo&&Cloud.onboardingComplete===false&&!['preparar','onboarding','perfil','bemvindo','termos','privacidade'].includes(p))p=arrivalWelcomeStarted?'onboarding':'preparar';formDirty=false;page=p;const previous=history.state?.neoDepth||0;const nav={neoPage:p,neoDepth:previous+(focus&&location.hash!=='#'+p?1:0),direct,communityTab,materialID};if(focus&&location.hash!=='#'+p&&typeof history.pushState==='function')history.pushState(nav,'','#'+p);else history.replaceState(nav,'','#'+p);render();if(p==='comunidade')window.NeoCommunity.load({cloud:mode==='cloud'&&!demo,user:Cloud.user,admin:Cloud.admin,demo,sanitizePhoto,profileName:state.profile.name,avatarURL});if(typeof $('#content').animate==='function'&&!matchMedia('(prefers-reduced-motion: reduce)').matches)$('#content').animate([{opacity:.5,transform:'translateY(4px)'},{opacity:1,transform:'translateY(0)'}],{duration:180,easing:'ease-out'});if(!photoMetadataLoaded&&(p==='fotos'||p==='perfil'||(p==='inicio'&&mode==='local'&&!demo))){try{await loadPhotos();if(page===p)render()}catch(e){if(p==='fotos')toast(e.message)}}if(focus){window.scrollTo({top:0,behavior:'auto'});$('#content').focus({preventScroll:true})}}
 function input(name,label,type='number',extra='',value=''){if(type==='password'){const id='auth-'+name,description=name==='confirmPassword'?'confirmação de senha':label.toLowerCase();return `<div class="password-field"><label for="${id}">${label}</label><div class="password-input"><input id="${id}" name="${name}" type="password" ${extra} value="${esc(value)}"><button type="button" class="password-toggle" data-password-toggle="${id}" data-password-label="${esc(description)}" aria-controls="${id}" aria-pressed="false" aria-label="Mostrar ${esc(description)}">${icon('eye')}</button></div></div>`;}return `<label>${label}<input name="${name}" type="${type}" ${extra} value="${esc(value)}"></label>`}
 function textarea(name,label,value='',limit=2000){return `<label>${label}<textarea name="${name}" maxlength="${limit}">${esc(value)}</textarea></label>`}
 const kindType={weight:'weights',measure:'measures',dose:'doses',journal:'journal',protocol:'protocols',reminder:'reminders'};
@@ -523,7 +639,8 @@ async function restoreSession(){
    authMode='login';authMessage='Não foi possível abrir uma sessão por este link. Se já confirmou seu e-mail, entre com e-mail e senha.';
    link.searchParams.delete('code');history.replaceState(null,'',link.href);await go('bemvindo',false);return;
   }
-  if(checking)render();
+  if(page==='inicio'&&mode==='local'&&!demo&&!photoMetadataLoaded){try{await loadPhotos();render()}catch{if(checking)render()}}
+  else if(checking)render();
  }catch(e){
   sessionLoading=false;
   if(!Cloud.configured)return;

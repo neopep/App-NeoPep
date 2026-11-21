@@ -255,3 +255,13 @@ body:has(.photo-viewer[open]){overflow:hidden}
 .session-start{max-width:28rem;margin:12vh auto;text-align:center;padding:1.5rem}
 .session-start img{width:64px;height:64px;object-fit:contain}
 .photo-item-progress{max-width:3.5rem;width:20%}
+
+.photo-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem;align-items:start}
+.photo-comparison figure{margin:0;min-width:0}
+.photo-comparison label{display:block;font-size:.82rem;margin-bottom:.35rem}
+.photo-comparison select{width:100%;min-height:44px;font-size:16px;padding-inline:.4rem}
+.photo-comparison .comparison-preview,.photo-example{display:grid;place-items:center;width:100%;aspect-ratio:4/3;overflow:hidden;border-radius:.65rem}
+.photo-comparison .comparison-preview img,.photo-example{width:100%;height:100%;object-fit:contain}
+.photo-comparison .comparison-preview img[hidden],.photo-comparison [data-photo-slider][hidden]{display:none}
+.photo-comparison figcaption{margin:.35rem 0}
+.comparison-add{display:grid;align-content:center;min-height:7rem;text-align:center}

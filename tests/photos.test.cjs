@@ -136,25 +136,45 @@ test('sugere somente a data de captura EXIF válida do JPEG',async()=>{
  assert.equal(await run('captureDate(new Blob([new Uint8Array('+JSON.stringify(jpeg('2026:02:31 12:34:56'))+')]))'),null);
 });
 
-test('sliders independentes atualizam posição imediatamente, inclusive com datas iguais',()=>{
+test('sliders ficam limitados à data e a seleção é compartilhada com o Início',()=>{
  const run=app();
- run(`photoList=[
+ run(`page='fotos';photoList=[
   {id:'third',date:'2026-02-03',role:'progress'},
   {id:'second',date:'2026-02-02',role:'progress',created_at:'2026-02-02T15:00:00Z'},
   {id:'first',date:'2026-02-02',role:'progress',created_at:'2026-02-02T12:00:00Z'}
- ];document.querySelector('#content').innerHTML=photosPage()`);
+ ];document.querySelector('#content').innerHTML=photosPage();hydratePhotoImages()`);
  const before=run.document.querySelector('[data-photo-slider=Antes]');
  const after=run.document.querySelector('[data-photo-slider=Depois]');
- assert.equal(before.getAttribute('value'),'0');
- assert.equal(after.getAttribute('value'),'2');
- const first=before.closest('figure').querySelector('img');
+ assert.equal(before.max,'1');
+ assert.equal(after.disabled,true);
  before.value='1';
  before.dispatchEvent(new run.document.defaultView.Event('input',{bubbles:true}));
- assert.equal(first.isConnected,false);
- assert.equal(before.closest('figure').querySelector('img').dataset.photoMedia,'second');
- assert.match(before.getAttribute('aria-valuetext'),/2 de 3/);
- assert.match(before.closest('figure').querySelector('figcaption').textContent,/2 de 3/);
- assert.equal(after.closest('figure').querySelector('img').dataset.photoMedia,'third');
+ assert.match(before.getAttribute('aria-valuetext'),/Foto 2 de 2/);
+ assert.equal(before.closest('figure').querySelector('[data-photo-open]').dataset.photoOpen,'second');
+ assert.equal(after.closest('figure').querySelector('[data-photo-open]').dataset.photoOpen,'third');
+ run("page='inicio';document.querySelector('#content').innerHTML=overview();hydratePhotoImages()");
+ assert.match(run.document.querySelector('[data-photo-slider=Antes]').getAttribute('aria-valuetext'),/Foto 2 de 2/);
+ assert.equal(run.document.querySelector('[data-photo-comparison] [data-photo-open]'),null);
+ const select=run.document.querySelector('[data-photo-side="0"] [data-photo-date]');
+ const choices=[...select.querySelectorAll('option')];
+ assert.deepEqual(choices.map(option=>option.value),['2026-02-02','2026-02-03']);
+ choices[0].removeAttribute('selected');choices[1].setAttribute('selected','');
+ select.dispatchEvent(new run.document.defaultView.Event('change',{bubbles:true}));
+ const updated=run.document.querySelector('[data-photo-slider=Antes]');
+ assert.equal(updated.disabled,true);
+ assert.match(updated.getAttribute('aria-valuetext'),/Foto 1 de 1/);
+});
+
+test('Início mostra exemplos locais sem datas e troca por uma foto sem duplicar registros',()=>{
+ const run=app();
+ const example=run('comparisonCard(true)');
+ assert.equal((example.match(/Exemplo/g)||[]).length,2);
+ assert.match(example,/Adicionar minhas fotos/);
+ assert.doesNotMatch(example,/type="range"|data-photo-date/);
+ const single=run("photoList=[{id:'single',date:C.today(),role:'progress'}];comparisonCard(true)");
+ assert.doesNotMatch(single,/photo-example|Exemplo/);
+ assert.match(single,/Adicione uma segunda foto/);
+ assert.equal((single.match(/data-photo-side=/g)||[]).length,1);
 });
 
 test('o visualizador mantém as ações disponíveis enquanto a foto carrega e confirma a exclusão',async()=>{
@@ -182,33 +202,61 @@ test('o visualizador mantém as ações disponíveis enquanto a foto carrega e c
  assert.equal(run.document.querySelector('#photoViewer'),null);
 });
 
-test('resposta atrasada do slider é descartada e históricos recolhidos não são observados',async()=>{
+test('fila de miniaturas usa até dois pedidos e descarta resultado atrasado ao trocar de dia',async()=>{
  const run=app();
  run(`page='fotos';photoList=Array.from({length:100},(_,i)=>({
-  id:'photo-'+i,date:'2026-02-01',role:'progress',created_at:String(i).padStart(3,'0')
+  id:'photo-'+i,date:i<50?'2026-02-01':'2026-02-02',role:'progress',created_at:String(i).padStart(3,'0')
  }));
  document.querySelector('#content').innerHTML=photosPage();
  window.observed=[];
  window.requests=[];
  window.IntersectionObserver=class{
-  constructor(callback){window.deliverEntries=callback;window.observed=[]}
+  constructor(callback){window.deliverEntries=callback}
   disconnect(){}
-  observe(button){window.observed.push(button)}
+  observe(target){window.observed.push(target)}
   unobserve(){}
  };
  photoSource=(photo,variant)=>new Promise(resolve=>window.requests.push({photo,variant,resolve}));
+ window.fetch=async()=>({ok:true,blob:async()=>new Blob(['thumb'])});
  hydratePhotoImages();
- window.deliverEntries([{isIntersecting:true,target:window.observed[0]}]);
- window.setTimeout=fn=>fn();
- const slider=document.querySelector('[data-photo-slider=Antes]');
- slider.value='50';changePhotoComparison(slider);
  window.deliverEntries([{isIntersecting:true,target:window.observed[0]}]);
  `);
  assert.equal(run('window.observed.length'),2);
- assert.equal(run("window.requests.map(r=>r.variant).join(',')"),'thumbnail,thumbnail');
- run("window.requests[1].resolve('https://example.invalid/current');window.requests[0].resolve('https://example.invalid/stale')");
+ assert.equal(run('window.requests.length'),2);
+ assert.equal(run("window.requests.map(r=>r.photo.date).join(',')"),'2026-02-01,2026-02-01');
+ const select=run.document.querySelector('[data-photo-side="0"] [data-photo-date]');
+ const options=select.querySelectorAll('option');
+ options[0].removeAttribute('selected');options[1].setAttribute('selected','');
+ select.dispatchEvent(new run.document.defaultView.Event('change',{bubbles:true}));
+ run("window.requests[0].resolve('stale');window.requests[1].resolve('stale')");
  await new Promise(setImmediate);
- const first=run.document.querySelector('[data-photo-slider=Antes]').closest('figure');
- assert.equal(first.querySelector('img').getAttribute('src'),'https://example.invalid/current');
- assert.equal(run.document.querySelectorAll('details [src]').length,0);
+ assert.equal(run('window.requests.length'),4);
+ assert.equal(run("window.requests[2].photo.date"),'2026-02-02');
+ assert.equal(run("window.requests[2].photo.id"),'photo-50');
+ assert.ok(run("window.requests.every(r=>r.variant==='thumbnail')"));
+ assert.equal(run.document.querySelectorAll('details img[src]').length,0);
+ assert.equal(run.document.querySelector('[data-photo-side="0"] img').hasAttribute('src'),false);
+ run("window.requests[2].resolve('current')");
+ await new Promise(setImmediate);
+ assert.match(run.document.querySelector('[data-photo-side="0"] img').getAttribute('src'),/^blob:/);
+});
+
+test('miniaturas prontas são reutilizadas e foto antiga nunca recorre ao original',async()=>{
+ const run=app();
+ const result=await run(`(async()=>{
+  let calls=0,downloads=0;
+  photoSource=async(photo,variant)=>{
+   if(variant!=='thumbnail')throw Error('A comparação pediu um original.');
+   calls++;
+   return photo.id==='legacy'?null:'https://example.invalid/thumb';
+  };
+  window.fetch=async()=>{downloads++;return {ok:true,blob:async()=>new Blob(['thumb'])}};
+  const photo={id:'current'},legacy={id:'legacy'};
+  const [first,second]=await Promise.all([warmPhotoThumb(photo,()=>true),warmPhotoThumb(photo,()=>true)]);
+  const again=await warmPhotoThumb(photo,()=>true);
+  const unavailable=await warmPhotoThumb(legacy,()=>true);
+  clearPhotoURLs();
+  return JSON.stringify({calls,downloads,reused:first===second&&first===again,unavailable,cache:comparisonThumbs.size});
+ })()`);
+ assert.deepEqual(JSON.parse(result),{calls:2,downloads:1,reused:true,unavailable:null,cache:0});
 });
