@@ -21,3 +21,5 @@ A composição com fotos reais usa os originais das duas seleções da conta aut
 A composição usa a tipografia do aplicativo, com a marca translúcida sobre a base das fotografias. O painel **Evolução do Peso** usa os registros da conta no intervalo, inclusive nos dias das duas fotos, e respeita a unidade configurada. Com menos de dois dias com registros válidos, o painel informa que os dados são insuficientes.
 
 A comparação mostra a variação de peso nas três telas. Duas pesagens nas datas exatas determinam a diferença entre Depois e Antes. Quando faltar uma delas, o indicador usa a variação total da jornada e o gráfico usa o histórico correspondente. Se o total partir de um peso inicial do perfil diferente da primeira pesagem, o gráfico o identifica como referência. Exemplos e registros insuficientes exibem um estado informativo. O modal congela a seleção, a variação e o gráfico ao abrir. A marca-d'água é obrigatória e a composição não apresenta controles de assinatura.
+
+- [Campanhas e pop-ups administrativos](CAMPANHAS.md)
