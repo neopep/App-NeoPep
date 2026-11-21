@@ -293,3 +293,7 @@ Em 20/11/2026, o proprietário confirmou que o PWA já instalado voltou a abrir 
 Em 21/11/2026, os dois PNGs fornecidos no novo Logo.zip substituíram as imagens do NeoPep Teste. O logotipo interno RGB de 4000 × 4000 foi copiado sem alterações. Os ícones comuns e o favicon preservam a transparência do original de crescimento. As versões Apple e maskable usam fundo opaco e a versão maskable inclui margem de segurança. O cache de staging avançou para pwa-v3. Nomes, ID, escopo, rotas legadas, autenticação e notificações foram preservados.
 
 A conferência dos originais e dos tamanhos derivados, o npm run check e o teste do manifesto passaram. A suíte focada teve 66/68, com as duas falhas já registradas de privacidade em notificações. A promoção das imagens para a main depende da aprovação visual em staging.
+
+## MEM-20261121-002
+
+Em 21/11/2026, o NeoPep Teste passou a usar em `dist/assets/logo-neopep.png` o PNG original de crescimento de 1254 × 1254 do último Logo.zip, copiado byte a byte. O caminho compartilhado atende login, cabeçalho, administração e páginas relacionadas. Os derivados de instalação, nomes, cache e configuração são os da versão anterior. A publicação é exclusiva de staging/permanente. O npm run check passou, e a suíte focada teve 66/68 com as duas falhas preexistentes de privacidade em notificações.
