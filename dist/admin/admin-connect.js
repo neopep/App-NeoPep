@@ -1,0 +1,101 @@
+'use strict';
+
+function mountNeoConnect(root,cloud){
+ const rpc=(action,data)=>cloud.connectAdmin(action,data);
+ let snapshot,groups=[],queue=[],loadVersion=0;
+ const html=(node,value)=>{node.innerHTML=value;};
+ const opt=(rows,label)=>rows.map(x=>`<option value="${esc(x.id)}">${esc(label(x))}</option>`).join('');
+ const time=value=>value?new Date(value).toLocaleString('pt-BR'):'—';
+ const actor=account=>snapshot.accounts.find(row=>row.id===account)?.identity||'—';
+ const computer=id=>snapshot.devices.find(row=>row.id===id)?.label||'—';
+ const group=id=>groups.find(row=>row.id===id)?.name||id;
+ const job=id=>queue.find(row=>row.id===id)?.title||id;
+ const events={register:'Registro',approved:'Aprovado',approve:'Aprovação',revoke:'Revogação',priority:'Prioridade',leased:'Reserva',started:'Início',simulated:'Simulado',uncertain:'Incerto',queued:'Em fila',cancelled:'Cancelado'};
+ root.innerHTML=`<p class="sub">Cliente Windows 10/11 x64. Instale a versão aprovada, entre com a conta administrativa e aprove o computador abaixo. Confira o SHA-256 antes de executar o instalador.</p>
+ <p role="status" data-connect-status></p><div class="neo-campaign-actions"><button type="button" class="secondary" data-connect="refresh">Atualizar diagnóstico</button></div>
+ <div data-connect-content></div>`;
+ const status=root.querySelector('[data-connect-status]'),body=root.querySelector('[data-connect-content]');
+ function note(text){status.textContent=text}
+ async function load(){
+  const version=++loadVersion;
+  const result=await Promise.all([rpc('snapshot'),cloud.campaignWhatsApp('groups'),cloud.campaignWhatsApp('queue')]);
+  if(!root.isConnected||version!==loadVersion)return;
+  [snapshot,groups,queue]=result;
+  const enabled=snapshot.accounts.filter(x=>x.enabled);
+  html(body,`<h4>Instaladores aprovados</h4>
+   ${snapshot.releases.map(r=>`<article class="monitor-block"><p>Versão ${esc(r.version)} · ${esc(time(r.approved_at))} · ${Number(r.bytes).toLocaleString('pt-BR')} bytes</p>
+   <p class="sub">SHA-256 <code>${esc(r.sha256)}</code></p><button class="secondary" type="button" data-connect="download" data-version="${esc(r.version)}">Preparar download privado</button></article>`).join('')||'<p>Nenhuma versão aprovada disponível.</p>'}
+   <div data-connect-link></div>
+   <h4>Computadores</h4><p>Simulação ${snapshot.paused?'pausada':'habilitada'}. O painel registra apenas resultados fictícios.</p>
+   <button type="button" class="secondary" data-connect="pause">${snapshot.paused?'Retomar simulação':'Pausar simulação'}</button>
+   ${snapshot.devices.map(d=>{
+    const online=d.state!=='revoked'&&d.last_seen&&Date.now()-new Date(d.last_seen)<70000;
+    const sessions=snapshot.sessions.filter(s=>s.device_id===d.id);
+    return `<article class="monitor-block"><h5>${esc(d.label)}</h5>
+     <p>${esc(d.state)} · ${online?'Online':'Offline'} · versão ${esc(d.version||'—')} · ${esc(d.working_set_mb??'—')} MB</p>
+     <p class="sub">Responsável ${esc(d.owner_id)} · Última atividade ${esc(time(d.last_seen))}</p>
+     <p>${sessions.map(s=>esc(actor(s.account_id))+' · '+(s.connected&&online&&Date.now()-new Date(s.last_seen)<70000?'Conectada':'Desconectada')).join(' | ')||'Sem sessão'}</p>
+     <div class="neo-campaign-actions">
+     ${d.state==='pending'?`<button type="button" class="secondary" data-connect="approve" data-id="${esc(d.id)}">Aprovar</button>`:''}
+     ${d.state!=='revoked'?`<button type="button" class="secondary" data-connect="revoke" data-id="${esc(d.id)}">Revogar</button>`:''}
+     <form data-connect-form="priority" data-id="${esc(d.id)}"><label>Prioridade <input required name="priority" type="number" min="0" max="100" value="${Number(d.priority)}"></label><button class="secondary">Salvar</button></form>
+     </div></article>`;
+   }).join('')||'<p>Nenhum computador registrado.</p>'}
+   <h4>Contas simuladas</h4>
+   <form data-connect-form="create_account"><label>Identidade fictícia<input required name="identity" pattern="fixture-[A-Za-z0-9_-]{1,40}" placeholder="fixture-principal"></label><button class="secondary">Criar para minha conta administrativa</button></form>
+   ${snapshot.accounts.map(a=>`<p>${esc(a.identity)} · ${a.enabled?'Disponível':'Revogada'} · ${esc(a.owner_id)}
+   ${a.enabled&&a.owner_id===cloud.user?.id?`<button type="button" class="secondary" data-connect="disable_account" data-id="${esc(a.id)}">Revogar conexão</button>`:''}</p>`).join('')}
+   <h4>Autorização por grupo</h4>
+   <form data-connect-form="associate" class="space">
+    <label>Grupo<select name="group" required><option value="">Selecione</option>${opt(groups,x=>x.name)}</select></label>
+    <label>Conta simulada<select name="account" required><option value="">Selecione</option>${opt(enabled,x=>x.identity)}</select></label>
+    <label>Prioridade como reserva<input name="priority" type="number" required min="0" max="100" value="0"></label>
+    <label class="check"><input name="verified" type="checkbox">Participação verificada no cenário fictício</label>
+    <label class="check"><input name="may_publish" type="checkbox">Publicação autorizada no cenário fictício</label>
+    <button class="secondary">Salvar vínculo</button>
+   </form>
+   ${snapshot.groups.map(g=>`<p>${esc(group(g.group_id))} · ${esc(actor(g.account_id))} · ${g.verified&&g.may_publish?'Elegível':'Sem autorização'} · Prioridade ${Number(g.priority)}</p>`).join('')}
+   <h4>Fila de simulação</h4>
+   <form data-connect-form="queue" class="space">
+    <label>Divulgação por grupo<select name="id" required><option value="">Selecione</option>${opt(queue.filter(x=>x.scheduled_at&&['scheduled','late'].includes(x.state)),x=>x.title+' · '+x.group_name)}</select></label>
+    <label>Conta preferencial<select name="account" required><option value="">Selecione</option>${opt(enabled,x=>x.identity)}</select></label>
+    <label>Seleção de remetente<select name="mode"><option value="fixed">Número fixo</option><option value="fallback">Principal e reservas autorizadas</option><option value="linked">Mesma conta em computadores vinculados</option></select></label>
+    <button class="secondary">Enfileirar simulação</button>
+   </form>
+   ${snapshot.tasks.map(t=>`<p>${esc(job(t.publication_id))} · ${esc(events[t.state]||t.state)} · ${esc(actor(t.account_id))} · ${esc(computer(t.device_id))} · ${esc(time(t.occurrence))}</p>`).join('')}
+   <details><summary>Tentativas e auditoria</summary>${snapshot.audit.map(a=>`<p>${esc(time(a.created_at))} · ${esc(events[a.event]||a.event)} · ${esc(computer(a.device_id))} · ${esc(actor(a.account_id))}</p>`).join('')}</details>`);
+ }
+ async function perform(action){
+  try{note('Consultando NeoPep Connect…');await action();note('Atualizado.');}
+  catch(error){note(error.message||'Não foi possível executar a operação.');}
+ }
+ root.addEventListener('submit',event=>{
+  const form=event.target;if(!form.dataset.connectForm)return;
+  event.preventDefault();
+  const data=Object.fromEntries(new FormData(form)),action=form.dataset.connectForm;
+  if(action==='priority')data.id=form.dataset.id;
+  if(action==='associate'){
+   data.verified=Boolean(data.verified);data.may_publish=Boolean(data.may_publish);
+  }
+  void perform(async()=>{await rpc(action,data);await load();});
+ });
+ root.addEventListener('click',event=>{
+  const button=event.target.closest?.('[data-connect]');
+  if(!button)return;
+  const {connect:action,id,version}=button.dataset;
+  if(['revoke','disable_account'].includes(action)&&!confirm('Revogar acesso ao NeoPep Connect?'))return;
+  void perform(async()=>{
+   if(action==='download'){
+    const release=snapshot.releases.find(x=>x.version===version);
+    if(!release)return;
+    const url=await cloud.connectReleaseURL(release.path);
+    if(!root.isConnected)return;
+    const link=document.createElement('a');link.href=url;link.textContent='Baixar instalador aprovado (link válido por 2 minutos)';
+    link.className='secondary';root.querySelector('[data-connect-link]').replaceChildren(link);return;
+   }
+   if(action!=='refresh')await rpc(action,action==='pause'?{paused:!snapshot.paused}:{id});
+   await load();
+  });
+ });
+ return {load:()=>perform(load)};
+}

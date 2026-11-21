@@ -42,7 +42,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual}){
  let groupRows=[],queueRows=[],campaigns=[],prepared=null,selectedJob=null,files=[],refreshToken=0,prepareToken=0,working=false,groupSearch='',reminderTimer;
  root.innerHTML=`<div class="between"><h3>WhatsApp</h3>${openManual?action('manual','<span aria-hidden="true">?</span> <span class="admin-pdf-accessible">Manual do WhatsApp</span>'):''}</div>
  <p class="sub">O grupo é escolhido no WhatsApp. Confirme a publicação no painel após o envio.</p>
- <p role="status" data-wa-status></p><p role="status" data-wa-reminders></p>
+ <details class="space" data-wa-connect><summary>NeoPep Connect</summary><div data-connect-root></div></details><p role="status" data-wa-status></p><p role="status" data-wa-reminders></p>
  <details class="space"><summary>Grupos cadastrados</summary>
  <form data-wa-group-search>${field('group_search','Pesquisar grupos','maxlength="100"')}<button type="submit" class="secondary">Pesquisar</button></form>
  <form class="space" data-wa-group>
@@ -66,6 +66,13 @@ function mountCampaignWhatsApp(root,{cloud,openManual}){
  <label class="check"><input type="checkbox" name="remind"> Lembrete no painel</label>
  <button type="submit" class="primary">Salvar publicação</button></form>
  <fieldset class="space"><legend data-campaign-legend="state">Fila de publicações</legend><div data-wa-queue></div></fieldset>`;
+ const connect=q('[data-wa-connect]');
+ let connectPanel;
+ connect.addEventListener('toggle',()=>{
+  if(!connect.open||typeof mountNeoConnect!=='function')return;
+  connectPanel??=mountNeoConnect(q('[data-connect-root]'),cloud);
+  void connectPanel.load();
+ });
  const groupForm=q('[data-wa-group]'),form=q('[data-wa-publication]'),select=form.querySelector('[name=campaign_id]');
  help(groupForm,'wa-group');help(q('[data-wa-group-search]'),'wa-search');help(form,'wa-form');help(q('[data-wa-queue]').parentElement,'wa-queue');
  const tell=message=>{q('[data-wa-status]').textContent=message};

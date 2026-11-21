@@ -457,3 +457,11 @@ A Central de Campanhas recebeu áreas App e WhatsApp, canais independentes no ca
 A migração `20261121231451` foi aplicada somente ao Supabase de teste. O ensaio transacional confirmou recusa da conta comum, cadastro administrativo, campanha exclusiva WhatsApp, divulgação atrasada, lembrete deduplicado, confirmação e próxima ocorrência. Todos os dados do ensaio foram revertidos. O Supabase Advisor sinalizou as quatro tabelas privadas sem política de cliente e o RPC autenticado com segurança do definidor. A fila opera por confirmação manual, sem envio automático ou push. [Guia da Central](../conhecimento/CAMPANHAS.md)
 
 Build, checagem, prévia e 23 testes focados passaram. A suíte completa teve 288 aprovações em 350 testes e reproduziu exatamente os 62 casos herdados. A verificação remota pós-rollback confirmou ausência de grupos e publicações sintéticos, ausência de EXECUTE anônimo e de leitura direta por usuários autenticados.
+
+## MEM-20261121-027
+
+O NeoPep Connect recebeu cliente WinForms x64 com cofre DPAPI, instalador e workflow Windows, painel de autorização e diagnóstico, contas fictícias por grupo e coordenação simulada com lease e fencing. O processamento inicia pausado. O histórico de envio manual é independente.
+
+A migração `20261121233733` foi aplicada no Supabase de staging. A transação com duas contas fictícias confirmou pausa, isolamento de grupo, escolha de reserva autorizada e conclusão simulada, mantendo a publicação manual pendente. O ensaio foi revertido. A versão 0.1.1 passou no runner Windows pela compilação, verificação de hash, instalação, atualização e remoção. O download do EXE pelo painel depende de upload e aprovação no bucket privado. [Guia de homologação](../conhecimento/NEOPEP-CONNECT.md)
+
+Build, checagem, prévia e 22 testes focados passaram. A suíte com 351 casos teve 289 aprovações e as mesmas 62 falhas herdadas. O ensaio no runner cobre instalação silenciosa. A conferência gráfica, o primeiro login em um desktop Windows, a execução em dois dispositivos físicos e o download assinado do objeto real seguem pendentes.
