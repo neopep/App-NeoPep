@@ -33,7 +33,7 @@ static class Installer {
             string sourcePath=Assembly.GetExecutingAssembly().Location;
             if(!String.Equals(sourcePath,installed,StringComparison.OrdinalIgnoreCase))File.Copy(sourcePath,installed,true);
             using(var item=Registry.CurrentUser.CreateSubKey(Uninstall)){
-                item.SetValue("DisplayName",Name);item.SetValue("DisplayVersion","0.1.0");item.SetValue("Publisher","NeoPep");
+                item.SetValue("DisplayName",Name);item.SetValue("DisplayVersion","0.1.1");item.SetValue("Publisher","NeoPep");
                 item.SetValue("UninstallString","\""+installed+"\" --uninstall");
             }
             Type shell=Type.GetTypeFromProgID("WScript.Shell");

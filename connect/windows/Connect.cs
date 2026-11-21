@@ -30,7 +30,7 @@ sealed class SimulatedProvider : ICampaignProvider {
 }
 
 sealed class Connect : Form {
-    const string Version = "0.1.0";
+    const string Version = "0.1.1";
     const string Origin = "https://qnuluspqfazdppciermw.supabase.co";
     const string StagingPanel = "https://teste.app.neopep.com.br/admin/";
     static readonly string Folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NeoPep Connect");
@@ -210,6 +210,13 @@ sealed class Connect : Form {
             RenderAccounts(heartbeat);
             if(Value(heartbeat,"state")!="approved"){state.Text="Aprovação pendente.";return;}
             state.Text="Computador autorizado • simulação";
+            var reminders=await RPC("reminders",new { });
+            var entries=reminders["items"] as System.Collections.ICollection;
+            if(entries!=null&&entries.Count>0) {
+                tray.BalloonTipTitle="NeoPep Connect";
+                tray.BalloonTipText="Há divulgações manuais previstas. Consulte o painel.";
+                tray.ShowBalloonTip(5000);
+            }
             var job=await RPC("claim",new { });
             if(job==null)return;
             var id=Value(job,"id");var fence=Value(job,"fence");var account=Value(job,"account");
