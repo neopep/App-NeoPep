@@ -21,6 +21,11 @@ async function prepare() {
     ...base,
     appDisplayName: 'NeoPep Teste',
     legacyPushScope: '/neo/',
+    stagingBuild: /^[a-f0-9]{40}$/.test(process.env.VERCEL_GIT_COMMIT_SHA || '') ? {
+      commit: process.env.VERCEL_GIT_COMMIT_SHA,
+      branch,
+      builtAt: new Date().toISOString()
+    } : null,
     pushVapidPublicKey: vapid,
     providers: {
       ...base.providers,
@@ -49,7 +54,7 @@ async function prepare() {
   const serviceWorker = 'dist/sw.js';
   const worker = fs.readFileSync(serviceWorker, 'utf8')
     .replace(/^const CACHE=.*;$/m,
-      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v18';")
+      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v19';")
     .replace(/key\.startsWith\((?:'[^']+'|CACHE_PREFIX)\)/, 'key.startsWith(CACHE_PREFIX)');
   fs.writeFileSync(serviceWorker, worker);
 }

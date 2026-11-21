@@ -98,6 +98,18 @@ const api={configured,get remember(){return rememberSession},get persistenceLimi
  async setConsent(purpose,granted){need();if(!['health','terms','photos'].includes(purpose)||typeof granted!=='boolean')throw Error('Consentimento inválido.');ok(await client.rpc('neo_set_consent',{p_purpose:purpose,p_granted:granted}));consents=consents.filter(c=>c.purpose!==purpose);consents.push({purpose,version:'2026-11-v1',granted});if(!granted&&['health','terms'].includes(purpose))onboarded=false},
  async heartbeat(){need();ok(await client.rpc('neo_heartbeat'))},
  async reportError(code){if(!user||!['sync_failed','photo_failed','profile_failed','import_failed'].includes(code))return;try{await client.rpc('neo_report_error',{p_code:code})}catch{}},
+ async adminSystem(action='snapshot',payload={}){need();return ok(await client.rpc('neo_admin_system',{p_action:action,p_payload:payload}))},
+ async adminMonitor(provider){
+  need();
+  const version=identityVersion,account=user.id;
+  const {session}=ok(await client.auth.getSession());
+  if(version!==identityVersion||session?.user?.id!==account||!session.access_token)throw Error('Sessão indisponível.');
+  const response=await fetch('/api/admin-monitor?provider='+encodeURIComponent(provider),{
+   headers:{Authorization:'Bearer '+session.access_token}
+  });
+  if(version!==identityVersion||!response.ok)throw Error('Fonte indisponível.');
+  return response.json();
+ },
  async adminSummary(){need();return ok(await client.rpc('neo_admin_summary'))},
  async audience(action,device=null,campaign=null){need();return ok(await client.rpc('neo_audience_self',{p_action:action,p_device:device,p_campaign:campaign}))},
  async engagement(action,events=[]){need();return ok(await client.rpc('neo_engagement',{p_action:action,p_events:events}))},

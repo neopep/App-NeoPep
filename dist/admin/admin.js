@@ -1,9 +1,76 @@
 'use strict';
 const $=s=>document.querySelector(s),esc=window.NeoCore.escape;let generation=0,loading=false,authorized=false,tab='overview',platform=null,dirty=false,authConfirmation=null;
-function overview(d){const metrics=[['Usuários cadastrados',d.users_total],['Cadastros em 7 dias',d.signups_7d],['Ativos em 24 horas',d.active_24h],['Ativos em 7 dias',d.active_7d],['Ativos em 30 dias',d.active_30d],['Perfis configurados',d.profiles_total],['Registros totais',d.records_total],['Fotos armazenadas',d.photos_total]];return `<div class="stats">${metrics.map(([title,value])=>`<article class="card stat"><div class="stat-label">${title}</div><div class="stat-value">${Number.isFinite(value)?value.toLocaleString('pt-BR'):'—'}</div></article>`).join('')}</div><div data-admin-signups></div><div data-admin-audience></div><div class="two-cols"><section class="card"><h2>Funcionamento</h2><p class="sub space">Banco: ${d.database_status==='reachable'?'respondeu à consulta':'não confirmado'}<br>Storage privado: ${d.private_storage===true?'confirmado':'não confirmado'}<br>Schema: ${esc(d.schema_version)}<br>Horário do servidor: ${esc(d.server_time)}</p><div class="notice">“Ativo” significa acesso autenticado informado pelo aplicativo. Esta consulta não mede disponibilidade externa, latência de todas as funções ou entrega de e-mails.</div></section><section class="card"><h2>Erros informados pelo app · 7 dias</h2>${d.app_errors_7d.length?d.app_errors_7d.map(r=>`<div class="task"><b>${esc(r.code)}</b><span>${Number(r.count)}</span></div>`).join(''):'<p class="sub space">Nenhum erro de categoria permitida foi informado.</p>'}<p class="sub space">Contadores limitados por conta. Não contêm mensagens livres, notas, identificadores ou valores de saúde.</p></section></div><section class="card space"><h2>Cadastros por dia</h2>${d.signups_daily.map(r=>`<div class="task"><b>${esc(r.day)}</b><span>${r.count===null?'Menos de 5 · célula suprimida':Number(r.count)}</span></div>`).join('')||'<p class="sub">Sem cadastros no período.</p>'}</section>`;}
+const adminTabs={overview:'Visão Geral',signups:'Cadastros',audience:'Estatísticas de público',
+ engagement:'Engajamento',health:'Saúde do sistema',settings:'Configurações'};
+function adminAgentTrigger(context,label){
+ return `<button type="button" class="icon-btn admin-agent-trigger" data-report-agent="${context}" aria-label="${label}">✦</button>`;
+}
+function adminSectionHeading(title,context,buttons=''){
+ const names={signups:'Agente de análise de cadastros',audience:'Agente de análise de público',system_health:'Agente de monitoramento'};
+ return `<div class="admin-section-heading"><h2>${title}</h2><div>${buttons}${adminAgentTrigger(context,names[context])}</div></div>`;
+}
+document.addEventListener('click',event=>{
+ const button=event.target.closest?.('[data-report-agent]');
+ if(!button)return;
+ const group=button.parentElement;
+ let note=group.querySelector('[data-agent-placeholder]');
+ if(!note){note=document.createElement('span');note.dataset.agentPlaceholder='';note.setAttribute('role','status');note.className='sub';group.append(note)}
+ note.textContent=button.dataset.reportAgent==='system_health'?'Agente de monitoramento — em breve':'Agente de análise — em breve';
+});
+function overview(d){const metrics=[['Usuários cadastrados',d.users_total],['Cadastros em 7 dias',d.signups_7d],['Ativos em 24 horas',d.active_24h],['Ativos em 7 dias',d.active_7d],['Ativos em 30 dias',d.active_30d],['Perfis configurados',d.profiles_total],['Registros totais',d.records_total],['Fotos armazenadas',d.photos_total]];return `<div class="admin-overview"><div class="stats">${metrics.map(([title,value])=>`<article class="card stat"><div class="stat-label">${title}</div><div class="stat-value">${Number.isFinite(value)?value.toLocaleString('pt-BR'):'—'}</div></article>`).join('')}</div><div data-admin-signups></div>
+ <section class="card">${adminSectionHeading('Estatísticas de público','audience','<button type="button" class="secondary" data-admin-tab="audience">Abrir estatísticas</button>')}
+ <p class="sub">Distribuição de cadastros, atividade e campanhas por período.</p></section>
+ <details class="card"><summary>Saúde do sistema</summary><p class="sub">Diagnóstico parcial baseado na consulta administrativa e nos erros enviados pelo app.</p>
+ <p>Banco: ${d.database_status==='reachable'?'consulta respondeu':'sem confirmação'} · Storage privado: ${d.private_storage===true?'confirmado':'sem confirmação'}</p>
+ <p>Schema: ${esc(d.schema_version)} · Servidor: ${esc(d.server_time)}</p>
+ <p>Erros do aplicativo em 7 dias: ${esc(d.app_errors_7d.map(x=>x.code+' '+x.count).join(', ')||'nenhum reportado')}</p>
+ <div class="admin-section-heading"><button type="button" class="secondary" data-admin-tab="health">Abrir saúde e capacidade</button>${adminAgentTrigger('system_health','Agente de monitoramento')}</div></details></div>`;}
+function adminCsvText(rows){
+ const cell=value=>{
+  let text=String(value??'');
+  if(typeof value==='string'&&/^[\s\uFEFF]*[=+@-]|^[\t\r\n]/.test(text))text="'"+text;
+  return '"'+text.replace(/"/g,'""')+'"';
+ };
+ return '\uFEFF'+rows.map(row=>row.map(cell).join(';')).join('\r\n');
+}
+function adminCsv(name,rows){
+ const csv=adminCsvText(rows);
+ const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');
+ a.href=url;a.download=name+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);
+}
+async function signupExport(cloud,filters,current){
+ const result=[['Identificador','Nome','E-mail','Cadastro','Método','Último acesso','Cidade inicial','Estado inicial','País inicial',
+  'Cidade recente','Estado recente','País recente','Dispositivo inicial','SO inicial','Dispositivo recente','SO recente','Campanha inicial','Campanha recente']];
+ let cursor=null;
+ for(let n=0;n<250;n++){
+  const page=await cloud.adminSignups('page',{...filters,p_before:cursor?.created_at??null,p_before_id:cursor?.id??null});
+  if(!current())return null;
+  const rows=page.rows.slice(0,20);
+  const metrics=rows.length&&cloud.adminAudience?await cloud.adminAudience({p_users:rows.map(x=>x.id)}):{};
+  if(!current())return null;
+  for(const row of rows){
+   const o=metrics?.[row.id]||{};
+   result.push([row.id,row.full_name,row.email,row.created_at,row.provider,row.last_access,'','','','','','',
+    o.first_device?.category,o.first_device?.os,o.last_device?.category,o.last_device?.os,
+    o.first_campaign?audienceCampaignSummary(o.first_campaign,false):'',o.last_campaign?audienceCampaignSummary(o.last_campaign,false):'']);
+  }
+  if(page.rows.length<=20)return result;
+  cursor=rows.at(-1);
+ }
+ throw Error('A exportação excedeu 5.000 registros. Reduza o intervalo.');
+}
 function input(name,label,value='',extra=''){return `<label>${label}<input name="${name}" value="${esc(value)}" ${extra}></label>`;}
 function settingsView(p){const c=p.config,s=p.shop||{},publicCfg=window.NEO_CONFIG||{};return `<section class="card space"><h2>Cadastro e confirmação de e-mail</h2><p class="sub">Controle exclusivo do administrador principal. Desativar permite criar conta e entrar sem confirmar a propriedade do e-mail. Recuperação de senha ainda depende de envio de e-mail. Reativar vale para novos cadastros.</p><p id="authSettingsStatus" role="status">Estado ainda não consultado no Supabase.</p><button class="secondary" type="button" id="authSettingsRead">Consultar estado atual</button><form id="authSettingsForm" class="space"><label class="check"><input type="checkbox" id="requireEmailConfirmation" disabled> Exigir confirmação de e-mail nos novos cadastros</label><button class="primary" type="submit" disabled>Aplicar no Supabase</button></form></section><form id="platformForm"><section class="card space"><h2>Configurações gerais</h2><p class="sub">Referências operacionais do suporte. Alterar a URL aqui não conecta um domínio nem muda as permissões do CAPTCHA.</p>${input('support_email','E-mail operacional de atendimento',c.support_email||publicCfg.privacyContact||'','type="email" maxlength="254"')}${input('site_url','Endereço público de referência',c.site_url||'','type="url" maxlength="2000" placeholder="https://…"')}<label class="check"><input type="checkbox" name="require_approval" ${p.require_approval?'checked':''}> Exigir aprovação das novas mensagens do Grupo</label></section><button class="primary full space" type="submit">Salvar configurações</button></form><div data-agent-admin></div><section class="card space"><h2>Pagamentos e entrega</h2><p class="sub">Mercado Pago: ${s.payments_ready?'habilitado no ambiente '+esc(s.payment_environment):'configuração e homologação pendentes'}. Retorno do navegador não confirma pagamento.</p><details class="admin-secret-help"><summary>Integração com Mercado Pago</summary><p class="sub">As credenciais MP_ACCESS_TOKEN, MP_COLLECTOR_ID, MP_WEBHOOK_SECRET, MP_MODE e SHOP_APP_URL ficam nos Secrets do Supabase. Teste completo e webhook são necessários antes de ativar pagamentos. Não coloque essas chaves no formulário.</p><p class="sub">Webhook: <code>${esc(publicCfg.supabaseUrl||'')}/functions/v1/mercadopago-webhook</code></p></details><form id="adminShopForm" class="space">${input('seller_name','Responsável pela loja',s.seller_name||'','required maxlength="120"')}${input('seller_document','CPF ou CNPJ',s.seller_document||'','required maxlength="14" inputmode="numeric"')}${input('business_address','Endereço comercial',s.business_address||'','required maxlength="250"')}${input('support_email','E-mail de atendimento da loja',s.support_email||'','required type="email" maxlength="254"')}<label>Condições de troca<textarea name="returns_policy" rows="4" required maxlength="4000">${esc(s.returns_policy||'')}</textarea></label><div class="form-grid">${input('shipping','Frete fixo (R$)',String((s.shipping_cents??0)/100).replace('.',','),'required inputmode="decimal"')}${input('delivery_min','Prazo mínimo em dias úteis',s.delivery_min??3,'required type="number" min="1" max="90"')}${input('delivery_max','Prazo máximo em dias úteis',s.delivery_max??10,'required type="number" min="1" max="120"')}</div><label class="check"><input type="checkbox" name="shipping_ready" ${s.shipping_ready?'checked':''}> Entrega e prazo conferidos</label><button class="secondary full" type="submit">Salvar entrega e condições</button></form></section>`;}
-async function refresh(){if(loading)return;if(tab!=='overview')clearSignupToast();window.NeoAgent?.reset();authConfirmation=null;const gen=++generation;loading=true;$('#adminContent').innerHTML='';$('#adminStatus').textContent='Verificando autorização no servidor…';$('#adminRefresh').disabled=true;try{if(!window.NeoCloud.configured)throw Error('Supabase não configurado. O painel não apresenta métricas fictícias.');if(!window.NeoCloud.user)throw Error('Entre na sua conta pelo aplicativo e abra novamente o painel.');const d=await window.NeoCloud.adminSummary();if(gen!==generation)return;authorized=true;$('#adminTabs').hidden=false;$('#adminTitle').textContent=tab==='settings'?'Configurações da plataforma':'Visão da plataforma';$('#adminSubtitle').textContent=tab==='settings'?'Geral, atendimento com IA e integrações da loja.':'Indicadores e cadastros. Autorização verificada no servidor.';for(const button of document.querySelectorAll('[data-admin-tab]')){const active=button.dataset.adminTab===tab;button.className=active?'primary':'secondary';button.setAttribute('aria-pressed',String(active));}if(tab==='settings'){try{platform=await window.NeoCloud.platform();if(gen!==generation)return;$('#adminContent').innerHTML=settingsView(platform);window.NeoAgent?.mount($('#adminContent [data-agent-admin]'));}catch(err){$('#adminContent').innerHTML='<section class="card"><h2>Ativação das configurações</h2><p class="sub">Execute a atualização de Biblioteca e integrações no Supabase. As configurações são autorizadas pelo servidor e não são simuladas neste painel.</p></section>';throw err;}}else {$('#adminContent').innerHTML=overview(d);void mountAdminSignups($('[data-admin-signups]'));mountAdminAudience($('[data-admin-audience]'));}$('#adminStatus').textContent='Consulta autorizada. Atualizado agora.';dirty=false;}catch(err){if(gen!==generation)return;$('#adminStatus').textContent='Acesso não disponível: '+err.message;if(!authorized){$('#adminTabs').hidden=true;$('#adminContent').innerHTML='<div class="notice">Somente uma permissão concedida pelo responsável no banco habilita este painel. Editar perfil ou dados do navegador não concede acesso.</div>';}}finally{loading=false;$('#adminRefresh').disabled=false;}}
+async function refresh(){if(loading)return;if(tab!=='overview'&&tab!=='signups')clearSignupToast();window.NeoAgent?.reset();authConfirmation=null;const gen=++generation;loading=true;$('#adminContent').innerHTML='';$('#adminStatus').textContent='Verificando autorização no servidor…';$('#adminRefresh').disabled=true;try{if(!window.NeoCloud.configured)throw Error('Supabase não configurado. O painel não apresenta métricas fictícias.');if(!window.NeoCloud.user)throw Error('Entre na sua conta pelo aplicativo e abra novamente o painel.');const d=await window.NeoCloud.adminSummary();if(gen!==generation)return;authorized=true;void acknowledgeSignups(window.NeoCloud,window.NeoCloud.user.id);$('#adminTabs').hidden=false;$('#adminTitle').textContent=adminTabs[tab]||adminTabs.overview;$('#adminSubtitle').textContent='Autorização verificada no servidor.';for(const button of document.querySelectorAll('[data-admin-tab]')){const active=button.dataset.adminTab===tab;button.className=active?'primary':'secondary';button.setAttribute('aria-pressed',String(active));}if(tab==='settings'){try{platform=await window.NeoCloud.platform();if(gen!==generation)return;$('#adminContent').innerHTML=settingsView(platform);window.NeoAgent?.mount($('#adminContent [data-agent-admin]'));}catch(err){$('#adminContent').innerHTML='<section class="card"><h2>Ativação das configurações</h2><p class="sub">Execute a atualização de Biblioteca e integrações no Supabase. As configurações são autorizadas pelo servidor e não são simuladas neste painel.</p></section>';throw err;}}else if(tab==='overview'){
+ $('#adminContent').innerHTML=overview(d);
+ void mountAdminSignups($('[data-admin-signups]'),true);
+ }else if(tab==='signups'){
+ $('#adminContent').innerHTML='<div data-admin-signups></div>';
+ void mountAdminSignups($('[data-admin-signups]'));
+ }else if(tab==='audience'||tab==='engagement'){
+ $('#adminContent').innerHTML='<div data-admin-audience></div>';
+ mountAdminAudience($('[data-admin-audience]'),tab==='engagement');
+ }else if(tab==='health')mountSystemHealth($('#adminContent'),d);$('#adminStatus').textContent='Consulta autorizada. Atualizado agora.';dirty=false;}catch(err){if(gen!==generation)return;$('#adminStatus').textContent='Acesso não disponível: '+err.message;if(!authorized){$('#adminTabs').hidden=true;$('#adminContent').innerHTML='<div class="notice">Somente uma permissão concedida pelo responsável no banco habilita este painel. Editar perfil ou dados do navegador não concede acesso.</div>';}}finally{loading=false;$('#adminRefresh').disabled=false;}}
 async function integration(action){if(loading||!authorized)return;if(action==='test_ai'&&dirty){$('#adminStatus').textContent='Salve as configurações antes de testar a conexão.';return;}const gen=generation;loading=true;try{const r=await window.NeoCloud.integrations(action);if(gen!==generation)return;if(action==='test_ai'){loading=false;await refresh();$('#adminStatus').textContent='Conexão com IA validada. Você já pode ativar as respostas automáticas.';}else $('#integrationStatus').textContent=`Chave OpenAI: ${r.openai_key_present?'presente':'pendente'} · Mercado Pago: ${r.mercadopago_keys_present?'chaves presentes, homologação deve ser conferida':'chaves pendentes'} · Rotina da IA: ${r.ai_worker_secret_present?'segredo presente; agendamento deve ser conferido':'pendente'}`;}catch{if(gen===generation)$('#adminStatus').textContent='Não foi possível conferir a integração. Verifique a função publicada, as chaves e o modelo no Supabase.';}finally{loading=false;}}
 async function authSettings(save=false){if(loading||!authorized)return;const status=$('#authSettingsStatus'),box=$('#requireEmailConfirmation'),button=$('#authSettingsForm [type=submit]'),gen=generation;if(!status||!box||!button)return;const desired=box.checked;if(save&&authConfirmation===null)return;if(save&&!confirm(desired?'Exigir confirmação de e-mail nos novos cadastros? Confira o SMTP antes de ativar.':'Permitir novos cadastros sem confirmar a propriedade do e-mail?'))return;loading=true;box.disabled=true;button.disabled=true;$('#authSettingsRead').disabled=true;status.textContent=save?'Aplicando e conferindo no Supabase…':'Consultando o Supabase…';try{const r=await window.NeoCloud.authSettings(save?'set':'status',save?{require_email_confirmation:desired,expected_confirmation:authConfirmation}:{});if(gen!==generation)return;if(typeof r.require_email_confirmation!=='boolean')throw Error('invalid_state');authConfirmation=r.require_email_confirmation;box.checked=authConfirmation;box.disabled=false;button.disabled=false;status.textContent=(save?'Alteração confirmada no Supabase. ':'Estado conferido no Supabase. ')+(authConfirmation?'Confirmação de e-mail ativada.':'Confirmação de e-mail desativada.');}catch{if(gen===generation){authConfirmation=null;box.checked=false;status.textContent='Não foi possível confirmar o estado. Consulte novamente. A função auth-settings e os Secrets precisam estar configurados, e sua conta deve ser administrador principal.';}}finally{loading=false;if(gen===generation)$('#authSettingsRead').disabled=false;}}
 document.addEventListener('submit',event=>{if(event.target.id==='authSettingsForm'){event.preventDefault();authSettings(true);}});
@@ -95,12 +162,27 @@ function signupRow(row,observed={}){
   <div><dt>Última origem / campanha observada</dt><dd>${audienceCampaignSummary(observed.last_campaign)}</dd></div>
  </dl></details>`;
 }
-async function mountAdminSignups(root){
+function acknowledgeSignups(cloud,account){
+ if(!cloud.adminSignups||!account)return;
+ if(signupVisit?.account!==account)signupVisit={account,batch:null,opening:null,filters:{},values:{}};
+ const visit=signupVisit;
+ if(visit.opening)return visit.opening;
+ visit.opening=Promise.resolve().then(()=>cloud.adminSignups('open')).then(opened=>{
+  if(signupVisit!==visit||cloud.user?.id!==account)return;
+  if(opened.read_count>0){
+   visit.batch=opened.batch;
+   showSignupToast({count:opened.read_count,rows:opened.rows});
+  }
+ }).catch(()=>{visit.opening=null});
+ return visit.opening;
+}
+async function mountAdminSignups(root,preview=false){
  const cloud=window.NeoCloud,account=cloud.user?.id;
  if(!root||!account||!cloud.adminSignups)return;
- if(signupVisit?.account!==account)signupVisit={account,batch:null,notice:null,opening:null};
  const visit=signupVisit,current=()=>root.isConnected&&cloud.user?.id===account&&signupVisit===visit;
- root.innerHTML=`<section class="card space"><h2>Cadastros</h2>
+ root.innerHTML=`<section class="card">${adminSectionHeading(preview?'Cadastros recentes':'Cadastros','signups',
+  preview?'<button type="button" class="primary" data-admin-tab="signups">Ver todos os usuários</button>'
+   :'<button type="button" class="secondary" data-admin-tab="overview">Voltar à Visão Geral</button> <button type="button" class="secondary" data-signup-export>Exportar CSV</button>')}
   <form class="admin-signup-filters space">
    <label>Buscar nome ou e-mail<input name="query" type="search" maxlength="120"></label>
    <label>Exibir<select name="scope"><option value="all">Todos</option><option value="new">Novos</option></select></label>
@@ -114,25 +196,38 @@ async function mountAdminSignups(root){
  const find=selector=>root.querySelector(selector);
  const form=find('form'),status=find('[data-signup-status]'),list=find('[data-signup-rows]');
  const more=find('[data-signup-more]');
- let sequence=0,cursor=null,filters={};
+ let sequence=0,cursor=null,filters=preview?{}:(visit?.filters||{});
+ form.hidden=preview;
+ if(!preview)for(const [key,value] of Object.entries(visit?.values||{})){
+  const field=form.querySelector('[name='+key+']');if(field)field.value=value;
+ }
+ find('[data-signup-export]')?.addEventListener('click',async event=>{
+  const button=event.currentTarget;
+  button.disabled=true;
+  try{
+   const rows=await signupExport(cloud,{...filters,p_batch:visit?.batch??null},current);
+   if(rows)adminCsv('neopep-cadastros',rows);
+  }catch(error){if(current())status.textContent=error.message||'Não foi possível exportar.'}
+  finally{button.disabled=false}
+ });
  async function load(next=false){
   const request=++sequence;
   more.disabled=true;
   status.textContent='Carregando cadastros…';
   try{
-   const page=await cloud.adminSignups('page',{...filters,p_batch:visit.batch,
+   const page=await cloud.adminSignups('page',{...filters,p_batch:visit?.batch??null,
     p_before:next?cursor?.created_at:null,p_before_id:next?cursor?.id:null});
    if(!current()||request!==sequence)return;
-   const rows=page.rows.slice(0,20);
+   const rows=page.rows.slice(0,preview?5:20);
    let observations={};
-   if(rows.length&&cloud.adminAudience){
+   if(!preview&&rows.length&&cloud.adminAudience){
     try{observations=await cloud.adminAudience({p_users:rows.map(row=>row.id)})}catch{}
    }
    if(!current()||request!==sequence)return;
    cursor=rows.at(-1);
    if(!next)list.replaceChildren();
-   list.insertAdjacentHTML('beforeend',rows.map(row=>signupRow(row,observations?.[row.id])).join(''));
-   more.hidden=page.rows.length<=20;
+   list.insertAdjacentHTML('beforeend',rows.map(row=>preview?`<div class="admin-preview-user"><strong>${esc(row.full_name||'Nome não informado')}</strong><small>${esc(row.email||'E-mail não informado')}</small><time>${signupDate(row.created_at,signupShortTime)}</time></div>`:signupRow(row,observations?.[row.id])).join(''));
+   more.hidden=preview||page.rows.length<=20;
    status.textContent=rows.length?'':'Nenhum cadastro encontrado.';
   }catch{
    if(current()&&request===sequence)status.textContent='Não foi possível carregar os cadastros.';
@@ -147,29 +242,13 @@ async function mountAdminSignups(root){
   if(end)end.setDate(end.getDate()+1);
   filters={p_query:values.get('query'),p_new:values.get('scope')==='new',
    p_from:from?new Date(from+'T00:00:00').toISOString():null,p_until:end?.toISOString()||null};
+  if(visit){visit.filters=filters;visit.values=Object.fromEntries(values)}
   more.hidden=true;
   void load();
  });
  more.addEventListener('click',()=>void load(true));
- try{
-  visit.opening??=cloud.adminSignups('open').then(opened=>{
-   if(opened.read_count>0){
-    visit.batch=opened.batch;
-    visit.notice={count:opened.read_count,rows:opened.rows};
-   }
-  }).finally(()=>{visit.opening=null});
-  await visit.opening;
- }catch(error){
-  if(!current())return;
-  if(error.code==='42501')root.innerHTML='';
-  else status.textContent='Não foi possível conferir novos cadastros. Use Atualizar para tentar novamente.';
-  return;
- }
+ await visit?.opening;
  if(!current())return;
- if(visit.notice&&!activeSignupToast){
-  showSignupToast(visit.notice);
-  visit.notice=null;
- }
  void load();
 }
 const audienceLabels={mobile:'Celular',tablet:'Tablet',desktop:'Desktop',pwa:'PWA',browser:'Navegador'};
@@ -178,10 +257,11 @@ function audienceDeviceSummary(d){
  return esc([audienceLabels[d.category],d.os,d.browser&&[d.browser,d.major].filter(Boolean).join(' '),audienceLabels[d.context],
   signupDate(d.at,signupFullTime)].filter(Boolean).join(' · '));
 }
-function audienceCampaignSummary(c){
+function audienceCampaignSummary(c,escape=true){
  if(!c)return 'Não disponível';
- return esc([c.referrer,c.utm_source,c.utm_medium,c.utm_campaign,c.utm_content,c.utm_term,
-  signupDate(c.at,signupFullTime)].filter(Boolean).join(' · '));
+ const value=[c.referrer,c.utm_source,c.utm_medium,c.utm_campaign,c.utm_content,c.utm_term,
+  signupDate(c.at,signupFullTime)].filter(Boolean).join(' · ');
+ return escape?esc(value):value;
 }
 function audienceChart(title,rows){
  const shown=rows.filter(row=>Number.isFinite(row.count));
@@ -191,20 +271,42 @@ function audienceChart(title,rows){
    <meter value="${row.count}" max="${max}" aria-label="${esc(row.label)}"></meter><b>${row.count}${row.total?' · '+Math.round(row.count/row.total*100)+'%':''}</b></div>`).join('')
   :'<p class="sub">Dados insuficientes no período.</p>'}</details>`;
 }
-function mountAdminAudience(root){
+function mountAdminAudience(root,engagementOnly=false){
  const cloud=window.NeoCloud,account=cloud.user?.id;
- if(!root||!account||!cloud.adminAudience)return;
- root.innerHTML=`<section class="card space"><h2>Estatísticas de público</h2>
+ if(!root||!account||!(engagementOnly?cloud.adminEngagement:cloud.adminAudience))return;
+ root.innerHTML=`<section class="card">${engagementOnly?'':adminSectionHeading('Estatísticas de público','audience','<button type="button" class="secondary" data-audience-export disabled>Exportar CSV</button>')}
   <form class="admin-signup-filters space"><label>Período<select name="window"><option value="7">7 dias</option><option value="30" selected>30 dias</option><option value="90">90 dias</option><option value="custom">Personalizado</option></select></label>
   <label>De<input type="date" name="from"></label><label>Até<input type="date" name="to"></label><button type="submit" class="secondary">Aplicar</button></form>
   <p data-audience-message role="status" class="sub"></p><div data-audience-results></div><div data-engagement-report></div></section>`;
  const form=root.querySelector('form'),message=root.querySelector('[data-audience-message]'),results=root.querySelector('[data-audience-results]');
+ let latest=null;
+ const exportButton=root.querySelector('[data-audience-export]');
+ exportButton?.addEventListener('click',()=>{
+  if(!latest||!root.isConnected||cloud.user?.id!==account)return;
+  const {d,kpis}=latest;
+  adminCsv('neopep-estatisticas-publico',[
+   ['Período inicial UTC',d.from],['Período final UTC',d.to],['Data da exportação',new Date().toISOString()],
+   ['Início da coleta técnica',d.collection_started_at||'Não disponível'],
+   ['Fonte','Supabase Auth, atividade registrada e observações autorizadas'],
+   ['Definições','Ativos pelo último acesso; segmentos técnicos abaixo de cinco contas omitidos.'],
+   ['Categoria','Indicador','Valor'],...kpis.map(([label,n])=>['Resumo',label,n]),
+   ...d.daily.filter(x=>Number.isFinite(x.count)).map(x=>['Cadastros por dia',x.label,x.count]),
+   ...d.monthly.filter(x=>Number.isFinite(x.count)).map(x=>['Cadastros por mês',x.label,x.count]),
+   ...d.groups.map(x=>[x.kind,x.label,x.n])
+  ]);
+ });
  let sequence=0;
  async function load(windowDays=30,customFrom=null,customTo=null){
   const request=++sequence,today=new Date(),end=today.toISOString().slice(0,10);
   today.setUTCDate(today.getUTCDate()-windowDays+1);
   const from=customFrom||today.toISOString().slice(0,10),to=customTo||end;
   message.textContent='Carregando estatísticas…';
+  if(engagementOnly){
+   message.textContent='Período: '+from+' a '+to+' (UTC).';
+   void mountEngagementReport(root.querySelector('[data-engagement-report]'),from,to);
+   return;
+  }
+  latest=null;exportButton.disabled=true;
   try{
    const d=await cloud.adminAudience({p_from:from,p_to:to});
    if(request!==sequence||!root.isConnected||cloud.user?.id!==account)return;
@@ -220,7 +322,7 @@ function mountAdminAudience(root){
    <p class="sub">Dispositivos e campanhas usam observações autorizadas das contas cadastradas no período. Grupos pequenos são omitidos, e os percentuais representam os grupos exibidos.</p>
    <p class="sub">Geografia: localização indisponível para os cadastros. Conversão, frequência e retenção dependem de dados adicionais.</p>`;
    message.textContent='Período: '+d.from+' a '+d.to+' (UTC).';
-   void mountEngagementReport(root.querySelector('[data-engagement-report]'),from,to);
+   latest={d,kpis};exportButton.disabled=false;
   }catch(error){
    if(request!==sequence||!root.isConnected||cloud.user?.id!==account)return;
    if(error.code==='42501')root.replaceChildren();
@@ -308,6 +410,272 @@ async function mountEngagementReport(root,from,to){
    }catch{if(current()&&request===revision)details.textContent='Não foi possível carregar os detalhes.'}
   });
  }catch{if(current())status.textContent='Não foi possível carregar o relatório de engajamento.'}
+}
+const healthSections=[
+ ['overview','Visão consolidada'],['supabase','Supabase'],['vercel','Vercel'],['github','GitHub'],
+ ['ai','IA · Consumo e custos'],['costs','Custos e capacidade'],['errors','Erros e segurança'],['history','Histórico e alertas']
+];
+const monitorNumber=value=>value==null?'Não disponível':Number(value).toLocaleString('pt-BR',{maximumFractionDigits:5});
+function monitorBytes(value){
+ if(value==null)return 'Não disponível';
+ let size=Number(value),i=0;const names=['B','KiB','MiB','GiB','TiB'];
+ while(size>=1024&&i<names.length-1){size/=1024;i++}
+ return size.toLocaleString('pt-BR',{maximumFractionDigits:2})+' '+names[i];
+}
+function monitorMetric(label,value,explanation){
+ return `<div class="monitor-metric"><small>${esc(label)}</small><strong>${esc(value??'Não disponível')}</strong>
+ <details><summary aria-label="${esc('Sobre '+label)}">ⓘ</summary><p>${esc(explanation)}</p></details></div>`;
+}
+function monitorUnavailable(text){
+ return `<p class="sub">${esc(text)}</p>`;
+}
+function monitorProjection(history,key,current,limit){
+ if(history.length<3||current==null)return null;
+ const first=history[0],last=history.at(-1),days=(Date.parse(last.day)-Date.parse(first.day))/86400000;
+ if(days<7||first[key]==null||last[key]==null)return null;
+ const daily=(last[key]-first[key])/days;
+ return {daily,monthly:daily*30,forecast:[30,60,90].map(n=>Math.max(0,current+n*daily)),
+  until:limit&&daily>0?Math.max(0,Math.ceil((limit-current)/daily)):null};
+}
+function monitorTable(head,rows){
+ if(!rows.length)return monitorUnavailable('Ainda não há observações nessa fonte.');
+ return `<div class="engagement-table" tabindex="0"><table><thead><tr>${head.map(x=>'<th>'+esc(x)+'</th>').join('')}</tr></thead>
+ <tbody>${rows.map(row=>'<tr>'+row.map(x=>'<td>'+esc(x??'—')+'</td>').join('')+'</tr>').join('')}</tbody></table></div>`;
+}
+function monitorLimitForm(){
+ return `<form data-monitor-config="limit" class="admin-signup-filters space">
+  <label>Recurso<select name="resource"><option value="database_bytes">Banco (bytes)</option><option value="storage_bytes">Storage (bytes)</option>
+  <option value="ai_budget_usd">Orçamento mensal IA (USD)</option><option value="ai_budget_brl">Orçamento mensal IA (BRL)</option></select></label>
+  <label>Limite <input type="number" name="amount" min="0.00001" step="any" required></label>
+  <label>Atenção (%)<input type="number" name="attention" value="70" min="1" max="100" required></label>
+  <label>Alerta (%)<input type="number" name="warning" value="85" min="1" max="100" required></label>
+  <label>Crítico (%)<input type="number" name="critical" value="95" min="1" max="100" required></label>
+  <button class="secondary">Salvar limite</button></form>`;
+}
+function monitorCapacity(snapshot){
+ const data=snapshot.data;
+ return ['database_bytes','storage_bytes'].map(key=>{
+  const title=key==='database_bytes'?'Banco PostgreSQL':'Storage';
+  const limit=snapshot.limits.find(x=>x.resource===key);
+  const used=key==='storage_bytes'&&data.storage_sized_objects<data.storage_objects?null:data[key];
+  const pct=limit&&used!=null?used/limit.amount*100:null;
+  const projection=monitorProjection(snapshot.history,key,used,limit?.amount);
+  const severity=pct==null?'':pct>=limit.critical?'Crítico':pct>=limit.warning?'Alerta':pct>=limit.attention?'Atenção':'Dentro do limite informado';
+  return `<section class="monitor-block"><h4>${title}</h4>
+   ${monitorMetric('Consumo observado',monitorBytes(used),'Instantâneo técnico interno, sem dados de faturamento. Observe crescimento contínuo e compare com o limite informado.')}
+   <p>${limit?'Limite informado pelo administrador: '+monitorBytes(limit.amount):'Limite ainda não informado.'}</p>
+   ${pct==null?'':`<progress max="100" value="${Math.min(100,pct)}" aria-label="Percentual utilizado"></progress>
+    <p>${monitorNumber(pct)}% · ${severity} · saldo ${monitorBytes(Math.max(0,limit.amount-used))}</p>`}
+   <p class="sub">${projection?'Estimativa linear: '+projection.forecast.map((x,i)=>[(i+1)*30+' dias',monitorBytes(x)].join(' ')).join(' · ')+
+    '. Crescimento médio: '+monitorBytes(projection.daily)+' por dia e '+monitorBytes(projection.monthly)+' por 30 dias.'+
+    (projection.until==null?'':' Limite estimado em '+projection.until+' dias.'):'Histórico insuficiente para projeção.'}</p></section>`;
+ }).join('');
+}
+function monitorAI(data){
+ const kpis=[
+  ['Chamadas',data.calls,'Chamadas que o adaptador conseguiu registrar no mês UTC.'],
+  ['Concluídas',data.completed,'Respostas úteis retornadas pelo provedor.'],
+  ['Erros',data.errors,'Falhas registradas no adaptador, sem conteúdo de resposta.'],
+  ['Cancelamentos',data.cancelled,'Chamadas interrompidas antes da conclusão.'],
+  ['Timeouts',data.timeouts,'Chamadas que excederam o tempo limite.'],
+  ['Taxa de falhas',data.calls?monitorNumber(100*(data.errors+data.timeouts)/data.calls)+'%':null,'Erros e timeouts divididos por chamadas observadas. Confira a cobertura antes de interpretar.'],
+  ['Duração média (ms)',data.average_ms,'Média no adaptador, em milissegundos.'],
+  ['P50 / P95 / P99 (ms)',[data.p50,data.p95,data.p99].map(monitorNumber).join(' / '),'Percentis do mês, liberados somente com amostras suficientes.'],
+  ['Tokens de entrada',data.input_tokens,'Entrada declarada pelo provedor. Cache pode estar incluído.'],
+  ['Tokens de saída',data.output_tokens,'Saída declarada pelo provedor. O raciocínio pode estar incluído.'],
+  ['Entrada em cache',data.cached_tokens,'Subconjunto informado como cache pelo provedor.'],
+  ['Entrada sem cache',data.uncached_tokens,'Diferença entre entrada e cache apenas onde a cobertura está disponível.'],
+  ['Raciocínio',data.reasoning_tokens,'Subconjunto informado separadamente. Não somado ao total.'],
+  ['Tokens totais',data.total_tokens,'Total declarado pelos provedores. Não é a soma dos cartões.'],
+  ['Tokens médios por chamada medida',data.average_tokens,'Média apenas de chamadas com total informado.'],
+  ['Cache sobre entrada medida',data.measured_cache_input?monitorNumber(100*data.cached_tokens/data.measured_cache_input)+'%':null,
+   'Tokens em cache divididos pela entrada das chamadas que informaram cache.']
+ ];
+ return `<p class="sub">Mês UTC desde ${esc(data.from)} · Fonte: chamadas registradas pelo adaptador de atendimento. ${data.metered}/${data.calls} com entrada medida e ${data.estimated_count} precificadas.</p>
+  <div class="audience-kpis">${kpis.map(([label,n,note])=>monitorMetric(label,typeof n==='number'?monitorNumber(n):n,note)).join('')}</div>
+  ${monitorTable(['Provedor','Modelo','Chamadas','Entrada','Saída','Total'],data.models.map(x=>[x.provider,x.model,x.calls,x.input_tokens,x.output_tokens,x.total_tokens]))}
+  ${monitorTable(['Moeda','Chamadas precificadas','Estimado','Sem cache (estimativa)','Economia estimada'],data.costs.map(x=>
+   [x.currency,x.priced_calls,monitorNumber(x.estimated),monitorNumber(x.no_cache),monitorNumber(x.no_cache-x.estimated)]))}
+  <h4>Custo diário estimado</h4>
+  ${monitorTable(['Dia UTC','Moeda','Estimativa'],data.daily.map(x=>[x.day,x.currency,monitorNumber(x.estimated)]))}
+  <h4>Preços versionados · OpenAI</h4>
+  ${monitorTable(['Modelo','Vigência (UTC)','Moeda','Entrada / milhão','Saída / milhão','Cache / milhão'],
+   data.prices.map(p=>[p.model,p.effective_from,p.currency,p.input_per_million,p.output_per_million,p.cached_per_million]))}
+  <form data-monitor-config="price" class="admin-signup-filters space">
+   <input type="hidden" name="provider" value="openai">
+   <label>Modelo<input name="model" required maxlength="100"></label>
+   <label>Vigência UTC<input name="effective_from" type="date" required></label>
+   <label>Moeda<select name="currency"><option>USD</option><option>BRL</option></select></label>
+   <label>Entrada / milhão<input name="input_per_million" type="number" min="0" step="any" required></label>
+   <label>Saída / milhão<input name="output_per_million" type="number" min="0" step="any" required></label>
+   <label>Cache / milhão<input name="cached_per_million" type="number" min="0" step="any"></label>
+   <button class="secondary">Cadastrar preço</button>
+  </form><p class="sub">Valores estimados pela tabela manual vigente no dia da observação. Faturamento, créditos e impostos dependem da fonte oficial do provedor.</p>`;
+}
+function mountSystemHealth(root,summary){
+ const cloud=window.NeoCloud,account=cloud.user?.id;
+ if(!root||!account)return;
+ root.innerHTML=`<section class="card">${adminSectionHeading('Saúde e capacidade do sistema','system_health',
+  '<button type="button" class="secondary" data-system-export>Exportar dados consultados (CSV)</button>')}
+  <p data-system-status class="sub" role="status">Selecione uma fonte para consultar.</p>
+  <div class="admin-overview">${healthSections.map(([id,title])=>`<details class="monitor-section" data-system-source="${id}">
+   <summary>${title}</summary><div data-system-body></div></details>`).join('')}</div></section>`;
+ const status=root.querySelector('[data-system-status]'),payloads=new Map(),jobs=new Map(),loaded=new Set();
+ const current=()=>status.isConnected&&tab==='health'&&cloud.user?.id===account;
+ let snapshot=null,snapshotJob=null,ai=null,aiJob=null;
+ async function internal(){
+  if(snapshot)return snapshot;
+  snapshotJob??=cloud.adminSystem().then(value=>snapshot=value).finally(()=>snapshotJob=null);
+  return snapshotJob;
+ }
+ async function aiData(){
+  if(ai)return ai;
+  aiJob??=cloud.adminSystem('ai').then(data=>ai=data).finally(()=>aiJob=null);
+  return aiJob;
+ }
+ function saveRows(source,rows){payloads.set(source,rows)}
+ async function load(part,body){
+  if(loaded.has(part)||jobs.has(part))return;
+  jobs.set(part,true);body.textContent='Consultando…';
+  try{
+   if(part==='github'||part==='vercel'){
+    const data=await cloud.adminMonitor(part);
+    if(!current())return;
+    const build=window.NEO_CONFIG?.stagingBuild;
+    if(part==='github'){
+     const values=[['Branch',data.branch],['Último commit',data.commit],['Data do commit',data.date],['Autor público',data.author],
+      ['Commits à frente da main',data.ahead],['Commits atrás da main',data.behind],['PRs abertos para staging',data.open_prs],
+      ['Issues abertas (repositório)',data.open_issues],['Issues fechadas (repositório)',data.closed_issues],['Workflows (30 dias)',data.actions_30d],
+      ['Sucessos na amostra',data.sampled_success],['Falhas na amostra',data.sampled_failures]];
+     body.innerHTML=data.connected?'<div class="audience-kpis">'+values.map(([label,value])=>
+      monitorMetric(label,value,'API pública ou leitura autorizada do GitHub. Workflows por resultado usam até 30 execuções recentes.')).join('')+'</div>':
+      monitorUnavailable('Integração pendente. Confira acesso de leitura ao repositório ou o token no backend.');
+     body.insertAdjacentHTML('beforeend',monitorUnavailable('Cotas, artefatos, minutos faturáveis e alertas de segurança dependem de credenciais e permissões específicas.'));
+     saveRows(part,[['Atualização',data.observed_at],['Fonte','GitHub REST API'],...values]);
+    }else{
+     body.innerHTML=(build?monitorMetric('Build em execução',build.commit,'Metadados do build Vercel de homologação em '+build.builtAt+'. Branch '+build.branch+'.'):'')+
+      (data.connected?monitorTable(['Estado','Criação','Branch','Commit','Duração (ms)'],data.deployments.map(row=>
+       [row.state,row.created?new Date(row.created).toISOString():null,row.branch,row.commit,row.build_ms])):
+       monitorUnavailable('Histórico de deploys pendente. Configure acesso de leitura ao projeto app-neopep-staging no backend.'))+
+      monitorUnavailable('Tráfego, egress, invocações, latência e faturamento aguardam fonte oficial de consumo.');
+     saveRows(part,[['Atualização',data.observed_at],['Fonte',data.connected?'Vercel REST API de homologação':'Metadados do build'],
+      ...(build?[['Build',build.commit,build.branch,build.builtAt]]:[]),
+      ...(data.deployments||[]).map(row=>[row.state,row.created?new Date(row.created).toISOString():null,row.branch,row.commit,row.build_ms])]);
+    }
+   }else if(part==='ai'){
+    const data=await aiData();
+    if(!current())return;
+    body.innerHTML=monitorAI(data);
+    saveRows(part,[['Fonte','Telemetria interna do adaptador de atendimento'],['Mês UTC',data.from],['Atualização',data.observed_at],
+     ...Object.entries(data).filter(([,v])=>typeof v==='number'),['Moeda','Chamadas precificadas','Estimativa','Estimativa sem cache'],
+     ...data.costs.map(x=>[x.currency,x.priced_calls,x.estimated,x.no_cache]),
+     ...data.daily.map(x=>[x.day,x.currency,x.estimated]),...data.models.map(x=>[x.provider,x.model,x.calls,x.input_tokens,x.output_tokens,x.total_tokens])]);
+   }else{
+    const result=await internal(),d=result.data;
+    if(!current())return;
+    const stamp=`<p class="sub">Observação: ${signupDate(result.observed_at,signupFullTime)} · PostgreSQL e eventos internos</p>`;
+    if(part==='overview'){
+     body.innerHTML=stamp+'<div class="audience-kpis">'+[
+      ['Banco',monitorBytes(d.database_bytes),'Tamanho efetivo do PostgreSQL no momento da amostra.'],
+      ['Storage com tamanho informado',monitorBytes(d.storage_bytes),'Soma de metadados de objetos; não mede transferência ou operações.'],
+      ['Consulta administrativa',summary.database_status==='reachable'?'Respondeu':'Não disponível','Resultado da consulta desta sessão, sem teste de disponibilidade completo.'],
+      ['Bucket privado',summary.private_storage===true?'Confirmado':'Não confirmado','Configuração detectada pela consulta administrativa.'],
+      ['Schema informado',summary.schema_version,'Versão declarada pelo resumo administrativo do aplicativo.'],
+      ['Servidor',summary.server_time,'Horário da consulta do resumo administrativo.']
+     ].map(args=>monitorMetric(...args)).join('')+'</div>';
+     saveRows(part,[['Fonte','Resumo administrativo e amostra interna'],['Amostra',result.observed_at],['Banco em bytes',d.database_bytes],
+      ['Storage em bytes',d.storage_bytes],['Banco respondeu',summary.database_status],['Schema informado',summary.schema_version]]);
+    }else if(part==='supabase'){
+     body.innerHTML=stamp+`<details class="monitor-block"><summary>Banco de dados</summary><div class="audience-kpis">
+      ${monitorMetric('Tamanho do banco',monitorBytes(d.database_bytes),'Bytes medidos por pg_database_size. Inclui tabelas e índices.')}
+      ${monitorMetric('Conexões / máximo PostgreSQL',d.connections+' / '+d.connection_max,'Backends de cliente no momento da amostra. O máximo configurado não é a franquia ou a capacidade do pool.')}</div>
+      ${monitorTable(['Schema','Relação','Total','Índices'],d.relations.map(x=>[x.schema_name,x.relation,monitorBytes(x.bytes),monitorBytes(x.index_bytes)]))}</details>
+      <details class="monitor-block"><summary>Armazenamento</summary><div class="audience-kpis">
+      ${monitorMetric('Objetos',monitorNumber(d.storage_objects),'Contagem de objetos do Storage, sem listar arquivos.')}
+      ${monitorMetric('Cobertura de tamanho',d.storage_sized_objects+' / '+d.storage_objects,'Objetos com tamanho válido em metadata do Storage. A cobertura incompleta não é usada para calcular saldo.')}
+      ${monitorMetric('Tamanho médio medido',d.storage_sized_objects?monitorBytes(d.storage_bytes/d.storage_sized_objects):null,'Média apenas dos objetos com tamanho informado.')}</div>
+      ${monitorTable(['Bucket','Objetos','Com tamanho','Bytes medidos'],d.buckets.map(x=>[x.bucket,x.objects,x.sized_objects,x.bytes]))}
+      <p class="sub">Transferência e operações dependem da fonte oficial.</p></details>
+      <details class="monitor-block"><summary>Autenticação</summary><div class="audience-kpis">
+      ${monitorMetric('Usuários cadastrados',monitorNumber(summary.users_total),'Contagem de contas no resumo administrativo, independente do faturamento.')}
+      ${monitorMetric('Novos em 7 dias',monitorNumber(summary.signups_7d),'Cadastros criados nos últimos sete dias.')}
+      ${monitorMetric('Ativos em 30 dias',monitorNumber(summary.active_30d),'Contas com atividade autenticada registrada recentemente.')}</div></details>
+      <details class="monitor-block"><summary>Realtime</summary><p>Não conectado à fonte de consumo.</p></details>
+      <details class="monitor-block"><summary>Edge Functions</summary><p>Não conectado à fonte de consumo.</p></details>`;
+     saveRows(part,[['Fonte','PostgreSQL e metadados do Storage'],['Amostra',result.observed_at],['Banco bytes',d.database_bytes],
+      ['Conexões',d.connections],['Máximo PostgreSQL',d.connection_max],['Usuários cadastrados',summary.users_total],['Novos em 7 dias',summary.signups_7d],
+      ...d.buckets.map(x=>[x.bucket,x.objects,x.sized_objects,x.bytes]),...d.relations.map(x=>[x.schema_name,x.relation,x.bytes,x.index_bytes])]);
+    }else if(part==='costs'){
+     body.innerHTML=stamp+'<h4>Capacidade dos planos</h4>'+monitorCapacity(result)+monitorLimitForm()+
+      monitorUnavailable('Faturas de Supabase, Vercel e GitHub aguardam conexão oficial. Valores com moedas diferentes ficam separados.');
+     try{
+      const a=await aiData();if(!current())return;
+      body.insertAdjacentHTML('beforeend',monitorTable(['Moeda IA','Orçamento manual','Estimativa observada','Saldo estimado','Uso estimado','Projeção do mês'],
+       ['USD','BRL'].map(currency=>{
+        const budget=a.budgets.find(x=>x.resource==='ai_budget_'+currency.toLowerCase());
+        const cost=a.costs.find(x=>x.currency===currency);
+        const complete=cost&&cost.priced_calls===a.calls;
+        const days=a.daily.filter(x=>x.currency===currency).length;
+        const now=new Date(a.observed_at),daysInMonth=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth()+1,0)).getUTCDate();
+        const monthly=complete&&days>=7?cost.estimated/now.getUTCDate()*daysInMonth:null;
+        return [currency,budget?monitorNumber(budget.amount):null,cost?monitorNumber(cost.estimated):null,
+         budget&&complete?monitorNumber(budget.amount-cost.estimated):null,
+         budget&&complete?monitorNumber(100*cost.estimated/budget.amount)+'%':null,monthly==null?null:monitorNumber(monthly)];
+       }))+monitorUnavailable('Projeção linear do mês quando há estimativa completa e sete dias de observações. Sem bloqueio automático.'));
+     }catch{}
+     saveRows(part,[['Amostra',result.observed_at],['Fonte dos limites','Informado pelo administrador'],['Recurso','Limite','Consumo','Percentual','Atenção','Alerta','Crítico'],
+      ...result.limits.map(x=>{const amount=x.resource==='storage_bytes'&&d.storage_sized_objects<d.storage_objects?null:d[x.resource];
+       return [x.resource,x.amount,amount,amount==null?null:amount/x.amount*100,x.attention,x.warning,x.critical]})]);
+    }else if(part==='errors'){
+     const labels={sync_failed:'Sincronização',photo_failed:'Fotografias e armazenamento',profile_failed:'Perfil e registros',import_failed:'Importação'};
+     body.innerHTML=stamp+monitorMetric('Relatos em 7 dias',monitorNumber(d.errors.reduce((sum,item)=>sum+Number(item.total||0),0)),
+      'Soma dos códigos seguros enviados pelo aplicativo. Um relato pode representar uma falha de rede ou do aplicativo. Sem denominador de operações.')+
+      monitorTable(['Categoria','7 dias','7 dias anteriores','Último dia UTC'],d.errors.map(x=>[labels[x.code]||x.code,x.total,x.previous,x.last_day]))+
+      audienceChart('Erros por dia',d.errors_daily.map(x=>({label:x.day,count:x.total})))+
+      monitorUnavailable('Falhas de autenticação, acesso negado, políticas e segurança dependem de uma fonte autorizada de logs. Uma falha isolada não implica abuso.');
+     saveRows(part,[['Fonte','Relatos internos do app'],['Amostra',result.observed_at],...d.errors.map(x=>[x.code,x.total,x.previous,x.last_day]),
+      ...d.errors_daily.map(x=>[x.day,x.total])]);
+    }else if(part==='history'){
+     body.innerHTML=stamp+monitorTable(['Dia UTC','Banco','Storage medido'],result.history.slice(-14).map(x=>[x.day,monitorBytes(x.database_bytes),monitorBytes(x.storage_bytes)]))+
+      monitorTable(['Dia UTC','Recurso','Severidade','Consumo (%)'],result.alerts.map(x=>[x.day,x.resource,x.severity,monitorNumber(x.used_pct)]))+
+      monitorUnavailable('Amostras e alertas são atualizados sob demanda. O histórico agrupa alertas por dia, recurso e severidade.');
+     saveRows(part,[['Amostra',result.observed_at],['Fonte','PostgreSQL, metadados Storage e limites manuais'],
+      ...result.history.map(x=>[x.day,x.database_bytes,x.storage_bytes]),...result.alerts.map(x=>[x.day,x.resource,x.severity,x.used_pct])]);
+    }
+   }
+   if(current()){loaded.add(part);status.textContent='Dados disponíveis nas seções consultadas.'}
+  }catch{
+   if(current())body.innerHTML=monitorUnavailable('Fonte indisponível ou integração pendente. Feche e reabra para tentar novamente.');
+  }finally{jobs.delete(part)}
+ }
+ for(const details of root.querySelectorAll('[data-system-source]'))details.addEventListener('toggle',()=>{
+  if(details.open)void load(details.dataset.systemSource,details.querySelector('[data-system-body]'));
+ });
+ root.querySelector('[data-system-export]').addEventListener('click',()=>{
+  if(!current())return;
+  if(!payloads.size){status.textContent='Abra uma fonte antes de exportar.';return}
+  adminCsv('neopep-saude-sistema',[['Gerado em',new Date().toISOString()],
+   ...[...payloads].flatMap(([section,rows])=>[['Seção',section],...rows,[]])]);
+ });
+ root.addEventListener('submit',async event=>{
+  const form=event.target,action=form.dataset.monitorConfig;
+  if(!action)return;
+  event.preventDefault();
+  const button=form.querySelector('button');button.disabled=true;
+  try{
+   const payload=Object.fromEntries(new FormData(form));
+   for(const key of Object.keys(payload))if(payload[key]==='')payload[key]=null;
+   await cloud.adminSystem(action,payload);
+   if(!current())return;
+   const part=action==='price'?'ai':'costs';
+   if(part==='ai')ai=null;else snapshot=null;
+   loaded.delete(part);
+   status.textContent='Configuração registrada.';
+   const body=root.querySelector('[data-system-source='+part+'] [data-system-body]');
+   void load(part,body);
+  }catch{if(current())status.textContent='Não foi possível salvar. Confira os valores e a vigência.'}
+  finally{button.disabled=false}
+ });
 }
 $('#adminRefresh').onclick=refresh;
 window.NeoGestures?.configure({refresh,back:()=>history.length>1?history.back():location.assign('../')});
