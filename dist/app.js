@@ -1147,19 +1147,27 @@ function syncCampaign(){
   if(!item||campaignBlocked()||typeof HTMLDialogElement==='undefined')return;
   const dialog=document.createElement('dialog');
   dialog.className='neo-campaign-dialog';dialog.setAttribute('aria-labelledby','neoCampaignTitle');
-  dialog.innerHTML=`<h2 id="neoCampaignTitle">${esc(item.title)}</h2>${item.image_url?`<img src="${esc(item.image_url)}" alt="">`:''}<p>${esc(item.body)}</p>
+  dialog.innerHTML=`<h2 id="neoCampaignTitle">${esc(item.title)}</h2>${item.image_url&&!item.image_path?`<img src="${esc(item.image_url)}" alt="">`:''}<p>${esc(item.body)}</p>
    <div class="neo-campaign-actions">${item.link_url?`<a class="primary" target="_blank" rel="noopener noreferrer" href="${esc(item.link_url)}">${esc(item.link_label)}</a>`:''}
    <form method="dialog"><button class="secondary" autofocus>Fechar</button></form></div>`;
+  if(item.image_path&&Cloud.campaignImageURL){
+   Cloud.campaignImageURL(item.image_path).then(url=>{
+    if(campaignDialog!==dialog||owner!==Cloud.user?.id)return;
+    const image=document.createElement('img');image.src=url;image.alt='';
+    dialog.querySelector('h2').after(image);
+   }).catch(()=>{});
+  }
   dialog.addEventListener('close',()=>{dialog.remove();if(campaignDialog===dialog)campaignDialog=null;},{once:true});
   document.body.append(dialog);dialog.showModal();campaignDialog=dialog;
   const shown=Cloud.campaignVisit('displayed',item.impression).catch(()=>false);
   dialog.querySelector('a')?.addEventListener('click',event=>{
    const url=new URL(event.currentTarget.href,location.href),route=url.hash.slice(1);
-   const material=url.searchParams.get('material');
-   if(url.origin===location.origin&&['/','/neo/'].includes(url.pathname)&&(validSharedMaterial(material)||(!url.search&&Object.hasOwn(routes,route)))){
+   const material=url.searchParams.get('material'),product=url.searchParams.get('produto');
+   if(url.origin===location.origin&&['/','/neo/'].includes(url.pathname)&&(validSharedMaterial(material)||(route==='loja'&&validSharedMaterial(product))||(!url.search&&Object.hasOwn(routes,route)))){
     event.preventDefault();
     dialog.close();
     if(validSharedMaterial(material))void go('comunidade',true,false,'library',material);
+    else if(validSharedMaterial(product)){window.NeoShop?.openCampaignProduct?.(product,Cloud.user);void go('loja');}
     else void go(route);
    }
    void shown.then(ok=>{if(ok&&owner===Cloud.user?.id)return Cloud.campaignVisit('clicked',item.impression)}).catch(()=>{});

@@ -922,25 +922,31 @@ async function mountCampaigns(root){
  const weekdays=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
  const options=(values,value)=>Object.entries(values).map(([key,label])=>`<option value="${key}" ${value===key?'selected':''}>${label}</option>`).join('');
  const field=(row,key,label,attrs,fallback='')=>input(key,label,row[key]??fallback,attrs);
- const utc=value=>value?new Date(value).toISOString().slice(0,16):'';
  let offset=0,rows=[],editing=null,busy=false;
- root.innerHTML='<section class="card"><div class="between"><h2>Campanhas</h2><button type="button" class="primary" data-campaign-action="new">Nova campanha</button></div><p role="status" data-campaign-status></p><div data-campaign-edit></div><div data-campaign-list></div></section>';
+ root.innerHTML='<section class="card"><div class="between"><h2>Campanhas</h2><button type="button" class="primary" data-campaign-action="new">Nova campanha</button></div><p role="status" data-campaign-status></p><details class="space"><summary>Vincular plano a uma conta</summary><form data-campaign-plan class="space"><label>ID da conta<input name="account" required pattern="[a-fA-F0-9-]{36}"></label><label>Código do plano (vazio para desvincular)<input name="plan" pattern="[a-z0-9_-]{1,40}" maxlength="40"></label><button class="secondary" type="submit">Salvar vínculo</button></form></details><div data-campaign-edit></div><div data-campaign-list></div></section>';
  const find=selector=>root.querySelector(selector);
  const status=find('[data-campaign-status]'),editor=find('[data-campaign-edit]'),list=find('[data-campaign-list]');
  function edit(row={}){
   editing=row.id??null;
+  let imagePath=row.image_path||null;
+  editor.dataset.imagePath=imagePath||'';
   editor.innerHTML=`<form class="space" data-campaign-form>
    <h3>${editing?'Editar campanha':'Nova campanha'}</h3>
    ${field(row,'title','Título','required maxlength="120"')}
    <label>Texto<textarea name="body" maxlength="2000" rows="4">${esc(row.body||'')}</textarea></label>
    ${field(row,'image_url','Imagem publicada (caminho em /assets/)','maxlength="1000"')}
+   <label>Enviar imagem (JPEG, PNG ou WebP, até 5 MB)<input type="file" name="image_file" accept="image/jpeg,image/png,image/webp"></label>
+   ${imagePath?'<label class="check"><input type="checkbox" name="remove_image">Remover imagem desta campanha</label>':''}
    <div class="form-grid"><label>Tipo de destino<select name="kind">${options({link:'Link',document:'Documento',product:'Produto',offer:'Oferta',promotion:'Promoção'},row.kind)}</select></label>
    ${field(row,'link_label','Texto do botão','required maxlength="60"','Saiba mais')}</div>
+   <div data-campaign-catalog><label>Buscar no catálogo<input name="content_search" maxlength="100"></label>
+   <button class="secondary" type="button" data-campaign-action="search">Buscar conteúdo</button>
+   <label>Conteúdo selecionado<select name="content_id"><option value="">Usar endereço manual</option>${row.content_id?`<option selected value="${esc(row.content_id)}">Vínculo atual</option>`:''}</select></label></div>
    ${field(row,'link_url','Endereço do destino','maxlength="1000" placeholder="/#loja"')}
    <label>Público<select name="audience">${options({all:'Todas as contas elegíveis',segment:'Segmentos selecionados',plan:'Planos selecionados'},row.audience)}</select></label>
    <fieldset data-campaign-segments><legend>Segmentos</legend>${Object.entries({recent:'Cadastro nos últimos 30 dias',established:'Cadastro há mais de 30 dias',community:'Membro da comunidade'}).map(([key,label])=>`<label class="check"><input type="checkbox" name="segment" value="${key}" ${row.targets?.includes(key)?'checked':''}>${label}</label>`).join('')}</fieldset>
    ${field({...row,plans:row.audience==='plan'?row.targets.join(', '):''},'plans','Códigos de planos separados por vírgula','maxlength="500"')}
-   <div class="form-grid">${input('starts_at','Início (UTC)',utc(row.starts_at),'type="datetime-local"')}${input('ends_at','Encerramento (UTC)',utc(row.ends_at),'type="datetime-local"')}
+   <div class="form-grid">${input('starts_local','Início no fuso informado',row.starts_local||'','type="datetime-local"')}${input('ends_local','Encerramento no fuso informado',row.ends_local||'','type="datetime-local"')}
    ${field(row,'opens_at','Hora inicial','type="time" required','00:00')}
    ${input('closes_at','Hora final (vazio até meia-noite)',row.closes_at&&row.closes_at!=='24:00:00'?row.closes_at.slice(0,5):'','type="time"')}</div>
    ${field(row,'timezone','Fuso das recorrências (IANA)','required maxlength="80"','America/Sao_Paulo')}
@@ -948,7 +954,8 @@ async function mountCampaigns(root){
    <div class="form-grid">${field(row,'frequency_hours','Intervalo mínimo (horas)','type="number" required min="1" max="8760"',24)}
    ${field(row,'max_views','Limite por conta','type="number" required min="1" max="100"',1)}
    ${field(row,'priority','Prioridade','type="number" required min="0" max="100"',0)}</div>
-   <label class="check"><input type="checkbox" name="push_requested" ${row.push_requested?'checked':''}>Solicitar push quando o canal estiver habilitado</label>
+   <label class="check"><input type="checkbox" name="popup_enabled" ${row.popup_enabled!==false?'checked':''}>Exibir pop-up interno</label>
+   <label class="check"><input type="checkbox" name="push_requested" ${row.push_requested?'checked':''}>Usar o canal independente de push</label>
    <p class="sub">Quando o canal está ativo, somente contas com autorização e dispositivo inscrito podem receber o aviso.</p>
    <div class="neo-campaign-actions"><button class="primary" type="submit">Salvar</button>
    <button class="secondary" type="button" data-campaign-action="preview">Prévia</button>
@@ -959,17 +966,31 @@ async function mountCampaigns(root){
    form.querySelector('[data-campaign-segments]').hidden=form.elements.audience.value!=='segment';
    form.elements.plans.closest('label').hidden=form.elements.audience.value!=='plan';
   }
+  form.elements.kind.addEventListener('change',()=>{
+   form.elements.content_id.replaceChildren(new Option('Usar endereço manual',''));
+   form.querySelector('[data-campaign-catalog]').hidden=form.elements.kind.value==='link';
+  });
+  form.querySelector('[data-campaign-catalog]').hidden=form.elements.kind.value==='link';
   form.elements.audience.addEventListener('change',audience);audience();
   form.elements.title.focus();
   form.addEventListener('submit',async event=>{
    event.preventDefault();
    const data=new FormData(form),value=k=>String(data.get(k)||'').trim();
-   const date=k=>value(k)?new Date(value(k)+'Z').toISOString():null;
    const audience=value('audience'),targets=audience==='segment'?data.getAll('segment'):audience==='plan'?value('plans').split(',').map(x=>x.trim()).filter(Boolean):[];
-   await change('save',editing,{title:value('title'),body:value('body'),kind:value('kind'),image_url:value('image_url')||null,
-    link_url:value('link_url')||null,link_label:value('link_label'),audience,targets,starts_at:date('starts_at'),ends_at:date('ends_at'),
+   if(busy)return;
+   const file=data.get('image_file'),submit=form.querySelector('[type=submit]');
+   if(file?.size){
+    busy=true;submit.disabled=true;status.textContent='Preparando e enviando imagem…';
+    try{imagePath=await cloud.uploadCampaignImage(file);form.elements.image_file.value='';}
+    catch(error){status.textContent=error.message;return;}
+    finally{busy=false;submit.disabled=false;}
+    if(!root.isConnected||!form.isConnected)return;
+   }else if(data.has('remove_image'))imagePath=null;
+   await change('save',editing,{title:value('title'),body:value('body'),kind:value('kind'),image_url:value('image_url')||null,image_path:imagePath,
+    content_id:value('content_id')||null,link_url:value('link_url')||null,link_label:value('link_label'),audience,targets,starts_local:value('starts_local')||null,ends_local:value('ends_local')||null,
     timezone:value('timezone'),weekdays:data.getAll('weekday').map(Number),opens_at:value('opens_at'),closes_at:value('closes_at')||'24:00',
-    priority:Number(value('priority')),frequency_hours:Number(value('frequency_hours')),max_views:Number(value('max_views')),push_requested:data.has('push_requested')});
+    priority:Number(value('priority')),frequency_hours:Number(value('frequency_hours')),max_views:Number(value('max_views')),
+    popup_enabled:data.has('popup_enabled'),push_requested:data.has('push_requested')});
   });
  }
  async function load(){
@@ -987,22 +1008,48 @@ async function mountCampaigns(root){
   busy=true;status.textContent='Processando…';
   try{
    if(action!=='list')await cloud.campaignAdmin(action,id,data);
+   if(action==='assign_plan'){status.textContent='Vínculo confirmado.';return;}
    if(action==='save'){editor.replaceChildren();editing=null;}
    await load();status.textContent=action==='list'?'':'Alteração confirmada.';
   }catch(error){status.textContent=error.code==='42501'?'Apenas administradores da plataforma podem gerenciar campanhas.':'Não foi possível concluir. Confira os campos, horários e a migração de campanhas.';}
   finally{busy=false;}
  }
+ root.querySelector('[data-campaign-plan]').addEventListener('submit',event=>{
+  event.preventDefault();
+  const data=new FormData(event.currentTarget);
+  void change('assign_plan',data.get('account'),{plan:data.get('plan')});
+ });
  root.addEventListener('click',async event=>{
   const button=event.target.closest('[data-campaign-action]');
   if(!button||busy||!root.isConnected)return;
   const action=button.dataset.campaignAction,id=button.dataset.id;
   if(action==='new'||action==='edit'){edit(rows.find(row=>row.id===id));return;}
   if(action==='cancel'){editor.replaceChildren();editing=null;return;}
+  if(action==='search'){
+   const form=editor.querySelector('form'),kind=form.elements.kind.value;
+   status.textContent='Buscando conteúdo…';
+   try{
+    const found=await cloud.campaignAdmin('catalog',null,{kind,search:form.elements.content_search.value});
+    if(!form.isConnected||form.elements.kind.value!==kind)return;
+    const select=form.elements.content_id,selected=select.selectedOptions[0];
+    const options=[new Option('Usar endereço manual','')];
+    if(selected?.value&&!found.some(row=>row.id===selected.value))options.push(selected.cloneNode(true));
+    select.replaceChildren(...options,...found.map(row=>new Option(row.label,row.id,false,row.id===selected?.value)));
+    status.textContent=found.length?'Selecione um item.':'Nenhum item encontrado.';
+   }catch{if(form.isConnected)status.textContent='Não foi possível buscar no catálogo.';}
+   return;
+  }
   if(action==='preview'){
    const form=editor.querySelector('form'),data=new FormData(form),preview=form.querySelector('[data-campaign-preview]');
-   const image=String(data.get('image_url')||'');
+   const image=String(data.get('image_url')||''),file=data.get('image_file');
+   if(preview.dataset.objectUrl)URL.revokeObjectURL(preview.dataset.objectUrl);
+   delete preview.dataset.objectUrl;
+   const uploaded=file?.size?URL.createObjectURL(file):null;
+   if(uploaded){preview.dataset.objectUrl=uploaded;setTimeout(()=>URL.revokeObjectURL(uploaded),120000);}
+   const display=uploaded||(!data.has('remove_image')&&editor.dataset.imagePath?await cloud.campaignImageURL(editor.dataset.imagePath).catch(()=>null):null);
+   if(!form.isConnected)return;
    preview.innerHTML=`<div class="form-grid">${['Celular','Computador'].map((label,i)=>`<div><h4>${label}</h4><div class="card campaign-preview ${i===0?'campaign-preview-mobile':''}">
-    <h3>${esc(data.get('title'))}</h3>${/^\/(assets|campaign-media)\/[a-zA-Z0-9_./-]+$/.test(image)&&!image.includes('..')?`<img src="${esc(image)}" alt="">`:''}
+    <h3>${esc(data.get('title'))}</h3>${display?`<img src="${esc(display)}" alt="">`:/^\/(assets|campaign-media)\/[a-zA-Z0-9_./-]+$/.test(image)&&!image.includes('..')?`<img src="${esc(image)}" alt="">`:''}
     <p>${esc(data.get('body'))}</p>${data.get('link_url')?`<button class="primary" type="button" disabled>${esc(data.get('link_label'))}</button>`:''}</div></div>`).join('')}</div>`;
    return;
   }

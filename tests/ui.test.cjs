@@ -319,3 +319,31 @@ test('qualidade mede apenas com consentimento e limita a frequência das amostra
  await new Promise(setImmediate);
  assert.deepEqual(calls,[['sync_response',350,'']]);
 });
+
+test('campanha espera sessão pronta, abre uma vez e fecha ao trocar de conta',async()=>{
+ const calls=[];
+ const a=setup({}, {cloud:{user:{id:'ficticia'},onboardingComplete:true,campaignVisit:async(action,id)=>{
+  calls.push([action,id]);
+  if(action==='next')return {impression:'receipt',title:'<campanha>',body:'Oferta fictícia'};
+  return true;
+ }}});
+ await new Promise(setImmediate);
+ a.ctx.HTMLDialogElement=class {};
+ const originalCreate=a.document.createElement.bind(a.document);
+ a.document.createElement=tag=>{
+  const node=originalCreate(tag);
+  if(tag==='dialog'){
+   node.showModal=()=>node.setAttribute('open','');
+   node.close=()=>{node.removeAttribute('open');node.dispatchEvent(new a.ctx.Event('close'))};
+  }
+  return node;
+ };
+ a.run("mode='cloud'; page='inicio'; sessionLoading=true; arrivalReady=true; syncCampaign()");
+ assert.equal(calls.length,0);
+ a.run("sessionLoading=false; syncCampaign(); syncCampaign()");
+ await new Promise(setImmediate);
+ assert.deepEqual(calls,[['next',undefined],['displayed','receipt']]);
+ assert.equal(a.document.querySelector('.neo-campaign-dialog h2').textContent,'<campanha>');
+ a.run("mode='local'; syncCampaign()");
+ assert.equal(a.document.querySelector('.neo-campaign-dialog'),null);
+});

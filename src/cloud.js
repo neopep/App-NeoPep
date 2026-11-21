@@ -24,6 +24,28 @@ const authStorage={
 function chooseRemember(value){if(typeof value!=='boolean')return;const saved=rememberSession===value?null:AUTH_KEYS.map(key=>[key,authStorage.getItem(key)]);rememberSession=value;writeStore(browserStore('localStorage'),REMEMBER_KEY,String(value));if(saved){for(const [key] of saved)authStorage.removeItem(key);for(const [key,item] of saved)if(item!==null)authStorage.setItem(key,item)}}
 const clearAuthStorage=()=>AUTH_KEYS.forEach(key=>authStorage.removeItem(key));
 const api={configured,
+ async campaignImageURL(path){
+  const result=ok(await need().storage.from('neo-campaign-images').createSignedUrl(path,120));
+  return result.signedUrl;
+ },
+ async uploadCampaignImage(file){
+  const sdk=need(),owner=user.id;
+  if(!file||file.size>5*1024*1024||!['image/jpeg','image/png','image/webp'].includes(file.type))throw Error('Escolha JPEG, PNG ou WebP de até 5 MB.');
+  const image=await createImageBitmap(file);
+  let blob;
+  try{
+   const canvas=document.createElement('canvas'),scale=Math.min(1,1600/Math.max(image.width,image.height));
+   canvas.width=Math.max(1,Math.round(image.width*scale));canvas.height=Math.max(1,Math.round(image.height*scale));
+   const context=canvas.getContext('2d');
+   context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(image,0,0,canvas.width,canvas.height);
+   blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.86));
+  }finally{image.close();}
+  if(!blob||blob.size>5*1024*1024||owner!==user?.id)throw Error('Não foi possível preparar a imagem.');
+  const path=owner+'/'+crypto.randomUUID()+'.jpg';
+  ok(await sdk.storage.from('neo-campaign-images').upload(path,blob,{contentType:'image/jpeg',cacheControl:'0',upsert:false}));
+  if(owner!==user?.id)throw Error('A sessão mudou.');
+  return path;
+ },
  async campaignAdmin(action,id=null,data={}){return ok(await need().rpc('neo_campaign_admin',{p_action:action,p_id:id,p_data:data}));},
  async campaignPushPreference(enabled=null){return ok(await need().rpc('neo_campaign_push_preference',{p_enabled:enabled}));},
  async campaignVisit(action,impression=null){return ok(await need().rpc('neo_campaign_visit',{p_action:action,p_impression:impression}));},get remember(){return rememberSession},get persistenceLimited(){return persistenceLimited},
