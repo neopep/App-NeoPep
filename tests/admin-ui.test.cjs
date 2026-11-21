@@ -96,3 +96,19 @@ test('aviso aguarda aba visível e pausa a contagem enquanto fica oculta',async(
  a.advance(200);
  assert.equal(toast.isConnected,false);
 });
+
+test('painel mostra engajamento distinto de audiência e funis somente com etapas disponíveis',async()=>{
+ const a=app({signups_daily:[],app_errors_7d:[]});
+ a.cloud.adminAudience=async()=>({today:1,signups_7:1,signups_30:1,period_signups:1,active_1:1,active_7:1,
+  active_30:1,new_active:null,returning_active:0,from:'2026-11-01',to:'2026-11-21',groups:[],daily:[],monthly:[]});
+ a.cloud.adminEngagement=async()=>({started_at:null,users:6,sessions:8,mean:75,median:60,areas:1.5,returning:null,
+  ranking:[{area:'evolucao',users:6,visits:15,sessions:8,active:600,completed:7,previous_users:5}],
+  funnels:[{name:'Evolução',steps:['evolution_view','weight_record_started','weight_record_created'],counts:[6,5,null]}]});
+ await a.refresh();
+ await new Promise(setImmediate);
+ const report=a.document.querySelector('[data-engagement-report]');
+ assert.match(report.textContent,/Engajamento por funcionalidade.*Sessões8.*Mediana1 min 0 s/s);
+ assert.match(report.textContent,/83% avançaram.*17% de abandono/);
+ assert.match(report.querySelector('ol li:last-child').textContent,/Salvou pesagem · —/);
+ assert.equal(report.querySelector('select[name=second] option[value=evolucao]').textContent,'Evolução');
+});

@@ -114,5 +114,49 @@ test('cadastros têm leitura individual, paginação estável e acesso restrito'
   await as(regular);
   assert.equal((await audience('audience_self',"'remove'")).allowed,false);
   assert.equal((await audience('audience_self',"'export'")).allowed,false);
+  await db.exec('reset role');
+  await db.exec(fs.readFileSync('supabase/migrations/20261121183535_product_engagement.sql','utf8'));
+  const members=(await db.query("select md5('fixture'||n)::uuid id from generate_series(1,5)n")).rows;
+  const events=['evolution_view','weight_record_started','weight_record_created','active_time'];
+  for(const {id} of members){
+   await as(id);
+   const send=(action,payload=[])=>audience('engagement','$1,$2',[action,JSON.stringify(payload)]);
+   const session=crypto.randomUUID();
+   const batch=events.map((event,i)=>({id:crypto.randomUUID(),session_id:session,sequence:i+1,
+    occurred_at:new Date().toISOString(),area:'evolucao',event,seconds:event==='active_time'?12:0,unwanted:'private fixture'}));
+   assert.equal((await send('record',batch)).allowed,false);
+   await audience('audience_self',"'allow'");
+   assert.equal((await send('status')).allowed,false);
+   assert.equal((await send('enable')).allowed,true);
+   assert.equal((await send('record',[...batch,{...batch[0],id:crypto.randomUUID(),event:'unknown'}])).accepted,4);
+   assert.equal((await send('record',batch)).accepted,0);
+   await assert.rejects(audience('admin_engagement',''),{code:'42501'});
+  }
+  await as(adminA);
+  const report=await audience('admin_engagement',"p_area=>'evolucao'");
+  assert.equal(report.users,5);
+  assert.equal(report.sessions,5);
+  assert.equal(report.mean,12);
+  assert.equal(report.median,12);
+  assert.equal(report.ranking[0].users,5);
+  assert.equal(report.ranking[0].active,60);
+  assert.deepEqual(report.funnels[0].counts.slice(0,3),[5,5,5]);
+  assert.ok(report.actions.every(event=>event.event!=='active_time'));
+  assert.doesNotMatch(JSON.stringify(report),/private fixture/);
+  await as(members[0].id);
+  await audience('engagement',"'disable'");
+  await as(adminA);
+  const redacted=await audience('admin_engagement','');
+  assert.equal(redacted.users,4);
+  assert.deepEqual(redacted.ranking,[]);
+  assert.deepEqual(redacted.funnels,[]);
+  await db.exec("reset role");
+  await db.query(`insert into neo_private.engagement_events(account,id,session_id,occurred_at,sequence,area,event,seconds)
+   select $1,md5('event'||n)::uuid,md5('session'||n)::uuid,now(),1,'evolucao','evolution_view',0
+   from generate_series(1,5000)n`,[members[1].id]);
+  await as(adminA);
+  const volume=await audience('admin_engagement','');
+  assert.equal(volume.users,4);
+  assert.equal(volume.sessions,5004);
  }finally{await db.close()}
 });

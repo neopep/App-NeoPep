@@ -100,6 +100,8 @@ const api={configured,get remember(){return rememberSession},get persistenceLimi
  async reportError(code){if(!user||!['sync_failed','photo_failed','profile_failed','import_failed'].includes(code))return;try{await client.rpc('neo_report_error',{p_code:code})}catch{}},
  async adminSummary(){need();return ok(await client.rpc('neo_admin_summary'))},
  async audience(action,device=null,campaign=null){need();return ok(await client.rpc('neo_audience_self',{p_action:action,p_device:device,p_campaign:campaign}))},
+ async engagement(action,events=[]){need();return ok(await client.rpc('neo_engagement',{p_action:action,p_events:events}))},
+ async adminEngagement(filters){need();return ok(await client.rpc('neo_admin_engagement',filters))},
  async adminAudience(filters={}){need();return ok(await client.rpc('neo_admin_audience',filters))},
  async adminSignups(action,filters={}){need();return ok(await client.rpc('neo_admin_signups',{...filters,p_action:action}))},
  async exportMetadata(){need();const account=user.id,version=identityVersion,data=ok(await client.rpc('neo_export_account_metadata'));const support=await client.rpc('neo_support_export');if(support.error&&!['PGRST202','42883'].includes(support.error.code))ok(support);const purchases=await client.rpc('neo_shop_export');if(purchases.error&&!['PGRST202','42883'].includes(purchases.error.code))ok(purchases);if(version!==identityVersion||account!==user?.id)throw Error('A conta mudou durante a exportação.');return {user:{id:user.id,email:user.email,created_at:user.created_at},...data,...(!support.error?{private_conversations:support.data}:{} ),...(!purchases.error?{purchases:purchases.data}:{})}},

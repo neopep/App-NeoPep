@@ -34,3 +34,27 @@ A origem geográfica exige um caminho autenticado entre uma fonte confiável de 
 A migração de staging `20261121181510_admin_audience.sql` é aditiva. A reversão do frontend para o commit anterior interrompe a coleta enquanto as tabelas privadas e a autorização do servidor permanecem válidas.
 
 A Vercel documenta cabeçalhos de país, região e cidade para suas funções. A configuração pendente é uma função no domínio de staging que valide a sessão em qnuluspqfazdppciermw, confirme a preferência de coleta e encaminhe somente os campos aproximados por um canal autenticado de servidor para servidor. A confiança desses cabeçalhos deve ser verificada no deployment protegido antes da ativação. [Cabeçalhos da Vercel](https://vercel.com/docs/headers/request-headers)
+
+### Engajamento por funcionalidade
+
+A medição de produto exige autorização explícita em Perfil → Medição de uso, além da preferência de estatísticas opcionais. Uma autorização anterior de dispositivo ou campanha não autoriza eventos de uso. Desativar medição apaga os eventos. Apagar as estatísticas opcionais também apaga os eventos por vínculo no banco. Os relatórios consultam até 90 dias. Registros vencidos deixam de aparecer e são limpos em lotes durante novas coletas. A exclusão física sem tráfego depende de manutenção periódica.
+
+O coletor usa a conta autenticada com identificador interno, uma sessão aleatória em memória e IDs de evento para deduplicação. Recarregar cria outra sessão. A sessão também é renovada após 30 minutos de inatividade. A coleta de tempo usa amostras de até 15 segundos, visibilidade da página e 60 segundos de tolerância desde a última interação. Aberturas são emitidas por mudança de área. Os lotes em memória levam apenas evento, área, sequência, horário, segundos e IDs técnicos. O descarte do buffer ao trocar de conta ou exceder limites é intencional.
+
+O inventário abaixo registra os pontos de emissão ativos. Os nomes `*_view` da área principal são declarados em `engagementViews` e Atendimento usa a aba Conversa. O caminho comum do JPEG emite um único evento de exportação com a área de origem. Esse evento registra que o navegador recebeu a solicitação de download de um arquivo gerado. O compartilhamento registra resolução da API nativa. A impressão registra a solicitação.
+
+| Área | Eventos além da abertura de área |
+| --- | --- |
+| Início | `home_quick_action`, `home_journey_expand`, `home_library_open` |
+| Evolução e registros | `weight_record_started`, `weight_record_created`, `measurement_record_created`, `journal_record_created`, `application_record_created`, `protocol_record_created`, `weight_chart_interaction`, `comparison_period_changed` |
+| Fotos e comparação | `photo_upload_success`, `photo_history_open`, `photo_selected`, `photo_comparison_started`, `before_after_open`, `photo_comparison_export_success`, `before_after_share_success` |
+| Calculadora e relatórios | `calculator_started`, `calculator_completed`, `calculator_validation_error`, `reports_period_changed`, `reports_csv_export`, `reports_print_requested` |
+| Calendário e lembretes | `calendar_period_changed`, `calendar_event_open`, `reminder_created`, `reminder_settings_saved` |
+| Comunidade e Biblioteca | `community_feed_view`, `community_chat_open`, `community_members_view`, `community_library_view`, `community_post_created`, `community_message_sent`, `community_post_interaction`, `community_material_open` |
+| Loja | `product_list_view`, `product_detail_view`, `cart_add`, `checkout_started`, `checkout_step_completed`, `order_created` |
+| Atendimento, perfil e onboarding | `support_message_sent`, `support_attachment_used`, `profile_updated`, `onboarding_completed` |
+| Sessão | `active_time` |
+
+O dashboard calcula totais de usuários e sessões em UTC, tempo médio e mediano por sessão, retorno dentro do intervalo e uso por área. O ranking compara períodos de duração equivalente. O detalhamento permite comparar duas áreas, com séries diárias e segmentos autorizados de dispositivo, modo, navegador e aquisição. As dimensões de dispositivo refletem a última observação autorizada da conta. Os funis observam sequências na mesma sessão e ocultam resultados com menos de cinco contas distintas. Os funis atuais cobrem pesagem, seleção e exportação de fotos e loja até a criação do pedido.
+
+A medição de visitantes anônimos, confirmação de pagamento, criação inédita de conversa de suporte, geografia e integrações de agentes permanecem pendentes. A criação de pedido é uma etapa distinta do pagamento confirmado. O onboarding pode ser medido apenas se houver autorização de medição na sessão. Os relatórios mostram a data do primeiro evento disponível. A migração `20261121183535_product_engagement.sql` é aditiva. A publicação do frontend anterior interrompe o coletor sem apagar o histórico.

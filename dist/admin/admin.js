@@ -197,7 +197,7 @@ function mountAdminAudience(root){
  root.innerHTML=`<section class="card space"><h2>Estatísticas de público</h2>
   <form class="admin-signup-filters space"><label>Período<select name="window"><option value="7">7 dias</option><option value="30" selected>30 dias</option><option value="90">90 dias</option><option value="custom">Personalizado</option></select></label>
   <label>De<input type="date" name="from"></label><label>Até<input type="date" name="to"></label><button type="submit" class="secondary">Aplicar</button></form>
-  <p data-audience-message role="status" class="sub"></p><div data-audience-results></div></section>`;
+  <p data-audience-message role="status" class="sub"></p><div data-audience-results></div><div data-engagement-report></div></section>`;
  const form=root.querySelector('form'),message=root.querySelector('[data-audience-message]'),results=root.querySelector('[data-audience-results]');
  let sequence=0;
  async function load(windowDays=30,customFrom=null,customTo=null){
@@ -220,6 +220,7 @@ function mountAdminAudience(root){
    <p class="sub">Dispositivos e campanhas usam observações autorizadas das contas cadastradas no período. Grupos pequenos são omitidos, e os percentuais representam os grupos exibidos.</p>
    <p class="sub">Geografia: localização indisponível para os cadastros. Conversão, frequência e retenção dependem de dados adicionais.</p>`;
    message.textContent='Período: '+d.from+' a '+d.to+' (UTC).';
+   void mountEngagementReport(root.querySelector('[data-engagement-report]'),from,to);
   }catch(error){
    if(request!==sequence||!root.isConnected||cloud.user?.id!==account)return;
    if(error.code==='42501')root.replaceChildren();
@@ -236,6 +237,77 @@ function mountAdminAudience(root){
   }else void load(Number(period));
  });
  void load();
+}
+const engagementAreaLabels={inicio:'Início',evolucao:'Evolução',registros:'Registros',diario:'Diário',aplicacoes:'Aplicações',
+ protocolos:'Protocolos',calculadora:'Calculadora',relatorios:'Relatórios',calendario:'Calendário',lembretes:'Lembretes',
+ fotos:'Fotos',perfil:'Perfil',comunidade:'Comunidade',loja:'Loja',suporte:'Atendimento',onboarding:'Onboarding'};
+const engagementFormat=value=>value==null?'—':Number(value).toLocaleString('pt-BR');
+const engagementDuration=value=>value==null?'—':Math.floor(value/60)+' min '+Math.round(value%60)+' s';
+function engagementFunnel(f){
+ const labels={evolution_view:'Abriu Evolução',weight_record_started:'Iniciou pesagem',weight_record_created:'Salvou pesagem',
+  photos_view:'Abriu Fotos',photo_selected:'Selecionou outra foto',photo_comparison_started:'Abriu comparação',
+  photo_comparison_export_success:'Acionou download',product_detail_view:'Abriu produto',cart_add:'Adicionou ao carrinho',
+  checkout_started:'Iniciou checkout',order_created:'Pedido criado'};
+ return `<details class="audience-chart"><summary>${esc(f.name)}</summary><ol>${f.steps.map((step,i)=>{
+  const count=f.counts[i],previous=f.counts[i-1];
+  const conversion=count!=null&&previous>0?Math.round(100*count/previous):null;
+  return `<li>${esc(labels[step]||step)} · ${engagementFormat(count)}${conversion===null?'':` · ${conversion}% avançaram · ${100-conversion}% de abandono`}</li>`;
+ }).join('')}</ol></details>`;
+}
+async function mountEngagementReport(root,from,to){
+ const cloud=window.NeoCloud,account=cloud.user?.id;
+ if(!root||!account||!cloud.adminEngagement)return;
+ root.innerHTML='<section class="space"><h2>Engajamento por funcionalidade</h2><p role="status" data-engagement-progress>Carregando eventos…</p><div data-engagement-data></div></section>';
+ const status=root.querySelector('[data-engagement-progress]'),data=root.querySelector('[data-engagement-data]');
+ const current=()=>root.isConnected&&status.isConnected&&cloud.user?.id===account;
+ const filters={p_from:from,p_to:to};
+ try{
+  const summary=await cloud.adminEngagement(filters);
+  if(!current())return;
+  status.textContent=summary.started_at?'Primeiro evento disponível: '+signupDate(summary.started_at,signupFullTime)+'.':'Nenhum evento de uso recebido.';
+  const rate=summary.returning==null||!summary.users?null:Math.round(100*summary.returning/summary.users)+'%';
+  const kpis=[['Usuários ativos',engagementFormat(summary.users)],['Sessões',engagementFormat(summary.sessions)],
+   ['Tempo médio',engagementDuration(summary.mean)],['Mediana',engagementDuration(summary.median)],
+   ['Áreas por sessão',engagementFormat(summary.areas)],['Usuários com retorno',rate||'—']];
+  const options=summary.ranking.map(row=>`<option value="${esc(row.area)}">${esc(engagementAreaLabels[row.area]||row.area)}</option>`).join('');
+  data.innerHTML=`<div class="audience-kpis">${kpis.map(([label,value])=>`<div><small>${label}</small><strong>${value}</strong></div>`).join('')}</div>
+   <p class="sub">Somente contas que autorizaram medição. As sessões de retorno são observadas no próprio período. Áreas e etapas com menos de cinco contas são omitidas.</p>
+   ${summary.ranking.length?`<div class="engagement-table" tabindex="0"><table><caption>Ranking por área</caption>
+   <thead><tr><th>Área</th><th>Usuários</th><th>Acessos</th><th>Sessões</th><th>Tempo ativo</th><th>Ações concluídas</th><th>% ativos</th><th>Variação de usuários</th></tr></thead>
+   <tbody>${summary.ranking.map(r=>`<tr><th>${esc(engagementAreaLabels[r.area]||r.area)}</th><td>${r.users}</td><td>${r.visits}</td><td>${r.sessions}</td>
+    <td>${engagementDuration(r.active)}</td><td>${r.completed}</td><td>${Math.round(100*r.users/summary.users)}%</td>
+    <td>${r.previous_users?Math.round(100*(r.users-r.previous_users)/r.previous_users)+'%':'—'}</td></tr>`).join('')}</tbody></table></div>
+   <form data-engagement-compare class="admin-signup-filters space"><label>Área<select name="first">${options}</select></label>
+   <label>Comparar com<select name="second"><option value="">Nenhuma</option>${options}</select></label><button class="secondary">Consultar</button></form>
+   <div data-engagement-details aria-live="polite"></div>`:'<p class="sub">Nenhuma área com dados suficientes neste período.</p>'}
+   <h3 class="space">Funis na mesma sessão</h3>${summary.funnels.length?summary.funnels.map(engagementFunnel).join(''):'<p class="sub">Ainda não há sequências suficientes para exibir funis.</p>'}`;
+  const form=data.querySelector('[data-engagement-compare]');
+  if(!form)return;
+  const details=data.querySelector('[data-engagement-details]');
+  let revision=0;
+  form.addEventListener('submit',async event=>{
+   event.preventDefault();
+   const request=++revision,values=new FormData(form),first=values.get('first'),second=values.get('second');
+   details.textContent='Carregando áreas…';
+   try{
+    const selected=[...new Set([first,second].filter(Boolean))];
+    const reports=await Promise.all(selected.map(p_area=>cloud.adminEngagement({...filters,p_area})));
+    if(!current()||request!==revision)return;
+    details.innerHTML=reports.map((report,i)=>{
+     const area=summary.ranking.find(r=>r.area===selected[i]);
+     const funnelName={evolucao:'Evolução',fotos:'Fotografias',loja:'Loja'}[selected[i]];
+     const funnel=report.funnels.find(row=>row.name===funnelName);
+     return `<section class="space"><h3>${esc(engagementAreaLabels[selected[i]]||selected[i])}</h3>
+      <p>${area.users} usuários · ${area.sessions} sessões · ${engagementDuration(area.active)} · ${engagementFormat(report.area_returning)} retornaram</p>
+      <p class="sub">Usuários do período anterior: ${engagementFormat(area.previous_users)}</p>
+      ${funnel?engagementFunnel(funnel):''}
+      ${audienceChart('Acessos diários',report.days.map(d=>({label:d.day,count:d.n})))}
+      ${audienceChart('Eventos mais frequentes',report.actions.map(a=>({label:a.event,count:a.n})))}
+      ${audienceChart('Dispositivos e aquisição',report.dimensions.map(d=>({label:d.kind+' · '+d.label,count:d.n})))}</section>`;
+    }).join('');
+   }catch{if(current()&&request===revision)details.textContent='Não foi possível carregar os detalhes.'}
+  });
+ }catch{if(current())status.textContent='Não foi possível carregar o relatório de engajamento.'}
 }
 $('#adminRefresh').onclick=refresh;
 window.NeoGestures?.configure({refresh,back:()=>history.length>1?history.back():location.assign('../')});
