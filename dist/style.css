@@ -327,3 +327,32 @@ body:has(.comparison-export-dialog[open]){overflow:hidden}
 .comparison-weight{padding:.55rem .7rem;text-align:center;border:1px solid var(--border);border-radius:.75rem;color:var(--ink);font-size:.88rem}
 .comparison-weight strong{color:var(--ink);text-decoration:underline;text-decoration-color:#b59459;text-underline-offset:.2em}
 .comparison-weight small{display:block;color:var(--muted)}
+
+.admin-shortcut{position:relative}
+.admin-signup-badge{position:absolute;inset-block-start:-.38rem;inset-inline-end:-.4rem;min-width:1.3rem;padding:0 .24rem;border-radius:1rem;background:#dfbd78;color:#211a14;font-size:.65rem;font-weight:800;line-height:1.3rem;text-align:center;pointer-events:none}
+.admin-signup-notice{padding:.65rem .8rem;margin-block:.6rem;border-inline-start:2px solid #dfbd78;background:var(--soft);overflow-wrap:anywhere}
+.admin-signup-notice ul{margin:.3rem 0;padding-inline-start:1.15rem}
+.admin-signup-filters{display:grid;grid-template-columns:2fr repeat(3,minmax(0,1fr)) auto;align-items:end;gap:.5rem}
+.admin-signup-filters label{margin:0;min-width:0}
+.admin-signup-filters input,.admin-signup-filters select{min-width:0;width:100%}
+.admin-signup{border-block-start:1px solid var(--border)}
+.admin-signup summary{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center;gap:.55rem;min-height:44px;padding:.45rem .2rem;cursor:pointer;list-style:none}
+.admin-signup summary::-webkit-details-marker{display:none}
+.admin-signup-person{display:flex;gap:.55rem;align-items:baseline;min-width:0;overflow-wrap:anywhere}
+.admin-signup-person small,.admin-signup time,.admin-signup dt{color:var(--muted);font-size:.8rem}
+.admin-signup time{white-space:nowrap}
+.admin-signup-new{color:var(--ink);border:1px solid #b99654;border-radius:1rem;padding:.08rem .28rem;font-size:.68rem}
+.admin-signup[open] .admin-signup-chevron{transform:rotate(180deg)}
+.admin-signup dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.55rem;padding:.45rem;margin:0;overflow-wrap:anywhere}
+.admin-signup dd{margin:0}
+@media(max-width:680px){
+ .admin-signup-filters{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .admin-signup-filters label:first-child{grid-column:1/-1}
+ .admin-signup-person{display:block}
+ .admin-signup-person small{display:block}
+}
+@media(max-width:360px){
+ .admin-signup summary{grid-template-columns:minmax(0,1fr) auto auto}
+ .admin-signup summary time{grid-row:2;grid-column:1}
+ .admin-signup dl{grid-template-columns:minmax(0,1fr)}
+}

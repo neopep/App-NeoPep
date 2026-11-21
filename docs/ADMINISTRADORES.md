@@ -12,3 +12,11 @@ Execute todo `supabase/setup/unified-administrators.sql` no SQL Editor do mesmo 
 Depois recarregue o aplicativo; sair e entrar novamente atualiza imediatamente as permissões carregadas na sessão. Não execute scripts antigos de funções administrativas depois desse instalador; se necessário, reaplique este arquivo por último. O SQL pode ser repetido sem conceder novamente um acesso já removido.
 
 Prévia publicada não significa que o SQL foi aplicado no seu banco. Testes automatizados locais cobrem igualdade entre as duas fontes existentes, concessão por administrador, recusa a usuário comum, bloqueio da remoção do próprio acesso, revogação completa, repetição do instalador e preservação da privacidade de saúde e atendimentos. A validação das contas reais depende da aplicação do SQL.
+
+## Avisos de cadastro no NeoPep Teste
+
+O atalho da administração consulta a contagem ao voltar para o app e a cada 30 segundos enquanto a página está visível. Na visão geral, o servidor confirma a leitura do administrador e devolve um resumo temporário com até cinco nomes. O histórico fica na mesma página com busca por nome ou e-mail, filtros de novos e por período, detalhes expansíveis e páginas de 20 resultados. O filtro Novos inclui os vistos nesta visita e os ainda pendentes.
+
+A criação da conta no Supabase Auth é a fonte do evento. Contas anteriores à migração aparecem no histórico sem aviso retroativo. Os recibos guardam somente os identificadores do administrador e da conta e o horário da leitura. A remoção de uma conta exclui seus recibos. O RPC exige sessão e vínculo em `neo_private.admin_members`. A localização é apresentada como indisponível. O último acesso usa o horário mais recente entre login no Auth e atividade autenticada do app. A interface apresenta o fuso local.
+
+A migração `20261121170551_admin_signup_notices.sql` é aditiva. Em caso de reversão do frontend, é possível publicar novamente o commit anterior de homologação preservando os recibos existentes. O servidor continua protegendo a consulta por vínculo de administrador.

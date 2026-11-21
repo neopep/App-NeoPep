@@ -385,3 +385,11 @@ Build, checagem de código, empacotamento portátil e 109 testes pertinentes pas
 Em 21/11/2026, o conjunto da marca-d'água do JPEG foi centralizado na transição entre as fotos e o gráfico. O símbolo ocupa os dois lados da transição, e o nome usa o centro visual do texto. O peso continua imediatamente acima. As linhas, pontos e valores do gráfico são desenhados sobre a marca translúcida, preservando a leitura e as dimensões do gráfico.
 
 Build, checagem de código, prévia portátil e 109 testes pertinentes passaram. A geometria foi verificada em Canvas simulado em 1080 × 1920 e 720 × 1280. A inspeção visual em aparelho físico segue pendente. Publicação restrita a staging/permanente.
+
+## MEM-20261121-017
+
+Em 21/11/2026, o NeoPep Teste ganhou um contador de cadastros no atalho administrativo e uma lista compacta pesquisável na visão geral, com filtros, paginação por cursor e detalhes expansíveis. Avisos de até cinco contas são agrupados e desaparecem após nove segundos. O contador se atualiza a cada 30 segundos e ao retornar ao app. A leitura é confirmada no Supabase por administrador.
+
+A migração 20261121170551 foi aplicada somente no staging qnuluspqfazdppciermw. O Auth registra a criação e a migração adiciona somente a data de início dos avisos e os recibos individuais privados. Contas antigas continuam no histórico. Os dados individuais exigem o vínculo existente de administrador da plataforma. Não há origem geográfica confiável. O último acesso usa os horários existentes de autenticação e atividade, quando presentes. O push não participa deste fluxo.
+
+Build, checagem de código e prévia portátil passaram. A suíte focada teve 89 aprovações e as mesmas quatro falhas de base, duas de Configurações administrativas e duas de privacidade em push. As três verificações novas passaram. O teste Postgres ensaiou a paginação e a leitura agrupada de 2.500 cadastros. O teste remoto com rollback confirmou incremento, leitura, ausência de repetição, histórico e isolamento para dois administradores fictícios. O Advisor registrou alertas esperados de tabelas internas sem políticas de cliente, RPC autenticado com segurança do definidor e índice novo. A validação visual em dispositivos físicos segue pendente.

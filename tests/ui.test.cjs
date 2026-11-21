@@ -250,3 +250,27 @@ test('acompanhamento inicia oculto abaixo da jornada, abre no botão e recolhe a
 });
 
 test('login shows only account access and places circular provider icons between submit and signup',()=>{const a=setup();const content=a.document.querySelector('#content');assert.equal(content.querySelector('#localMode'),null);assert.equal(content.querySelector('#demo'),null);const social=content.querySelector('.auth-social-buttons');assert.equal(social.previousElementSibling.id,'authForm');assert.ok(social.nextElementSibling.classList.contains('auth-tabs'));for(const provider of ['apple','google']){const b=social.querySelector('[data-oauth="'+provider+'"]');assert.ok(b.querySelector('svg'));assert.equal(b.textContent,'');assert.equal(b.getAttribute('aria-label'),'Continuar com '+(provider==='apple'?'Apple':'Google'));assert.equal(b.getAttribute('type'),'button')}});
+
+test('contador administrativo atualiza sem recarregar e some após leitura confirmada',async()=>{
+ let count=0,calls=0;
+ const a=setup({}, {cloud:{configured:true,user:{id:'A'},admin:true,hasConsent:()=>true,
+  adminSignups:async action=>{assert.equal(action,'count');calls++;return {count}}
+ }});
+ await new Promise(setImmediate);
+ a.run("mode='cloud';page='inicio';render()");
+ await new Promise(setImmediate);
+ const link=a.document.querySelector('#adminShortcut');
+ assert.equal(link.querySelector('.admin-signup-badge'),null);
+ count=3;
+ await a.run('refreshSignupBadge()');
+ assert.equal(link.querySelector('.admin-signup-badge').textContent,'3');
+ assert.match(link.getAttribute('aria-label'),/3 novos cadastros/);
+ count=0;
+ await a.run('refreshSignupBadge()');
+ assert.equal(link.querySelector('.admin-signup-badge'),null);
+ const before=calls;
+ a.run("Cloud.admin=false;render()");
+ await a.run('refreshSignupBadge()');
+ assert.equal(calls,before);
+ assert.equal(link.hidden,true);
+});
