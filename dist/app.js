@@ -604,30 +604,39 @@ async function showComparisonExport(trigger){
    });
    if(!current())return;
   }
-  // Anchor both overlays to the area where the fitted photographs meet.
+  const photoBottom=photoTop+Math.max(...heights);
   const overlap=Math.min(...heights);
   const markSize=Math.min(174,overlap*.37);
-  const markBottom=photoTop+overlap-12;
+  // The watermark enters only the upper inset, above the first grid line.
+  const markBottom=photoBottom+Math.min(20,markSize*.22);
+  const markTop=markBottom-markSize;
+  drawComparisonWeight(ctx,variation,font,photoBottom);
+  ctx.textAlign='center';
+  ctx.font=`700 ${markSize*1.15}px ${font}`;
+  const nameWidth=Math.min(690,ctx.measureText('NeoPep').width);
+  const markGap=markSize*.15;
+  const markLeft=(1080-markSize-markGap-nameWidth)/2;
   ctx.globalAlpha=.30;
-  await drawComparisonSource('assets/icon-512.png',controller.signal,image=>drawComparisonImage(ctx,image,112,markBottom-markSize,markSize,markSize));
+  await drawComparisonSource('assets/icon-512.png',controller.signal,image=>drawComparisonImage(ctx,image,markLeft,markTop,markSize,markSize));
   if(!current())return;
   ctx.fillStyle='#dfbd78';
-  ctx.font=`700 ${markSize*1.15}px ${font}`;
-  ctx.fillText('NeoPep',608,markBottom-markSize*.14,690);
+  ctx.textBaseline='middle';
+  ctx.fillText('NeoPep',markLeft+markSize+markGap+nameWidth/2,markTop+markSize/2,690);
   ctx.globalAlpha=1;
+  ctx.textBaseline='alphabetic';
   if(variation.display){
-   const baseline=photoTop+overlap*.48;
+   const baseline=markTop-12;
+   const fontSize=Math.min(78,overlap*.26);
    ctx.save();
-   ctx.font=`800 ${Math.min(156,overlap*.52)}px ${font}`;
+   ctx.font=`800 ${fontSize}px ${font}`;
    ctx.lineJoin='round';
-   ctx.lineWidth=12;
+   ctx.lineWidth=fontSize/13;
    ctx.strokeStyle='rgba(20,15,9,.80)';
    ctx.fillStyle='#ffe0a2';
    ctx.strokeText(variation.display,540,baseline,960);
    ctx.fillText(variation.display,540,baseline,960);
    ctx.restore();
   }
-  drawComparisonWeight(ctx,variation,font,photoTop+Math.max(...heights));
   const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.93));
   if(!current())return;
   if(!blob)throw Error('Composição indisponível.');

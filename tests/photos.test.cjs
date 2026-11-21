@@ -365,7 +365,7 @@ function exportFixture(cloud={}){
   }
   if(tag==='canvas'){
    element.getContext=()=>({
-    scale(){},fillRect(...bounds){blocks.push(bounds)},strokeText(){},fillText(value,x,y,maxWidth){text.push(value);styles.push({value,x,y,maxWidth,font:this.font,alpha:this.globalAlpha})},
+    scale(){},measureText(){return {width:400}},fillRect(...bounds){blocks.push(bounds)},strokeText(){},fillText(value,x,y,maxWidth){text.push(value);styles.push({value,x,y,maxWidth,font:this.font,alpha:this.globalAlpha})},
     beginPath(){},moveTo(x,y){points.push([x,y])},lineTo(x,y){points.push([x,y])},stroke(){},arc(){},fill(){},closePath(){},save(){},restore(){},setLineDash(){},
     createLinearGradient(){return {addColorStop(){}}},
     drawImage(image,...bounds){draws.push(bounds)}
@@ -414,7 +414,7 @@ test('composição exporta só os dois originais selecionados, preserva proporç
  assert.deepEqual(requests,['portrait','landscape']);
  assert.deepEqual(sizes,[[1080,1920]]);
  assert.deepEqual(draws.map(([, ,w,h])=>[w,h]),[[540,1080],[540,270],[99.9,99.9]]);
- assert.deepEqual(draws.map(([,y,,h])=>y+h),[1282,472,460]);
+ assert.deepEqual(draws.map(([,y,,h])=>y+h),[1282,472,1302]);
  assert.deepEqual(blocks.at(-1),[0,1282,1080,638]);
  assert.ok(points[8][0]<points[9][0]&&points[8][1]<points[9][1]);
  assert.ok(!text.some(label=>/Evolução do Peso|Variação/.test(label)));
@@ -422,11 +422,13 @@ test('composição exporta só os dois originais selecionados, preserva proporç
  const weightLabel=styles.find(style=>style.value==='−2,0 kg');
  assert.equal(weightLabel.x,540);
  assert.equal(weightLabel.maxWidth,960);
- assert.ok(weightLabel.y>202&&weightLabel.y<472);
+ assert.equal(weightLabel.y,draws[2][1]-12);
+ assert.match(weightLabel.font,/^800 70.2px /);
+ assert.ok(draws[2][1]<1282&&1302<points[0][1]);
  assert.ok(!text.some(label=>label==='250 kg'||label==='310 kg'));
  assert.ok(styles.every(style=>style.font.endsWith('"Teste Sans", sans-serif')));
  assert.equal(styles.find(style=>style.value==='NeoPep').alpha,.30);
- assert.ok(styles.find(style=>style.value==='NeoPep').y<472);
+ assert.equal(styles.find(style=>style.value==='NeoPep').y,draws[2][1]+draws[2][3]/2);
  assert.equal(run('loadedFonts.length'),2);
  assert.equal(doc.querySelector('[data-export-save]').href,doc.querySelector('.comparison-export-media img').src);
  assert.equal(doc.querySelector('[data-export-share]').disabled,false);
@@ -563,4 +565,5 @@ test('exportação reduzida preserva um valor longo e alinha fotos quadradas de 
  assert.equal(label.x,540);
  assert.equal(label.maxWidth,960);
  assert.ok(label.y>202&&label.y<742);
+ assert.match(label.font,/^800 78px /);
 });

@@ -373,3 +373,9 @@ Build, npm run check, empacotamento portátil e 108 testes pertinentes passaram.
 Em 21/11/2026, a composição Antes e Depois ganhou cabeçalho compacto, datas junto às fotos e duas colunas sem calha horizontal. As imagens inteiras são encaixadas com proporção original. O resultado numérico dourado foi sobreposto à divisão central, e a marca translúcida ficou na base da região compartilhada pelas fotos. O gráfico começa no limite inferior da foto mais alta e mantém valores, datas, pontos e degradê. O desenho usa coordenadas proporcionais nas duas resoluções. A seleção, o cálculo e os fluxos de prévia e exportação foram preservados.
 
 Build, checagem de código, pacote portátil e 109 testes pertinentes passaram. Os testes verificam o Canvas simulado em 1080 × 1920 e 720 × 1280, fotos verticais, horizontais e quadradas e o limite de largura de um valor longo em libras. A conferência visual em aparelho físico segue pendente. Publicação restrita a staging/permanente.
+
+## MEM-20261121-015
+
+Em 21/11/2026, o resultado de peso no JPEG passou a usar metade do tamanho anterior e contorno proporcional. O número foi centralizado imediatamente acima da marca-d'água. O símbolo e o nome NeoPep foram centralizados como um conjunto, com a transparência existente, sobre a transição entre a base das fotos e o início do gráfico. A travessia ocupa somente a parte superior anterior às linhas do gráfico. Quando as fotos têm alturas diferentes, a transição acompanha a base da foto mais alta.
+
+Build, checagem de código, empacotamento portátil e 109 testes pertinentes passaram. O Canvas simulado verificou o posicionamento em 1080 × 1920 e 720 × 1280. A inspeção visual em aparelho físico segue pendente. Publicação restrita a staging/permanente.
