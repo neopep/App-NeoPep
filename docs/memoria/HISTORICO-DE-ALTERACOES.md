@@ -379,3 +379,9 @@ Build, checagem de código, pacote portátil e 109 testes pertinentes passaram. 
 Em 21/11/2026, o resultado de peso no JPEG passou a usar metade do tamanho anterior e contorno proporcional. O número foi centralizado imediatamente acima da marca-d'água. O símbolo e o nome NeoPep foram centralizados como um conjunto, com a transparência existente, sobre a transição entre a base das fotos e o início do gráfico. A travessia ocupa somente a parte superior anterior às linhas do gráfico. Quando as fotos têm alturas diferentes, a transição acompanha a base da foto mais alta.
 
 Build, checagem de código, empacotamento portátil e 109 testes pertinentes passaram. O Canvas simulado verificou o posicionamento em 1080 × 1920 e 720 × 1280. A inspeção visual em aparelho físico segue pendente. Publicação restrita a staging/permanente.
+
+## MEM-20261121-016
+
+Em 21/11/2026, o conjunto da marca-d'água do JPEG foi centralizado na transição entre as fotos e o gráfico. O símbolo ocupa os dois lados da transição, e o nome usa o centro visual do texto. O peso continua imediatamente acima. As linhas, pontos e valores do gráfico são desenhados sobre a marca translúcida, preservando a leitura e as dimensões do gráfico.
+
+Build, checagem de código, prévia portátil e 109 testes pertinentes passaram. A geometria foi verificada em Canvas simulado em 1080 × 1920 e 720 × 1280. A inspeção visual em aparelho físico segue pendente. Publicação restrita a staging/permanente.

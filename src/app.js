@@ -460,8 +460,6 @@ async function drawComparisonSource(source,signal,draw){
 }
 function drawComparisonWeight(ctx,result,font,top){
  const {rows,reference,units}=result;
- ctx.fillStyle='#221c16';
- ctx.fillRect(0,top,1080,1920-top);
  if(rows.length<2)return;
  const {pts,ticks,y}=chartGeometry(rows,'value',reference);
  const px=x=>135+x*1.56,py=y=>top+14+y*(1871-top)/180;
@@ -607,21 +605,22 @@ async function showComparisonExport(trigger){
   const photoBottom=photoTop+Math.max(...heights);
   const overlap=Math.min(...heights);
   const markSize=Math.min(174,overlap*.37);
-  // The watermark enters only the upper inset, above the first grid line.
-  const markBottom=photoBottom+Math.min(20,markSize*.22);
-  const markTop=markBottom-markSize;
-  drawComparisonWeight(ctx,variation,font,photoBottom);
+  const markTop=photoBottom-markSize/2;
+  ctx.fillStyle='#221c16';
+  ctx.fillRect(0,photoBottom,1080,1920-photoBottom);
   ctx.textAlign='center';
   ctx.font=`700 ${markSize*1.15}px ${font}`;
-  const nameWidth=Math.min(690,ctx.measureText('NeoPep').width);
+  ctx.textBaseline='middle';
+  const nameMetrics=ctx.measureText('NeoPep');
+  const nameWidth=Math.min(690,nameMetrics.width);
+  const nameOffset=(nameMetrics.actualBoundingBoxAscent-nameMetrics.actualBoundingBoxDescent)/2||0;
   const markGap=markSize*.15;
   const markLeft=(1080-markSize-markGap-nameWidth)/2;
   ctx.globalAlpha=.30;
   await drawComparisonSource('assets/icon-512.png',controller.signal,image=>drawComparisonImage(ctx,image,markLeft,markTop,markSize,markSize));
   if(!current())return;
   ctx.fillStyle='#dfbd78';
-  ctx.textBaseline='middle';
-  ctx.fillText('NeoPep',markLeft+markSize+markGap+nameWidth/2,markTop+markSize/2,690);
+  ctx.fillText('NeoPep',markLeft+markSize+markGap+nameWidth/2,photoBottom+nameOffset,690);
   ctx.globalAlpha=1;
   ctx.textBaseline='alphabetic';
   if(variation.display){
@@ -637,6 +636,8 @@ async function showComparisonExport(trigger){
    ctx.fillText(variation.display,540,baseline,960);
    ctx.restore();
   }
+  // Paint the data over the translucent mark to keep the plot readable.
+  drawComparisonWeight(ctx,variation,font,photoBottom);
   const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.93));
   if(!current())return;
   if(!blob)throw Error('Composição indisponível.');

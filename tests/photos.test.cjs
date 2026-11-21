@@ -368,7 +368,7 @@ function exportFixture(cloud={}){
     scale(){},measureText(){return {width:400}},fillRect(...bounds){blocks.push(bounds)},strokeText(){},fillText(value,x,y,maxWidth){text.push(value);styles.push({value,x,y,maxWidth,font:this.font,alpha:this.globalAlpha})},
     beginPath(){},moveTo(x,y){points.push([x,y])},lineTo(x,y){points.push([x,y])},stroke(){},arc(){},fill(){},closePath(){},save(){},restore(){},setLineDash(){},
     createLinearGradient(){return {addColorStop(){}}},
-    drawImage(image,...bounds){draws.push(bounds)}
+    drawImage(image,...bounds){if(draws.length===2)assert.equal(points.length,0);draws.push(bounds)}
    });
    element.toBlob=resolve=>{
     sizes.push([element.width,element.height]);
@@ -414,7 +414,7 @@ test('composição exporta só os dois originais selecionados, preserva proporç
  assert.deepEqual(requests,['portrait','landscape']);
  assert.deepEqual(sizes,[[1080,1920]]);
  assert.deepEqual(draws.map(([, ,w,h])=>[w,h]),[[540,1080],[540,270],[99.9,99.9]]);
- assert.deepEqual(draws.map(([,y,,h])=>y+h),[1282,472,1302]);
+ assert.deepEqual(draws.map(([,y,,h])=>y+h),[1282,472,1331.95]);
  assert.deepEqual(blocks.at(-1),[0,1282,1080,638]);
  assert.ok(points[8][0]<points[9][0]&&points[8][1]<points[9][1]);
  assert.ok(!text.some(label=>/Evolução do Peso|Variação/.test(label)));
@@ -424,7 +424,7 @@ test('composição exporta só os dois originais selecionados, preserva proporç
  assert.equal(weightLabel.maxWidth,960);
  assert.equal(weightLabel.y,draws[2][1]-12);
  assert.match(weightLabel.font,/^800 70.2px /);
- assert.ok(draws[2][1]<1282&&1302<points[0][1]);
+ assert.equal(draws[2][1]+draws[2][3]/2,1282);
  assert.ok(!text.some(label=>label==='250 kg'||label==='310 kg'));
  assert.ok(styles.every(style=>style.font.endsWith('"Teste Sans", sans-serif')));
  assert.equal(styles.find(style=>style.value==='NeoPep').alpha,.30);
@@ -550,7 +550,7 @@ test('indicador atualiza ao mudar datas e o modal preserva a variação enquanto
 });
 
 test('exportação reduzida preserva um valor longo e alinha fotos quadradas de ponta a ponta',async()=>{
- const {run,styles,sizes}=exportFixture({
+ const {run,styles,sizes,draws}=exportFixture({
   configured:false,init:async()=>null,user:{id:'owner'},async photoBlob(){return new Blob(['square'])}
  });
  await run(`navigator.deviceMemory=4;state.profile.units='imperial';
@@ -566,4 +566,7 @@ test('exportação reduzida preserva um valor longo e alinha fotos quadradas de 
  assert.equal(label.maxWidth,960);
  assert.ok(label.y>202&&label.y<742);
  assert.match(label.font,/^800 78px /);
+ assert.equal(draws[2][1]+draws[2][3]/2,742);
+ assert.equal(styles.find(style=>style.value==='NeoPep').y,742);
+ assert.equal(label.y,draws[2][1]-12);
 });
