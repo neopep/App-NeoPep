@@ -306,7 +306,7 @@ body:has(.photo-viewer[open]){overflow:hidden}
 .photo-comparison [data-photo-slider]::-moz-range-thumb{width:18px;height:18px;border:1px solid var(--solid);border-radius:50%;background:var(--photo-gold)}
 .photo-comparison :is([data-photo-date],[data-photo-slider]):focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 
-.comparison-export-button{min-height:48px;margin-top:1rem;border-color:#a38148;color:var(--ink);border-radius:1rem}
+.comparison-export-button{border-color:#a38148;color:var(--ink);border-radius:1rem}
 .comparison-export-dialog[open]{position:fixed;inset:0;display:grid;grid-template-rows:auto minmax(0,1fr) auto;width:min(100%,38rem);height:min(100%,56rem);max-width:100%;max-height:100%;margin:auto;padding:0;overflow:hidden;background:#171310;color:#f9edda;color-scheme:dark}
 .comparison-export-dialog header,.comparison-export-dialog footer{background:#211a14;padding:.75rem max(.9rem,env(safe-area-inset-right)) .75rem max(.9rem,env(safe-area-inset-left))}
 .comparison-export-dialog header{display:flex;justify-content:space-between;align-items:center;gap:1rem;padding-top:max(.75rem,env(safe-area-inset-top))}
@@ -323,3 +323,6 @@ body:has(.photo-viewer[open]){overflow:hidden}
 .comparison-export-premium{display:flex;align-items:center;gap:.45rem;margin-top:.5rem;color:#dfbd78;font-size:.85rem}
 .comparison-export-premium input{width:auto;margin:0}
 body:has(.comparison-export-dialog[open]){overflow:hidden}
+
+.comparison-card-actions{display:flex;flex-direction:column;align-items:stretch;gap:.75rem;margin-top:1rem}
+.comparison-card-actions>button{position:static;width:100%;min-height:48px;margin:0;font-size:inherit;white-space:normal}

@@ -17,3 +17,5 @@ O inventário descreve o código versionado. Dependências de ativação e verif
 O botão **Comparar e compartilhar** em Início, Evolução e Fotos abre a composição com as seleções atuais. O modal prepara o JPEG no aparelho em formato 9:16 e exibe o arquivo que será salvo ou compartilhado. O compartilhamento usa arquivos nativos quando o navegador oferece esse recurso. O botão **Salvar imagem** usa o download local.
 
 A composição com fotos reais usa os originais das duas seleções da conta autenticada no bucket privado. A exportação exige dois dias distintos. Exemplos e seleções do mesmo dia podem ser visualizados, com exportação indisponível. O arquivo leva a marca NeoPep incorporada e a composição é descartada ao fechar o modal ou mudar de conta. A opção Premium permanece indisponível até existir autorização verificável no backend.
+
+A composição usa a tipografia do aplicativo, com a marca translúcida sobre a base das fotografias. O painel **Evolução do Peso** usa os registros da conta no intervalo, inclusive nos dias das duas fotos, e respeita a unidade configurada. Com menos de dois dias com registros válidos, o painel informa que os dados são insuficientes.

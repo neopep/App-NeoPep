@@ -348,12 +348,14 @@ test('comparação oferece composição em Início, Evolução e Fotos',()=>{
  const run=app();
  for(const page of ['homeJourneyDetails(false)','evolution()','photosPage()']){
   const {document}=parseHTML(run(page));
-  assert.match(document.querySelector('[data-photo-comparison] [data-comparison-export]').textContent,/Comparar e compartilhar/);
+  const actions=document.querySelector('[data-photo-comparison] .comparison-card-actions');
+  assert.match(actions.children[0].textContent,/Comparar e compartilhar/);
+  assert.equal(actions.children[1].dataset.add,'photo');
  }
 });
 
 function exportFixture(cloud={}){
- const run=app(cloud),doc=run.document,draws=[],text=[],sizes=[];
+ const run=app(cloud),doc=run.document,draws=[],text=[],sizes=[],points=[],styles=[];
  const create=doc.createElement.bind(doc);
  doc.createElement=tag=>{
   const element=create(tag);
@@ -363,8 +365,8 @@ function exportFixture(cloud={}){
   }
   if(tag==='canvas'){
    element.getContext=()=>({
-    scale(){},fillRect(){},fillText(value){text.push(value)},
-    createLinearGradient(){return {addColorStop(){}}},
+    scale(){},fillRect(){},fillText(value,x,y){text.push(value);styles.push({value,y,font:this.font,alpha:this.globalAlpha})},
+    beginPath(){},moveTo(x,y){points.push([x,y])},lineTo(x,y){points.push([x,y])},stroke(){},arc(){},fill(){},
     drawImage(image,...bounds){draws.push(bounds)}
    });
    element.toBlob=resolve=>{
@@ -384,14 +386,21 @@ function exportFixture(cloud={}){
  };
  document.body.insertAdjacentHTML('beforeend','<button id="exportTrigger">Comparar</button>');
  mode='cloud';demo=false;`);
- return {run,doc,draws,text,sizes};
+ return {run,doc,draws,text,sizes,points,styles};
 }
 test('composição exporta só os dois originais selecionados, preserva proporções e usa o JPEG exibido',async()=>{
- const requests=[],{run,doc,draws,text,sizes}=exportFixture({
+ const requests=[],{run,doc,draws,text,sizes,points,styles}=exportFixture({
   configured:false,init:async()=>null,user:{id:'owner'},
   async photoBlob(photo){requests.push(photo.id);return new Blob([photo.id])}
  });
  await run(`
+  window.getComputedStyle=()=>({fontFamily:'"Teste Sans", sans-serif'});
+  const loadedFonts=[];
+  document.fonts={load:font=>{loadedFonts.push(font);return Promise.resolve()}};
+  state.weights=[
+   {date:'2026-01-03',value:250},{date:'2026-01-02',value:78},
+   {date:'2025-12-31',value:310},{date:'2026-01-01',value:80}
+  ];
   photoList=[
    {id:'skip',date:'2026-01-01',user_id:'owner',path:'owner/skip.jpg'},
    {id:'portrait',date:'2026-01-01',user_id:'owner',path:'owner/p.jpg'},
@@ -403,8 +412,16 @@ test('composição exporta só os dois originais selecionados, preserva proporç
  `);
  assert.deepEqual(requests,['portrait','landscape']);
  assert.deepEqual(sizes,[[1080,1920]]);
- assert.deepEqual(draws.map(([, ,w,h])=>[w,h]),[[466,932],[466,233],[204,204]]);
- assert.ok(text.includes('NeoPep'));
+ assert.deepEqual(draws.map(([, ,w,h])=>[w,h]),[[466,932],[466,233],[196,196]]);
+ assert.deepEqual(draws.map(([,y,,h])=>y+h),[1450,1450,1438]);
+ assert.deepEqual(points,[[242,1618],[900,1782]]);
+ assert.ok(text.includes('Evolução do Peso'));
+ assert.ok(text.includes('80 kg')&&text.includes('78 kg'));
+ assert.ok(!text.some(label=>label==='250 kg'||label==='310 kg'));
+ assert.ok(styles.every(style=>style.font.endsWith('"Teste Sans", sans-serif')));
+ assert.equal(styles.find(style=>style.value==='NeoPep').alpha,.36);
+ assert.ok(styles.find(style=>style.value==='NeoPep').y<1450);
+ assert.equal(run('loadedFonts.length'),2);
  assert.equal(doc.querySelector('[data-export-save]').href,doc.querySelector('.comparison-export-media img').src);
  assert.equal(doc.querySelector('[data-export-share]').disabled,false);
  assert.equal(doc.querySelector('.comparison-export-premium input').disabled,true);
@@ -431,6 +448,7 @@ test('composição bloqueia exemplos, recusa foto de outra conta e limita a reso
  assert.deepEqual(requests,['mine']);
  assert.deepEqual(sizes,[[720,1280]]);
  assert.ok(text.includes('Exemplo'));
+ assert.ok(text.includes('Registros insuficientes no período.'));
  assert.equal(doc.querySelector('[data-export-save]').hidden,true);
  assert.equal(doc.querySelector('[data-export-share]').disabled,true);
  run("$('#comparisonExport').dispose()");

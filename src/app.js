@@ -274,7 +274,7 @@ function comparisonCard(home){
    <div data-photo-preview></div>
    <figcaption><strong>${label}</strong><span data-photo-position>${position}</span></figcaption>
    <div class="comparison-slider-slot"><input type="range" data-photo-slider="${label}" aria-label="Fotografia ${label}" aria-valuetext="${date(selected.date)}, ${position}" min="0" step="1" max="${rows.length-1}" value="${index}" style="--photo-progress:${rows.length>1?100*index/(rows.length-1):0}%" ${rows.length===1?'disabled hidden':''}></div></figure>`;
-  }).join('')}</div><button type="button" class="secondary full comparison-export-button" data-comparison-export>${icon('expand')} Comparar e compartilhar</button>${comparisonDays.size<2?addBtn('photo',photos.length?'Adicionar foto de outro dia':'Adicionar minhas fotos'):''}</section>`;
+  }).join('')}</div><div class="comparison-card-actions"><button type="button" class="secondary full comparison-export-button" data-comparison-export>${icon('expand')} Comparar e compartilhar</button>${comparisonDays.size<2?addBtn('photo',photos.length?'Adicionar foto de outro dia':'Adicionar minhas fotos'):''}</div></section>`;
 }
 function paintComparison(figure,day,index,warm=false){
  const side=Number(figure.dataset.photoSide),label=side?'Depois':'Antes',rows=comparisonDays.get(day),photo=rows?.[index];
@@ -362,10 +362,10 @@ function hydratePhotoImages(){
  figures.forEach(figure=>photoObserver.observe(figure));
  root.querySelectorAll('details[open] [data-photo-media]').forEach(image=>photoObserver.observe(image.closest('button')));
 }
-function drawComparisonImage(ctx,image,x,y,width,height){
+function drawComparisonImage(ctx,image,x,y,width,height,alignBottom=false){
  const scale=Math.min(width/image.naturalWidth,height/image.naturalHeight);
  const w=image.naturalWidth*scale,h=image.naturalHeight*scale;
- ctx.drawImage(image,x+(width-w)/2,y+(height-h)/2,w,h);
+ ctx.drawImage(image,x+(width-w)/2,y+(height-h)*(alignBottom?1:.5),w,h);
 }
 async function drawComparisonSource(source,signal,draw){
  const image=document.createElement('img');
@@ -388,12 +388,57 @@ async function drawComparisonSource(source,signal,draw){
   if(objectURL)URL.revokeObjectURL(objectURL);
  }
 }
+function drawComparisonWeight(ctx,rows,font){
+ ctx.fillStyle='#221c16';
+ ctx.fillRect(42,1516,996,354);
+ ctx.fillStyle='#dfbd78';
+ ctx.font=`700 42px ${font}`;
+ ctx.fillText('Evolução do Peso',540,1574);
+ ctx.font=`28px ${font}`;
+ if(rows.length<2||rows[0].time===rows.at(-1).time){
+  ctx.fillStyle='#f8e8ca';
+  ctx.fillText('Registros insuficientes no período.',540,1710);
+  return;
+ }
+ const first=rows[0],last=rows.at(-1);
+ const min=Math.min(...rows.map(row=>row.value)),max=Math.max(...rows.map(row=>row.value));
+ const left=242,right=900,top=1618,bottom=1782;
+ const x=row=>left+(right-left)*(row.time-first.time)/(last.time-first.time);
+ const y=row=>min===max?(top+bottom)/2:bottom-(bottom-top)*(row.value-min)/(max-min);
+ ctx.strokeStyle='#dfbd78';
+ ctx.lineWidth=5;
+ ctx.beginPath();
+ rows.forEach((row,index)=>index?ctx.lineTo(x(row),y(row)):ctx.moveTo(x(row),y(row)));
+ ctx.stroke();
+ for(const row of rows){
+  ctx.beginPath();
+  ctx.arc(x(row),y(row),5,0,Math.PI*2);
+  ctx.fill();
+ }
+ ctx.fillStyle='#f8e8ca';
+ ctx.textAlign='right';
+ ctx.fillText(rows.find(row=>row.value===max).label,left-20,y({value:max})+9);
+ if(min!==max)ctx.fillText(rows.find(row=>row.value===min).label,left-20,bottom+9);
+ ctx.textAlign='center';
+ ctx.fillText(date(first.date),left,1835);
+ ctx.fillText(date(last.date),right,1835);
+}
 async function showComparisonExport(trigger){
  if($('#comparisonExport'))return;
  const generation=loadGeneration,account=mode==='cloud'&&!demo?Cloud.user?.id:null;
  const photos=comparisonSelection.map(selected=>account&&comparisonDays.get(selected?.day)?.find(photo=>
   photo.id===selected.id&&photo.user_id===account&&photo.path?.startsWith(account+'/')));
  const exportable=photos.every(Boolean)&&photos[0].date!==photos[1].date;
+ const weightRows=[];
+ if(exportable){
+  const [start,end]=photos.map(photo=>photo.date).sort();
+  for(const row of state.weights){
+   if(row.date>=start&&row.date<=end&&Number.isFinite(row.value)){
+    weightRows.push({date:row.date,time:Date.parse(row.date),value:row.value,label:weight(row.value)+' '+unit()});
+   }
+  }
+  weightRows.sort((a,b)=>a.time-b.time);
+ }
  const controller=new AbortController();
  const dialog=document.createElement('dialog');
  dialog.id='comparisonExport';
@@ -438,6 +483,11 @@ async function showComparisonExport(trigger){
  document.body.append(dialog);
  dialog.showModal();
  try{
+  const font=window.getComputedStyle?.(document.body)?.fontFamily||'system-ui';
+  if(document.fonts){
+   await Promise.all([document.fonts.load(`400 32px ${font}`),document.fonts.load(`700 80px ${font}`)]);
+  }
+  if(!current())return;
   // One bounded output canvas and one decoded original at a time.
   canvas.width=navigator.deviceMemory&&navigator.deviceMemory<=4?720:1080;
   canvas.height=canvas.width*16/9;
@@ -448,39 +498,34 @@ async function showComparisonExport(trigger){
   ctx.fillRect(0,0,1080,1920);
   ctx.textAlign='center';
   ctx.fillStyle='#dfbd78';
-  ctx.font='bold 80px Georgia';
+  ctx.font=`700 80px ${font}`;
   ctx.fillText('Minha Evolução',540,155);
-  ctx.font='41px system-ui';
+  ctx.font=`400 41px ${font}`;
   ctx.fillText('Antes e Depois',540,233);
   for(const [side,photo] of photos.entries()){
    const x=42+side*510,center=x+243;
    ctx.fillStyle='#27221d';
-   ctx.fillRect(x,316,486,1244);
+   ctx.fillRect(x,316,486,1164);
    ctx.fillStyle='#dfbd78';
-   ctx.font='bold 38px system-ui';
+   ctx.font=`700 38px ${font}`;
    ctx.fillText(side?'DEPOIS':'ANTES',center,384);
    ctx.fillStyle='#f8e8ca';
-   ctx.font='32px system-ui';
+   ctx.font=`400 32px ${font}`;
    ctx.fillText(photo?date(photo.date):'Exemplo',center,437);
    const source=photo?await Cloud.photoBlob(photo):`assets/photo-example-${side+1}.png`;
    if(!current())return;
-   await drawComparisonSource(source,controller.signal,image=>drawComparisonImage(ctx,image,x+10,470,466,1000));
+   await drawComparisonSource(source,controller.signal,image=>drawComparisonImage(ctx,image,x+10,470,466,980,true));
    if(!current())return;
   }
-  // Shade the base of both frames while keeping the entire photo area clear.
-  const shade=ctx.createLinearGradient(0,1470,0,1920);
-  shade.addColorStop(0,'rgba(20,15,9,0)');
-  shade.addColorStop(.48,'rgba(57,39,19,.88)');
-  shade.addColorStop(1,'#17110b');
-  ctx.fillStyle=shade;
-  ctx.fillRect(24,1470,1032,450);
-  ctx.globalAlpha=.86;
-  await drawComparisonSource('assets/icon-512.png',controller.signal,image=>drawComparisonImage(ctx,image,438,1540,204,204));
+  // Keep the watermark translucent and near the lower edge of both photos.
+  ctx.globalAlpha=.36;
+  await drawComparisonSource('assets/icon-512.png',controller.signal,image=>drawComparisonImage(ctx,image,92,1242,196,196));
   if(!current())return;
   ctx.fillStyle='#dfbd78';
-  ctx.font='bold 98px Georgia';
-  ctx.fillText('NeoPep',540,1846);
+  ctx.font=`700 218px ${font}`;
+  ctx.fillText('NeoPep',610,1424,720);
   ctx.globalAlpha=1;
+  drawComparisonWeight(ctx,weightRows,font);
   const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.93));
   if(!current())return;
   if(!blob)throw Error('Composição indisponível.');

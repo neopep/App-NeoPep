@@ -11,3 +11,4 @@
 9. Projetar a separação de permissões entre administração de plataforma, moderação de comunidade, atendimento e gestão de agentes. [D-010](DECISOES.md)
 10. Concluir o projeto dedicado Vercel, o DNS, a proteção de acesso e o Auth de staging. Só depois validar os disparos de notificações com VAPID e dispositivos fictícios. [MEM-20261120-016](HISTORICO-DE-ALTERACOES.md#mem-20261120-016)
 11. Configurar a origem permitida do staging para as Edge Functions, testar com sessões fictícias reais e validar push com VAPID exclusivo antes de habilitar gatilhos ou cron. [MEM-20261120-017](HISTORICO-DE-ALTERACOES.md#mem-20261120-017)
+12. Conferir a composição Antes e Depois no Safari e no PWA de um iPhone físico, incluindo os botões empilhados, a posição da marca nas fotos e o compartilhamento e salvamento do JPEG. [MEM-20261121-012](HISTORICO-DE-ALTERACOES.md#mem-20261121-012)
