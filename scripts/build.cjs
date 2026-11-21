@@ -18,6 +18,7 @@ require('./package-pdf-reader.cjs');
   // The bundled Auth SDK uses a template literal for its whitespace alphabet.
   // Escape its initial space and tab so Git's whitespace check accepts rebuilds.
   fs.writeFileSync(output.path, output.text.replace('=` \t\n', '=`\\x20\\t\n'));
+  fs.copyFileSync('src/app.js', 'dist/app.js');
   console.log('SDK oficial Supabase empacotado localmente.');
 })().catch(error => {
   console.error(error);

@@ -297,3 +297,13 @@ A conferência dos originais e dos tamanhos derivados, o npm run check e o teste
 ## MEM-20261121-002
 
 Em 21/11/2026, o NeoPep Teste passou a usar em `dist/assets/logo-neopep.png` o PNG original de crescimento de 1254 × 1254 do último Logo.zip, copiado byte a byte. O caminho compartilhado atende login, cabeçalho, administração e páginas relacionadas. Os derivados de instalação, nomes, cache e configuração são os da versão anterior. A publicação é exclusiva de staging/permanente. O npm run check passou, e a suíte focada teve 66/68 com as duas falhas preexistentes de privacidade em notificações.
+
+## MEM-20261121-005
+
+Em 21/11/2026, o NeoPep Teste passou a exibir históricos de evolução e perfil recolhidos, ordenados por dia do mais antigo ao mais recente. A grade pede apenas miniaturas reduzidas visíveis. A foto ampliada e a comparação Antes/Depois pedem a imagem individual. Fotos antigas sem miniatura no bucket aparecem com acesso individual ao original. Fotos locais antigas recebem uma miniatura em memória sob demanda. O arquivo salvo em JPEG e a miniatura privada são separados; geração de miniaturas não reescreve o acervo anterior.
+
+O formulário de evolução aceita seleção múltipla e sucessiva, prévias removíveis, data comum ou EXIF DateTimeOriginal de JPEG quando válida, progresso por fase e contadores. O lote usa até dois envios simultâneos e tem IDs estáveis para retentativas na mesma seleção. O recorte e o envio individual de perfil foram preservados. HEIC depende da decodificação do navegador; sem metadado confiável o formulário usa a data comum informada.
+
+A restauração mantém uma tela discreta até resolver a sessão. Erros de conexão oferecem nova tentativa e o fluxo de retorno de autenticação continua no endereço já configurado. O build passou a emitir dist/app.js a partir de src/app.js e renovou o cache de staging.
+
+Build, check e 91 testes pertinentes passaram. Os testes exercitaram seleção sucessiva, cancelamento, lote de dez, limitação de concorrência, falha parcial, retentativa e isolamento do caminho assinado com transporte simulado. Em leitura, staging confirmou bucket privado de 5 MB, RLS e políticas por conta. Duas falhas de privacidade do conteúdo push da suíte PWA ampla permanecem preexistentes e fora do escopo. A verificação em iPhone real, em conexão móvel e de envio real entre duas contas continua pendente. Não houve alteração de banco, pagamentos, agentes, notificações ou produção.
