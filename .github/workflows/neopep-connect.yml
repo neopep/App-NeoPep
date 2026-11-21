@@ -4,6 +4,9 @@ on:
   push:
     branches: [desenvolvimento/neopep-connect, staging/permanente]
     paths: ['connect/windows/**', '.github/workflows/neopep-connect.yml']
+  pull_request:
+    branches: [staging/permanente]
+    paths: ['connect/windows/**', '.github/workflows/neopep-connect.yml']
   workflow_dispatch:
 
 permissions:
@@ -11,7 +14,7 @@ permissions:
 
 jobs:
   windows:
-    if: github.ref_name == 'staging/permanente' || github.ref_name == 'desenvolvimento/neopep-connect'
+    if: github.ref_name == 'staging/permanente' || github.ref_name == 'desenvolvimento/neopep-connect' || github.event.pull_request.head.ref == 'desenvolvimento/neopep-connect'
     runs-on: windows-2022
     timeout-minutes: 10
     steps:

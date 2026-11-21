@@ -79,7 +79,7 @@ sealed class Connect : Form {
             if(next!=Value(local,"account")){local["account"]=next;Save();}
         };
         var actions=new FlowLayoutPanel{AutoSize=true,WrapContents=true,Dock=DockStyle.Top};
-        var login=Button("Entrar e registrar"),diagnose=Button("Diagnóstico"),open=Button("Painel / atualizações");
+        var login=Button("Entrar e registrar");var diagnose=Button("Diagnóstico");var open=Button("Painel / atualizações");
         login.Click+=async delegate {await Login();};
         diagnose.Click+=delegate {MessageBox.Show(File.Exists(log)?File.ReadAllText(log):"Sem eventos registrados.",Text);};
         open.Click+=delegate {Process.Start(StagingPanel);};
@@ -179,7 +179,7 @@ sealed class Connect : Form {
         public override string ToString(){return Name;}
     }
     void RenderAccounts(Dictionary<string,object> data) {
-        var list=data["accounts"] as object[];
+        var list=data["accounts"] as System.Collections.IEnumerable;
         if(list==null)return;
         var selected=Value(local,"account");
         var next=new List<Account>{new Account{ Id="",Name="Sem sessão fictícia"}};
