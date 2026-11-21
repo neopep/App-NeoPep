@@ -10,7 +10,9 @@ test('históricos recolhidos agrupam por dia e não incluem src de mídia',()=>{
   {id:'p',date:'2026-01-01',role:'avatar'}
  ];photosPage()`);
  const {document}=parseHTML('<main>'+html+'</main>');
- assert.equal(document.querySelectorAll('details').length,3);
+ assert.equal(document.querySelectorAll('details').length,2);
+ assert.equal(document.querySelectorAll('[data-photo-comparison] input[type=range]').length,2);
+ assert.equal(document.querySelectorAll('[data-photo-variant=original]').length,0);
  assert.equal(document.querySelectorAll('details[open]').length,0);
  assert.equal(document.querySelectorAll('[data-photo-media][src]').length,0);
  assert.deepEqual([...document.querySelectorAll('[data-photo-section=progress] [data-photo-open]')].map(x=>x.dataset.photoOpen),['a','b']);
@@ -132,4 +134,81 @@ test('sugere somente a data de captura EXIF válida do JPEG',async()=>{
  };
  assert.equal(await run('captureDate(new Blob([new Uint8Array('+JSON.stringify(jpeg('2026:01:02 12:34:56'))+')]))'),'2026-01-02');
  assert.equal(await run('captureDate(new Blob([new Uint8Array('+JSON.stringify(jpeg('2026:02:31 12:34:56'))+')]))'),null);
+});
+
+test('sliders independentes atualizam posição imediatamente, inclusive com datas iguais',()=>{
+ const run=app();
+ run(`photoList=[
+  {id:'third',date:'2026-02-03',role:'progress'},
+  {id:'second',date:'2026-02-02',role:'progress',created_at:'2026-02-02T15:00:00Z'},
+  {id:'first',date:'2026-02-02',role:'progress',created_at:'2026-02-02T12:00:00Z'}
+ ];document.querySelector('#content').innerHTML=photosPage()`);
+ const before=run.document.querySelector('[data-photo-slider=Antes]');
+ const after=run.document.querySelector('[data-photo-slider=Depois]');
+ assert.equal(before.getAttribute('value'),'0');
+ assert.equal(after.getAttribute('value'),'2');
+ const first=before.closest('figure').querySelector('img');
+ before.value='1';
+ before.dispatchEvent(new run.document.defaultView.Event('input',{bubbles:true}));
+ assert.equal(first.isConnected,false);
+ assert.equal(before.closest('figure').querySelector('img').dataset.photoMedia,'second');
+ assert.match(before.getAttribute('aria-valuetext'),/2 de 3/);
+ assert.match(before.closest('figure').querySelector('figcaption').textContent,/2 de 3/);
+ assert.equal(after.closest('figure').querySelector('img').dataset.photoMedia,'third');
+});
+
+test('o visualizador mantém as ações disponíveis enquanto a foto carrega e confirma a exclusão',async()=>{
+ const run=app();
+ const create=run.document.createElement.bind(run.document);
+ run.document.createElement=(tag)=>{
+  const el=create(tag);
+  if(tag==='dialog'){
+   el.showModal=()=>el.setAttribute('open','');
+   el.close=()=>{el.removeAttribute('open');el.dispatchEvent(new run.document.defaultView.Event('close'))};
+  }
+  return el;
+ };
+ run(`photoList=[{id:'private',date:C.today(),role:'progress'}];
+ photoSource=()=>new Promise(()=>{});confirm=()=>{window.confirmed=true;return false};void showPhoto('private')`);
+ const dialog=run.document.querySelector('#photoViewer');
+ assert.equal(dialog.querySelector('button[autofocus]').textContent,'Fechar');
+ assert.equal(dialog.querySelector('[data-photo-export]').textContent,'Download');
+ assert.equal(dialog.querySelector('[role=status]').textContent,'Carregando foto…');
+ dialog.querySelector('[data-photo-delete]').dispatchEvent(new run.document.defaultView.Event('click',{bubbles:true}));
+ await new Promise(setImmediate);
+ assert.equal(run('window.confirmed'),true);
+ assert.equal(run('photoList.length'),1);
+ dialog.close();
+ assert.equal(run.document.querySelector('#photoViewer'),null);
+});
+
+test('resposta atrasada do slider é descartada e históricos recolhidos não são observados',async()=>{
+ const run=app();
+ run(`page='fotos';photoList=Array.from({length:100},(_,i)=>({
+  id:'photo-'+i,date:'2026-02-01',role:'progress',created_at:String(i).padStart(3,'0')
+ }));
+ document.querySelector('#content').innerHTML=photosPage();
+ window.observed=[];
+ window.requests=[];
+ window.IntersectionObserver=class{
+  constructor(callback){window.deliverEntries=callback;window.observed=[]}
+  disconnect(){}
+  observe(button){window.observed.push(button)}
+  unobserve(){}
+ };
+ photoSource=(photo,variant)=>new Promise(resolve=>window.requests.push({photo,variant,resolve}));
+ hydratePhotoImages();
+ window.deliverEntries([{isIntersecting:true,target:window.observed[0]}]);
+ window.setTimeout=fn=>fn();
+ const slider=document.querySelector('[data-photo-slider=Antes]');
+ slider.value='50';changePhotoComparison(slider);
+ window.deliverEntries([{isIntersecting:true,target:window.observed[0]}]);
+ `);
+ assert.equal(run('window.observed.length'),2);
+ assert.equal(run("window.requests.map(r=>r.variant).join(',')"),'thumbnail,thumbnail');
+ run("window.requests[1].resolve('https://example.invalid/current');window.requests[0].resolve('https://example.invalid/stale')");
+ await new Promise(setImmediate);
+ const first=run.document.querySelector('[data-photo-slider=Antes]').closest('figure');
+ assert.equal(first.querySelector('img').getAttribute('src'),'https://example.invalid/current');
+ assert.equal(run.document.querySelectorAll('details [src]').length,0);
 });
