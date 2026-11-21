@@ -425,3 +425,9 @@ Em 21/11/2026, foram revisados MEM-017 a MEM-020. O novo painel reaproveita cada
 A migração 20261121190211 foi aplicada no Supabase de teste qnuluspqfazdppciermw. Uma tentativa anterior foi revertida por tentar auditar uma visão. A versão aplicada limita os gatilhos a tabelas físicas. O teste remoto com rollback confirmou coorte madura D30, amostragem e deduplicação, bloqueio de conta comum, revogação e auditoria. O staging tinha uma amostra técnica persistida, sem eventos reais de uso, qualidade ou IA. O catálogo pg_cron não estava disponível. Não foram ativadas rotinas ou integrações externas.
 
 Build, checagem e prévia passaram. A suíte focada passou em 119 de 123 testes, com as quatro falhas preexistentes de configurações e push. Casos específicos validaram coortes imaturas, ausência de recomendações sem evidência, simulação, estados, controles de acesso e a consulta a um catálogo de cron simulado. O Advisor sinalizou tabelas internas sem política de cliente e o RPC autenticado com segurança do definidor. A conferência visual em aparelhos físicos continua pendente. Publicação exclusiva em staging/permanente.
+
+## MEM-20261121-022
+
+Em 21/11/2026, a auditoria de homologação corrigiu a montagem das configurações administrativas e duas falhas de privacidade push. O painel recebeu exportação de cadastros por cursor, resumo imprimível em PDF, dimensões de IA, referência oficial do plano Supabase Free, estados de execução programada e Web Vitals consentidos.
+
+A migração `20261121192900` foi aplicada somente em `qnuluspqfazdppciermw`. Foram publicadas as Edge Functions push-dispatch v3 e ai-reply v5 com validação JWT. O SQL remoto com rollback verificou autorização, origem, exportação, observação e RLS automática. Nenhum agendamento foi ativado. Build, checagem, pacote portátil e 124 testes focados passaram. [Matriz e erros originais](AUDITORIA-FINAL-STAGING.md)

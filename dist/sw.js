@@ -7,5 +7,24 @@ self.addEventListener('activate',e=>e.waitUntil((async()=>{for(const key of awai
 self.addEventListener('message',e=>{if(e.data?.type==='SKIP_WAITING')self.skipWaiting()});
 self.addEventListener('fetch',e=>{const r=e.request,u=new URL(r.url);if(r.method!=='GET'||u.origin!==self.location.origin||u.search||!urls.has(u.href))return;e.respondWith((async()=>{try{const response=await fetch(r);if(response.ok&&!response.redirected){const cache=await caches.open(CACHE);await cache.put(r,response.clone())}return response}catch{const cached=await caches.match(r);return cached||new Response('Sem conexão. Abra o app online primeiro.',{status:503,headers:{'Content-Type':'text/plain; charset=utf-8'}})}})())});
 
-self.addEventListener('push',event=>{let tag='neo-reminder',kind='reminder',title='NeoPep',body='Abra o aplicativo para registrar sua evolução.';try{const data=event.data?.json();if(/^[a-f0-9-]{36}$/.test(data?.tag))tag=data.tag;if(['community','support','library','shop'].includes(data?.kind))kind=data.kind;if(typeof data?.title==='string'&&data.title.length<=100)title=data.title;if(typeof data?.body==='string'&&data.body.length<=180)body=data.body;else if(kind==='support')body='Você tem uma nova mensagem privada.';else if(kind==='community')body='Há uma nova postagem na comunidade.';else if(kind==='library')body='Há um novo material disponível na Biblioteca.';else if(kind==='shop')body='Seu pedido recebeu uma atualização.'}catch{}event.waitUntil(self.registration.showNotification(title,{body,tag,icon:new URL('assets/icon-192.png',self.registration.scope).href,badge:new URL('assets/icon-192.png',self.registration.scope).href,data:{target:kind}}))});
+const privatePushMessages={
+ reminder:'Abra o aplicativo para consultar seus lembretes.',
+ support:'Você tem uma nova mensagem privada.',
+ community:'Há uma nova postagem na comunidade.',
+ library:'Há um novo material disponível na Biblioteca.',
+ shop:'Seu pedido recebeu uma atualização.'
+};
+self.addEventListener('push',event=>{
+ let tag='neo-reminder',kind='reminder';
+ try{
+  const data=event.data?.json();
+  if(/^[a-f0-9-]{36}$/.test(data?.tag))tag=data.tag;
+  if(['community','support','library','shop'].includes(data?.kind))kind=data.kind;
+ }catch{}
+ event.waitUntil(self.registration.showNotification('NeoPep',{
+  body:privatePushMessages[kind],tag,
+  icon:new URL('assets/icon-192.png',self.registration.scope).href,
+  badge:new URL('assets/icon-192.png',self.registration.scope).href,data:{target:kind}
+ }));
+});
 self.addEventListener('notificationclick',event=>{event.notification.close();event.waitUntil((async()=>{const scope=new URL(self.registration.scope),target=event.notification.data?.target||'reminder',community=['community','support','library'].includes(target),shop=target==='shop';for(const client of await self.clients.matchAll({type:'window',includeUncontrolled:true})){const url=new URL(client.url);if(url.origin===scope.origin&&url.pathname.startsWith(scope.pathname)){await client.focus();if(shop)client.postMessage({type:'NEO_OPEN_SHOP_ORDERS'});else client.postMessage({type:community?'NEO_OPEN_COMMUNITY':'NEO_OPEN_REMINDERS',direct:target==='support',library:target==='library'});return}}await self.clients.openWindow(new URL(shop?'#loja':target==='support'?'?conversa=1#comunidade':community?'#comunidade':'#lembretes',scope).href)})())});

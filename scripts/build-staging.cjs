@@ -21,6 +21,7 @@ async function prepare() {
     ...base,
     appDisplayName: 'NeoPep Teste',
     legacyPushScope: '/neo/',
+    stagingGeoEnabled: process.env.NEO_STAGING_GEO_ENABLED === '1' && !!process.env.NEO_STAGING_SERVER_SUPABASE_KEY,
     stagingBuild: /^[a-f0-9]{40}$/.test(process.env.VERCEL_GIT_COMMIT_SHA || '') ? {
       commit: process.env.VERCEL_GIT_COMMIT_SHA,
       branch,
@@ -54,7 +55,7 @@ async function prepare() {
   const serviceWorker = 'dist/sw.js';
   const worker = fs.readFileSync(serviceWorker, 'utf8')
     .replace(/^const CACHE=.*;$/m,
-      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v20';")
+      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v21';")
     .replace(/key\.startsWith\((?:'[^']+'|CACHE_PREFIX)\)/, 'key.startsWith(CACHE_PREFIX)');
   fs.writeFileSync(serviceWorker, worker);
 }

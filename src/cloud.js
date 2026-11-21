@@ -98,6 +98,18 @@ const api={configured,get remember(){return rememberSession},get persistenceLimi
  async setConsent(purpose,granted){need();if(!['health','terms','photos'].includes(purpose)||typeof granted!=='boolean')throw Error('Consentimento inválido.');ok(await client.rpc('neo_set_consent',{p_purpose:purpose,p_granted:granted}));consents=consents.filter(c=>c.purpose!==purpose);consents.push({purpose,version:'2026-11-v1',granted});if(!granted&&['health','terms'].includes(purpose))onboarded=false},
  async heartbeat(){need();ok(await client.rpc('neo_heartbeat'))},
  async reportError(code){if(!user||!['sync_failed','photo_failed','profile_failed','import_failed'].includes(code))return;try{await client.rpc('neo_report_error',{p_code:code})}catch{}},
+ observeWebVitals(callback){
+  return import('web-vitals').then(({onCLS,onINP,onLCP})=>{onCLS(callback);onINP(callback);onLCP(callback)}).catch(()=>{});
+ },
+ async geoControl(action){need();return ok(await client.rpc('neo_geo_control',{p_action:action}))},
+ async adminGeo(users){need();return ok(await client.rpc('neo_admin_geo',{p_users:users}))},
+ async captureGeo(){
+  need();const version=identityVersion,account=user.id;
+  const {session}=ok(await client.auth.getSession());
+  if(version!==identityVersion||session?.user?.id!==account||!session.access_token)return;
+  const result=await fetch('/api/staging-observe?mode=geo',{method:'POST',headers:{Authorization:'Bearer '+session.access_token}});
+  if(version===identityVersion&&result.ok)return result.json();
+ },
  async adminOperations(section,days=30,review=null){need();return ok(await client.rpc('neo_admin_operations',{p_section:section,p_days:days,p_review:review}))},
  async qualityObserve(metric,duration=null,revision=''){need();return ok(await client.rpc('neo_quality_observe',{p_metric:metric,p_duration:duration,p_revision:revision}))},
  async adminSystem(action='snapshot',payload={}){need();return ok(await client.rpc('neo_admin_system',{p_action:action,p_payload:payload}))},
@@ -117,6 +129,7 @@ const api={configured,get remember(){return rememberSession},get persistenceLimi
  async engagement(action,events=[]){need();return ok(await client.rpc('neo_engagement',{p_action:action,p_events:events}))},
  async adminEngagement(filters){need();return ok(await client.rpc('neo_admin_engagement',filters))},
  async adminAudience(filters={}){need();return ok(await client.rpc('neo_admin_audience',filters))},
+ async adminSignupExport(filters={}){need();return ok(await client.rpc('neo_admin_signup_export',filters))},
  async adminSignups(action,filters={}){need();return ok(await client.rpc('neo_admin_signups',{...filters,p_action:action}))},
  async exportMetadata(){need();const account=user.id,version=identityVersion,data=ok(await client.rpc('neo_export_account_metadata'));const support=await client.rpc('neo_support_export');if(support.error&&!['PGRST202','42883'].includes(support.error.code))ok(support);const purchases=await client.rpc('neo_shop_export');if(purchases.error&&!['PGRST202','42883'].includes(purchases.error.code))ok(purchases);if(version!==identityVersion||account!==user?.id)throw Error('A conta mudou durante a exportação.');return {user:{id:user.id,email:user.email,created_at:user.created_at},...data,...(!support.error?{private_conversations:support.data}:{} ),...(!purchases.error?{purchases:purchases.data}:{})}},
  async put(kind,record){needsHealth();const account=user.id,version=identityVersion,clean=C.validRecord(kind,record),base={user_id:account,kind,id:clean.id,data:clean};let r;

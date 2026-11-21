@@ -404,3 +404,17 @@ body:has(.comparison-export-dialog[open]){overflow:hidden}
  .admin-tabs[hidden]{display:none}
  .admin-tabs button{flex:none;min-height:44px}
 }
+
+@media print{
+ body:has([data-executive-print]) .app-header,
+ body:has([data-executive-print]) footer,
+ body:has([data-executive-print]) .page-head,
+ body:has([data-executive-print]) .admin-tabs,
+ body:has([data-executive-print]) #adminStatus,
+ body:has([data-executive-print]) [data-operations-status],
+ body:has([data-executive-print]) [data-operations-days],
+ body:has([data-executive-print]) [data-operation-section]:not([data-operation-section="executive"]),
+ body:has([data-executive-print]) button{display:none!important}
+ body:has([data-executive-print]) .engagement-table{overflow:visible}
+ body:has([data-executive-print]){color:#111;background:#fff}
+}

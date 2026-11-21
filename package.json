@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "2.80.0",
-    "pdfjs-dist": "6.5.438"
+    "pdfjs-dist": "6.5.438",
+    "web-vitals": "4.2.4"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.3.14",

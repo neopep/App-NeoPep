@@ -86,3 +86,11 @@ O simulador usa cinco cenários editáveis de usuários, de 1.000 a 100.000. Os 
 Rotinas consultam o pg_cron quando disponível, sem retornar comandos ou mensagens internas. Exemplos no repositório são identificados como exemplos. A ausência de cron no staging deixa o histórico de execução indisponível. Para intervalos conhecidos, atrasos são sinalizados somente se houver execução bem-sucedida registrada. Nenhum agendamento foi criado.
 
 A migração 20261121190211 é aditiva e restrita ao projeto qnuluspqfazdppciermw. Para reverter a interface, publique o frontend anterior. As tabelas e gatilhos mantêm o histórico observado, com acesso administrativo.
+
+### Origem aproximada e amostras em homologação
+
+No projeto Vercel `app-neopep-staging`, configure `NEO_STAGING_SERVER_SUPABASE_KEY` somente no backend com a chave service_role do projeto `qnuluspqfazdppciermw`. Para disponibilizar o opt-in de origem, configure também `NEO_STAGING_GEO_ENABLED=1` e execute novo build. O cadastro exige sessão autenticada e consentimento explícito. As requisições usam cidade, região e país informados pela Vercel. [Cabeçalhos da Vercel](https://vercel.com/docs/headers/request-headers)
+
+A rota `/api/staging-observe?kind=snapshot` requer também `CRON_SECRET` com pelo menos 32 caracteres. Verifique uma execução autenticada e o registro no Centro de Saúde antes de ativar uma tarefa diária. O horário sugerido é `0 4 * * *` em UTC, condicionado ao plano do projeto. Nenhum agendamento é criado por esta configuração. [Limites de cron](https://vercel.com/docs/cron-jobs/usage-and-pricing)
+
+As cotas Free são referência do plano. Os valores medidos internamente e limites manuais aparecem separadamente. [Faturamento Supabase](https://supabase.com/docs/guides/platform/billing-on-supabase) · [Egress](https://supabase.com/docs/guides/platform/manage-your-usage/egress) · [Realtime](https://supabase.com/docs/guides/realtime/pricing)

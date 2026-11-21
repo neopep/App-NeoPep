@@ -41,23 +41,27 @@ function adminCsv(name,rows){
 async function signupExport(cloud,filters,current){
  const result=[['Identificador','Nome','E-mail','Cadastro','Método','Último acesso','Cidade inicial','Estado inicial','País inicial',
   'Cidade recente','Estado recente','País recente','Dispositivo inicial','SO inicial','Dispositivo recente','SO recente','Campanha inicial','Campanha recente']];
+ const bulk=typeof cloud.adminSignupExport==='function',size=bulk?250:20,maxBatches=bulk?80:250;
  let cursor=null;
- for(let n=0;n<250;n++){
-  const page=await cloud.adminSignups('page',{...filters,p_before:cursor?.created_at??null,p_before_id:cursor?.id??null});
+ for(let n=0;n<maxBatches;n++){
+  const payload={...filters,p_before:cursor?.created_at??null,p_before_id:cursor?.id??null};
+  const page=bulk?await cloud.adminSignupExport(payload):await cloud.adminSignups('page',payload);
   if(!current())return null;
-  const rows=page.rows.slice(0,20);
-  const metrics=rows.length&&cloud.adminAudience?await cloud.adminAudience({p_users:rows.map(x=>x.id)}):{};
+  const rows=page.rows.slice(0,size);
+  const metrics=!bulk&&rows.length&&cloud.adminAudience?await cloud.adminAudience({p_users:rows.map(x=>x.id)}):{};
   if(!current())return null;
   for(const row of rows){
-   const o=metrics?.[row.id]||{};
-   result.push([row.id,row.full_name,row.email,row.created_at,row.provider,row.last_access,'','','','','','',
+   const o=bulk?row:(metrics?.[row.id]||{});
+   const before=row.first_location||{},after=row.last_location||{};
+   result.push([row.id,row.full_name,row.email,row.created_at,row.provider,row.last_access,
+    before.city,before.region,before.country,after.city,after.region,after.country,
     o.first_device?.category,o.first_device?.os,o.last_device?.category,o.last_device?.os,
     o.first_campaign?audienceCampaignSummary(o.first_campaign,false):'',o.last_campaign?audienceCampaignSummary(o.last_campaign,false):'']);
   }
-  if(page.rows.length<=20)return result;
+  if(page.rows.length<=size)return result;
   cursor=rows.at(-1);
  }
- throw Error('A exportação excedeu 5.000 registros. Reduza o intervalo.');
+ throw Error('A exportação excedeu '+(size*maxBatches).toLocaleString('pt-BR')+' registros. Reduza o intervalo.');
 }
 function input(name,label,value='',extra=''){return `<label>${label}<input name="${name}" value="${esc(value)}" ${extra}></label>`;}
 function settingsView(p){const c=p.config,s=p.shop||{},publicCfg=window.NEO_CONFIG||{};return `<section class="card space"><h2>Cadastro e confirmação de e-mail</h2><p class="sub">Controle exclusivo do administrador principal. Desativar permite criar conta e entrar sem confirmar a propriedade do e-mail. Recuperação de senha ainda depende de envio de e-mail. Reativar vale para novos cadastros.</p><p id="authSettingsStatus" role="status">Estado ainda não consultado no Supabase.</p><button class="secondary" type="button" id="authSettingsRead">Consultar estado atual</button><form id="authSettingsForm" class="space"><label class="check"><input type="checkbox" id="requireEmailConfirmation" disabled> Exigir confirmação de e-mail nos novos cadastros</label><button class="primary" type="submit" disabled>Aplicar no Supabase</button></form></section><form id="platformForm"><section class="card space"><h2>Configurações gerais</h2><p class="sub">Referências operacionais do suporte. Alterar a URL aqui não conecta um domínio nem muda as permissões do CAPTCHA.</p>${input('support_email','E-mail operacional de atendimento',c.support_email||publicCfg.privacyContact||'','type="email" maxlength="254"')}${input('site_url','Endereço público de referência',c.site_url||'','type="url" maxlength="2000" placeholder="https://…"')}<label class="check"><input type="checkbox" name="require_approval" ${p.require_approval?'checked':''}> Exigir aprovação das novas mensagens do Grupo</label></section><button class="primary full space" type="submit">Salvar configurações</button></form><div data-agent-admin></div><section class="card space"><h2>Pagamentos e entrega</h2><p class="sub">Mercado Pago: ${s.payments_ready?'habilitado no ambiente '+esc(s.payment_environment):'configuração e homologação pendentes'}. Retorno do navegador não confirma pagamento.</p><details class="admin-secret-help"><summary>Integração com Mercado Pago</summary><p class="sub">As credenciais MP_ACCESS_TOKEN, MP_COLLECTOR_ID, MP_WEBHOOK_SECRET, MP_MODE e SHOP_APP_URL ficam nos Secrets do Supabase. Teste completo e webhook são necessários antes de ativar pagamentos. Não coloque essas chaves no formulário.</p><p class="sub">Webhook: <code>${esc(publicCfg.supabaseUrl||'')}/functions/v1/mercadopago-webhook</code></p></details><form id="adminShopForm" class="space">${input('seller_name','Responsável pela loja',s.seller_name||'','required maxlength="120"')}${input('seller_document','CPF ou CNPJ',s.seller_document||'','required maxlength="14" inputmode="numeric"')}${input('business_address','Endereço comercial',s.business_address||'','required maxlength="250"')}${input('support_email','E-mail de atendimento da loja',s.support_email||'','required type="email" maxlength="254"')}<label>Condições de troca<textarea name="returns_policy" rows="4" required maxlength="4000">${esc(s.returns_policy||'')}</textarea></label><div class="form-grid">${input('shipping','Frete fixo (R$)',String((s.shipping_cents??0)/100).replace('.',','),'required inputmode="decimal"')}${input('delivery_min','Prazo mínimo em dias úteis',s.delivery_min??3,'required type="number" min="1" max="90"')}${input('delivery_max','Prazo máximo em dias úteis',s.delivery_max??10,'required type="number" min="1" max="120"')}</div><label class="check"><input type="checkbox" name="shipping_ready" ${s.shipping_ready?'checked':''}> Entrega e prazo conferidos</label><button class="secondary full" type="submit">Salvar entrega e condições</button></form></section>`;}
@@ -79,8 +83,11 @@ document.addEventListener('input',event=>{if(event.target.closest('#platformForm
 document.addEventListener('change',event=>{if(event.target.matches('[name=ai_provider],[name=ai_model]')){const form=document.querySelector('#platformForm'),box=form?.querySelector('[name=ai_enabled]');if(box){box.checked=false;box.disabled=true;}}});
 document.addEventListener('submit',async event=>{const form=event.target;if(!form.matches('#platformForm,#adminShopForm'))return;event.preventDefault();if(loading||!authorized||!form.reportValidity())return;const values=Object.fromEntries(new FormData(form)),gen=generation;loading=true;const button=form.querySelector('[type=submit]');button.disabled=true;try{if(form.id==='platformForm')await window.NeoCloud.platform('save',{support_email:values.support_email,site_url:values.site_url,require_approval:values.require_approval==='on'});else await window.NeoCloud.shop('settings',{...values,shipping_cents:window.NeoShopCore.cents(values.shipping,true),delivery_min:Number(values.delivery_min),delivery_max:Number(values.delivery_max),shipping_ready:values.shipping_ready==='on'});if(gen!==generation)return;dirty=false;loading=false;await refresh();$('#adminStatus').textContent='Configurações salvas no servidor.';}catch(err){if(gen===generation)$('#adminStatus').textContent=err.message;}finally{loading=false;button.disabled=false;}});
 let paymentConfig=null,paymentBusy=false,paymentMessage='',paymentSelected='test';
-function paymentPanel(){const root=paymentConfig||{},active=root.active_environment||root.environment||'test',c=root.environments?.[paymentSelected]||(root.environment===paymentSelected?root:{}),url=root.webhook_url||new URL('/functions/v1/mercadopago-webhook',window.NEO_CONFIG.supabaseUrl).href,saved=c.configured?' <span class="tag">✓ Salvo</span>':'',label=paymentSelected==='production'?'Produção':'Teste',message=paymentMessage||(c.validated_at?'Conexão validada · conta '+c.collector_id:c.configured?'Credenciais salvas. Teste esta conexão antes de ativar.':'Cadastre as credenciais de '+label+'.');return `<section class="card space"><div class="between"><div><h2>Pagamento · Mercado Pago</h2><p class="sub">Teste e Produção ficam salvos separadamente. Somente o ambiente ativo recebe novas compras.</p></div><span class="tag">Ativo: ${active==='production'?'Produção':'Teste'}</span></div><div class="segmented shop-payment-environments" role="tablist"><button type="button" data-admin-payment-environment="test" class="${paymentSelected==='test'?'active':''}" aria-selected="${paymentSelected==='test'}">Teste</button><button type="button" data-admin-payment-environment="production" class="${paymentSelected==='production'?'active':''}" aria-selected="${paymentSelected==='production'}">Produção</button></div><form id="adminPaymentForm" class="space"><input type="hidden" name="environment" value="${paymentSelected}"><label>Access Token${saved}<input name="access_token" type="password" autocomplete="new-password" placeholder="${c.configured?'Salvo · deixe vazio para manter':'Cole o Access Token deste ambiente'}"></label><label>Assinatura secreta do webhook${saved}<input name="webhook_secret" type="password" autocomplete="new-password" placeholder="${c.configured?'Salva · deixe vazio para manter':'Cole a assinatura secreta deste ambiente'}"></label><label>URL de notificação<input data-admin-webhook readonly value="${esc(url)}"></label><button class="secondary" type="button" data-admin-copy-webhook>Copiar URL do webhook</button><p class="notice" data-payment-status>${esc(message)}</p><div class="shop-admin-actions"><button class="secondary" ${paymentBusy?'disabled':''}>Salvar credenciais</button><button class="secondary" type="button" data-admin-payment-test ${!c.configured||paymentBusy?'disabled':''}>Testar conexão</button><button class="primary" type="button" data-admin-payment-activate ${!c.validated_at||active===paymentSelected||paymentBusy?'disabled':''}>${active===paymentSelected?'Ambiente ativo':'Ativar '+label}</button></div></form></section>`}
-const originalSettingsView=settingsView;settingsView=p=>{const html=originalSettingsView(p).replace('<div data-agent-admin></div>','<div data-agent-admin></div><div data-admin-payment>'+paymentPanel()+'</div>').replace(/<p class="sub">Mercado Pago:[\s\S]*?<\/details>/,'').replace('<h2>Pagamentos e entrega</h2>','<h2>Entrega e condições da loja</h2>');if(!paymentConfig&&!paymentBusy)setTimeout(loadPaymentConfig);return html};
+function paymentPanel(){
+ const base=window.NEO_CONFIG?.supabaseUrl;
+ if(!base||!window.NeoCloud.shopPaymentIntegration)return '<section class="card space"><h2>Pagamento · Mercado Pago</h2><p class="sub">Integração indisponível nesta sessão.</p></section>';
+ const root=paymentConfig||{},active=root.active_environment||root.environment||'test',c=root.environments?.[paymentSelected]||(root.environment===paymentSelected?root:{}),url=root.webhook_url||new URL('/functions/v1/mercadopago-webhook',base).href,saved=c.configured?' <span class="tag">✓ Salvo</span>':'',label=paymentSelected==='production'?'Produção':'Teste',message=paymentMessage||(c.validated_at?'Conexão validada · conta '+c.collector_id:c.configured?'Credenciais salvas. Teste esta conexão antes de ativar.':'Cadastre as credenciais de '+label+'.');return `<section class="card space"><div class="between"><div><h2>Pagamento · Mercado Pago</h2><p class="sub">Teste e Produção ficam salvos separadamente. Somente o ambiente ativo recebe novas compras.</p></div><span class="tag">Ativo: ${active==='production'?'Produção':'Teste'}</span></div><div class="segmented shop-payment-environments" role="tablist"><button type="button" data-admin-payment-environment="test" class="${paymentSelected==='test'?'active':''}" aria-selected="${paymentSelected==='test'}">Teste</button><button type="button" data-admin-payment-environment="production" class="${paymentSelected==='production'?'active':''}" aria-selected="${paymentSelected==='production'}">Produção</button></div><form id="adminPaymentForm" class="space"><input type="hidden" name="environment" value="${paymentSelected}"><label>Access Token${saved}<input name="access_token" type="password" autocomplete="new-password" placeholder="${c.configured?'Salvo · deixe vazio para manter':'Cole o Access Token deste ambiente'}"></label><label>Assinatura secreta do webhook${saved}<input name="webhook_secret" type="password" autocomplete="new-password" placeholder="${c.configured?'Salva · deixe vazio para manter':'Cole a assinatura secreta deste ambiente'}"></label><label>URL de notificação<input data-admin-webhook readonly value="${esc(url)}"></label><button class="secondary" type="button" data-admin-copy-webhook>Copiar URL do webhook</button><p class="notice" data-payment-status>${esc(message)}</p><div class="shop-admin-actions"><button class="secondary" ${paymentBusy?'disabled':''}>Salvar credenciais</button><button class="secondary" type="button" data-admin-payment-test ${!c.configured||paymentBusy?'disabled':''}>Testar conexão</button><button class="primary" type="button" data-admin-payment-activate ${!c.validated_at||active===paymentSelected||paymentBusy?'disabled':''}>${active===paymentSelected?'Ambiente ativo':'Ativar '+label}</button></div></form></section>`}
+const originalSettingsView=settingsView;settingsView=p=>{const html=originalSettingsView(p).replace('<div data-agent-admin></div>','<div data-agent-admin></div><div data-admin-payment>'+paymentPanel()+'</div>').replace(/<p class="sub">Mercado Pago:[\s\S]*?<\/details>/,'').replace('<h2>Pagamentos e entrega</h2>','<h2>Entrega e condições da loja</h2>');if(!paymentConfig&&!paymentBusy&&window.NEO_CONFIG?.supabaseUrl&&window.NeoCloud.shopPaymentIntegration)setTimeout(loadPaymentConfig);return html};
 function redrawPayment(){const box=document.querySelector('[data-admin-payment]');if(box)box.innerHTML=paymentPanel()}
 async function loadPaymentConfig(){if(paymentBusy||!authorized||tab!=='settings')return;paymentBusy=true;redrawPayment();try{const first=!paymentConfig;paymentConfig=await window.NeoCloud.shopPaymentIntegration('status');if(first)paymentSelected=paymentConfig.active_environment||paymentConfig.environment||paymentSelected;paymentMessage=''}catch(err){paymentMessage=err.message}finally{paymentBusy=false;redrawPayment()}}
 document.addEventListener('submit',event=>{const form=event.target;if(form.id!=='adminPaymentForm')return;event.preventDefault();event.stopImmediatePropagation();if(paymentBusy||!form.reportValidity())return;const values=Object.fromEntries(new FormData(form));paymentBusy=true;paymentMessage='Salvando credenciais…';redrawPayment();window.NeoCloud.shopPaymentIntegration('save',values).then(()=>{paymentBusy=false;paymentMessage='Credenciais salvas no servidor.';return loadPaymentConfig()}).catch(err=>{paymentBusy=false;paymentMessage=err.message;redrawPayment()})},true);
@@ -142,7 +149,12 @@ function signupDate(value,formatter){
  const time=value?new Date(value):null;
  return time&&Number.isFinite(+time)?formatter.format(time):'Ainda não registrado';
 }
-function signupRow(row,observed={}){
+function signupLocation(value){
+ if(!value?.country)return 'Localização não disponível';
+ return esc([value.city,value.region,value.country].filter(Boolean).join(', '))+
+  ' · Vercel (aproximada) · '+esc(signupDate(value.observed_at,signupFullTime));
+}
+function signupRow(row,observed={},geo={}){
  const name=esc(row.full_name||'Nome não informado'),email=esc(row.email||'E-mail não informado');
  const method={email:'E-mail',google:'Google',apple:'Apple'}[row.provider]||'Não informado';
  return `<details class="admin-signup"><summary>
@@ -151,8 +163,8 @@ function signupRow(row,observed={}){
   ${row.is_new?'<span class="admin-signup-new">Novo</span>':''}<span aria-hidden="true" class="admin-signup-chevron">⌄</span>
  </summary><dl>
   <div><dt>Nome completo</dt><dd>${name}</dd></div><div><dt>E-mail</dt><dd>${email}</dd></div>
-  <div><dt>Local de origem</dt><dd>Localização não disponível</dd></div>
-  <div><dt>Local do último acesso</dt><dd>Localização não disponível</dd></div><div><dt>Método</dt><dd>${method}</dd></div>
+  <div><dt>Primeiro local observado</dt><dd>${signupLocation(geo.first_location)}</dd></div>
+  <div><dt>Último local observado</dt><dd>${signupLocation(geo.last_location)}</dd></div><div><dt>Método</dt><dd>${method}</dd></div>
   <div><dt>Cadastro</dt><dd>${signupDate(row.created_at,signupFullTime)}</dd></div>
   <div><dt>Último acesso</dt><dd>${signupDate(row.last_access,signupFullTime)}</dd></div>
   <div><dt>Identificador</dt><dd>${esc(row.id)}</dd></div>
@@ -219,14 +231,16 @@ async function mountAdminSignups(root,preview=false){
     p_before:next?cursor?.created_at:null,p_before_id:next?cursor?.id:null});
    if(!current()||request!==sequence)return;
    const rows=page.rows.slice(0,preview?5:20);
-   let observations={};
-   if(!preview&&rows.length&&cloud.adminAudience){
-    try{observations=await cloud.adminAudience({p_users:rows.map(row=>row.id)})}catch{}
+   let observations={},geo={};
+   if(!preview&&rows.length){
+    const ids=rows.map(row=>row.id);
+    const [a,b]=await Promise.allSettled([cloud.adminAudience?.({p_users:ids}),cloud.adminGeo?.(ids)]);
+    observations=a.value||{};geo=b.value||{};
    }
    if(!current()||request!==sequence)return;
    cursor=rows.at(-1);
    if(!next)list.replaceChildren();
-   list.insertAdjacentHTML('beforeend',rows.map(row=>preview?`<div class="admin-preview-user"><strong>${esc(row.full_name||'Nome não informado')}</strong><small>${esc(row.email||'E-mail não informado')}</small><time>${signupDate(row.created_at,signupShortTime)}</time></div>`:signupRow(row,observations?.[row.id])).join(''));
+   list.insertAdjacentHTML('beforeend',rows.map(row=>preview?`<div class="admin-preview-user"><strong>${esc(row.full_name||'Nome não informado')}</strong><small>${esc(row.email||'E-mail não informado')}</small><time>${signupDate(row.created_at,signupShortTime)}</time></div>`:signupRow(row,observations?.[row.id],geo?.[row.id])).join(''));
    more.hidden=preview||page.rows.length<=20;
    status.textContent=rows.length?'':'Nenhum cadastro encontrado.';
   }catch{
@@ -445,7 +459,9 @@ function monitorTable(head,rows){
 function monitorLimitForm(){
  return `<form data-monitor-config="limit" class="admin-signup-filters space">
   <label>Recurso<select name="resource"><option value="database_bytes">Banco (bytes)</option><option value="storage_bytes">Storage (bytes)</option>
-  <option value="ai_budget_usd">Orçamento mensal IA (USD)</option><option value="ai_budget_brl">Orçamento mensal IA (BRL)</option></select></label>
+  <option value="egress_cached_bytes">Egress em cache (bytes)</option><option value="egress_uncached_bytes">Egress sem cache (bytes)</option>
+  <option value="auth_mau">Usuários ativos mensais (Auth)</option><option value="realtime_messages">Mensagens Realtime</option>
+  <option value="edge_invocations">Invocações Edge</option><option value="ai_budget_usd">Orçamento mensal IA (USD)</option><option value="ai_budget_brl">Orçamento mensal IA (BRL)</option></select></label>
   <label>Limite <input type="number" name="amount" min="0.00001" step="any" required></label>
   <label>Atenção (%)<input type="number" name="attention" value="70" min="1" max="100" required></label>
   <label>Alerta (%)<input type="number" name="warning" value="85" min="1" max="100" required></label>
@@ -493,7 +509,7 @@ function monitorAI(data){
  ];
  return `<p class="sub">Mês UTC desde ${esc(data.from)} · Fonte: chamadas registradas pelo adaptador de atendimento. ${data.metered}/${data.calls} com entrada medida e ${data.estimated_count} precificadas.</p>
   <div class="audience-kpis">${kpis.map(([label,n,note])=>monitorMetric(label,typeof n==='number'?monitorNumber(n):n,note)).join('')}</div>
-  ${monitorTable(['Provedor','Modelo','Chamadas','Entrada','Saída','Total'],data.models.map(x=>[x.provider,x.model,x.calls,x.input_tokens,x.output_tokens,x.total_tokens]))}
+  ${monitorTable(['Provedor','Modelo','Agente','Funcionalidade','Ambiente','Chamadas','Entrada','Saída','Total'],data.models.map(x=>[x.provider,x.model,x.agent_id,x.feature,x.environment,x.calls,x.input_tokens,x.output_tokens,x.total_tokens]))}
   ${monitorTable(['Moeda','Chamadas precificadas','Estimado','Sem cache (estimativa)','Economia estimada'],data.costs.map(x=>
    [x.currency,x.priced_calls,monitorNumber(x.estimated),monitorNumber(x.no_cache),monitorNumber(x.no_cache-x.estimated)]))}
   <h4>Custo diário estimado</h4>
@@ -569,7 +585,7 @@ function mountSystemHealth(root,summary){
     saveRows(part,[['Fonte','Telemetria interna do adaptador de atendimento'],['Mês UTC',data.from],['Atualização',data.observed_at],
      ...Object.entries(data).filter(([,v])=>typeof v==='number'),['Moeda','Chamadas precificadas','Estimativa','Estimativa sem cache'],
      ...data.costs.map(x=>[x.currency,x.priced_calls,x.estimated,x.no_cache]),
-     ...data.daily.map(x=>[x.day,x.currency,x.estimated]),...data.models.map(x=>[x.provider,x.model,x.calls,x.input_tokens,x.output_tokens,x.total_tokens])]);
+     ...data.daily.map(x=>[x.day,x.currency,x.estimated]),...data.models.map(x=>[x.provider,x.model,x.agent_id,x.feature,x.environment,x.calls,x.input_tokens,x.output_tokens,x.total_tokens])]);
    }else{
     const result=await internal(),d=result.data;
     if(!current())return;
@@ -606,7 +622,12 @@ function mountSystemHealth(root,summary){
       ['Conexões',d.connections],['Máximo PostgreSQL',d.connection_max],['Usuários cadastrados',summary.users_total],['Novos em 7 dias',summary.signups_7d],
       ...d.buckets.map(x=>[x.bucket,x.objects,x.sized_objects,x.bytes]),...d.relations.map(x=>[x.schema_name,x.relation,x.bytes,x.index_bytes])]);
     }else if(part==='costs'){
-     body.innerHTML=stamp+'<h4>Capacidade dos planos</h4>'+monitorCapacity(result)+monitorLimitForm()+
+     body.innerHTML=stamp+'<h4>Capacidade dos planos</h4>'+monitorCapacity(result)+
+      '<p class="sub">Plano Free da organização, verificado em 21/11/2026. Franquias oficiais de referência, sem preenchimento automático de limites.</p>'+
+      monitorTable(['Recurso','Franquia oficial Free'],[['Banco','500 MB por projeto'],['Storage','1 GB'],['Egress','5 GB em cache e 5 GB sem cache'],
+       ['Auth','50.000 MAU'],['Realtime','2 milhões de mensagens e pico de 200 conexões'],['Edge Functions','500.000 invocações']])+
+      '<p class="sub"><a href="https://supabase.com/docs/guides/platform/billing-on-supabase" target="_blank" rel="noopener noreferrer">Fonte oficial das franquias</a></p>'+
+      monitorTable(['Limite informado','Valor'],result.limits.map(x=>[x.resource,monitorNumber(x.amount)]))+monitorLimitForm()+
       monitorUnavailable('Faturas de Supabase, Vercel e GitHub aguardam conexão oficial. Valores com moedas diferentes ficam separados.');
      try{
       const a=await aiData();if(!current())return;
@@ -636,10 +657,12 @@ function mountSystemHealth(root,summary){
      saveRows(part,[['Fonte','Relatos internos do app'],['Amostra',result.observed_at],...d.errors.map(x=>[x.code,x.total,x.previous,x.last_day]),
       ...d.errors_daily.map(x=>[x.day,x.total])]);
     }else if(part==='history'){
-     body.innerHTML=stamp+monitorTable(['Dia UTC','Banco','Storage medido'],result.history.slice(-14).map(x=>[x.day,monitorBytes(x.database_bytes),monitorBytes(x.storage_bytes)]))+
+     const scheduled=await cloud.adminSystem('scheduled_status').catch(()=>null);
+     if(!current())return;
+     body.innerHTML=(scheduled?monitorTable(['Amostragem agendada','Resultado'],scheduled.runs.map(x=>[signupDate(x.occurred_at,signupFullTime),x.outcome])):'')+stamp+monitorTable(['Dia UTC','Banco','Storage medido'],result.history.slice(-14).map(x=>[x.day,monitorBytes(x.database_bytes),monitorBytes(x.storage_bytes)]))+
       monitorTable(['Dia UTC','Recurso','Severidade','Consumo (%)'],result.alerts.map(x=>[x.day,x.resource,x.severity,monitorNumber(x.used_pct)]))+
       monitorUnavailable('Amostras e alertas são atualizados sob demanda. O histórico agrupa alertas por dia, recurso e severidade.');
-     saveRows(part,[['Amostra',result.observed_at],['Fonte','PostgreSQL, metadados Storage e limites manuais'],
+     saveRows(part,[['Amostra',result.observed_at],['Fonte','PostgreSQL, metadados Storage e limites manuais'],...(scheduled?.runs||[]).map(x=>[x.occurred_at,x.outcome]),
       ...result.history.map(x=>[x.day,x.database_bytes,x.storage_bytes]),...result.alerts.map(x=>[x.day,x.resource,x.severity,x.used_pct])]);
     }
    }
@@ -682,7 +705,7 @@ const operationsSections=[
  ['routines','Rotinas agendadas'],['audit','Auditoria administrativa'],['capacity','Simulador de crescimento'],
  ['efficiency','Eficiência e custo por funcionalidade'],['insights','Oportunidades e recomendações']
 ];
-const qualityLabels={initial_load:'Carregamento inicial',sync_response:'Resposta da sincronização',
+const qualityLabels={web_lcp:'LCP (ms)',web_cls:'CLS × 1.000',web_inp:'INP (ms)',initial_load:'Carregamento inicial',sync_response:'Resposta da sincronização',
  sync_failure:'Falha de sincronização',upload_failure:'Falha de upload',javascript_error:'Erro JavaScript',pwa_update_failure:'Falha do service worker'};
 const percent=value=>value==null?'—':monitorNumber(value)+'%';
 function operationScenarios(h,price,limits){
@@ -778,8 +801,8 @@ function mountOperations(root,summary){
     ${(funnels.value?.funnels||[]).map(engagementFunnel).join('')}`;
    }else if(key==='quality'){
     const d=await get('quality',days);if(!valid())return;stamp=d.observed_at;
-    body.innerHTML=`<p class="sub">Amostras consentidas e limitadas por conta. P75 das durações medidas. A categoria pode aparecer quando houver pelo menos cinco contas. Navegador e sistema usam a última observação autorizada da conta.</p>
-    ${monitorTable(['Métrica','Amostras','Contas','Média (ms)','P75 (ms)'],d.metrics.map(x=>[qualityLabels[x.metric]||x.metric,x.samples,x.users,x.avg_ms,x.p75_ms]))}
+    body.innerHTML=`<p class="sub">Amostras consentidas e limitadas por conta. P75 das amostras. LCP e INP em milissegundos. CLS foi multiplicado por 1.000. A categoria pode aparecer quando houver pelo menos cinco contas. Navegador e sistema usam a última observação autorizada da conta.</p>
+    ${monitorTable(['Métrica','Amostras','Contas','Média','P75'],d.metrics.map(x=>[qualityLabels[x.metric]||x.metric,x.samples,x.users,x.avg_ms,x.p75_ms]))}
     ${monitorTable(['Falha','Dimensão','Grupo','Amostras'],d.segments.map(x=>[qualityLabels[x.metric]||x.metric,x.kind,x.label,x.samples]))}`;
    }else if(key==='routines'){
     const d=await get('routines',days);if(!valid())return;stamp=d.observed_at;
@@ -866,8 +889,9 @@ function mountOperations(root,summary){
      ];
      body.innerHTML=monitorTable(['Indicador','Valor','Fonte','Período'],rows)+
       `<p class="sub">${systemData?'Amostra de saúde: '+esc(signupDate(systemData.observed_at,signupFullTime)):'Amostra de saúde indisponível.'}</p>
-       <button type="button" class="secondary" data-operations-export>Exportar CSV</button>`;
-     body.querySelector('button').addEventListener('click',()=>{
+       <button type="button" class="secondary" data-operations-export>Exportar CSV</button> <button type="button" class="secondary" data-executive-print>Imprimir / salvar PDF</button>`;
+     body.querySelector('[data-executive-print]').addEventListener('click',()=>{if(valid())window.print?.()});
+     body.querySelector('[data-operations-export]').addEventListener('click',()=>{
       if(valid())adminCsv('neopep-resumo-operacional',[['Gerado',new Date().toISOString()],['Amostra de saúde',systemData?.observed_at],
        ['Indicador','Valor','Fonte','Período'],...rows]);
      });

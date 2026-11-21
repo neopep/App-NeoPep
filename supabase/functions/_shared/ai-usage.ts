@@ -1,6 +1,6 @@
 type Provider = 'openai' | 'gemini' | 'claude';
 export type AIObservation = {
- id:string; provider:Provider; model:string; status:'ok'|'error'|'timeout'|'cancelled'; duration_ms:number;
+ id:string; job_id?:string; provider:Provider; model:string; status:'ok'|'error'|'timeout'|'cancelled'; duration_ms:number;
  input_tokens:number|null; output_tokens:number|null; cached_tokens:number|null; reasoning_tokens:number|null; total_tokens:number|null;
 };
 export type AIObserver = (value:AIObservation)=>Promise<void>;
