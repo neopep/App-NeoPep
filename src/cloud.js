@@ -98,6 +98,8 @@ const api={configured,get remember(){return rememberSession},get persistenceLimi
  async setConsent(purpose,granted){need();if(!['health','terms','photos'].includes(purpose)||typeof granted!=='boolean')throw Error('Consentimento inválido.');ok(await client.rpc('neo_set_consent',{p_purpose:purpose,p_granted:granted}));consents=consents.filter(c=>c.purpose!==purpose);consents.push({purpose,version:'2026-11-v1',granted});if(!granted&&['health','terms'].includes(purpose))onboarded=false},
  async heartbeat(){need();ok(await client.rpc('neo_heartbeat'))},
  async reportError(code){if(!user||!['sync_failed','photo_failed','profile_failed','import_failed'].includes(code))return;try{await client.rpc('neo_report_error',{p_code:code})}catch{}},
+ async adminOperations(section,days=30,review=null){need();return ok(await client.rpc('neo_admin_operations',{p_section:section,p_days:days,p_review:review}))},
+ async qualityObserve(metric,duration=null,revision=''){need();return ok(await client.rpc('neo_quality_observe',{p_metric:metric,p_duration:duration,p_revision:revision}))},
  async adminSystem(action='snapshot',payload={}){need();return ok(await client.rpc('neo_admin_system',{p_action:action,p_payload:payload}))},
  async adminMonitor(provider){
   need();

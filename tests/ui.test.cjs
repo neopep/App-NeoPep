@@ -303,3 +303,19 @@ test('engajamento deduplica renderizações e descarta tempo de segundo plano',a
  assert.equal(new Set(sent.map(row=>row.session_id)).size,1);
  assert.deepEqual(Object.keys(sent[0]).sort(),['area','event','id','occurred_at','seconds','sequence','session_id']);
 });
+
+test('qualidade mede apenas com consentimento e limita a frequência das amostras',async()=>{
+ const calls=[];
+ const a=setup({}, {cloud:{configured:true,user:{id:'A'},hasConsent:()=>true,
+  engagement:async()=>({allowed:false}),qualityObserve:async(...values)=>calls.push(values)
+ }});
+ await new Promise(setImmediate);
+ a.run("mode='cloud';page='inicio';render()");
+ await new Promise(setImmediate);
+ a.run("observeQuality('javascript_error')");
+ await new Promise(setImmediate);
+ assert.deepEqual(calls,[]);
+ a.run("engagementAllowed=true;observeQuality('sync_response',350);observeQuality('sync_response',351)");
+ await new Promise(setImmediate);
+ assert.deepEqual(calls,[['sync_response',350,'']]);
+});

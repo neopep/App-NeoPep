@@ -808,6 +808,7 @@ function resetEngagement(owner){
  engagementQueue=[];
  engagementSequence=engagementLastInput=engagementLastSample=0;
  engagementCalcStarted=false;
+ qualityNext.clear();
 }
 function engagementVisible(){return document.visibilityState!=='hidden'&&mode==='cloud'&&!demo&&!!Cloud.user&&Cloud.user.id===engagementOwner}
 function engagementTrack(event,area=engagementArea(page),seconds=0){
@@ -855,6 +856,32 @@ function paintEngagementControls(){
  root.querySelector('[data-engagement-action=enable]').hidden=engagementAllowed;
  root.querySelector('[data-engagement-action=disable]').hidden=!engagementAllowed;
 }
+const qualityNext=new Map();
+let qualityNavigationMeasured=false;
+function observeQuality(metric,duration=null){
+ if(!engagementAllowed||!engagementVisible()||!Cloud.qualityObserve)return;
+ const now=Date.now(),key=engagementOwner+':'+metric;
+ if((qualityNext.get(key)||0)>now)return;
+ qualityNext.set(key,now+(metric==='sync_response'?300000:60000));
+ const commit=window.NEO_CONFIG?.stagingBuild?.commit;
+ const revision=/^[a-f0-9]{40}$/.test(commit||'')?commit.slice(0,12):'';
+ void Promise.resolve().then(()=>{
+  if(engagementAllowed&&engagementVisible()&&key.startsWith(engagementOwner+':'))
+   return Cloud.qualityObserve(metric,duration,revision);
+ }).catch(()=>{});
+}
+function sampleInitialQuality(){
+ if(!engagementAllowed||qualityNavigationMeasured)return;
+ const entry=window.performance?.getEntriesByType?.('navigation')?.[0];
+ if(entry?.loadEventEnd>0&&entry.duration<=120000){
+  qualityNavigationMeasured=true;
+  observeQuality('initial_load',Math.round(entry.duration));
+ }
+}
+window.addEventListener('error',event=>{
+ if(typeof event.message==='string')observeQuality('javascript_error');
+});
+window.addEventListener('unhandledrejection',()=>observeQuality('javascript_error'));
 async function syncEngagement(){
  const owner=mode==='cloud'&&!demo?Cloud.user?.id:null;
  if(engagementOwner!==owner)resetEngagement(owner);
@@ -872,6 +899,7 @@ async function syncEngagement(){
   }catch{return}finally{if(queue===engagementQueue)engagementChecking=false}
  }
  engagementView();
+ sampleInitialQuality();
 }
 function sampleEngagement(){
  const now=Date.now(),elapsed=now-engagementLastSample;
@@ -1158,7 +1186,7 @@ async function submitPhotoBatch(form){
   item.previewBlob??=await encodePhoto(item.blob,{edge:800,quality:.8});
   current();
   item.status='uploading';paintPhotoBatch();
-  if(cloud){await Cloud.uploadProgressPhoto(item.blob,item.thumbnail,item.date,item.id,item.previewBlob);current();engagementTrack('photo_upload_success','fotos');}
+  if(cloud){try{await Cloud.uploadProgressPhoto(item.blob,item.thumbnail,item.date,item.id,item.previewBlob)}catch(error){current();observeQuality('upload_failure');throw error}current();engagementTrack('photo_upload_success','fotos');}
   else await photoStore('put',{id:item.id,date:item.date,role:'progress',blob:item.blob,thumbnail:item.thumbnail,preview:item.previewBlob,created_at:new Date().toISOString()});
  },paintPhotoBatch);
  current();
@@ -1210,8 +1238,8 @@ document.addEventListener('input',e=>{if(e.target.closest('form'))formDirty=true
 window.addEventListener('hashchange',()=>{const p=location.hash.slice(1);if(routes[p])go(p,false)});window.addEventListener('online',()=>{render();if(mode==='cloud'&&!demo)action(reloadCloud)});window.addEventListener('offline',render);matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>applyTheme());
 let swReloadAllowed=false;
 const reminded={};setInterval(()=>{if(demo||document.visibilityState!=='visible'||!state.settings.enabled)return;const now=new Date();for(const r of C.nextReminders(state,new Date(now.getTime()-60000))){if(r.next>now||now-r.next>60000||reminded[r.id]===C.today())continue;reminded[r.id]=C.today();toast(r.title);if('Notification'in window&&Notification.permission==='granted'){try{new Notification('NeoPep',{body:'Abra o aplicativo para registrar sua evolução.'})}catch{}}}},15000);
-if('serviceWorker'in navigator&&['https:','http:'].includes(location.protocol)){navigator.serviceWorker.register('./sw.js',{scope:'./'}).then(reg=>{const show=worker=>{window.NeoWaitingWorker=worker;toast('Nova versão disponível. Salve seus registros antes de atualizar.');if(!document.querySelector('#applyUpdate'))document.querySelector('#banner').insertAdjacentHTML('beforeend','<div class="banner"><span>Atualização disponível.</span><button class="text-btn" id="applyUpdate">Atualizar agora</button></div>');};if(reg.waiting)show(reg.waiting);reg.addEventListener('updatefound',()=>{const w=reg.installing;w.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller)show(w)})});reg.update().catch(()=>{})}).catch(()=>{console.info('Cache offline não disponível neste ambiente.');});navigator.serviceWorker.addEventListener('controllerchange',()=>{if(swReloadAllowed||(!formDirty&&!document.querySelector('dialog[open]')))location.reload();else toast('Atualização instalada. Salve a edição e reabra o aplicativo.')})}
-async function backgroundSync(){if(mode!=='cloud'||demo||busy||formDirty||$('#dialog').open||document.querySelector('.deletion-choice')||document.visibilityState==='hidden'||!navigator.onLine)return;const gen=loadGeneration;try{const next=await Cloud.load();if(gen!==loadGeneration||busy||formDirty||mode!=='cloud'||demo)return;if(JSON.stringify(next)!==JSON.stringify(state)){state=next;render()}lastCloudSync=new Date()}catch{Cloud.reportError?.('sync_failed')}}
+if('serviceWorker'in navigator&&['https:','http:'].includes(location.protocol)){navigator.serviceWorker.register('./sw.js',{scope:'./'}).then(reg=>{const show=worker=>{window.NeoWaitingWorker=worker;toast('Nova versão disponível. Salve seus registros antes de atualizar.');if(!document.querySelector('#applyUpdate'))document.querySelector('#banner').insertAdjacentHTML('beforeend','<div class="banner"><span>Atualização disponível.</span><button class="text-btn" id="applyUpdate">Atualizar agora</button></div>');};if(reg.waiting)show(reg.waiting);reg.addEventListener('updatefound',()=>{const w=reg.installing;w.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller)show(w)})});reg.update().catch(()=>observeQuality('pwa_update_failure'))}).catch(()=>{observeQuality('pwa_update_failure');console.info('Cache offline não disponível neste ambiente.');});navigator.serviceWorker.addEventListener('controllerchange',()=>{if(swReloadAllowed||(!formDirty&&!document.querySelector('dialog[open]')))location.reload();else toast('Atualização instalada. Salve a edição e reabra o aplicativo.')})}
+async function backgroundSync(){if(mode!=='cloud'||demo||busy||formDirty||$('#dialog').open||document.querySelector('.deletion-choice')||document.visibilityState==='hidden'||!navigator.onLine)return;const gen=loadGeneration,started=Date.now();try{const next=await Cloud.load();if(gen!==loadGeneration||busy||formDirty||mode!=='cloud'||demo)return;const elapsed=Date.now()-started;if(elapsed>=0&&elapsed<=120000)observeQuality('sync_response',elapsed);if(JSON.stringify(next)!==JSON.stringify(state)){state=next;render()}lastCloudSync=new Date()}catch{if(gen===loadGeneration){observeQuality('sync_failure');Cloud.reportError?.('sync_failed')}}}
 setInterval(backgroundSync,30000);window.addEventListener('focus',backgroundSync);setInterval(()=>{if(mode==='cloud'&&!demo&&document.visibilityState!=='hidden'&&navigator.onLine)Cloud.heartbeat?.().catch(()=>{})},300000);
 window.NeoArrival?.configure({savePreference:async enabled=>{if(mode!=='cloud'||demo||!Cloud.user)throw Error('Entre na sua conta.');const account=Cloud.user.id;await Cloud.saveProfile(state.profile,{...state.settings,showArrivalGuide:enabled});if(Cloud.user?.id!==account)throw Error('A conta mudou.');await reloadCloud();}});
 document.addEventListener('input',event=>{if(!event.target.matches('#onboardingForm [name=initialWeight],#onboardingForm [name=goal]'))return;const form=event.target.form||document.querySelector('#onboardingForm');const message=document.querySelector('#onboardingGoalIntent');if(message)message.textContent=goalIntent(form.querySelector('[name=initialWeight]').value,form.querySelector('[name=goal]').value);});

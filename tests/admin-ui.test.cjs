@@ -168,3 +168,33 @@ test('saúde busca dados somente ao expandir e calcula projeções com históric
  assert.equal(a.run("monitorProjection([],'bytes',200,250)"),null);
  assert.equal(a.document.querySelector('.admin-back-app').getAttribute('href'),'../');
 });
+
+test('inteligência operacional carrega seções sob demanda e mantém hipóteses separadas de preços',async()=>{
+ const a=app({signups_daily:[],app_errors_7d:[]}),calls=[];
+ a.cloud.adminOperations=async(section,days)=>{
+  calls.push([section,days]);
+  return {observed_at:'2026-11-21T12:00:00Z',recommendations:[]};
+ };
+ await a.select('operations');
+ assert.equal(calls.length,0);
+ const node=a.document.querySelector('[data-operation-section=insights]');
+ node.open=true;
+ node.dispatchEvent(new a.document.defaultView.Event('toggle'));
+ await new Promise(setImmediate);
+ assert.deepEqual(calls,[['insights',30]]);
+ assert.match(node.textContent,/Nenhuma recomendação com evidência suficiente/);
+ node.querySelector('[data-report-agent]').dispatchEvent(new a.document.defaultView.Event('click',{bubbles:true}));
+ assert.match(node.textContent,/Agente de planejamento — em breve/);
+ assert.equal(calls.length,1);
+ const rows=a.run(`operationScenarios({
+  active:50,sessions:2,stored_mib:10,uploads:1,upload_mib:2,traffic_mib:4,ai:2,input_tokens:100,
+  output_tokens:50,api:20,growth:0,currency:'USD',transfer_price:0,api_price:0,fixed:5
+ },{input_per_million:10,output_per_million:20,currency:'USD'},[{resource:'storage_bytes',amount:107374182400}])`);
+ assert.equal(rows.length,5);
+ assert.equal(rows[0].active,500);
+ assert.equal(rows[0].ai,1000);
+ assert.equal(rows[0].inputs,100000);
+ assert.equal(rows[0].total,7);
+ assert.equal(rows.at(-1).users,100000);
+ assert.equal(a.run("operationScenarios({active:50,ai:2,input_tokens:100,currency:'USD'},null,[])[0].total"),null);
+});

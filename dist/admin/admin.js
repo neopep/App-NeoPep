@@ -1,12 +1,12 @@
 'use strict';
 const $=s=>document.querySelector(s),esc=window.NeoCore.escape;let generation=0,loading=false,authorized=false,tab='overview',platform=null,dirty=false,authConfirmation=null;
 const adminTabs={overview:'Visão Geral',signups:'Cadastros',audience:'Estatísticas de público',
- engagement:'Engajamento',health:'Saúde do sistema',settings:'Configurações'};
+ engagement:'Engajamento',operations:'Inteligência operacional',health:'Saúde do sistema',settings:'Configurações'};
 function adminAgentTrigger(context,label){
  return `<button type="button" class="icon-btn admin-agent-trigger" data-report-agent="${context}" aria-label="${label}">✦</button>`;
 }
 function adminSectionHeading(title,context,buttons=''){
- const names={signups:'Agente de análise de cadastros',audience:'Agente de análise de público',system_health:'Agente de monitoramento'};
+ const names={signups:'Agente de análise de cadastros',audience:'Agente de análise de público',system_health:'Agente de monitoramento',operations_insights:'Agente de planejamento'};
  return `<div class="admin-section-heading"><h2>${title}</h2><div>${buttons}${adminAgentTrigger(context,names[context])}</div></div>`;
 }
 document.addEventListener('click',event=>{
@@ -15,7 +15,7 @@ document.addEventListener('click',event=>{
  const group=button.parentElement;
  let note=group.querySelector('[data-agent-placeholder]');
  if(!note){note=document.createElement('span');note.dataset.agentPlaceholder='';note.setAttribute('role','status');note.className='sub';group.append(note)}
- note.textContent=button.dataset.reportAgent==='system_health'?'Agente de monitoramento — em breve':'Agente de análise — em breve';
+ note.textContent=button.dataset.reportAgent==='system_health'?'Agente de monitoramento — em breve':button.dataset.reportAgent==='operations_insights'?'Agente de planejamento — em breve':'Agente de análise — em breve';
 });
 function overview(d){const metrics=[['Usuários cadastrados',d.users_total],['Cadastros em 7 dias',d.signups_7d],['Ativos em 24 horas',d.active_24h],['Ativos em 7 dias',d.active_7d],['Ativos em 30 dias',d.active_30d],['Perfis configurados',d.profiles_total],['Registros totais',d.records_total],['Fotos armazenadas',d.photos_total]];return `<div class="admin-overview"><div class="stats">${metrics.map(([title,value])=>`<article class="card stat"><div class="stat-label">${title}</div><div class="stat-value">${Number.isFinite(value)?value.toLocaleString('pt-BR'):'—'}</div></article>`).join('')}</div><div data-admin-signups></div>
  <section class="card">${adminSectionHeading('Estatísticas de público','audience','<button type="button" class="secondary" data-admin-tab="audience">Abrir estatísticas</button>')}
@@ -70,7 +70,7 @@ async function refresh(){if(loading)return;if(tab!=='overview'&&tab!=='signups')
  }else if(tab==='audience'||tab==='engagement'){
  $('#adminContent').innerHTML='<div data-admin-audience></div>';
  mountAdminAudience($('[data-admin-audience]'),tab==='engagement');
- }else if(tab==='health')mountSystemHealth($('#adminContent'),d);$('#adminStatus').textContent='Consulta autorizada. Atualizado agora.';dirty=false;}catch(err){if(gen!==generation)return;$('#adminStatus').textContent='Acesso não disponível: '+err.message;if(!authorized){$('#adminTabs').hidden=true;$('#adminContent').innerHTML='<div class="notice">Somente uma permissão concedida pelo responsável no banco habilita este painel. Editar perfil ou dados do navegador não concede acesso.</div>';}}finally{loading=false;$('#adminRefresh').disabled=false;}}
+ }else if(tab==='health')mountSystemHealth($('#adminContent'),d);else if(tab==='operations')mountOperations($('#adminContent'),d);$('#adminStatus').textContent='Consulta autorizada. Atualizado agora.';dirty=false;}catch(err){if(gen!==generation)return;$('#adminStatus').textContent='Acesso não disponível: '+err.message;if(!authorized){$('#adminTabs').hidden=true;$('#adminContent').innerHTML='<div class="notice">Somente uma permissão concedida pelo responsável no banco habilita este painel. Editar perfil ou dados do navegador não concede acesso.</div>';}}finally{loading=false;$('#adminRefresh').disabled=false;}}
 async function integration(action){if(loading||!authorized)return;if(action==='test_ai'&&dirty){$('#adminStatus').textContent='Salve as configurações antes de testar a conexão.';return;}const gen=generation;loading=true;try{const r=await window.NeoCloud.integrations(action);if(gen!==generation)return;if(action==='test_ai'){loading=false;await refresh();$('#adminStatus').textContent='Conexão com IA validada. Você já pode ativar as respostas automáticas.';}else $('#integrationStatus').textContent=`Chave OpenAI: ${r.openai_key_present?'presente':'pendente'} · Mercado Pago: ${r.mercadopago_keys_present?'chaves presentes, homologação deve ser conferida':'chaves pendentes'} · Rotina da IA: ${r.ai_worker_secret_present?'segredo presente; agendamento deve ser conferido':'pendente'}`;}catch{if(gen===generation)$('#adminStatus').textContent='Não foi possível conferir a integração. Verifique a função publicada, as chaves e o modelo no Supabase.';}finally{loading=false;}}
 async function authSettings(save=false){if(loading||!authorized)return;const status=$('#authSettingsStatus'),box=$('#requireEmailConfirmation'),button=$('#authSettingsForm [type=submit]'),gen=generation;if(!status||!box||!button)return;const desired=box.checked;if(save&&authConfirmation===null)return;if(save&&!confirm(desired?'Exigir confirmação de e-mail nos novos cadastros? Confira o SMTP antes de ativar.':'Permitir novos cadastros sem confirmar a propriedade do e-mail?'))return;loading=true;box.disabled=true;button.disabled=true;$('#authSettingsRead').disabled=true;status.textContent=save?'Aplicando e conferindo no Supabase…':'Consultando o Supabase…';try{const r=await window.NeoCloud.authSettings(save?'set':'status',save?{require_email_confirmation:desired,expected_confirmation:authConfirmation}:{});if(gen!==generation)return;if(typeof r.require_email_confirmation!=='boolean')throw Error('invalid_state');authConfirmation=r.require_email_confirmation;box.checked=authConfirmation;box.disabled=false;button.disabled=false;status.textContent=(save?'Alteração confirmada no Supabase. ':'Estado conferido no Supabase. ')+(authConfirmation?'Confirmação de e-mail ativada.':'Confirmação de e-mail desativada.');}catch{if(gen===generation){authConfirmation=null;box.checked=false;status.textContent='Não foi possível confirmar o estado. Consulte novamente. A função auth-settings e os Secrets precisam estar configurados, e sua conta deve ser administrador principal.';}}finally{loading=false;if(gen===generation)$('#authSettingsRead').disabled=false;}}
 document.addEventListener('submit',event=>{if(event.target.id==='authSettingsForm'){event.preventDefault();authSettings(true);}});
@@ -675,6 +675,217 @@ function mountSystemHealth(root,summary){
    void load(part,body);
   }catch{if(current())status.textContent='Não foi possível salvar. Confira os valores e a vigência.'}
   finally{button.disabled=false}
+ });
+}
+const operationsSections=[
+ ['executive','Resumo executivo'],['journeys','Jornadas e retenção'],['quality','Qualidade da experiência'],
+ ['routines','Rotinas agendadas'],['audit','Auditoria administrativa'],['capacity','Simulador de crescimento'],
+ ['efficiency','Eficiência e custo por funcionalidade'],['insights','Oportunidades e recomendações']
+];
+const qualityLabels={initial_load:'Carregamento inicial',sync_response:'Resposta da sincronização',
+ sync_failure:'Falha de sincronização',upload_failure:'Falha de upload',javascript_error:'Erro JavaScript',pwa_update_failure:'Falha do service worker'};
+const percent=value=>value==null?'—':monitorNumber(value)+'%';
+function operationScenarios(h,price,limits){
+ const n=x=>Number(h[x]||0);
+ const fixed=h.fixed===''||h.fixed==null?null:n('fixed');
+ const trafficPrice=h.transfer_price===''||h.transfer_price==null?null:n('transfer_price');
+ const apiPrice=h.api_price===''||h.api_price==null?null:n('api_price');
+ return [1000,5000,10000,50000,100000].map(users=>{
+  const next=Math.round(users*(1+n('growth')/100)),active=next*n('active')/100;
+  const sessions=active*n('sessions'),uploads=active*n('uploads'),ai=active*n('ai'),api=active*n('api');
+  const uploaded=uploads*n('upload_mib')/1024;
+  const stored=next*n('stored_mib')/1024+uploaded,traffic=sessions*n('traffic_mib')/1024+uploaded;
+  const inputs=ai*n('input_tokens'),outputs=ai*n('output_tokens');
+  const aiCost=ai===0?0:price?(inputs*Number(price.input_per_million)+outputs*Number(price.output_per_million))/1000000:null;
+  const compatible=!price||price.currency===h.currency;
+  const variable=compatible&&aiCost!=null&&(traffic===0||trafficPrice!==null)&&(api===0||apiPrice!==null)?
+   aiCost+traffic*(trafficPrice??0)+api/1000*(apiPrice??0):null;
+  const storageLimit=limits.find(x=>x.resource==='storage_bytes');
+  return {users,next,active,sessions,uploads,stored,traffic,ai,api,inputs,outputs,aiCost,
+   variable,total:variable===null||fixed===null?null:variable+fixed,
+   storagePct:storageLimit?stored*1024**3/Number(storageLimit.amount)*100:null};
+ });
+}
+function operationForm(prices){
+ const fields=[
+  ['active','Usuários ativos (%)',30,100],['sessions','Sessões / ativo',8,100000],
+  ['stored_mib','Storage inicial (MiB / conta)',10,1000000],['uploads','Uploads / ativo / mês',2,100000],
+  ['upload_mib','Tamanho de upload (MiB)',1,1000000],['traffic_mib','Transferência por sessão (MiB)',4,1000000],
+  ['ai','Chamadas de IA / ativo',0,100000],['input_tokens','Tokens de entrada / chamada',0,10000000],
+  ['output_tokens','Tokens de saída / chamada',0,10000000],['api','Chamadas de API / ativo',20,1000000],
+  ['growth','Crescimento mensal (%)',0,1000]
+ ];
+ return `<form data-operation-sim class="admin-signup-filters space">${fields.map(([key,label,value,max])=>
+  `<label>${label}<input type="number" min="0" max="${max}" step="any" name="${key}" value="${value}" required></label>`).join('')}
+  <label>Preço de IA configurado<select name="price"><option value="">Nenhum</option>${prices.map((x,i)=>
+   `<option value="${i}">${esc(x.model+' · '+x.currency+' · '+x.effective_from)}</option>`).join('')}</select></label>
+  <label>Moeda das hipóteses<select name="currency"><option>BRL</option><option>USD</option></select></label>
+  <label>Preço de transferência / GiB<input type="number" min="0" step="any" name="transfer_price"></label>
+  <label>Preço de API / mil<input type="number" min="0" step="any" name="api_price"></label>
+  <label>Custo fixo mensal informado<input type="number" min="0" step="any" name="fixed"></label>
+  <button class="secondary">Simular</button></form><div data-scenario-result></div>`;
+}
+const operationRules={
+ storage_growth:{title:'Revisar o crescimento do Storage',impact:'O consumo pode exigir mais capacidade.',action:'Verifique compressão de uploads e retenção de arquivos.',
+  reliability:'Amostras completas de Storage, com pelo menos três medições em sete dias.'},
+ app_errors_growth:{title:'Investigar o aumento de erros reportados',impact:'Falhas repetidas podem prejudicar o uso do aplicativo.',
+  action:'Compare as categorias de erros e reproduza os fluxos mais afetados.',reliability:'Contagem de relatos do app, sem denominador de operações.'}
+};
+function mountOperations(root,summary){
+ const cloud=window.NeoCloud,account=cloud.user?.id;
+ root.innerHTML=`<section class="card"><h2>Inteligência operacional</h2><label>Período dos relatórios
+  <select data-operations-days><option value="7">7 dias</option><option value="30" selected>30 dias</option><option value="90">90 dias</option></select></label>
+  <p data-operations-status role="status" class="sub">Abra um relatório para consultar.</p>
+  <div class="admin-overview">${operationsSections.map(([key,title])=>
+   `<details data-operation-section="${key}" class="monitor-section"><summary>${title}</summary><div data-operation-body></div></details>`).join('')}</div></section>`;
+ const status=root.querySelector('[data-operations-status]'),range=root.querySelector('[data-operations-days]');
+ const current=()=>status.isConnected&&cloud.user?.id===account&&tab==='operations';
+ let revision=0;
+ const loaded=new Set(),inFlight=new Map();
+ let engagement=null,system=null,ai=null,journeys=null,insights=null;
+ const get=(section,days)=>cloud.adminOperations(section,days);
+ const getEngagement=days=>{
+  if(engagement?.days===days)return engagement.promise;
+  const to=new Date(),from=new Date(to);
+  from.setUTCDate(to.getUTCDate()-days+1);
+  engagement={days,promise:cloud.adminEngagement({p_from:from.toISOString().slice(0,10),p_to:to.toISOString().slice(0,10)})};
+  return engagement.promise;
+ };
+ async function load(node){
+  const key=node.dataset.operationSection,sequence=revision,body=node.querySelector('[data-operation-body]'),days=Number(range.value);
+  if(loaded.has(key)||inFlight.get(key)===sequence)return;
+  inFlight.set(key,sequence);
+  body.textContent='Consultando…';
+  try{
+   if(!cloud.adminOperations)throw Error('Fonte indisponível');
+   const valid=()=>current()&&sequence===revision;
+   let stamp=null;
+   if(key==='journeys'){
+    const [d,funnels]=await Promise.allSettled([journeys??=get('journeys',days),getEngagement(days)]);
+    if(!valid())return;
+    if(d.status!=='fulfilled')throw Error('Fonte indisponível');
+    const report=d.value;stamp=report.observed_at;
+    const f=report.frequency;
+    body.innerHTML=`<p class="sub">Atividade é uso registrado com autorização válida. A jornada inclui contas observadas no dia UTC do cadastro. Os marcos são independentes, exceto checkout após visita. Uma etapa ainda sem observação não confirma abandono.</p>
+    ${monitorTable(['Marco','Contas elegíveis','Observaram o marco','Sem marco observado','Tempo médio'],report.milestones.map(x=>
+     [x.label,x.started,x.reached,x.reached==null?null:percent(100*(x.started-x.reached)/x.started),engagementDuration(x.avg_seconds)]))}
+    <p class="sub">D1, D7 e D30 representam retorno no dia exato. Janela semanal: dias 7 a 13. Janela mensal: dias 30 a 59. Janelas imaturas e grupos pequenos ficam sem valor.</p>
+    ${monitorTable(['Coorte semanal UTC','Contas','D1','D7','D30','Janela semanal','Janela mensal'],report.cohorts.map(x=>[x.cohort,x.accounts,
+      ...['d1','d7','d30','weekly','monthly'].map(k=>percent(x[k]))]))}
+    ${monitorTable(['Usuários','Sessões','Sessões por conta','Intervalo médio','Novos','Recorrentes','Reativados','Sem acesso anterior observado'],
+     [[f.users,f.sessions,f.sessions_per_user,engagementDuration(f.avg_gap_seconds),f.new,f.recurring,f.reactivated,f.unknown]])}
+    <p class="sub">Reativação requer intervalo observado de 30 dias ou mais. Sessões anteriores ao histórico disponível não são estimadas.</p>
+    ${(funnels.value?.funnels||[]).map(engagementFunnel).join('')}`;
+   }else if(key==='quality'){
+    const d=await get('quality',days);if(!valid())return;stamp=d.observed_at;
+    body.innerHTML=`<p class="sub">Amostras consentidas e limitadas por conta. P75 das durações medidas. A categoria pode aparecer quando houver pelo menos cinco contas. Navegador e sistema usam a última observação autorizada da conta.</p>
+    ${monitorTable(['Métrica','Amostras','Contas','Média (ms)','P75 (ms)'],d.metrics.map(x=>[qualityLabels[x.metric]||x.metric,x.samples,x.users,x.avg_ms,x.p75_ms]))}
+    ${monitorTable(['Falha','Dimensão','Grupo','Amostras'],d.segments.map(x=>[qualityLabels[x.metric]||x.metric,x.kind,x.label,x.samples]))}`;
+   }else if(key==='routines'){
+    const d=await get('routines',days);if(!valid())return;stamp=d.observed_at;
+    body.innerHTML=(d.source_available?monitorTable(['Rotina','Cron','Ativa','Última execução','Resultado','Duração (s)','Falhas no período','Último sucesso','Próxima execução estimada','Atraso observado'],d.jobs.map(j=>{
+     const interval={'* * * * *':1,'*/5 * * * *':5}[j.schedule];
+     const measured=Date.parse(d.observed_at);
+     const late=interval&&j.active&&j.last_success&&(measured-Date.parse(j.last_success))>interval*180000;
+     const next=interval&&j.active&&Number.isFinite(measured)?new Date((Math.floor(measured/(interval*60000))+1)*interval*60000):null;
+     return [j.job,j.schedule,j.active?'Sim':'Não',j.last_started?signupDate(j.last_started,signupFullTime):'Execução não registrada',
+      j.last_status,j.last_seconds,j.failures,j.last_success?signupDate(j.last_success,signupFullTime):null,next?signupDate(next,signupFullTime):null,late?'Atenção: três intervalos decorridos':null];
+    })):monitorUnavailable('O pg_cron não está disponível neste ambiente. Nenhuma execução é inferida.'))+
+    '<p class="sub">O repositório contém exemplos para neo-ai-worker e neo-staging-push-fallback. A presença no código não confirma agendamento. Nenhuma rotina é disparada pelo painel.</p>';
+   }else if(key==='audit'){
+    const d=await get('audit',days);if(!valid())return;stamp=d.observed_at;
+    body.innerHTML=monitorTable(['Ocorrência','Responsável','Ação','Operação','Recurso','Resultado'],
+     d.entries.map(x=>[signupDate(x.occurred_at,signupFullTime),x.actor,x.action,x.operation,x.resource,'Efetivada']))+
+     '<p class="sub">Últimas 100 alterações confirmadas em tabelas auditadas. Operações fora dessas tabelas não entram neste relatório.</p>';
+   }else if(key==='capacity'){
+    const [s,a]=await Promise.allSettled([system??=cloud.adminSystem(),ai??=cloud.adminSystem('ai')]);if(!valid())return;
+    const now=new Date().toISOString().slice(0,10),usedModels=new Set();
+    const prices=(a.value?.prices||[]).filter(x=>{
+     if(x.effective_from>now||usedModels.has(x.model))return false;
+     usedModels.add(x.model);return true;
+    });
+    const limits=s.value?.limits||[];
+    body.innerHTML='<p class="sub">Hipóteses editáveis para o próximo mês. Storage soma estoque inicial e uploads planejados. O tráfego considera sessões e uploads. Preços de transferência e API são hipóteses manuais.</p>'+operationForm(prices);
+    body.querySelector('form').addEventListener('submit',event=>{
+     event.preventDefault();const form=event.currentTarget;
+     if(!form.reportValidity())return;
+     const fields=Object.fromEntries(new FormData(form)),price=fields.price===''?null:prices[Number(fields.price)];
+     const rows=operationScenarios(fields,price,limits);
+     body.querySelector('[data-scenario-result]').innerHTML=monitorTable(['Cenário','Próximo mês','Ativos','Sessões','Uploads','Storage (GiB)','Tráfego (GiB)',
+      'API','Chamadas IA','Tokens entrada / saída','Custo IA','Variável','Total','Limite Storage'],
+      rows.map(x=>[x.users,x.next,monitorNumber(x.active),monitorNumber(x.sessions),monitorNumber(x.uploads),monitorNumber(x.stored),monitorNumber(x.traffic),
+       monitorNumber(x.api),monitorNumber(x.ai),monitorNumber(x.inputs)+' / '+monitorNumber(x.outputs),
+       x.aiCost==null?null:(price?.currency||fields.currency)+' '+monitorNumber(x.aiCost),x.variable==null?null:fields.currency+' '+monitorNumber(x.variable),
+       x.total==null?null:fields.currency+' '+monitorNumber(x.total),percent(x.storagePct)]));
+    });
+   }else if(key==='insights'){
+    const d=await (insights??=get('insights',days));if(!valid())return;stamp=d.observed_at;
+    body.innerHTML=adminSectionHeading('Oportunidades e recomendações','operations_insights')+
+     (d.recommendations.length?d.recommendations.map(x=>{
+      const rule=operationRules[x.rule];if(!rule)return '';
+      return `<section class="monitor-block"><h4>${rule.title}</h4><p>${esc(x.evidence_period)} · ${esc(x.unit==='bytes'?
+       monitorBytes(x.baseline)+' → '+monitorBytes(x.measured):monitorNumber(x.baseline)+' → '+monitorNumber(x.measured)+' relatos')}</p>
+      <p>${rule.reliability}</p><p>${rule.impact} ${rule.action}</p><label>Estado
+       <select data-operation-review="${esc(x.rule)}" data-period="${esc(x.evidence_period)}">${Object.entries({new:'Nova',review:'Em análise',resolved:'Resolvida',dismissed:'Descartada'})
+       .map(([k,v])=>`<option value="${k}" ${x.state===k?'selected':''}>${v}</option>`).join('')}</select></label></section>`;
+     }).join(''):monitorUnavailable('Nenhuma recomendação com evidência suficiente.'));
+    body.addEventListener('change',async event=>{
+     const select=event.target;
+     if(!select.matches('[data-operation-review]'))return;
+     const found=d.recommendations.find(x=>x.rule===select.dataset.operationReview&&x.evidence_period===select.dataset.period);
+     if(!found)return;
+     select.disabled=true;
+     try{await cloud.adminOperations('review',days,{rule:found.rule,period:found.evidence_period,state:select.value});found.state=select.value;if(valid())status.textContent='Estado atualizado.'}
+     catch{if(valid()){select.value=found.state;status.textContent='Não foi possível salvar o estado.'}}
+     finally{select.disabled=false}
+    },{once:false});
+   }else {
+    const [e,s,a,j]=await Promise.allSettled([getEngagement(days),system??=cloud.adminSystem(),ai??=cloud.adminSystem('ai'),
+     key==='executive'?(journeys??=get('journeys',days)):Promise.resolve(null)]);
+    if(!valid())return;
+    const engagementData=e.value,systemData=s.value,aiData=a.value,journeyData=j.value;
+    if(key==='efficiency'){
+     body.innerHTML=monitorTable(['Área','Usuários','Acessos','Tempo ativo'],(engagementData?.ranking||[]).map(x=>[
+      engagementAreaLabels[x.area]||x.area,x.users,x.visits,engagementDuration(x.active)]))+
+      monitorTable(['Custo direto','Moeda','Estimativa no mês UTC','Por chamada precificada'],(aiData?.costs||[]).map(x=>
+       ['IA de atendimento',x.currency,monitorNumber(x.estimated),x.priced_calls?monitorNumber(x.estimated/x.priced_calls):null]))+
+      '<p class="sub">As fontes usam períodos e denominadores próprios. Infraestrutura compartilhada não é rateada. Custos de IA são estimativas para chamadas com preço disponível.</p>';
+    }else{
+     const mature=(journeyData?.cohorts||[]).findLast(x=>x.d7!=null);
+     const growth=systemData?monitorProjection(systemData.history,'database_bytes',systemData.data.database_bytes):null;
+     const rows=[
+      ['Contas cadastradas',summary.users_total,'Auth','Total'],['Cadastros novos',summary.signups_7d,'Auth','7 dias'],
+      ['Usuários observados',engagementData?.users,'Engajamento consentido',days+' dias'],
+      ['Retenção D7 da coorte madura mais recente',mature?percent(mature.d7):null,'Eventos consentidos',mature?.cohort||'Coortes na janela'],
+      ['Erros reportados',systemData?.data?.errors?.reduce((n,x)=>n+Number(x.total||0),0),'Relatos do app','7 dias'],
+      ['Banco (bytes)',systemData?.data?.database_bytes,'PostgreSQL','Última amostra'],
+      ['Crescimento médio do banco (bytes/dia)',growth?monitorNumber(growth.daily):null,'Amostras do PostgreSQL','Histórico disponível'],
+      ['Storage (bytes medidos)',systemData?.data?.storage_bytes,'Metadados de objetos','Última amostra'],
+      ['Alertas armazenados',systemData?.alerts?.length,'Limites manuais','Últimos 100 alertas'],
+      ...((aiData?.costs||[]).map(x=>['IA estimada '+x.currency,x.estimated,'Tabela manual','Mês UTC']))
+     ];
+     body.innerHTML=monitorTable(['Indicador','Valor','Fonte','Período'],rows)+
+      `<p class="sub">${systemData?'Amostra de saúde: '+esc(signupDate(systemData.observed_at,signupFullTime)):'Amostra de saúde indisponível.'}</p>
+       <button type="button" class="secondary" data-operations-export>Exportar CSV</button>`;
+     body.querySelector('button').addEventListener('click',()=>{
+      if(valid())adminCsv('neopep-resumo-operacional',[['Gerado',new Date().toISOString()],['Amostra de saúde',systemData?.observed_at],
+       ['Indicador','Valor','Fonte','Período'],...rows]);
+     });
+    }
+   }
+   if(stamp)body.insertAdjacentHTML('beforeend',`<p class="sub">Consultado em ${esc(signupDate(stamp,signupFullTime))} · Janela selecionada: ${days} dias UTC.</p>`);
+   loaded.add(key);
+  }catch{if(current()&&sequence===revision)body.textContent='Fonte indisponível. Feche e reabra para tentar novamente.'}
+  finally{if(inFlight.get(key)===sequence)inFlight.delete(key)}
+ }
+ for(const node of root.querySelectorAll('[data-operation-section]'))node.addEventListener('toggle',()=>{if(node.open)void load(node)});
+ range.addEventListener('change',()=>{
+  revision++;loaded.clear();inFlight.clear();journeys=null;insights=null;
+  for(const node of root.querySelectorAll('[data-operation-section]')){
+   const body=node.querySelector('[data-operation-body]');
+   body.replaceWith(body.cloneNode(false));
+   if(node.open)void load(node);
+  }
  });
 }
 $('#adminRefresh').onclick=refresh;
