@@ -343,3 +343,131 @@ test('Início, Evolução e Fotos seguem o número de dias distintos em conta co
   }
  }
 });
+
+test('comparação oferece composição em Início, Evolução e Fotos',()=>{
+ const run=app();
+ for(const page of ['homeJourneyDetails(false)','evolution()','photosPage()']){
+  const {document}=parseHTML(run(page));
+  assert.match(document.querySelector('[data-photo-comparison] [data-comparison-export]').textContent,/Comparar e compartilhar/);
+ }
+});
+
+function exportFixture(cloud={}){
+ const run=app(cloud),doc=run.document,draws=[],text=[],sizes=[];
+ const create=doc.createElement.bind(doc);
+ doc.createElement=tag=>{
+  const element=create(tag);
+  if(tag==='dialog'){
+   element.showModal=()=>{element.open=true};
+   element.close=()=>{element.open=false};
+  }
+  if(tag==='canvas'){
+   element.getContext=()=>({
+    scale(){},fillRect(){},fillText(value){text.push(value)},
+    createLinearGradient(){return {addColorStop(){}}},
+    drawImage(image,...bounds){draws.push(bounds)}
+   });
+   element.toBlob=resolve=>{
+    sizes.push([element.width,element.height]);
+    resolve(new Blob(['fixture'],{type:'image/jpeg'}));
+   };
+  }
+  return element;
+ };
+ run(`AbortController=class{
+  constructor(){let listener;this.signal={aborted:false,addEventListener(_,f){listener=f},removeEventListener(){listener=null},cancel(){listener?.()}}}
+  abort(){this.signal.aborted=true;this.signal.cancel()}
+ };File=class extends Blob{constructor(parts,name,options){super(parts,options);this.name=name}};
+ drawComparisonSource=async(source,signal,draw)=>{
+  const kind=typeof source==='string'?'square':await source.text();
+  if(!signal.aborted)draw({naturalWidth:kind==='landscape'?1600:800,naturalHeight:kind==='portrait'?1600:800});
+ };
+ document.body.insertAdjacentHTML('beforeend','<button id="exportTrigger">Comparar</button>');
+ mode='cloud';demo=false;`);
+ return {run,doc,draws,text,sizes};
+}
+test('composição exporta só os dois originais selecionados, preserva proporções e usa o JPEG exibido',async()=>{
+ const requests=[],{run,doc,draws,text,sizes}=exportFixture({
+  configured:false,init:async()=>null,user:{id:'owner'},
+  async photoBlob(photo){requests.push(photo.id);return new Blob([photo.id])}
+ });
+ await run(`
+  photoList=[
+   {id:'skip',date:'2026-01-01',user_id:'owner',path:'owner/skip.jpg'},
+   {id:'portrait',date:'2026-01-01',user_id:'owner',path:'owner/p.jpg'},
+   {id:'landscape',date:'2026-01-02',user_id:'owner',path:'owner/l.jpg'}
+  ];
+  comparisonCard(true);
+  comparisonSelection[0]={day:'2026-01-01',id:'portrait'};
+  showComparisonExport($('#exportTrigger'));
+ `);
+ assert.deepEqual(requests,['portrait','landscape']);
+ assert.deepEqual(sizes,[[1080,1920]]);
+ assert.deepEqual(draws.map(([, ,w,h])=>[w,h]),[[466,932],[466,233],[204,204]]);
+ assert.ok(text.includes('NeoPep'));
+ assert.equal(doc.querySelector('[data-export-save]').href,doc.querySelector('.comparison-export-media img').src);
+ assert.equal(doc.querySelector('[data-export-share]').disabled,false);
+ assert.equal(doc.querySelector('.comparison-export-premium input').disabled,true);
+ let saved=0;
+ doc.querySelector('[data-export-save]').addEventListener('click',()=>saved++);
+ run(`navigator.canShare=()=>false;$('#comparisonExport [data-export-share]').click()`);
+ assert.equal(saved,1);
+ assert.equal(run(`navigator.canShare=()=>true;navigator.share=({files})=>navigator.shared=files[0].name;
+  $('#comparisonExport [data-export-share]').click();navigator.shared`),'NeoPep-Antes-e-Depois.jpg');
+ run('clearPhotoURLs()');
+ assert.equal(doc.querySelector('#comparisonExport'),null);
+});
+test('composição bloqueia exemplos, recusa foto de outra conta e limita a resolução',async()=>{
+ const requests=[],{run,doc,text,sizes}=exportFixture({
+  configured:false,init:async()=>null,user:{id:'owner'},
+  async photoBlob(photo){requests.push(photo.id);return new Blob(['square'])}
+ });
+ await run(`navigator.deviceMemory=4;
+  photoList=[{id:'mine',date:'2026-02-01',user_id:'owner',path:'owner/m.jpg'},
+    {id:'other',date:'2026-02-02',user_id:'other',path:'other/o.jpg'}];
+  comparisonCard(false);
+  showComparisonExport($('#exportTrigger'));
+ `);
+ assert.deepEqual(requests,['mine']);
+ assert.deepEqual(sizes,[[720,1280]]);
+ assert.ok(text.includes('Exemplo'));
+ assert.equal(doc.querySelector('[data-export-save]').hidden,true);
+ assert.equal(doc.querySelector('[data-export-share]').disabled,true);
+ run("$('#comparisonExport').dispose()");
+ await run(`photoList=[];comparisonCard(false);showComparisonExport($('#exportTrigger'))`);
+ assert.deepEqual(requests,['mine']);
+ assert.equal(doc.querySelector('[data-export-share]').disabled,true);
+ run("$('#comparisonExport').dispose()");
+ await run(`photoList=[{id:'alone',date:'2026-02-03',user_id:'owner',path:'owner/a.jpg'}];
+  comparisonCard(false);showComparisonExport($('#exportTrigger'))`);
+ assert.deepEqual(requests,['mine','alone']);
+ assert.equal(doc.querySelector('[data-export-share]').disabled,true);
+ run("$('#comparisonExport').dispose()");
+});
+
+test('dias iguais bloqueiam exportação e fechar durante o download interrompe o preparo',async()=>{
+ const requests=[];
+ let finish;
+ const {run,doc}=exportFixture({
+  configured:false,init:async()=>null,user:{id:'owner'},
+  photoBlob(photo){
+   requests.push(photo.id);
+   return photo.id==='pending'?new Promise(resolve=>{finish=resolve}):Promise.resolve(new Blob(['square']));
+  }
+ });
+ await run(`
+  photoList=[{id:'a',date:'2026-02-01',user_id:'owner',path:'owner/a.jpg'},
+    {id:'pending',date:'2026-02-02',user_id:'owner',path:'owner/b.jpg'}];
+  comparisonCard(false);
+  comparisonSelection[1]={...comparisonSelection[0]};
+  showComparisonExport($('#exportTrigger'));
+ `);
+ assert.equal(doc.querySelector('[data-export-share]').disabled,true);
+ run("$('#comparisonExport').dispose();comparisonSelection[0]={day:'2026-02-02',id:'pending'}");
+ const loading=run("showComparisonExport($('#exportTrigger'))");
+ run('clearPhotoURLs()');
+ finish(new Blob(['square']));
+ await loading;
+ assert.deepEqual(requests,['a','a','pending']);
+ assert.equal(doc.querySelector('#comparisonExport'),null);
+});

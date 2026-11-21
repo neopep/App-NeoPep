@@ -2,7 +2,7 @@
 'use strict';
 const C=window.NeoCore, Cloud=window.NeoCloud, $=s=>document.querySelector(s), esc=C.escape;
 const KEY='neo-v2', LEGACY='elo-v1';
-const icons={community:'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3 21v-2a6 6 0 0 1 12 0v2m1-16a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 4v3',shop:'M5 7h14l1 14H4L5 7Zm3 0V6a4 4 0 0 1 8 0v1',home:'M3 11 12 3l9 8M5 10v10h5v-6h4v6h5V10',trend:'M3 17l6-6 4 3 8-10M15 4h6v6',plus:'M12 5v14M5 12h14',calendar:'M8 3v4m8-4v4M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z',user:'M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-2a8 8 0 0 1 16 0v2',bell:'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-11 12h4',arrow:'M5 12h14m-5-5 5 5-5 5',weight:'M4 5h16v15H4V5Zm4 0a4 4 0 0 0 8 0m-4 4 2-2',measure:'m3 16 13-13 5 5L8 21 3 16Zm6-6 3 3m1-7 3 3m-11 5 3 3',drop:'M12 3C9 8 5 11 5 15a7 7 0 0 0 14 0c0-4-4-7-7-12Z',calc:'M5 3h14v18H5V3Zm3 4h8M8 12h1m6 0h1m-8 4h1m6 0h1',journal:'M5 3h14v18H5V3Zm3 5h8m-8 4h8m-8 4h5',photo:'M3 7h5l2-3h4l2 3h5v14H3V7Zm13 6a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',report:'M4 3h16v18H4V3Zm4 14v-4m4 4V7m4 10v-7',shield:'M12 3 3 7v5c0 5 9 9 9 9s9-4 9-9V7l-9-4Zm-4 9 3 3 5-6',moon:'M20 15A9 9 0 0 1 9 4a9 9 0 1 0 11 11Z',sun:'M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1',heart:'M20 5c-4-4-8 1-8 1S8 1 4 5s0 8 8 15c8-7 12-11 8-15Z',clock:'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-5v5l3 2',download:'M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4',logout:'M10 3H4v18h6m4-15 6 6-6 6m-6-6h12',refresh:'M20 8A8 8 0 1 0 20 16M20 3v5h-5',check:'m5 12 4 4L19 6',layers:'m12 3 10 5-10 5L2 8l10-5Zm-10 9 10 5 10-5M2 16l10 5 10-5',chevron:'m9 5 7 7-7 7',trash:'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7'};
+const icons={expand:'M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6',community:'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3 21v-2a6 6 0 0 1 12 0v2m1-16a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 4v3',shop:'M5 7h14l1 14H4L5 7Zm3 0V6a4 4 0 0 1 8 0v1',home:'M3 11 12 3l9 8M5 10v10h5v-6h4v6h5V10',trend:'M3 17l6-6 4 3 8-10M15 4h6v6',plus:'M12 5v14M5 12h14',calendar:'M8 3v4m8-4v4M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z',user:'M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-2a8 8 0 0 1 16 0v2',bell:'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-11 12h4',arrow:'M5 12h14m-5-5 5 5-5 5',weight:'M4 5h16v15H4V5Zm4 0a4 4 0 0 0 8 0m-4 4 2-2',measure:'m3 16 13-13 5 5L8 21 3 16Zm6-6 3 3m1-7 3 3m-11 5 3 3',drop:'M12 3C9 8 5 11 5 15a7 7 0 0 0 14 0c0-4-4-7-7-12Z',calc:'M5 3h14v18H5V3Zm3 4h8M8 12h1m6 0h1m-8 4h1m6 0h1',journal:'M5 3h14v18H5V3Zm3 5h8m-8 4h8m-8 4h5',photo:'M3 7h5l2-3h4l2 3h5v14H3V7Zm13 6a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',report:'M4 3h16v18H4V3Zm4 14v-4m4 4V7m4 10v-7',shield:'M12 3 3 7v5c0 5 9 9 9 9s9-4 9-9V7l-9-4Zm-4 9 3 3 5-6',moon:'M20 15A9 9 0 0 1 9 4a9 9 0 1 0 11 11Z',sun:'M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1',heart:'M20 5c-4-4-8 1-8 1S8 1 4 5s0 8 8 15c8-7 12-11 8-15Z',clock:'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-5v5l3 2',download:'M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4',logout:'M10 3H4v18h6m4-15 6 6-6 6m-6-6h12',refresh:'M20 8A8 8 0 1 0 20 16M20 3v5h-5',check:'m5 12 4 4L19 6',layers:'m12 3 10 5-10 5L2 8l10-5Zm-10 9 10 5 10-5M2 16l10 5 10-5',chevron:'m9 5 7 7-7 7',trash:'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7'};
 const icon=(n)=>`<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${icons[n]||icons.layers}"/></svg>`;
 icons.eye='M2 12c2.5-4.5 5.8-7 10-7s7.5 2.5 10 7c-2.5 4.5-5.8 7-10 7s-7.5-2.5-10-7ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0';icons.eyeOff=icons.eye+'M3 3l18 18';
 const fmt=(n,d=1)=>n==null?'—':Number(n).toLocaleString('pt-BR',{maximumFractionDigits:d});
@@ -74,6 +74,7 @@ async function openDB(){return new Promise((resolve,reject)=>{if(!window.indexed
 async function photoStore(action,item){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction('photos',action==='all'?'readonly':'readwrite'),store=tx.objectStore('photos');let value;const req=action==='all'?store.getAll():action==='put'?store.put(item):store.delete(item);req.onsuccess=()=>value=req.result;tx.oncomplete=()=>{db.close();resolve(value)};tx.onerror=()=>{db.close();reject(Error('Falha ao salvar a foto. O armazenamento pode estar cheio.'))};tx.onabort=()=>{db.close();reject(Error('Operação de foto interrompida.'))}})}
 let photoCache=new Map(),photoObserver=null,photoMetadataLoaded=false;
 function clearPhotoURLs(){
+ $('#comparisonExport')?.dispose();
  photoObserver?.disconnect();
  clearPhotoBatch();
  for(const entry of photoCache.values())if(entry.objectURL)URL.revokeObjectURL(entry.objectURL);
@@ -273,7 +274,7 @@ function comparisonCard(home){
    <div data-photo-preview></div>
    <figcaption><strong>${label}</strong><span data-photo-position>${position}</span></figcaption>
    <div class="comparison-slider-slot"><input type="range" data-photo-slider="${label}" aria-label="Fotografia ${label}" aria-valuetext="${date(selected.date)}, ${position}" min="0" step="1" max="${rows.length-1}" value="${index}" style="--photo-progress:${rows.length>1?100*index/(rows.length-1):0}%" ${rows.length===1?'disabled hidden':''}></div></figure>`;
-  }).join('')}</div>${comparisonDays.size<2?addBtn('photo',photos.length?'Adicionar foto de outro dia':'Adicionar minhas fotos'):''}</section>`;
+  }).join('')}</div><button type="button" class="secondary full comparison-export-button" data-comparison-export>${icon('expand')} Comparar e compartilhar</button>${comparisonDays.size<2?addBtn('photo',photos.length?'Adicionar foto de outro dia':'Adicionar minhas fotos'):''}</section>`;
 }
 function paintComparison(figure,day,index,warm=false){
  const side=Number(figure.dataset.photoSide),label=side?'Depois':'Antes',rows=comparisonDays.get(day),photo=rows?.[index];
@@ -361,6 +362,151 @@ function hydratePhotoImages(){
  figures.forEach(figure=>photoObserver.observe(figure));
  root.querySelectorAll('details[open] [data-photo-media]').forEach(image=>photoObserver.observe(image.closest('button')));
 }
+function drawComparisonImage(ctx,image,x,y,width,height){
+ const scale=Math.min(width/image.naturalWidth,height/image.naturalHeight);
+ const w=image.naturalWidth*scale,h=image.naturalHeight*scale;
+ ctx.drawImage(image,x+(width-w)/2,y+(height-h)/2,w,h);
+}
+async function drawComparisonSource(source,signal,draw){
+ const image=document.createElement('img');
+ const objectURL=typeof source==='string'?null:URL.createObjectURL(source);
+ let abort;
+ try{
+  await new Promise((resolve,reject)=>{
+   abort=()=>reject(Error('Cancelado.'));
+   if(signal.aborted)return abort();
+   signal.addEventListener('abort',abort,{once:true});
+   image.onload=resolve;
+   image.onerror=()=>reject(Error('Imagem indisponível.'));
+   image.src=objectURL||source;
+  });
+  if(!signal.aborted)draw(image);
+ }finally{
+  signal.removeEventListener('abort',abort);
+  image.onload=image.onerror=null;
+  image.removeAttribute('src');
+  if(objectURL)URL.revokeObjectURL(objectURL);
+ }
+}
+async function showComparisonExport(trigger){
+ if($('#comparisonExport'))return;
+ const generation=loadGeneration,account=mode==='cloud'&&!demo?Cloud.user?.id:null;
+ const photos=comparisonSelection.map(selected=>account&&comparisonDays.get(selected?.day)?.find(photo=>
+  photo.id===selected.id&&photo.user_id===account&&photo.path?.startsWith(account+'/')));
+ const exportable=photos.every(Boolean)&&photos[0].date!==photos[1].date;
+ const controller=new AbortController();
+ const dialog=document.createElement('dialog');
+ dialog.id='comparisonExport';
+ dialog.className='comparison-export-dialog';
+ dialog.setAttribute('aria-labelledby','comparisonExportTitle');
+ dialog.innerHTML=`<header><div><h2 id="comparisonExportTitle">Minha Evolução</h2><p>Antes e Depois</p></div>
+  <form method="dialog"><button type="submit" class="secondary" autofocus>Fechar</button></form></header>
+  <div class="comparison-export-media"><p role="status">Preparando imagens…</p></div>
+  <footer><div class="comparison-export-actions"><button type="button" class="primary" data-export-share disabled>Compartilhar</button>
+  <a class="secondary" data-export-save hidden download="NeoPep-Antes-e-Depois.jpg">Salvar imagem</a></div>
+  <p data-export-status role="status"></p>
+  <label class="comparison-export-premium"><input type="checkbox" disabled> Sem marca-d’água · Premium (recurso futuro)</label></footer>`;
+ const media=dialog.querySelector('.comparison-export-media');
+ const share=dialog.querySelector('[data-export-share]'),save=dialog.querySelector('[data-export-save]');
+ const status=dialog.querySelector('[data-export-status]');
+ const current=()=>!controller.signal.aborted&&dialog.open&&generation===loadGeneration&&(!account||Cloud.user?.id===account);
+ const canvas=document.createElement('canvas');
+ let url,file;
+ dialog.dispose=()=>{
+  controller.abort();
+  canvas.width=canvas.height=0;
+  if(url)URL.revokeObjectURL(url);
+  url=file=null;
+  dialog.close();
+  dialog.remove();
+  if(trigger.isConnected)trigger.focus({preventScroll:true});
+ };
+ dialog.addEventListener('close',()=>{if(!controller.signal.aborted)dialog.dispose()},{once:true});
+ save.addEventListener('click',event=>{if(!current())event.preventDefault()});
+ share.addEventListener('click',async()=>{
+  if(!current()||!url)return;
+  try{
+   if(file&&navigator.share&&navigator.canShare?.({files:[file]})){
+    await navigator.share({files:[file]});
+    return;
+   }
+   save.click();
+  }catch(error){
+   if(current()&&error.name!=='AbortError')status.textContent='O compartilhamento falhou. Use Salvar imagem.';
+  }
+ });
+ document.body.append(dialog);
+ dialog.showModal();
+ try{
+  // One bounded output canvas and one decoded original at a time.
+  canvas.width=navigator.deviceMemory&&navigator.deviceMemory<=4?720:1080;
+  canvas.height=canvas.width*16/9;
+  const ctx=canvas.getContext('2d');
+  if(!ctx)throw Error('Canvas indisponível.');
+  ctx.scale(canvas.width/1080,canvas.width/1080);
+  ctx.fillStyle='#12100e';
+  ctx.fillRect(0,0,1080,1920);
+  ctx.textAlign='center';
+  ctx.fillStyle='#dfbd78';
+  ctx.font='bold 80px Georgia';
+  ctx.fillText('Minha Evolução',540,155);
+  ctx.font='41px system-ui';
+  ctx.fillText('Antes e Depois',540,233);
+  for(const [side,photo] of photos.entries()){
+   const x=42+side*510,center=x+243;
+   ctx.fillStyle='#27221d';
+   ctx.fillRect(x,316,486,1244);
+   ctx.fillStyle='#dfbd78';
+   ctx.font='bold 38px system-ui';
+   ctx.fillText(side?'DEPOIS':'ANTES',center,384);
+   ctx.fillStyle='#f8e8ca';
+   ctx.font='32px system-ui';
+   ctx.fillText(photo?date(photo.date):'Exemplo',center,437);
+   const source=photo?await Cloud.photoBlob(photo):`assets/photo-example-${side+1}.png`;
+   if(!current())return;
+   await drawComparisonSource(source,controller.signal,image=>drawComparisonImage(ctx,image,x+10,470,466,1000));
+   if(!current())return;
+  }
+  // Shade the base of both frames while keeping the entire photo area clear.
+  const shade=ctx.createLinearGradient(0,1470,0,1920);
+  shade.addColorStop(0,'rgba(20,15,9,0)');
+  shade.addColorStop(.48,'rgba(57,39,19,.88)');
+  shade.addColorStop(1,'#17110b');
+  ctx.fillStyle=shade;
+  ctx.fillRect(24,1470,1032,450);
+  ctx.globalAlpha=.86;
+  await drawComparisonSource('assets/icon-512.png',controller.signal,image=>drawComparisonImage(ctx,image,438,1540,204,204));
+  if(!current())return;
+  ctx.fillStyle='#dfbd78';
+  ctx.font='bold 98px Georgia';
+  ctx.fillText('NeoPep',540,1846);
+  ctx.globalAlpha=1;
+  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.93));
+  if(!current())return;
+  if(!blob)throw Error('Composição indisponível.');
+  url=URL.createObjectURL(blob);
+  const image=document.createElement('img');
+  image.src=url;
+  image.alt='Composição Minha Evolução. '+photos.map((photo,side)=>(side?'Depois: ':'Antes: ')+(photo?date(photo.date):'Exemplo')).join('. ');
+  media.replaceChildren(image);
+  if(exportable){
+   if(typeof File==='function')file=new File([blob],'NeoPep-Antes-e-Depois.jpg',{type:blob.type});
+   save.href=url;
+   save.hidden=false;
+   share.disabled=false;
+  }else{
+   status.textContent=account?'Selecione fotos reais de dois dias diferentes para compartilhar ou salvar.':'Entre na sua conta para compartilhar suas fotos.';
+  }
+ }catch{
+  if(current())media.textContent='Não foi possível preparar a comparação. Feche e tente novamente.';
+ }finally{
+  canvas.width=canvas.height=0;
+ }
+}
+document.addEventListener('click',event=>{
+ const trigger=event.target.closest?.('[data-comparison-export]');
+ if(trigger)void showComparisonExport(trigger);
+});
 async function showPhoto(id,trigger=document.activeElement){
  const photo=photoList.find(row=>row.id===id),generation=loadGeneration;
  if(!photo||$('#photoViewer'))return;

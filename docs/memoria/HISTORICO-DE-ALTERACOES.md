@@ -345,3 +345,11 @@ Build, npm run check e 102 testes pertinentes passaram. A verificação de stagi
 Em 21/11/2026, a comparação compartilhada de Início, Evolução e Fotos passou a usar duas molduras 9:16 iguais, fundo neutro e imagens centralizadas com proporção preservada. Seletores nativos de data ganharam área de toque de 44 px, chevron e aparência sem contorno. As legendas mostram Antes ou Depois e Foto X de Y. Os sliders têm trilha preenchida em dourado, restante neutro, foco visível e estilos para WebKit e Gecko.
 
 A seleção por dia, o carregamento, o cache de sessão e a privacidade das fotos foram preservados. O build renovou a revisão do shell do PWA de staging para servir os recursos atualizados. Build, npm run check e 102 testes pertinentes passaram. Os testes automatizados verificam as regras da moldura, dos controles e do PWA. A conferência visual com fotos verticais, horizontais e quadradas no Safari de um iPhone físico segue pendente. Publicação restrita a staging/permanente.
+
+## MEM-20261121-011
+
+Em 21/11/2026, o NeoPep Teste recebeu o modal Minha Evolução nos componentes compartilhados de Início, Evolução e Fotos. Ele usa as duas escolhas atuais e o acesso autenticado já existente aos originais do bucket privado. O Canvas gera um JPEG 9:16 de 1080 × 1920, ou 720 × 1280 quando o navegador informa até 4 GB de memória. Apenas uma foto é decodificada por vez. A marca NeoPep fica integrada aos pixels e sobre a base das molduras, com a área das fotos livre para preservar os rostos.
+
+O JPEG exibido é o mesmo utilizado para salvar ou compartilhar. A exportação exige fotos da própria conta em dois dias distintos. Exemplos, modo local e seleções do mesmo dia têm exportação indisponível. A composição é temporária. Não é gravada no Supabase nem enviada automaticamente. O fechamento e a troca de conta liberam os recursos. A opção sem marca-d’água permanece indisponível até que o backend autorize o plano Premium.
+
+Build, npm run check, empacotamento portátil e 104 testes pertinentes passaram, incluindo o compartilhamento simulado, a alternativa de download, a geometria de imagens em três proporções e o descarte após troca de conta. A conferência visual do JPEG e o compartilhamento e salvamento nativos em Safari/PWA de iPhone físico seguem pendentes. Publicação restrita a staging/permanente.

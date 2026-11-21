@@ -305,3 +305,21 @@ body:has(.photo-viewer[open]){overflow:hidden}
 }
 .photo-comparison [data-photo-slider]::-moz-range-thumb{width:18px;height:18px;border:1px solid var(--solid);border-radius:50%;background:var(--photo-gold)}
 .photo-comparison :is([data-photo-date],[data-photo-slider]):focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+.comparison-export-button{min-height:48px;margin-top:1rem;border-color:#a38148;color:var(--ink);border-radius:1rem}
+.comparison-export-dialog[open]{position:fixed;inset:0;display:grid;grid-template-rows:auto minmax(0,1fr) auto;width:min(100%,38rem);height:min(100%,56rem);max-width:100%;max-height:100%;margin:auto;padding:0;overflow:hidden;background:#171310;color:#f9edda;color-scheme:dark}
+.comparison-export-dialog header,.comparison-export-dialog footer{background:#211a14;padding:.75rem max(.9rem,env(safe-area-inset-right)) .75rem max(.9rem,env(safe-area-inset-left))}
+.comparison-export-dialog header{display:flex;justify-content:space-between;align-items:center;gap:1rem;padding-top:max(.75rem,env(safe-area-inset-top))}
+.comparison-export-dialog header h2{margin:0;color:#dfbd78}
+.comparison-export-dialog header p,.comparison-export-dialog footer p{margin:.25rem 0 0}
+.comparison-export-dialog footer{padding-bottom:max(.8rem,env(safe-area-inset-bottom))}
+.comparison-export-dialog .secondary{color:#f9edda;border-color:#a38148;background:#30261d}
+.comparison-export-media{display:grid;place-items:center;position:relative;min-height:0;text-align:center;padding:.5rem}
+.comparison-export-media img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.comparison-export-actions{display:flex;flex-wrap:wrap;gap:.5rem}
+.comparison-export-actions>*{flex:1;justify-content:center;text-align:center}
+.comparison-export-actions [hidden]{display:none}
+.comparison-export-dialog button,.comparison-export-dialog a{min-height:44px}
+.comparison-export-premium{display:flex;align-items:center;gap:.45rem;margin-top:.5rem;color:#dfbd78;font-size:.85rem}
+.comparison-export-premium input{width:auto;margin:0}
+body:has(.comparison-export-dialog[open]){overflow:hidden}
