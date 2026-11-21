@@ -140,3 +140,9 @@ A ordem entre fatos de fontes diferentes só foi estabelecida quando os registro
 | Verificações | npm run check, build em cópia isolada da main remota e git diff --check. |
 | Limpeza e reversão | O proprietário autorizou a limpeza. A remoção de produção é um commit separado com apenas dist/diagnostico-producao.txt. As referências de arquivo usam o prefixo arquivo/testes-20261120/. Preserve os SHAs, o PR #3 e o MEM-20261120-005. A exclusão de branches não confirma retirada das URLs de Preview. |
 | Identificação Git | Base documental `3f9be64`. Localize a consolidação e a remoção separada com `git log --oneline --grep=MEM-20261120-008`. A confirmação do deployment da remoção é uma etapa posterior. |
+
+## MEM-20261121-004
+
+Em 21/11/2026, o proprietário autorizou a publicação somente da identidade NeoPep. A branch publicacao/identidade-visual-neopep foi criada a partir da main d55b85c. O logotipo original e os derivados foram conferidos byte a byte contra staging 3565391. As alterações públicas cobrem marca, telas, estilos, manifesto, ícones e cache estático. O ID, a abertura e o escopo do PWA preservam os valores oficiais, assim como rotas, CSP, Supabase, pagamentos, autenticação, handlers e textos emitidos por notificações. Verificação estática e build passaram. A suíte focada teve 88/90 com as mesmas duas falhas de privacidade em push reproduzidas na main anterior.
+
+Multiagentes, migrações, funções Edge e demais mudanças de homologação seguem na fila de preparacao/promocao-completa, sem promoção neste release. [Auditoria da promoção completa em preparação](../processos/PUBLICACAO-MULTIAGENTE.md)
