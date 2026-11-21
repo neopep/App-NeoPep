@@ -1,0 +1,49 @@
+name: NeoPep Connect Windows
+
+on:
+  push:
+    branches: [desenvolvimento/neopep-connect, staging/permanente]
+    paths: ['connect/windows/**', '.github/workflows/neopep-connect.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    if: github.ref_name == 'staging/permanente' || github.ref_name == 'desenvolvimento/neopep-connect'
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - name: Compilar aplicativo e instalador x64
+        shell: powershell
+        run: ./connect/windows/build.ps1 -Output "$env:RUNNER_TEMP\connect"
+      - name: Verificar checksum, instalação, atualização e remoção
+        shell: powershell
+        run: |
+          $output = Join-Path $env:RUNNER_TEMP 'connect'
+          $setup = Join-Path $output 'NeoPepConnectSetup.exe'
+          $client = Join-Path $output 'NeoPepConnect.exe'
+          $manifest = Get-Content (Join-Path $output 'manifest.json') -Raw | ConvertFrom-Json
+          if ((Get-FileHash $setup).Hash.ToLowerInvariant() -ne $manifest.sha256) { throw 'Checksum incorreto' }
+          if ((Get-Item $setup).Length -ne $manifest.bytes) { throw 'Tamanho incorreto' }
+          function Invoke-Setup([string]$arguments) {
+            $execution = Start-Process $setup -ArgumentList $arguments -Wait -PassThru
+            if ($execution.ExitCode -ne 0) { throw "Falha no instalador: $($execution.ExitCode)" }
+          }
+          Invoke-Setup '--quiet'
+          $installed = Join-Path $env:LOCALAPPDATA 'NeoPep Connect\NeoPepConnect.exe'
+          if ((Get-FileHash $installed).Hash -ne (Get-FileHash $client).Hash) { throw 'Binário instalado diverge' }
+          Invoke-Setup '--quiet'
+          Invoke-Setup '--quiet --uninstall'
+          if (Test-Path $installed) { throw 'O executável permanece instalado' }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: NeoPep-Connect-Windows-x64
+          path: |
+            ${{ runner.temp }}/connect/NeoPepConnectSetup.exe
+            ${{ runner.temp }}/connect/manifest.json
+          retention-days: 7
