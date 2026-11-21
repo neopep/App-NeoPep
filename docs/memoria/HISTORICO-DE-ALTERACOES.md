@@ -287,3 +287,9 @@ O teste de build confirmou o manifesto, a página legada, o callback, os caches 
 ## MEM-20261120-022
 
 Em 20/11/2026, o proprietário confirmou que o PWA já instalado voltou a abrir no Windows após o commit `52b49a9`. O build de homologação passou a gerar `name` e `short_name` como NeoPep Teste, com ID, abertura e escopo em `/`. O teste de build verificou o manifesto usado por Windows e Android e o título Apple da tela inicial do iPhone. A compatibilidade com `/neo/`, os logotipos e as notificações foram preservados.
+
+## MEM-20261121-001
+
+Em 21/11/2026, os dois PNGs fornecidos no novo Logo.zip substituíram as imagens do NeoPep Teste. O logotipo interno RGB de 4000 × 4000 foi copiado sem alterações. Os ícones comuns e o favicon preservam a transparência do original de crescimento. As versões Apple e maskable usam fundo opaco e a versão maskable inclui margem de segurança. O cache de staging avançou para pwa-v3. Nomes, ID, escopo, rotas legadas, autenticação e notificações foram preservados.
+
+A conferência dos originais e dos tamanhos derivados, o npm run check e o teste do manifesto passaram. A suíte focada teve 66/68, com as duas falhas já registradas de privacidade em notificações. A promoção das imagens para a main depende da aprovação visual em staging.
