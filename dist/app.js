@@ -31,7 +31,17 @@ function head(title,sub,action=''){return `${!['inicio','bemvindo','comunidade',
 const addBtn=(kind,label)=>`<button class="primary" data-add="${kind}" aria-label="${label}">${icon('plus')}<span>${label}</span></button>`;
 const empty=(title,detail,action='',i='trend')=>`<div class="empty">${icon(i)}<strong>${title}</strong><span>${detail}</span>${action}</div>`;
 function periods(){return `<div class="segmented" role="group" aria-label="Período do gráfico">${[['7','7 dias'],['30','30 dias'],['90','90 dias'],['183','6 meses'],['365','1 ano'],['all','Tudo']].map(([v,l])=>`<button data-period="${v}" class="${period===v?'active':''}" aria-pressed="${period===v}">${l}</button>`).join('')}</div>`}
-function chart(rows=C.periodRows(state.weights,period),key='value',label='Peso',display=weight,suffix=unit()){if(!rows.length)return empty(key==='value'?'Sua evolução começa aqui':'Uma medida de cada vez','Não há registros neste período.',addBtn(key==='value'?'weight':'measure',key==='value'?'Registrar peso':'Registrar medidas'));const vals=rows.map(r=>r[key]),min=Math.min(...vals)-.5,max=Math.max(...vals)+.5,start=C.epoch(rows[0].date),end=C.epoch(rows.at(-1).date);const pts=rows.map((r,i)=>({x:end===start?300:42+(C.epoch(r.date)-start)/(end-start)*540,y:165-(r[key]-min)/(max-min)*140,r}));return `<div class="chart"><svg viewBox="0 0 600 190" role="img" aria-label="${esc(label)} ao longo do tempo"><defs><linearGradient id="chartFade" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--chart)" stop-opacity=".35"/><stop offset="100%" stop-color="var(--chart)" stop-opacity="0"/></linearGradient></defs>${[35,80,125,170].map((y,i)=>`<line x1="38" x2="585" y1="${y}" y2="${y}" class="grid-line"/><text x="0" y="${y+3}" class="chart-label">${esc(display(max-i*(max-min)/3))}</text>`).join('')}<path d="M${pts.map(p=>`${p.x},${p.y}`).join(' L')} L${pts.at(-1).x},180 L${pts[0].x},180 Z" fill="url(#chartFade)"/><polyline points="${pts.map(p=>p.x+','+p.y).join(' ')}" fill="none" stroke-width="2.8" stroke-linejoin="round"/>${pts.map(p=>`<circle cx="${p.x}" cy="${p.y}" r="4" stroke-width="2" tabindex="0" role="button" aria-label="${date(p.r.date)}: ${display(p.r[key])} ${suffix}" data-tip="${date(p.r.date)} · ${display(p.r[key])} ${suffix}"><title>${date(p.r.date)} · ${display(p.r[key])} ${suffix}</title></circle>`).join('')}</svg></div><div class="chart-axis"><span>${date(rows[0].date)}</span><span>${date(rows.at(-1).date)}</span></div><div class="chart-tip" id="chartTip">Toque em um ponto para ver o registro</div>`}
+function chartGeometry(rows,key,reference=null){
+ const values=rows.map(row=>row[key]);
+ if(reference!==null)values.push(reference);
+ const min=Math.min(...values)-.5,max=Math.max(...values)+.5;
+ const start=C.epoch(rows[0].date),end=C.epoch(rows.at(-1).date);
+ const y=value=>165-(value-min)/(max-min)*140;
+ const pts=rows.map(r=>({x:end===start?300:42+(C.epoch(r.date)-start)/(end-start)*540,y:y(r[key]),r}));
+ const ticks=[0,1,2,3].map(i=>{const value=max-i*(max-min)/3;return {y:y(value),value}});
+ return {pts,ticks,y};
+}
+function chart(rows=C.periodRows(state.weights,period),key='value',label='Peso',display=weight,suffix=unit()){if(!rows.length)return empty(key==='value'?'Sua evolução começa aqui':'Uma medida de cada vez','Não há registros neste período.',addBtn(key==='value'?'weight':'measure',key==='value'?'Registrar peso':'Registrar medidas'));const {pts,ticks}=chartGeometry(rows,key);return `<div class="chart"><svg viewBox="0 0 600 190" role="img" aria-label="${esc(label)} ao longo do tempo"><defs><linearGradient id="chartFade" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--chart)" stop-opacity=".35"/><stop offset="100%" stop-color="var(--chart)" stop-opacity="0"/></linearGradient></defs>${ticks.map(({y,value})=>`<line x1="38" x2="585" y1="${y}" y2="${y}" class="grid-line"/><text x="0" y="${y+3}" class="chart-label">${esc(display(value))}</text>`).join('')}<path d="M${pts.map(p=>`${p.x},${p.y}`).join(' L')} L${pts.at(-1).x},180 L${pts[0].x},180 Z" fill="url(#chartFade)"/><polyline points="${pts.map(p=>p.x+','+p.y).join(' ')}" fill="none" stroke-width="2.8" stroke-linejoin="round"/>${pts.map(p=>`<circle cx="${p.x}" cy="${p.y}" r="4" stroke-width="2" tabindex="0" role="button" aria-label="${date(p.r.date)}: ${display(p.r[key])} ${suffix}" data-tip="${date(p.r.date)} · ${display(p.r[key])} ${suffix}"><title>${date(p.r.date)} · ${display(p.r[key])} ${suffix}</title></circle>`).join('')}</svg></div><div class="chart-axis"><span>${date(rows[0].date)}</span><span>${date(rows.at(-1).date)}</span></div><div class="chart-tip" id="chartTip">Toque em um ponto para ver o registro</div>`}
 function stats(extended=false,compact=false){const m=C.metrics(state),base=[['Peso atual',weight(m.current),unit(),state.weights.length?'Último registro: '+date(C.sorted(state.weights).at(-1).date):'Seu ponto de partida','weight'],['Peso inicial',weight(m.initial),unit(),'Referência da sua jornada','trend'],['Meta de peso',weight(m.goal),unit(),m.goal?'Sua meta pessoal':'Defina no seu perfil','layers'],['Variação total',m.change==null?'—':(m.change>0?'+':'')+weight(m.change),unit(),'Em relação ao peso inicial','trend']];if(extended)base.push(['IMC',fmt(m.bmi),'kg/m²',m.bmi?'Peso ÷ altura² · valor descritivo':'Informe a altura no perfil','user'],['Gordura corporal',fmt(m.fat),'%',m.fat?'Valor informado por você':'Adicione ao registrar seu peso','drop'],['Acompanhamento',String(m.days),'dias','Desde o primeiro peso','calendar'],['Variação em 7 dias',m.weekly==null?'—':(m.weekly>0?'+':'')+weight(m.weekly),unit(),'Peso atual vs. último registro até 7 dias atrás','trend']);if(compact)return `<section class="card home-health-summary" aria-labelledby="homeSummaryTitle"><div class="card-head"><h2 id="homeSummaryTitle">Seu resumo</h2><button class="text-btn" data-go="evolucao">Detalhes ${icon('arrow')}</button></div><dl class="home-summary-metrics">${base.map(([label,value,units,note],index)=>`<div class="home-summary-metric${index===0?' home-summary-current':''}" title="${esc(note)}"><dt>${esc(label)}</dt><dd>${esc(value)} <small>${esc(units)}</small></dd></div>`).join('')}</dl><p class="home-summary-date">${state.weights.length?'Último registro: '+date(C.sorted(state.weights).at(-1).date):'Adicione seu primeiro peso para começar.'}</p></section>`;return `<div class="stats">${base.map(([l,v,u,n,i])=>`<article class="card stat"><div class="stat-label">${l}${icon(i)}</div><div class="stat-value">${v}<small>${u}</small></div><div class="stat-note">${n}</div></article>`).join('')}</div>`}
 const molecule=`<svg viewBox="0 0 200 140" aria-hidden="true"><defs><radialGradient id="orb"><stop offset="0" stop-color="#fff1cf"/><stop offset=".6" stop-color="#e7d7b2"/><stop offset="1" stop-color="#a68b53"/></radialGradient><radialGradient id="violetOrb"><stop stop-color="#fff1cf"/><stop offset="1" stop-color="#c4a264"/></radialGradient></defs><g stroke="#b39760" stroke-width="7" stroke-linecap="round"><path d="m35 87 51-44 61 14 25 51-59 13-27-78m27 78 34-64"/></g><g fill="url(#orb)"><circle cx="35" cy="87" r="17"/><circle cx="86" cy="43" r="24"/><circle cx="147" cy="57" r="18"/><circle cx="172" cy="108" r="14"/></g><circle cx="113" cy="121" r="20" fill="url(#violetOrb)"/></svg>`;
 function recent(){return [...state.weights.map(r=>({...r,title:'Peso registrado',detail:weight(r.value)+' '+unit(),route:'registros',icon:'weight'})),...state.measures.map(r=>({...r,title:'Medidas atualizadas',detail:'Cintura: '+cm(r.waist)+' '+measureUnit(),route:'registros',icon:'measure'})),...state.journal.map(r=>({...r,title:'Seu diário',detail:r.note||'Registro de bem-estar',route:'diario',icon:'journal'})),...state.doses.map(r=>({...r,title:'Aplicação registrada',detail:r.product+' · '+fmt(r.amount,4)+' '+r.unit,route:'aplicacoes',icon:'drop'}))].sort((a,b)=>C.epoch(b.date)-C.epoch(a.date)).slice(0,3)}
@@ -75,6 +85,7 @@ async function photoStore(action,item){const db=await openDB();return new Promis
 let photoCache=new Map(),photoObserver=null,photoMetadataLoaded=false;
 function clearPhotoURLs(){
  $('#comparisonExport')?.dispose();
+ comparisonWeightCache=null;
  photoObserver?.disconnect();
  clearPhotoBatch();
  for(const entry of photoCache.values())if(entry.objectURL)URL.revokeObjectURL(entry.objectURL);
@@ -244,6 +255,61 @@ function warmPhotoThumb(photo,needed,priority=false,variant='thumbnail'){
  drainThumbQueue();
  return item.promise;
 }
+let comparisonWeightCache=null;
+function selectedComparisonPhotos(account){
+ return comparisonSelection.map(selected=>account&&comparisonDays.get(selected?.day)?.find(photo=>
+  photo.id===selected.id&&photo.user_id===account&&photo.path?.startsWith(account+'/')));
+}
+function comparisonWeight(photos){
+ const [before,after]=photos.map(photo=>photo?.date);
+ const units=unit(),initial=state.profile.initialWeight,source=state.weights;
+ const cached=comparisonWeightCache;
+ if(cached&&cached.source===source&&cached.initial===initial&&cached.units===units&&cached.before===before&&cached.after===after)return cached.result;
+ let type='none',value=null,reference=null,rows=[],references=[];
+ if(before&&after&&before!==after){
+  const daily=new Map();
+  for(const row of source){
+   if(!C.validDate(row.date)||!Number.isFinite(row.value)||row.value<1||row.value>650)continue;
+   const timestamp=[row.updated_at,row.updatedAt,row.created_at,row.createdAt].map(Date.parse).find(Number.isFinite)??null;
+   const previous=daily.get(row.date);
+   if(previous&&Number.isFinite(previous.timestamp)&&(!Number.isFinite(timestamp)||previous.timestamp>timestamp))continue;
+   daily.set(row.date,{id:row.id,date:row.date,value:row.value,timestamp});
+  }
+  const history=C.sorted([...daily.values()]).map(row=>Object.freeze(row));
+  const first=daily.get(before),last=daily.get(after);
+  if(first&&last){
+   type='period';
+   value=last.value-first.value;
+   references=[first,last].map(row=>Object.freeze(row));
+   const [start,end]=[before,after].sort();
+   rows=history.filter(row=>row.date>=start&&row.date<=end);
+  }else if(history.length>=2){
+   const metrics=C.metrics({...state,weights:history});
+   if(Number.isFinite(metrics.change)){
+    type='total';
+    value=metrics.change;
+    rows=history;
+    reference=metrics.initial===history[0].value?null:metrics.initial;
+    references=[reference===null?history[0]:Object.freeze({value:reference,origin:'profile'}),history.at(-1)];
+   }
+  }
+ }
+ const converted=units==='lb'?value*2.2046226218:value;
+ const rounded=value===null?null:Math.round(Math.abs(converted)*10)/10;
+ const sign=rounded===0?'':converted<0?'−':'+';
+ const label=type==='period'?'Variação entre as fotos':type==='total'?'Variação total':'Sem dados suficientes';
+ const display=value===null?'':sign+rounded.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' '+units;
+ const range=rows.length?date(rows[0].date)+' a '+date(rows.at(-1).date):'';
+ const result=Object.freeze({type,value,label,display,range,units,reference,rows:Object.freeze(rows),references:Object.freeze(references)});
+ comparisonWeightCache={source,initial,units,before,after,result};
+ return result;
+}
+function comparisonWeightMarkup(result){
+ return `<span>${result.label}${result.display?':':''}</span>${result.display?` <strong>${result.display}</strong><small>${result.range}${result.reference===null?'':' · Peso inicial do perfil'}</small>`:''}`;
+}
+function currentComparisonWeight(){
+ return comparisonWeight(selectedComparisonPhotos(mode==='cloud'&&!demo?Cloud.user?.id:null));
+}
 function comparisonCard(home){
  const photos=sortedPhotos('progress');
  comparisonDays=new Map();
@@ -259,8 +325,7 @@ function comparisonCard(home){
   <figcaption><strong>${label}</strong><span>Exemplo</span></figcaption>
   <span class="comparison-slider-spacer" aria-hidden="true"></span></figure>`;
  if(comparisonDays.size<2){comparisonSelection[1]=null;comparisonPrepared[1]=null}
- return `<section class="card space" data-photo-comparison data-comparison-home="${home}">${heading}
-  <div class="compare photo-comparison" id="comparisonPhotos">${[0,1].map(side=>{
+ const figures=[0,1].map(side=>{
    const label=side?'Depois':'Antes';
    if(!photos.length||(side&&comparisonDays.size===1))return example(label,side);
    const state=comparisonSelection[side],fallback=side?photos.at(-1):photos[0];
@@ -274,12 +339,16 @@ function comparisonCard(home){
    <div data-photo-preview></div>
    <figcaption><strong>${label}</strong><span data-photo-position>${position}</span></figcaption>
    <div class="comparison-slider-slot"><input type="range" data-photo-slider="${label}" aria-label="Fotografia ${label}" aria-valuetext="${date(selected.date)}, ${position}" min="0" step="1" max="${rows.length-1}" value="${index}" style="--photo-progress:${rows.length>1?100*index/(rows.length-1):0}%" ${rows.length===1?'disabled hidden':''}></div></figure>`;
-  }).join('')}</div><div class="comparison-card-actions"><button type="button" class="secondary full comparison-export-button" data-comparison-export>${icon('expand')} Comparar e compartilhar</button>${comparisonDays.size<2?addBtn('photo',photos.length?'Adicionar foto de outro dia':'Adicionar minhas fotos'):''}</div></section>`;
+  }).join('');
+ return `<section class="card space" data-photo-comparison data-comparison-home="${home}">${heading}
+  <div class="compare photo-comparison" id="comparisonPhotos">${figures}</div><div class="comparison-card-actions"><div class="comparison-weight" data-comparison-weight aria-live="polite">${comparisonWeightMarkup(currentComparisonWeight())}</div><button type="button" class="secondary full comparison-export-button" data-comparison-export>${icon('expand')} Comparar e compartilhar</button>${comparisonDays.size<2?addBtn('photo',photos.length?'Adicionar foto de outro dia':'Adicionar minhas fotos'):''}</div></section>`;
 }
 function paintComparison(figure,day,index,warm=false){
  const side=Number(figure.dataset.photoSide),label=side?'Depois':'Antes',rows=comparisonDays.get(day),photo=rows?.[index];
  if(!photo)return;
+ const dateChanged=comparisonSelection[side]?.day!==day;
  comparisonSelection[side]={day,id:photo.id};
+ if(dateChanged)figure.closest('[data-photo-comparison]').querySelector('[data-comparison-weight]').innerHTML=comparisonWeightMarkup(currentComparisonWeight());
  const slider=figure.querySelector('[data-photo-slider]'),position=`Foto ${index+1} de ${rows.length}`;
  slider.max=String(rows.length-1);
  slider.value=String(index);
@@ -388,57 +457,80 @@ async function drawComparisonSource(source,signal,draw){
   if(objectURL)URL.revokeObjectURL(objectURL);
  }
 }
-function drawComparisonWeight(ctx,rows,font){
+function drawComparisonWeight(ctx,result,font){
+ const {rows,reference,units}=result;
  ctx.fillStyle='#221c16';
  ctx.fillRect(42,1516,996,354);
  ctx.fillStyle='#dfbd78';
  ctx.font=`700 42px ${font}`;
- ctx.fillText('Evolução do Peso',540,1574);
- ctx.font=`28px ${font}`;
- if(rows.length<2||rows[0].time===rows.at(-1).time){
+ ctx.fillText('Evolução do Peso',540,1572);
+ ctx.font=`26px ${font}`;
+ if(rows.length<2){
   ctx.fillStyle='#f8e8ca';
   ctx.fillText('Registros insuficientes no período.',540,1710);
   return;
  }
- const first=rows[0],last=rows.at(-1);
- const min=Math.min(...rows.map(row=>row.value)),max=Math.max(...rows.map(row=>row.value));
- const left=242,right=900,top=1618,bottom=1782;
- const x=row=>left+(right-left)*(row.time-first.time)/(last.time-first.time);
- const y=row=>min===max?(top+bottom)/2:bottom-(bottom-top)*(row.value-min)/(max-min);
- ctx.strokeStyle='#dfbd78';
- ctx.lineWidth=5;
- ctx.beginPath();
- rows.forEach((row,index)=>index?ctx.lineTo(x(row),y(row)):ctx.moveTo(x(row),y(row)));
- ctx.stroke();
- for(const row of rows){
+ const {pts,ticks,y}=chartGeometry(rows,'value',reference);
+ const px=x=>120+x*1.43,py=y=>1588+y*1.18;
+ const display=value=>fmt(units==='lb'?value*2.2046226218:value);
+ ctx.textAlign='right';
+ for(const tick of ticks){
+  ctx.strokeStyle='#524233';
+  ctx.lineWidth=1;
   ctx.beginPath();
-  ctx.arc(x(row),y(row),5,0,Math.PI*2);
+  ctx.moveTo(px(38),py(tick.y));
+  ctx.lineTo(px(585),py(tick.y));
+  ctx.stroke();
+  ctx.fillStyle='#f8e8ca';
+  ctx.fillText(display(tick.value),px(34),py(tick.y)+8);
+ }
+ const fade=ctx.createLinearGradient(0,py(25),0,py(180));
+ fade.addColorStop(0,'rgba(223,189,120,.35)');
+ fade.addColorStop(1,'rgba(223,189,120,0)');
+ ctx.beginPath();
+ pts.forEach((point,index)=>index?ctx.lineTo(px(point.x),py(point.y)):ctx.moveTo(px(point.x),py(point.y)));
+ ctx.strokeStyle='#dfbd78';
+ ctx.lineWidth=4;
+ ctx.lineJoin='round';
+ ctx.stroke();
+ ctx.lineTo(px(pts.at(-1).x),py(180));
+ ctx.lineTo(px(pts[0].x),py(180));
+ ctx.closePath();
+ ctx.fillStyle=fade;
+ ctx.fill();
+ if(reference!==null){
+  ctx.save();
+  ctx.setLineDash([9,7]);
+  ctx.beginPath();
+  ctx.moveTo(px(38),py(y(reference)));
+  ctx.lineTo(px(585),py(y(reference)));
+  ctx.stroke();
+  ctx.restore();
+ }
+ ctx.fillStyle='#dfbd78';
+ for(const point of pts){
+  ctx.beginPath();
+  ctx.arc(px(point.x),py(point.y),5,0,Math.PI*2);
   ctx.fill();
  }
- ctx.fillStyle='#f8e8ca';
- ctx.textAlign='right';
- ctx.fillText(rows.find(row=>row.value===max).label,left-20,y({value:max})+9);
- if(min!==max)ctx.fillText(rows.find(row=>row.value===min).label,left-20,bottom+9);
  ctx.textAlign='center';
- ctx.fillText(date(first.date),left,1835);
- ctx.fillText(date(last.date),right,1835);
+ ctx.fillStyle='#f8e8ca';
+ const detail=reference===null?units:units+' · Linha tracejada: peso inicial do perfil ('+display(reference)+' '+units+')';
+ ctx.fillText(detail,540,1822);
+ ctx.fillText(result.range,540,1853);
 }
 async function showComparisonExport(trigger){
  if($('#comparisonExport'))return;
  const generation=loadGeneration,account=mode==='cloud'&&!demo?Cloud.user?.id:null;
- const photos=comparisonSelection.map(selected=>account&&comparisonDays.get(selected?.day)?.find(photo=>
-  photo.id===selected.id&&photo.user_id===account&&photo.path?.startsWith(account+'/')));
+ const selected=selectedComparisonPhotos(account);
+ const snapshot=Object.freeze({
+  photos:Object.freeze(selected.map(photo=>photo?Object.freeze({id:photo.id,date:photo.date,path:photo.path}):null)),
+  weight:comparisonWeight(selected)
+ });
+ const {photos,weight:variation}=snapshot;
  const exportable=photos.every(Boolean)&&photos[0].date!==photos[1].date;
- const weightRows=[];
- if(exportable){
-  const [start,end]=photos.map(photo=>photo.date).sort();
-  for(const row of state.weights){
-   if(row.date>=start&&row.date<=end&&Number.isFinite(row.value)){
-    weightRows.push({date:row.date,time:Date.parse(row.date),value:row.value,label:weight(row.value)+' '+unit()});
-   }
-  }
-  weightRows.sort((a,b)=>a.time-b.time);
- }
+ const indicator=trigger.closest('[data-photo-comparison]')?.querySelector('[data-comparison-weight]');
+ if(indicator)indicator.innerHTML=comparisonWeightMarkup(variation);
  const controller=new AbortController();
  const dialog=document.createElement('dialog');
  dialog.id='comparisonExport';
@@ -449,8 +541,7 @@ async function showComparisonExport(trigger){
   <div class="comparison-export-media"><p role="status">Preparando imagens…</p></div>
   <footer><div class="comparison-export-actions"><button type="button" class="primary" data-export-share disabled>Compartilhar</button>
   <a class="secondary" data-export-save hidden download="NeoPep-Antes-e-Depois.jpg">Salvar imagem</a></div>
-  <p data-export-status role="status"></p>
-  <label class="comparison-export-premium"><input type="checkbox" disabled> Sem marca-d’água · Premium (recurso futuro)</label></footer>`;
+  <p data-export-status role="status"></p></footer>`;
  const media=dialog.querySelector('.comparison-export-media');
  const share=dialog.querySelector('[data-export-share]'),save=dialog.querySelector('[data-export-save]');
  const status=dialog.querySelector('[data-export-status]');
@@ -514,7 +605,7 @@ async function showComparisonExport(trigger){
    ctx.fillText(photo?date(photo.date):'Exemplo',center,437);
    const source=photo?await Cloud.photoBlob(photo):`assets/photo-example-${side+1}.png`;
    if(!current())return;
-   await drawComparisonSource(source,controller.signal,image=>drawComparisonImage(ctx,image,x+10,470,466,980,true));
+   await drawComparisonSource(source,controller.signal,image=>drawComparisonImage(ctx,image,x+10,518,466,932,true));
    if(!current())return;
   }
   // Keep the watermark translucent and near the lower edge of both photos.
@@ -525,14 +616,20 @@ async function showComparisonExport(trigger){
   ctx.font=`700 218px ${font}`;
   ctx.fillText('NeoPep',610,1424,720);
   ctx.globalAlpha=1;
-  drawComparisonWeight(ctx,weightRows,font);
+  const caption=variation.label+(variation.display?': '+variation.display:'');
+  ctx.fillStyle='#282016';
+  ctx.fillRect(175,451,730,58);
+  ctx.fillStyle='#f8e8ca';
+  ctx.font=`700 33px ${font}`;
+  ctx.fillText(caption,540,492,700);
+  drawComparisonWeight(ctx,variation,font);
   const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.93));
   if(!current())return;
   if(!blob)throw Error('Composição indisponível.');
   url=URL.createObjectURL(blob);
   const image=document.createElement('img');
   image.src=url;
-  image.alt='Composição Minha Evolução. '+photos.map((photo,side)=>(side?'Depois: ':'Antes: ')+(photo?date(photo.date):'Exemplo')).join('. ');
+  image.alt='Composição Minha Evolução. '+caption+'. '+photos.map((photo,side)=>(side?'Depois: ':'Antes: ')+(photo?date(photo.date):'Exemplo')).join('. ');
   media.replaceChildren(image);
   if(exportable){
    if(typeof File==='function')file=new File([blob],'NeoPep-Antes-e-Depois.jpg',{type:blob.type});

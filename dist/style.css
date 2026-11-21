@@ -320,9 +320,10 @@ body:has(.photo-viewer[open]){overflow:hidden}
 .comparison-export-actions>*{flex:1;justify-content:center;text-align:center}
 .comparison-export-actions [hidden]{display:none}
 .comparison-export-dialog button,.comparison-export-dialog a{min-height:44px}
-.comparison-export-premium{display:flex;align-items:center;gap:.45rem;margin-top:.5rem;color:#dfbd78;font-size:.85rem}
-.comparison-export-premium input{width:auto;margin:0}
 body:has(.comparison-export-dialog[open]){overflow:hidden}
 
 .comparison-card-actions{display:flex;flex-direction:column;align-items:stretch;gap:.75rem;margin-top:1rem}
 .comparison-card-actions>button{position:static;width:100%;min-height:48px;margin:0;font-size:inherit;white-space:normal}
+.comparison-weight{padding:.55rem .7rem;text-align:center;border:1px solid var(--border);border-radius:.75rem;color:var(--ink);font-size:.88rem}
+.comparison-weight strong{color:var(--ink);text-decoration:underline;text-decoration-color:#b59459;text-underline-offset:.2em}
+.comparison-weight small{display:block;color:var(--muted)}

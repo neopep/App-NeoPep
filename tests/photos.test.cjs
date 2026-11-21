@@ -349,8 +349,8 @@ test('comparação oferece composição em Início, Evolução e Fotos',()=>{
  for(const page of ['homeJourneyDetails(false)','evolution()','photosPage()']){
   const {document}=parseHTML(run(page));
   const actions=document.querySelector('[data-photo-comparison] .comparison-card-actions');
-  assert.match(actions.children[0].textContent,/Comparar e compartilhar/);
-  assert.equal(actions.children[1].dataset.add,'photo');
+  assert.match(actions.children[1].textContent,/Comparar e compartilhar/);
+  assert.equal(actions.children[2].dataset.add,'photo');
  }
 });
 
@@ -366,7 +366,8 @@ function exportFixture(cloud={}){
   if(tag==='canvas'){
    element.getContext=()=>({
     scale(){},fillRect(){},fillText(value,x,y){text.push(value);styles.push({value,y,font:this.font,alpha:this.globalAlpha})},
-    beginPath(){},moveTo(x,y){points.push([x,y])},lineTo(x,y){points.push([x,y])},stroke(){},arc(){},fill(){},
+    beginPath(){},moveTo(x,y){points.push([x,y])},lineTo(x,y){points.push([x,y])},stroke(){},arc(){},fill(){},closePath(){},save(){},restore(){},setLineDash(){},
+    createLinearGradient(){return {addColorStop(){}}},
     drawImage(image,...bounds){draws.push(bounds)}
    });
    element.toBlob=resolve=>{
@@ -414,9 +415,9 @@ test('composição exporta só os dois originais selecionados, preserva proporç
  assert.deepEqual(sizes,[[1080,1920]]);
  assert.deepEqual(draws.map(([, ,w,h])=>[w,h]),[[466,932],[466,233],[196,196]]);
  assert.deepEqual(draws.map(([,y,,h])=>y+h),[1450,1450,1438]);
- assert.deepEqual(points,[[242,1618],[900,1782]]);
+ assert.ok(points[8][0]<points[9][0]&&points[8][1]<points[9][1]);
  assert.ok(text.includes('Evolução do Peso'));
- assert.ok(text.includes('80 kg')&&text.includes('78 kg'));
+ assert.ok(text.includes('Variação entre as fotos: −2,0 kg'));
  assert.ok(!text.some(label=>label==='250 kg'||label==='310 kg'));
  assert.ok(styles.every(style=>style.font.endsWith('"Teste Sans", sans-serif')));
  assert.equal(styles.find(style=>style.value==='NeoPep').alpha,.36);
@@ -424,7 +425,7 @@ test('composição exporta só os dois originais selecionados, preserva proporç
  assert.equal(run('loadedFonts.length'),2);
  assert.equal(doc.querySelector('[data-export-save]').href,doc.querySelector('.comparison-export-media img').src);
  assert.equal(doc.querySelector('[data-export-share]').disabled,false);
- assert.equal(doc.querySelector('.comparison-export-premium input').disabled,true);
+ assert.doesNotMatch(doc.querySelector('#comparisonExport').textContent,/Premium|Sem marca/);
  let saved=0;
  doc.querySelector('[data-export-save]').addEventListener('click',()=>saved++);
  run(`navigator.canShare=()=>false;$('#comparisonExport [data-export-share]').click()`);
@@ -488,4 +489,54 @@ test('dias iguais bloqueiam exportação e fechar durante o download interrompe 
  await loading;
  assert.deepEqual(requests,['a','a','pending']);
  assert.equal(doc.querySelector('#comparisonExport'),null);
+});
+
+test('variação usa dias exatos, última pesagem, unidade e histórico quando faltar pesagem',()=>{
+ const {run}=exportFixture({configured:false,init:async()=>null,user:{id:'owner'}});
+ const result=code=>JSON.parse(run(`JSON.stringify(${code})`));
+ run(`const a={date:'2026-01-01'},b={date:'2026-01-02'},c={date:'2026-01-03'},d={date:'2026-01-04'};
+ state.weights=[
+  {date:b.date,value:80,updated_at:'2026-01-02T15:00:00Z'},
+  {date:b.date,value:83,updated_at:'2026-01-02T12:00:00Z'},
+  {date:a.date,value:82},
+  {date:c.date,value:80}
+ ];`);
+ assert.equal(result('comparisonWeight([a,b])').display,'−2,0 kg');
+ assert.equal(result('comparisonWeight([b,a])').display,'+2,0 kg');
+ assert.equal(result('comparisonWeight([b,c])').display,'0,0 kg');
+ assert.equal(result('comparisonWeight([null,c])').type,'none');
+ assert.equal(result('comparisonWeight([a,d])').type,'total');
+ assert.equal(result("comparisonWeight([d,{date:'2026-01-05'}])").rows.length,3);
+ run("state.profile.units='imperial';state.profile.initialWeight=84");
+ const total=result('comparisonWeight([d,c])');
+ assert.equal(total.display,'−8,8 lb');
+ assert.equal(total.reference,84);
+ assert.equal(total.references[0].origin,'profile');
+ run('state.weights=[]');
+ assert.equal(result('comparisonWeight([a,b])').type,'none');
+});
+
+test('indicador atualiza ao mudar datas e o modal preserva a variação enquanto prepara o JPEG',async()=>{
+ let finish;
+ const requests=[],{run,doc,text}=exportFixture({
+  configured:false,init:async()=>null,user:{id:'owner'},
+  photoBlob(photo){requests.push(photo.id);return photo.id==='b'?new Promise(resolve=>{finish=resolve}):new Blob(['square'])}
+ });
+ const request=run(`
+  photoList=['a','b','c'].map((id,i)=>({id,date:'2026-01-0'+(i+1),user_id:'owner',path:'owner/'+id+'.jpg'}));
+  state.weights=photoList.map((p,i)=>({date:p.date,value:80-i}));
+  document.body.insertAdjacentHTML('beforeend',comparisonCard(false));
+  const before=document.querySelector('[data-photo-side="0"]');
+  paintComparison(before,'2026-01-02',0);
+  paintComparison(before,'2026-01-01',0);
+  paintComparison(before,'2026-01-02',0);
+  showComparisonExport(document.querySelector('[data-comparison-export]'));
+ `);
+ assert.match(doc.querySelector('[data-comparison-weight]').textContent,/−1,0 kg/);
+ run("paintComparison(before,'2026-01-01',0);state.weights=[]");
+ finish(new Blob(['square']));
+ await request;
+ assert.deepEqual(requests,['b','c']);
+ assert.ok(text.includes('Variação entre as fotos: −1,0 kg'));
+ assert.ok(text.includes('02/01/2026 a 03/01/2026'));
 });
