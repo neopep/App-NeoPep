@@ -431,10 +431,11 @@ function hydratePhotoImages(){
  figures.forEach(figure=>photoObserver.observe(figure));
  root.querySelectorAll('details[open] [data-photo-media]').forEach(image=>photoObserver.observe(image.closest('button')));
 }
-function drawComparisonImage(ctx,image,x,y,width,height,alignBottom=false){
+function drawComparisonImage(ctx,image,x,y,width,height,alignTop=false){
  const scale=Math.min(width/image.naturalWidth,height/image.naturalHeight);
  const w=image.naturalWidth*scale,h=image.naturalHeight*scale;
- ctx.drawImage(image,x+(width-w)/2,y+(height-h)*(alignBottom?1:.5),w,h);
+ ctx.drawImage(image,x+(width-w)/2,y+(height-h)*(alignTop?0:.5),w,h);
+ return h;
 }
 async function drawComparisonSource(source,signal,draw){
  const image=document.createElement('img');
@@ -457,21 +458,14 @@ async function drawComparisonSource(source,signal,draw){
   if(objectURL)URL.revokeObjectURL(objectURL);
  }
 }
-function drawComparisonWeight(ctx,result,font){
+function drawComparisonWeight(ctx,result,font,top){
  const {rows,reference,units}=result;
  ctx.fillStyle='#221c16';
- ctx.fillRect(42,1516,996,354);
- ctx.fillStyle='#dfbd78';
- ctx.font=`700 42px ${font}`;
- ctx.fillText('Evolução do Peso',540,1572);
- ctx.font=`26px ${font}`;
- if(rows.length<2){
-  ctx.fillStyle='#f8e8ca';
-  ctx.fillText('Registros insuficientes no período.',540,1710);
-  return;
- }
+ ctx.fillRect(0,top,1080,1920-top);
+ if(rows.length<2)return;
  const {pts,ticks,y}=chartGeometry(rows,'value',reference);
- const px=x=>120+x*1.43,py=y=>1588+y*1.18;
+ const px=x=>135+x*1.56,py=y=>top+14+y*(1871-top)/180;
+ ctx.font=`34px ${font}`;
  const display=value=>fmt(units==='lb'?value*2.2046226218:value);
  ctx.textAlign='right';
  for(const tick of ticks){
@@ -482,7 +476,7 @@ function drawComparisonWeight(ctx,result,font){
   ctx.lineTo(px(585),py(tick.y));
   ctx.stroke();
   ctx.fillStyle='#f8e8ca';
-  ctx.fillText(display(tick.value),px(34),py(tick.y)+8);
+  ctx.fillText(display(tick.value)+' '+units,px(34),py(tick.y)+11,px(34)-14);
  }
  const fade=ctx.createLinearGradient(0,py(25),0,py(180));
  fade.addColorStop(0,'rgba(223,189,120,.35)');
@@ -515,9 +509,10 @@ function drawComparisonWeight(ctx,result,font){
  }
  ctx.textAlign='center';
  ctx.fillStyle='#f8e8ca';
- const detail=reference===null?units:units+' · Linha tracejada: peso inicial do perfil ('+display(reference)+' '+units+')';
- ctx.fillText(detail,540,1822);
- ctx.fillText(result.range,540,1853);
+ ctx.textAlign='left';
+ ctx.fillText(date(rows[0].date),px(38),1894);
+ ctx.textAlign='right';
+ ctx.fillText(date(rows.at(-1).date),px(585),1894);
 }
 async function showComparisonExport(trigger){
  if($('#comparisonExport'))return;
@@ -576,7 +571,7 @@ async function showComparisonExport(trigger){
  try{
   const font=window.getComputedStyle?.(document.body)?.fontFamily||'system-ui';
   if(document.fonts){
-   await Promise.all([document.fonts.load(`400 32px ${font}`),document.fonts.load(`700 80px ${font}`)]);
+   await Promise.all([document.fonts.load(`400 32px ${font}`),document.fonts.load(`800 156px ${font}`)]);
   }
   if(!current())return;
   // One bounded output canvas and one decoded original at a time.
@@ -589,47 +584,57 @@ async function showComparisonExport(trigger){
   ctx.fillRect(0,0,1080,1920);
   ctx.textAlign='center';
   ctx.fillStyle='#dfbd78';
-  ctx.font=`700 80px ${font}`;
-  ctx.fillText('Minha Evolução',540,155);
-  ctx.font=`400 41px ${font}`;
-  ctx.fillText('Antes e Depois',540,233);
+  ctx.font=`700 59px ${font}`;
+  ctx.fillText('Minha Evolução',540,76);
+  const photoTop=202,maxPhotoHeight=1310,heights=[];
   for(const [side,photo] of photos.entries()){
-   const x=42+side*510,center=x+243;
+   const x=side*540,center=x+270;
    ctx.fillStyle='#27221d';
-   ctx.fillRect(x,316,486,1164);
+   ctx.fillRect(x,photoTop,540,maxPhotoHeight);
    ctx.fillStyle='#dfbd78';
    ctx.font=`700 38px ${font}`;
-   ctx.fillText(side?'DEPOIS':'ANTES',center,384);
+   ctx.fillText(side?'DEPOIS':'ANTES',center,145);
    ctx.fillStyle='#f8e8ca';
-   ctx.font=`400 32px ${font}`;
-   ctx.fillText(photo?date(photo.date):'Exemplo',center,437);
+   ctx.font=`400 30px ${font}`;
+   ctx.fillText(photo?date(photo.date):'Exemplo',center,185);
    const source=photo?await Cloud.photoBlob(photo):`assets/photo-example-${side+1}.png`;
    if(!current())return;
-   await drawComparisonSource(source,controller.signal,image=>drawComparisonImage(ctx,image,x+10,518,466,932,true));
+   await drawComparisonSource(source,controller.signal,image=>{
+    heights.push(drawComparisonImage(ctx,image,x,photoTop,540,maxPhotoHeight,true));
+   });
    if(!current())return;
   }
-  // Keep the watermark translucent and near the lower edge of both photos.
-  ctx.globalAlpha=.36;
-  await drawComparisonSource('assets/icon-512.png',controller.signal,image=>drawComparisonImage(ctx,image,92,1242,196,196));
+  // Anchor both overlays to the area where the fitted photographs meet.
+  const overlap=Math.min(...heights);
+  const markSize=Math.min(174,overlap*.37);
+  const markBottom=photoTop+overlap-12;
+  ctx.globalAlpha=.30;
+  await drawComparisonSource('assets/icon-512.png',controller.signal,image=>drawComparisonImage(ctx,image,112,markBottom-markSize,markSize,markSize));
   if(!current())return;
   ctx.fillStyle='#dfbd78';
-  ctx.font=`700 218px ${font}`;
-  ctx.fillText('NeoPep',610,1424,720);
+  ctx.font=`700 ${markSize*1.15}px ${font}`;
+  ctx.fillText('NeoPep',608,markBottom-markSize*.14,690);
   ctx.globalAlpha=1;
-  const caption=variation.label+(variation.display?': '+variation.display:'');
-  ctx.fillStyle='#282016';
-  ctx.fillRect(175,451,730,58);
-  ctx.fillStyle='#f8e8ca';
-  ctx.font=`700 33px ${font}`;
-  ctx.fillText(caption,540,492,700);
-  drawComparisonWeight(ctx,variation,font);
+  if(variation.display){
+   const baseline=photoTop+overlap*.48;
+   ctx.save();
+   ctx.font=`800 ${Math.min(156,overlap*.52)}px ${font}`;
+   ctx.lineJoin='round';
+   ctx.lineWidth=12;
+   ctx.strokeStyle='rgba(20,15,9,.80)';
+   ctx.fillStyle='#ffe0a2';
+   ctx.strokeText(variation.display,540,baseline,960);
+   ctx.fillText(variation.display,540,baseline,960);
+   ctx.restore();
+  }
+  drawComparisonWeight(ctx,variation,font,photoTop+Math.max(...heights));
   const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.93));
   if(!current())return;
   if(!blob)throw Error('Composição indisponível.');
   url=URL.createObjectURL(blob);
   const image=document.createElement('img');
   image.src=url;
-  image.alt='Composição Minha Evolução. '+caption+'. '+photos.map((photo,side)=>(side?'Depois: ':'Antes: ')+(photo?date(photo.date):'Exemplo')).join('. ');
+  image.alt='Composição Minha Evolução. '+(variation.display?variation.display+'. ':'')+photos.map((photo,side)=>(side?'Depois: ':'Antes: ')+(photo?date(photo.date):'Exemplo')).join('. ');
   media.replaceChildren(image);
   if(exportable){
    if(typeof File==='function')file=new File([blob],'NeoPep-Antes-e-Depois.jpg',{type:blob.type});

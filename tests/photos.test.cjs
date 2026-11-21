@@ -355,7 +355,7 @@ test('comparação oferece composição em Início, Evolução e Fotos',()=>{
 });
 
 function exportFixture(cloud={}){
- const run=app(cloud),doc=run.document,draws=[],text=[],sizes=[],points=[],styles=[];
+ const run=app(cloud),doc=run.document,draws=[],text=[],sizes=[],points=[],styles=[],blocks=[];
  const create=doc.createElement.bind(doc);
  doc.createElement=tag=>{
   const element=create(tag);
@@ -365,7 +365,7 @@ function exportFixture(cloud={}){
   }
   if(tag==='canvas'){
    element.getContext=()=>({
-    scale(){},fillRect(){},fillText(value,x,y){text.push(value);styles.push({value,y,font:this.font,alpha:this.globalAlpha})},
+    scale(){},fillRect(...bounds){blocks.push(bounds)},strokeText(){},fillText(value,x,y,maxWidth){text.push(value);styles.push({value,x,y,maxWidth,font:this.font,alpha:this.globalAlpha})},
     beginPath(){},moveTo(x,y){points.push([x,y])},lineTo(x,y){points.push([x,y])},stroke(){},arc(){},fill(){},closePath(){},save(){},restore(){},setLineDash(){},
     createLinearGradient(){return {addColorStop(){}}},
     drawImage(image,...bounds){draws.push(bounds)}
@@ -387,10 +387,10 @@ function exportFixture(cloud={}){
  };
  document.body.insertAdjacentHTML('beforeend','<button id="exportTrigger">Comparar</button>');
  mode='cloud';demo=false;`);
- return {run,doc,draws,text,sizes,points,styles};
+ return {run,doc,draws,text,sizes,points,styles,blocks};
 }
 test('composição exporta só os dois originais selecionados, preserva proporções e usa o JPEG exibido',async()=>{
- const requests=[],{run,doc,draws,text,sizes,points,styles}=exportFixture({
+ const requests=[],{run,doc,draws,text,sizes,points,styles,blocks}=exportFixture({
   configured:false,init:async()=>null,user:{id:'owner'},
   async photoBlob(photo){requests.push(photo.id);return new Blob([photo.id])}
  });
@@ -413,15 +413,20 @@ test('composição exporta só os dois originais selecionados, preserva proporç
  `);
  assert.deepEqual(requests,['portrait','landscape']);
  assert.deepEqual(sizes,[[1080,1920]]);
- assert.deepEqual(draws.map(([, ,w,h])=>[w,h]),[[466,932],[466,233],[196,196]]);
- assert.deepEqual(draws.map(([,y,,h])=>y+h),[1450,1450,1438]);
+ assert.deepEqual(draws.map(([, ,w,h])=>[w,h]),[[540,1080],[540,270],[99.9,99.9]]);
+ assert.deepEqual(draws.map(([,y,,h])=>y+h),[1282,472,460]);
+ assert.deepEqual(blocks.at(-1),[0,1282,1080,638]);
  assert.ok(points[8][0]<points[9][0]&&points[8][1]<points[9][1]);
- assert.ok(text.includes('Evolução do Peso'));
- assert.ok(text.includes('Variação entre as fotos: −2,0 kg'));
+ assert.ok(!text.some(label=>/Evolução do Peso|Variação/.test(label)));
+ assert.ok(text.includes('−2,0 kg'));
+ const weightLabel=styles.find(style=>style.value==='−2,0 kg');
+ assert.equal(weightLabel.x,540);
+ assert.equal(weightLabel.maxWidth,960);
+ assert.ok(weightLabel.y>202&&weightLabel.y<472);
  assert.ok(!text.some(label=>label==='250 kg'||label==='310 kg'));
  assert.ok(styles.every(style=>style.font.endsWith('"Teste Sans", sans-serif')));
- assert.equal(styles.find(style=>style.value==='NeoPep').alpha,.36);
- assert.ok(styles.find(style=>style.value==='NeoPep').y<1450);
+ assert.equal(styles.find(style=>style.value==='NeoPep').alpha,.30);
+ assert.ok(styles.find(style=>style.value==='NeoPep').y<472);
  assert.equal(run('loadedFonts.length'),2);
  assert.equal(doc.querySelector('[data-export-save]').href,doc.querySelector('.comparison-export-media img').src);
  assert.equal(doc.querySelector('[data-export-share]').disabled,false);
@@ -436,7 +441,7 @@ test('composição exporta só os dois originais selecionados, preserva proporç
  assert.equal(doc.querySelector('#comparisonExport'),null);
 });
 test('composição bloqueia exemplos, recusa foto de outra conta e limita a resolução',async()=>{
- const requests=[],{run,doc,text,sizes}=exportFixture({
+ const requests=[],{run,doc,text,sizes,draws}=exportFixture({
   configured:false,init:async()=>null,user:{id:'owner'},
   async photoBlob(photo){requests.push(photo.id);return new Blob(['square'])}
  });
@@ -448,8 +453,9 @@ test('composição bloqueia exemplos, recusa foto de outra conta e limita a reso
  `);
  assert.deepEqual(requests,['mine']);
  assert.deepEqual(sizes,[[720,1280]]);
+ assert.deepEqual(draws.slice(0,2),[[0,202,540,540],[540,202,540,540]]);
  assert.ok(text.includes('Exemplo'));
- assert.ok(text.includes('Registros insuficientes no período.'));
+ assert.ok(!text.some(label=>/Registros insuficientes|[+−]/.test(label)));
  assert.equal(doc.querySelector('[data-export-save]').hidden,true);
  assert.equal(doc.querySelector('[data-export-share]').disabled,true);
  run("$('#comparisonExport').dispose()");
@@ -537,6 +543,24 @@ test('indicador atualiza ao mudar datas e o modal preserva a variação enquanto
  finish(new Blob(['square']));
  await request;
  assert.deepEqual(requests,['b','c']);
- assert.ok(text.includes('Variação entre as fotos: −1,0 kg'));
- assert.ok(text.includes('02/01/2026 a 03/01/2026'));
+ assert.ok(text.includes('−1,0 kg'));
+ assert.ok(text.includes('02/01/2026')&&text.includes('03/01/2026'));
+});
+
+test('exportação reduzida preserva um valor longo e alinha fotos quadradas de ponta a ponta',async()=>{
+ const {run,styles,sizes}=exportFixture({
+  configured:false,init:async()=>null,user:{id:'owner'},async photoBlob(){return new Blob(['square'])}
+ });
+ await run(`navigator.deviceMemory=4;state.profile.units='imperial';
+  photoList=['a','b'].map((id,i)=>({id,date:'2026-01-0'+(i+1),user_id:'owner',path:'owner/'+id+'.jpg'}));
+  state.weights=photoList.map((p,i)=>({date:p.date,value:i?650:1}));
+  comparisonCard(false);
+  showComparisonExport($('#exportTrigger'));
+ `);
+ assert.deepEqual(sizes,[[720,1280]]);
+ const label=styles.find(style=>style.value.startsWith('+'));
+ assert.match(label.value,/lb$/);
+ assert.equal(label.x,540);
+ assert.equal(label.maxWidth,960);
+ assert.ok(label.y>202&&label.y<742);
 });

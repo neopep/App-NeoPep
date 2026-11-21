@@ -367,3 +367,9 @@ Em 21/11/2026, Início, Evolução e Fotos passaram a mostrar a variação de pe
 comparisonCard e paintComparison mantêm o indicador em sincronia. showComparisonExport captura fotos e variação em um snapshot imutável. chart e drawComparisonWeight compartilham pontos, escala e linhas de referência via chartGeometry. O JPEG traz o destaque numérico e o gráfico do mesmo período, com preenchimento em degradê e marca-d'água obrigatória. A referência de peso inicial do perfil, quando diferente da primeira pesagem, é explicitada no gráfico total. O controle Premium foi removido do modal.
 
 Build, npm run check, empacotamento portátil e 108 testes pertinentes passaram. Os testes simularam os fluxos de Canvas, compartilhamento e download. A validação de ponta a ponta no Safari e PWA de um iPhone físico permanece pendente. Publicação restrita ao NeoPep Teste. [Commits da branch](https://github.com/neopep/App-NeoPep/commits/staging/permanente/) · [Deployments de homologação](https://vercel.com/neo-pep/app-neopep-staging/deployments)
+
+## MEM-20261121-014
+
+Em 21/11/2026, a composição Antes e Depois ganhou cabeçalho compacto, datas junto às fotos e duas colunas sem calha horizontal. As imagens inteiras são encaixadas com proporção original. O resultado numérico dourado foi sobreposto à divisão central, e a marca translúcida ficou na base da região compartilhada pelas fotos. O gráfico começa no limite inferior da foto mais alta e mantém valores, datas, pontos e degradê. O desenho usa coordenadas proporcionais nas duas resoluções. A seleção, o cálculo e os fluxos de prévia e exportação foram preservados.
+
+Build, checagem de código, pacote portátil e 109 testes pertinentes passaram. Os testes verificam o Canvas simulado em 1080 × 1920 e 720 × 1280, fotos verticais, horizontais e quadradas e o limite de largura de um valor longo em libras. A conferência visual em aparelho físico segue pendente. Publicação restrita a staging/permanente.
