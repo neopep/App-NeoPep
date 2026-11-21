@@ -9,18 +9,23 @@ const other='00000000-0000-4000-8000-000000000003';
 test('campanhas protegem administração e recibos e aplicam agenda, prioridade, público e frequência',async()=>{
  const db=new PGlite();
  try{
-  await db.exec(`create role anon; create role authenticated; create schema neo_private; create schema auth;
+  await db.exec(`create role anon; create role authenticated; create role service_role; create schema neo_private; create schema auth;
    create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
    create function public.neo_admin_access() returns boolean language sql as $$select true$$;
    create function public.neo_has_consent(text) returns boolean language sql as $$select auth.uid()<>'${other}'::uuid$$;
    create table auth.users(id uuid primary key,created_at timestamptz default now(),raw_app_meta_data jsonb);
    create table public.neo_profiles(user_id uuid primary key);
+   create table public.neo_consents(user_id uuid,purpose text,version text,granted boolean);
+   create table neo_private.push_devices(id uuid primary key default gen_random_uuid(),user_id uuid,endpoint text,keys jsonb);
    create table neo_private.admin_members(user_id uuid primary key);
    create table neo_private.community_members(user_id uuid primary key);
    insert into auth.users(id,raw_app_meta_data) values ('${member}','{"campaign_plan":"plus"}'),('${other}','{}');
+   insert into public.neo_consents values ('${member}','terms','2026-11-v1',true);
+   insert into neo_private.push_devices(user_id,endpoint,keys) values ('${member}','https://invalid.invalid','{}');
    insert into public.neo_profiles values ('${member}'),('${other}');
    insert into neo_private.admin_members values ('${admin}');`);
-  await db.exec(fs.readFileSync('supabase/migrations/20261121194710_admin_campaigns.sql','utf8'));
+  await db.exec(fs.readFileSync('supabase/migrations/20261121195231_admin_campaigns.sql','utf8'));
+  await db.exec(fs.readFileSync('supabase/migrations/20261121195245_campaign_push.sql','utf8'));
   const as=async id=>{
    await db.exec('reset role');
    await db.query("select set_config('request.jwt.claim.sub',$1,false)",[id||'']);
@@ -35,12 +40,14 @@ test('campanhas protegem administração e recibos e aplicam agenda, prioridade,
   await assert.rejects(db.query('select * from neo_private.campaigns'),{code:'42501'});
   await as(admin);
   await assert.rejects(manage('save',null,{title:'Inválida',link_url:'//destino.example.invalid'}),{code:'23514'});
-  const first=await manage('save',null,{title:'Primeira',audience:'plan',targets:['plus'],priority:10,link_url:'/#loja'});
+  const first=await manage('save',null,{title:'Primeira',audience:'plan',targets:['plus'],priority:10,push_requested:true,link_url:'/#loja'});
   const second=await manage('save',null,{title:'Segunda',audience:'segment',targets:['recent']});
   const future=await manage('save',null,{title:'Futura',starts_at:'2200-01-01T00:00:00Z',priority:99});
   for(const c of [first,second,future])await manage('activate',c.id);
   assert.equal((await manage('duplicate',first.id)).status,'draft');
   await as(member);
+  await assert.rejects(db.query('select public.neo_campaign_push_claim()'),{code:'42501'});
+  assert.equal((await db.query('select public.neo_campaign_push_preference(true) enabled')).rows[0].enabled,true);
   const offer=await visit();
   assert.equal(offer.title,'Primeira');
   assert.equal(await visit(),null);
@@ -52,6 +59,13 @@ test('campanhas protegem administração e recibos e aplicam agenda, prioridade,
   assert.equal(await visit('displayed',offer.impression),true);
   assert.equal(await visit('clicked',offer.impression),true);
   assert.equal(await visit('clicked',offer.impression),true);
+  await db.exec(`reset role; set request.jwt.claims='{"role":"service_role"}'; set role service_role;`);
+  const jobs=await db.query('select public.neo_campaign_push_claim() batch');
+  assert.equal(jobs.rows[0].batch.length,1);
+  assert.equal(jobs.rows[0].batch[0].kind,'campaign');
+  assert.deepEqual((await db.query('select public.neo_campaign_push_claim() batch')).rows[0].batch,[]);
+  await as(member);
+  assert.equal((await db.query('select public.neo_campaign_push_preference(false) enabled')).rows[0].enabled,false);
   await db.exec("reset role; update neo_private.campaign_impressions set reserved_at=now()-interval '6 minutes'");
   await as(member);
   assert.equal((await visit()).title,'Segunda');

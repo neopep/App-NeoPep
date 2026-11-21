@@ -12,6 +12,7 @@ const privatePushMessages={
  support:'Você tem uma nova mensagem privada.',
  community:'Há uma nova postagem na comunidade.',
  library:'Há um novo material disponível na Biblioteca.',
+ campaign:'Confira as novidades no NeoPep.',
  shop:'Seu pedido recebeu uma atualização.'
 };
 self.addEventListener('push',event=>{
@@ -19,7 +20,7 @@ self.addEventListener('push',event=>{
  try{
   const data=event.data?.json();
   if(/^[a-f0-9-]{36}$/.test(data?.tag))tag=data.tag;
-  if(['community','support','library','shop'].includes(data?.kind))kind=data.kind;
+  if(['community','support','library','shop','campaign'].includes(data?.kind))kind=data.kind;
  }catch{}
  event.waitUntil(self.registration.showNotification('NeoPep',{
   body:privatePushMessages[kind],tag,
@@ -27,4 +28,4 @@ self.addEventListener('push',event=>{
   badge:new URL('assets/icon-192.png',self.registration.scope).href,data:{target:kind}
  }));
 });
-self.addEventListener('notificationclick',event=>{event.notification.close();event.waitUntil((async()=>{const scope=new URL(self.registration.scope),target=event.notification.data?.target||'reminder',community=['community','support','library'].includes(target),shop=target==='shop';for(const client of await self.clients.matchAll({type:'window',includeUncontrolled:true})){const url=new URL(client.url);if(url.origin===scope.origin&&url.pathname.startsWith(scope.pathname)){await client.focus();if(shop)client.postMessage({type:'NEO_OPEN_SHOP_ORDERS'});else client.postMessage({type:community?'NEO_OPEN_COMMUNITY':'NEO_OPEN_REMINDERS',direct:target==='support',library:target==='library'});return}}await self.clients.openWindow(new URL(shop?'#loja':target==='support'?'?conversa=1#comunidade':community?'#comunidade':'#lembretes',scope).href)})())});
+self.addEventListener('notificationclick',event=>{event.notification.close();event.waitUntil((async()=>{const scope=new URL(self.registration.scope),target=event.notification.data?.target||'reminder',community=['community','support','library'].includes(target),shop=target==='shop';for(const client of await self.clients.matchAll({type:'window',includeUncontrolled:true})){const url=new URL(client.url);if(url.origin===scope.origin&&url.pathname.startsWith(scope.pathname)){await client.focus();if(target==='campaign')client.postMessage({type:'NEO_OPEN_CAMPAIGNS'});else if(shop)client.postMessage({type:'NEO_OPEN_SHOP_ORDERS'});else client.postMessage({type:community?'NEO_OPEN_COMMUNITY':'NEO_OPEN_REMINDERS',direct:target==='support',library:target==='library'});return}}await self.clients.openWindow(new URL(target==='campaign'?'#inicio':shop?'#loja':target==='support'?'?conversa=1#comunidade':community?'#comunidade':'#lembretes',scope).href)})())});

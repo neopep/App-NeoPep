@@ -198,3 +198,28 @@ test('inteligência operacional carrega seções sob demanda e mantém hipótese
  assert.equal(rows.at(-1).users,100000);
  assert.equal(a.run("operationScenarios({active:50,ai:2,input_tokens:100,currency:'USD'},null,[])[0].total"),null);
 });
+
+test('painel de campanhas escapa conteúdo e confirma ações via servidor',async()=>{
+ const screen=app({signups_daily:[],app_errors_7d:[]}),calls=[];
+ let status='draft';
+ screen.cloud.campaignAdmin=async(action,id,data)=>{
+  calls.push({action,id,data});
+  if(action==='list')return [{id:'sample',title:'<img src=x>',status,views:2,clicks:1}];
+  if(action==='activate')status='active';
+  if(action==='pause')status='paused';
+ };
+ await screen.select('campaigns');
+ await new Promise(setImmediate);
+ const panel=screen.document.querySelector('#adminContent');
+ assert.match(panel.textContent,/<img src=x>/);
+ assert.equal(panel.querySelector('article img'),null);
+ assert.match(panel.textContent,/2 exibições · 1 cliques · 50.0%/);
+ panel.querySelector('[data-campaign-action=activate]').click();
+ await new Promise(setImmediate);
+ assert.equal(calls.at(-2).action,'activate');
+ assert.match(panel.textContent,/Ativa ou agendada/);
+ panel.querySelector('[data-campaign-action=pause]').click();
+ await new Promise(setImmediate);
+ assert.equal(calls.at(-2).id,'sample');
+ assert.match(panel.textContent,/Pausada/);
+});

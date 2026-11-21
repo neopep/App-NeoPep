@@ -1,7 +1,7 @@
 'use strict';
 const $=s=>document.querySelector(s),esc=window.NeoCore.escape;let generation=0,loading=false,authorized=false,tab='overview',platform=null,dirty=false,authConfirmation=null;
 const adminTabs={overview:'Visão Geral',signups:'Cadastros',audience:'Estatísticas de público',
- engagement:'Engajamento',operations:'Inteligência operacional',health:'Saúde do sistema',settings:'Configurações'};
+ engagement:'Engajamento',operations:'Inteligência operacional',health:'Saúde do sistema',campaigns:'Campanhas',settings:'Configurações'};
 function adminAgentTrigger(context,label){
  return `<button type="button" class="icon-btn admin-agent-trigger" data-report-agent="${context}" aria-label="${label}">✦</button>`;
 }
@@ -74,7 +74,7 @@ async function refresh(){if(loading)return;if(tab!=='overview'&&tab!=='signups')
  }else if(tab==='audience'||tab==='engagement'){
  $('#adminContent').innerHTML='<div data-admin-audience></div>';
  mountAdminAudience($('[data-admin-audience]'),tab==='engagement');
- }else if(tab==='health')mountSystemHealth($('#adminContent'),d);else if(tab==='operations')mountOperations($('#adminContent'),d);$('#adminStatus').textContent='Consulta autorizada. Atualizado agora.';dirty=false;}catch(err){if(gen!==generation)return;$('#adminStatus').textContent='Acesso não disponível: '+err.message;if(!authorized){$('#adminTabs').hidden=true;$('#adminContent').innerHTML='<div class="notice">Somente uma permissão concedida pelo responsável no banco habilita este painel. Editar perfil ou dados do navegador não concede acesso.</div>';}}finally{loading=false;$('#adminRefresh').disabled=false;}}
+ }else if(tab==='health')mountSystemHealth($('#adminContent'),d);else if(tab==='operations')mountOperations($('#adminContent'),d);else if(tab==='campaigns'){const root=document.createElement('div');$('#adminContent').append(root);void mountCampaigns(root);}$('#adminStatus').textContent='Consulta autorizada. Atualizado agora.';dirty=false;}catch(err){if(gen!==generation)return;$('#adminStatus').textContent='Acesso não disponível: '+err.message;if(!authorized){$('#adminTabs').hidden=true;$('#adminContent').innerHTML='<div class="notice">Somente uma permissão concedida pelo responsável no banco habilita este painel. Editar perfil ou dados do navegador não concede acesso.</div>';}}finally{loading=false;$('#adminRefresh').disabled=false;}}
 async function integration(action){if(loading||!authorized)return;if(action==='test_ai'&&dirty){$('#adminStatus').textContent='Salve as configurações antes de testar a conexão.';return;}const gen=generation;loading=true;try{const r=await window.NeoCloud.integrations(action);if(gen!==generation)return;if(action==='test_ai'){loading=false;await refresh();$('#adminStatus').textContent='Conexão com IA validada. Você já pode ativar as respostas automáticas.';}else $('#integrationStatus').textContent=`Chave OpenAI: ${r.openai_key_present?'presente':'pendente'} · Mercado Pago: ${r.mercadopago_keys_present?'chaves presentes, homologação deve ser conferida':'chaves pendentes'} · Rotina da IA: ${r.ai_worker_secret_present?'segredo presente; agendamento deve ser conferido':'pendente'}`;}catch{if(gen===generation)$('#adminStatus').textContent='Não foi possível conferir a integração. Verifique a função publicada, as chaves e o modelo no Supabase.';}finally{loading=false;}}
 async function authSettings(save=false){if(loading||!authorized)return;const status=$('#authSettingsStatus'),box=$('#requireEmailConfirmation'),button=$('#authSettingsForm [type=submit]'),gen=generation;if(!status||!box||!button)return;const desired=box.checked;if(save&&authConfirmation===null)return;if(save&&!confirm(desired?'Exigir confirmação de e-mail nos novos cadastros? Confira o SMTP antes de ativar.':'Permitir novos cadastros sem confirmar a propriedade do e-mail?'))return;loading=true;box.disabled=true;button.disabled=true;$('#authSettingsRead').disabled=true;status.textContent=save?'Aplicando e conferindo no Supabase…':'Consultando o Supabase…';try{const r=await window.NeoCloud.authSettings(save?'set':'status',save?{require_email_confirmation:desired,expected_confirmation:authConfirmation}:{});if(gen!==generation)return;if(typeof r.require_email_confirmation!=='boolean')throw Error('invalid_state');authConfirmation=r.require_email_confirmation;box.checked=authConfirmation;box.disabled=false;button.disabled=false;status.textContent=(save?'Alteração confirmada no Supabase. ':'Estado conferido no Supabase. ')+(authConfirmation?'Confirmação de e-mail ativada.':'Confirmação de e-mail desativada.');}catch{if(gen===generation){authConfirmation=null;box.checked=false;status.textContent='Não foi possível confirmar o estado. Consulte novamente. A função auth-settings e os Secrets precisam estar configurados, e sua conta deve ser administrador principal.';}}finally{loading=false;if(gen===generation)$('#authSettingsRead').disabled=false;}}
 document.addEventListener('submit',event=>{if(event.target.id==='authSettingsForm'){event.preventDefault();authSettings(true);}});
@@ -915,3 +915,100 @@ function mountOperations(root,summary){
 $('#adminRefresh').onclick=refresh;
 window.NeoGestures?.configure({refresh,back:()=>history.length>1?history.back():location.assign('../')});
 window.NeoCloud.init((event,user)=>{if(event==='TOKEN_REFRESHED')return;if(signupVisit?.account!==user?.id){clearSignupToast();signupVisit=null}generation++;window.NeoAgent?.reset();authorized=false;$('#adminTabs').hidden=true;$('#adminContent').innerHTML='';if(user)refresh();else $('#adminStatus').textContent='Sessão ausente. Entre no aplicativo.';}).then(user=>{if(user)refresh();else if(!window.NeoCloud.configured)refresh();else $('#adminStatus').textContent='Entre na sua conta pelo aplicativo.';}).catch(()=>{$('#adminStatus').textContent='Não foi possível verificar a sessão.';});
+
+async function mountCampaigns(root){
+ const cloud=window.NeoCloud;
+ const statusNames={draft:'Rascunho',active:'Ativa ou agendada',paused:'Pausada',archived:'Arquivada'};
+ const weekdays=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+ const options=(values,value)=>Object.entries(values).map(([key,label])=>`<option value="${key}" ${value===key?'selected':''}>${label}</option>`).join('');
+ const field=(row,key,label,attrs,fallback='')=>input(key,label,row[key]??fallback,attrs);
+ const utc=value=>value?new Date(value).toISOString().slice(0,16):'';
+ let offset=0,rows=[],editing=null,busy=false;
+ root.innerHTML='<section class="card"><div class="between"><h2>Campanhas</h2><button type="button" class="primary" data-campaign-action="new">Nova campanha</button></div><p role="status" data-campaign-status></p><div data-campaign-edit></div><div data-campaign-list></div></section>';
+ const find=selector=>root.querySelector(selector);
+ const status=find('[data-campaign-status]'),editor=find('[data-campaign-edit]'),list=find('[data-campaign-list]');
+ function edit(row={}){
+  editing=row.id??null;
+  editor.innerHTML=`<form class="space" data-campaign-form>
+   <h3>${editing?'Editar campanha':'Nova campanha'}</h3>
+   ${field(row,'title','Título','required maxlength="120"')}
+   <label>Texto<textarea name="body" maxlength="2000" rows="4">${esc(row.body||'')}</textarea></label>
+   ${field(row,'image_url','Imagem publicada (caminho em /assets/)','maxlength="1000"')}
+   <div class="form-grid"><label>Tipo de destino<select name="kind">${options({link:'Link',document:'Documento',product:'Produto',offer:'Oferta',promotion:'Promoção'},row.kind)}</select></label>
+   ${field(row,'link_label','Texto do botão','required maxlength="60"','Saiba mais')}</div>
+   ${field(row,'link_url','Endereço do destino','maxlength="1000" placeholder="/#loja"')}
+   <label>Público<select name="audience">${options({all:'Todas as contas elegíveis',segment:'Segmentos selecionados',plan:'Planos selecionados'},row.audience)}</select></label>
+   <fieldset data-campaign-segments><legend>Segmentos</legend>${Object.entries({recent:'Cadastro nos últimos 30 dias',established:'Cadastro há mais de 30 dias',community:'Membro da comunidade'}).map(([key,label])=>`<label class="check"><input type="checkbox" name="segment" value="${key}" ${row.targets?.includes(key)?'checked':''}>${label}</label>`).join('')}</fieldset>
+   ${field({...row,plans:row.audience==='plan'?row.targets.join(', '):''},'plans','Códigos de planos separados por vírgula','maxlength="500"')}
+   <div class="form-grid">${input('starts_at','Início (UTC)',utc(row.starts_at),'type="datetime-local"')}${input('ends_at','Encerramento (UTC)',utc(row.ends_at),'type="datetime-local"')}
+   ${field(row,'opens_at','Hora inicial','type="time" required','00:00')}
+   ${input('closes_at','Hora final (vazio até meia-noite)',row.closes_at&&row.closes_at!=='24:00:00'?row.closes_at.slice(0,5):'','type="time"')}</div>
+   ${field(row,'timezone','Fuso das recorrências (IANA)','required maxlength="80"','America/Sao_Paulo')}
+   <fieldset><legend>Repetir nos dias</legend><div class="campaign-weekdays">${weekdays.map((day,i)=>`<label class="check"><input type="checkbox" name="weekday" value="${i}" ${!row.weekdays||row.weekdays.includes(i)?'checked':''}>${day}</label>`).join('')}</div></fieldset>
+   <div class="form-grid">${field(row,'frequency_hours','Intervalo mínimo (horas)','type="number" required min="1" max="8760"',24)}
+   ${field(row,'max_views','Limite por conta','type="number" required min="1" max="100"',1)}
+   ${field(row,'priority','Prioridade','type="number" required min="0" max="100"',0)}</div>
+   <label class="check"><input type="checkbox" name="push_requested" ${row.push_requested?'checked':''}>Solicitar push quando o canal estiver habilitado</label>
+   <p class="sub">Quando o canal está ativo, somente contas com autorização e dispositivo inscrito podem receber o aviso.</p>
+   <div class="neo-campaign-actions"><button class="primary" type="submit">Salvar</button>
+   <button class="secondary" type="button" data-campaign-action="preview">Prévia</button>
+   <button class="secondary" type="button" data-campaign-action="cancel">Fechar edição</button></div>
+   <div data-campaign-preview></div></form>`;
+  const form=editor.querySelector('form');
+  function audience(){
+   form.querySelector('[data-campaign-segments]').hidden=form.elements.audience.value!=='segment';
+   form.elements.plans.closest('label').hidden=form.elements.audience.value!=='plan';
+  }
+  form.elements.audience.addEventListener('change',audience);audience();
+  form.elements.title.focus();
+  form.addEventListener('submit',async event=>{
+   event.preventDefault();
+   const data=new FormData(form),value=k=>String(data.get(k)||'').trim();
+   const date=k=>value(k)?new Date(value(k)+'Z').toISOString():null;
+   const audience=value('audience'),targets=audience==='segment'?data.getAll('segment'):audience==='plan'?value('plans').split(',').map(x=>x.trim()).filter(Boolean):[];
+   await change('save',editing,{title:value('title'),body:value('body'),kind:value('kind'),image_url:value('image_url')||null,
+    link_url:value('link_url')||null,link_label:value('link_label'),audience,targets,starts_at:date('starts_at'),ends_at:date('ends_at'),
+    timezone:value('timezone'),weekdays:data.getAll('weekday').map(Number),opens_at:value('opens_at'),closes_at:value('closes_at')||'24:00',
+    priority:Number(value('priority')),frequency_hours:Number(value('frequency_hours')),max_views:Number(value('max_views')),push_requested:data.has('push_requested')});
+  });
+ }
+ async function load(){
+  rows=await cloud.campaignAdmin('list',null,{offset});
+  if(!root.isConnected)return;
+  list.innerHTML=`${rows.length?rows.map(row=>`<article class="monitor-block"><h3>${esc(row.title)}</h3>
+   <p class="sub">${statusNames[row.status]} · ${row.views} exibições · ${row.clicks} cliques${row.views?' · '+(100*row.clicks/row.views).toFixed(1)+'% de cliques':''}</p>
+   <div class="neo-campaign-actions">${(row.status==='archived'?['duplicate']:['edit','duplicate',row.status==='active'?'pause':'activate','archive']).map(action=>
+    `<button type="button" class="secondary" data-campaign-action="${action}" data-id="${esc(row.id)}">${{edit:'Editar',duplicate:'Duplicar',pause:'Pausar',activate:'Ativar / agendar',archive:'Arquivar'}[action]}</button>`).join('')}</div></article>`).join(''):'<p>Nenhuma campanha nesta página.</p>'}
+   <div class="neo-campaign-actions"><button class="secondary" type="button" data-campaign-action="previous" ${offset?'':'disabled'}>Anterior</button>
+   <button class="secondary" type="button" data-campaign-action="next" ${rows.length===50?'':'disabled'}>Próxima</button></div>`;
+ }
+ async function change(action,id,data){
+  if(busy)return;
+  busy=true;status.textContent='Processando…';
+  try{
+   if(action!=='list')await cloud.campaignAdmin(action,id,data);
+   if(action==='save'){editor.replaceChildren();editing=null;}
+   await load();status.textContent=action==='list'?'':'Alteração confirmada.';
+  }catch(error){status.textContent=error.code==='42501'?'Apenas administradores da plataforma podem gerenciar campanhas.':'Não foi possível concluir. Confira os campos, horários e a migração de campanhas.';}
+  finally{busy=false;}
+ }
+ root.addEventListener('click',async event=>{
+  const button=event.target.closest('[data-campaign-action]');
+  if(!button||busy||!root.isConnected)return;
+  const action=button.dataset.campaignAction,id=button.dataset.id;
+  if(action==='new'||action==='edit'){edit(rows.find(row=>row.id===id));return;}
+  if(action==='cancel'){editor.replaceChildren();editing=null;return;}
+  if(action==='preview'){
+   const form=editor.querySelector('form'),data=new FormData(form),preview=form.querySelector('[data-campaign-preview]');
+   const image=String(data.get('image_url')||'');
+   preview.innerHTML=`<div class="form-grid">${['Celular','Computador'].map((label,i)=>`<div><h4>${label}</h4><div class="card campaign-preview ${i===0?'campaign-preview-mobile':''}">
+    <h3>${esc(data.get('title'))}</h3>${/^\/(assets|campaign-media)\/[a-zA-Z0-9_./-]+$/.test(image)&&!image.includes('..')?`<img src="${esc(image)}" alt="">`:''}
+    <p>${esc(data.get('body'))}</p>${data.get('link_url')?`<button class="primary" type="button" disabled>${esc(data.get('link_label'))}</button>`:''}</div></div>`).join('')}</div>`;
+   return;
+  }
+  if(action==='next'||action==='previous'){offset+=action==='next'?50:-50;await change('list');return;}
+  if(action==='archive'&&!confirm('Arquivar esta campanha? Ela deixará de ser exibida e manterá as estatísticas.'))return;
+  await change(action,id);
+ });
+ await change('list');
+}

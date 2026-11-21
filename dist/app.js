@@ -1008,6 +1008,9 @@ function profilePage(){const audience=mode==='cloud'&&!demo?`<section class="car
  <section class="card space" data-engagement-controls><h2>Medição de uso</h2><p class="sub">Permita medir aberturas, tempo ativo e ações concluídas para melhorar o NeoPep. A medição usa eventos de uso sem valores ou conteúdo. Você pode desligá-la e apagar os eventos.</p>
  <p data-engagement-status role="status"></p><button type="button" class="secondary" data-engagement-action="enable">Permitir medição</button>
  <button type="button" class="secondary" data-engagement-action="disable" hidden>Desativar e apagar eventos</button></section>
+ <section class="card space" data-campaign-push><h2>Notificações de campanhas</h2>
+ <p class="sub">Escolha se deseja receber avisos de campanhas em seus dispositivos com notificações ativadas.</p>
+ <button type="button" class="secondary" data-campaign-push-preference>Consultar preferência</button><p role="status"></p></section>
  <section class="card space" data-geo-controls><h2>Localização aproximada opcional</h2>
  <p class="sub">Se você permitir, o NeoPep registra país, região e cidade aproximados informados pela hospedagem. Você pode exportar ou apagar os dados.</p>
  <p data-geo-status role="status"></p><button type="button" class="secondary" data-geo-action="allow" hidden>Permitir localização aproximada</button>
@@ -1044,7 +1047,7 @@ function checkDailyRecords(){
  if(dailyDate!==C.today())resetDailyVisit();
  if(window.NeoInstall?.blocking||!owner||!arrivalReady||!Cloud.onboardingComplete||!state.profile.consent||document.visibilityState==='hidden'||['bemvindo','preparar','onboarding','termos','privacidade'].includes(page)){dailyPrompt?.remove();dailyPrompt=null;reminderSetupPrompt?.remove();reminderSetupPrompt=null;return;}
  if(reminderSetupPrompt)return;
- if(busy||formDirty||document.querySelector('.deletion-choice')||$('#dialog').open||$('#dialog').hasAttribute('open')||document.querySelector('[data-arrival]'))return;
+ if(busy||formDirty||document.querySelector('.deletion-choice, .neo-campaign-dialog[open]')||$('#dialog').open||$('#dialog').hasAttribute('open')||document.querySelector('[data-arrival]'))return;
  const pending=C.pendingDailyRecords(state).filter(r=>dailyPrompt||!dailySeen.has(r.kind));
  if(!pending.length){dailyPrompt?.remove();dailyPrompt=null;checkReminderSetup();return;}
  const signature=pending.map(r=>r.kind).join(',');if(dailyPrompt?.dataset.signature===signature)return;
@@ -1101,7 +1104,70 @@ async function refreshSignupBadge(){
 setInterval(refreshSignupBadge,30000);
 window.addEventListener('focus',refreshSignupBadge);
 window.addEventListener('pageshow',refreshSignupBadge);
-function render(){applyTheme();void Promise.resolve().then(syncAudience);void Promise.resolve().then(syncEngagement);void Promise.resolve().then(syncGeo);if(sessionLoading){
+document.addEventListener('click',async event=>{
+ const button=event.target.closest?.('[data-campaign-push-preference]');
+ if(!button||!Cloud.campaignPushPreference||button.disabled)return;
+ const account=Cloud.user?.id,status=button.parentElement.querySelector('[role=status]');
+ if(!account)return;
+ button.disabled=true;
+ try{
+  const enabled=await Cloud.campaignPushPreference(button.dataset.enabled===undefined?null:button.dataset.enabled!=='true');
+  if(account!==Cloud.user?.id||!button.isConnected)return;
+  button.dataset.enabled=String(enabled);
+  button.textContent=enabled?'Desativar avisos de campanhas':'Permitir avisos de campanhas';
+  status.textContent=enabled?'Avisos de campanhas autorizados.':'Avisos de campanhas desativados.';
+ }catch{if(button.isConnected)status.textContent='Não foi possível consultar ou atualizar a preferência.';}
+ finally{button.disabled=false;}
+});
+let campaignOwner=null,campaignChecked=false,campaignPending=false,campaignDialog=null,campaignTimer=null;
+function campaignReady(){
+ return !sessionLoading&&!recoveryFlow&&mode==='cloud'&&!demo&&arrivalReady&&Cloud.onboardingComplete===true
+  &&!['bemvindo','preparar','onboarding','termos','privacidade'].includes(page);
+}
+function campaignBlocked(){
+ return document.visibilityState==='hidden'||busy||formDirty||window.NeoInstall?.blocking||document.querySelector('dialog[open], [data-arrival]');
+}
+function syncCampaign(){
+ if(!Cloud.campaignVisit)return;
+ const owner=mode==='cloud'&&!demo?Cloud.user?.id:null;
+ if(owner!==campaignOwner){
+  campaignOwner=owner;campaignChecked=false;campaignPending=false;
+  if(campaignTimer)clearTimeout(campaignTimer);
+  campaignTimer=null;campaignDialog?.close();campaignDialog=null;
+ }
+ if(!owner||!campaignReady()||campaignChecked||campaignPending)return;
+ if(campaignBlocked()){
+  if(!campaignTimer&&document.visibilityState!=='hidden')campaignTimer=setTimeout(()=>{campaignTimer=null;syncCampaign()},1500);
+  return;
+ }
+ campaignPending=true;
+ Cloud.campaignVisit('next').then(item=>{
+  if(owner!==campaignOwner||owner!==Cloud.user?.id||!campaignReady())return;
+  campaignChecked=true;
+  if(!item||campaignBlocked()||typeof HTMLDialogElement==='undefined')return;
+  const dialog=document.createElement('dialog');
+  dialog.className='neo-campaign-dialog';dialog.setAttribute('aria-labelledby','neoCampaignTitle');
+  dialog.innerHTML=`<h2 id="neoCampaignTitle">${esc(item.title)}</h2>${item.image_url?`<img src="${esc(item.image_url)}" alt="">`:''}<p>${esc(item.body)}</p>
+   <div class="neo-campaign-actions">${item.link_url?`<a class="primary" target="_blank" rel="noopener noreferrer" href="${esc(item.link_url)}">${esc(item.link_label)}</a>`:''}
+   <form method="dialog"><button class="secondary" autofocus>Fechar</button></form></div>`;
+  dialog.addEventListener('close',()=>{dialog.remove();if(campaignDialog===dialog)campaignDialog=null;},{once:true});
+  document.body.append(dialog);dialog.showModal();campaignDialog=dialog;
+  const shown=Cloud.campaignVisit('displayed',item.impression).catch(()=>false);
+  dialog.querySelector('a')?.addEventListener('click',event=>{
+   const url=new URL(event.currentTarget.href,location.href),route=url.hash.slice(1);
+   const material=url.searchParams.get('material');
+   if(url.origin===location.origin&&['/','/neo/'].includes(url.pathname)&&(validSharedMaterial(material)||(!url.search&&Object.hasOwn(routes,route)))){
+    event.preventDefault();
+    dialog.close();
+    if(validSharedMaterial(material))void go('comunidade',true,false,'library',material);
+    else void go(route);
+   }
+   void shown.then(ok=>{if(ok&&owner===Cloud.user?.id)return Cloud.campaignVisit('clicked',item.impression)}).catch(()=>{});
+  },{once:true});
+ }).catch(()=>{if(owner===campaignOwner)campaignChecked=true;}).finally(()=>{if(owner===campaignOwner)campaignPending=false;});
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='hidden')syncCampaign();});
+function render(){applyTheme();void Promise.resolve().then(syncCampaign);void Promise.resolve().then(syncAudience);void Promise.resolve().then(syncEngagement);void Promise.resolve().then(syncGeo);if(sessionLoading){
  document.body.classList.add('auth-screen');
  document.querySelector('.app-header').hidden=true;
  $('#nav').hidden=true;
@@ -1299,6 +1365,9 @@ document.addEventListener('input',e=>{if(e.target.closest('form'))formDirty=true
 window.addEventListener('hashchange',()=>{const p=location.hash.slice(1);if(routes[p])go(p,false)});window.addEventListener('online',()=>{render();if(mode==='cloud'&&!demo)action(reloadCloud)});window.addEventListener('offline',render);matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>applyTheme());
 let swReloadAllowed=false;
 const reminded={};setInterval(()=>{if(demo||document.visibilityState!=='visible'||!state.settings.enabled)return;const now=new Date();for(const r of C.nextReminders(state,new Date(now.getTime()-60000))){if(r.next>now||now-r.next>60000||reminded[r.id]===C.today())continue;reminded[r.id]=C.today();toast(r.title);if('Notification'in window&&Notification.permission==='granted'){try{new Notification('NeoPep',{body:'Abra o aplicativo para registrar sua evolução.'})}catch{}}}},15000);
+navigator.serviceWorker?.addEventListener?.('message',event=>{
+ if(event.data?.type==='NEO_OPEN_CAMPAIGNS'&&campaignReady()&&!campaignBlocked())void go('inicio');
+});
 if('serviceWorker'in navigator&&['https:','http:'].includes(location.protocol)){navigator.serviceWorker.register('./sw.js',{scope:'./'}).then(reg=>{const show=worker=>{window.NeoWaitingWorker=worker;toast('Nova versão disponível. Salve seus registros antes de atualizar.');if(!document.querySelector('#applyUpdate'))document.querySelector('#banner').insertAdjacentHTML('beforeend','<div class="banner"><span>Atualização disponível.</span><button class="text-btn" id="applyUpdate">Atualizar agora</button></div>');};if(reg.waiting)show(reg.waiting);reg.addEventListener('updatefound',()=>{const w=reg.installing;w.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller)show(w)})});reg.update().catch(()=>observeQuality('pwa_update_failure'))}).catch(()=>{observeQuality('pwa_update_failure');console.info('Cache offline não disponível neste ambiente.');});navigator.serviceWorker.addEventListener('controllerchange',()=>{if(swReloadAllowed||(!formDirty&&!document.querySelector('dialog[open]')))location.reload();else toast('Atualização instalada. Salve a edição e reabra o aplicativo.')})}
 async function backgroundSync(){if(mode!=='cloud'||demo||busy||formDirty||$('#dialog').open||document.querySelector('.deletion-choice')||document.visibilityState==='hidden'||!navigator.onLine)return;const gen=loadGeneration,started=Date.now();try{const next=await Cloud.load();if(gen!==loadGeneration||busy||formDirty||mode!=='cloud'||demo)return;const elapsed=Date.now()-started;if(elapsed>=0&&elapsed<=120000)observeQuality('sync_response',elapsed);if(JSON.stringify(next)!==JSON.stringify(state)){state=next;render()}lastCloudSync=new Date()}catch{if(gen===loadGeneration){observeQuality('sync_failure');Cloud.reportError?.('sync_failed')}}}
 setInterval(backgroundSync,30000);window.addEventListener('focus',backgroundSync);setInterval(()=>{if(mode==='cloud'&&!demo&&document.visibilityState!=='hidden'&&navigator.onLine)Cloud.heartbeat?.().catch(()=>{})},300000);
