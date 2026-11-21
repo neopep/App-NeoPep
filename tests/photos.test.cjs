@@ -173,8 +173,8 @@ test('Início mostra exemplos locais sem datas e troca por uma foto sem duplicar
  assert.match(example,/Adicionar minhas fotos/);
  assert.doesNotMatch(example,/type="range"|data-photo-date/);
  const single=run("photoList=[{id:'single',date:C.today(),role:'progress'}];comparisonCard(true)");
- assert.doesNotMatch(single,/photo-example|Exemplo/);
- assert.match(single,/Adicione uma segunda foto/);
+ assert.equal((single.match(/Exemplo/g)||[]).length,1);
+ assert.match(single,/Adicionar foto de outro dia/);
  assert.equal((single.match(/data-photo-side=/g)||[]).length,1);
 });
 
@@ -280,7 +280,7 @@ test('layout reserva linhas fixas para seletores, fotos, legendas e sliders dos 
  const css=fs.readFileSync('dist/style.css','utf8');
  assert.match(css,/grid-template-rows:var\(--comparison-date-height\) var\(--comparison-height\) var\(--comparison-caption-height\) 44px/);
  assert.match(css,/\.comparison-slider-slot,\.comparison-slider-spacer\{min-height:44px/);
- assert.match(css,/\.photo-comparison \.comparison-preview img,\.photo-comparison \.photo-example\{[^}]*object-fit:contain/);
+ assert.match(css,/\.photo-comparison \.comparison-preview img\{[^}]*object-fit:contain/);
 });
 
 test('prévia legada recorre à miniatura privada e nunca lê o original',async()=>{
@@ -311,4 +311,28 @@ test('cache de prévias descarta as menos usadas ao passar do limite de memória
  assert.ok(stats.size<16);
  assert.equal(stats.old,false);
  assert.equal(stats.last,true);
+});
+
+test('Início, Evolução e Fotos seguem o número de dias distintos em conta comum ou admin',()=>{
+ for(const admin of [false,true]){
+  const run=app({configured:false,init:async()=>null,admin});
+  for(const screen of ['overview()','evolution()','photosPage()']){
+   for(const rows of [[],[{id:'a',date:'2026-01-02',role:'progress'}],
+    [{id:'a',date:'2026-01-02',role:'progress'},{id:'b',date:'2026-01-02',role:'progress'}],
+    [{id:'a',date:'2026-01-02',role:'progress'},{id:'b',date:'2026-01-03',role:'progress'}]]){
+    const {document}=parseHTML(run('comparisonSelection.fill(null);photoList='+JSON.stringify(rows)+';'+screen));
+    const card=document.querySelector('[data-photo-comparison]');
+    const dayCount=new Set(rows.map(photo=>photo.date)).size;
+    assert.equal(card.querySelectorAll('.comparison-example').length,Math.max(0,2-dayCount));
+    assert.equal(card.querySelectorAll('[data-photo-side]').length,dayCount);
+    assert.equal(card.querySelector('.comparison-example [data-photo-date]'),null);
+    if(dayCount===2){
+     assert.equal(card.querySelector('[data-photo-side="0"] option[selected]').value,'2026-01-02');
+     assert.equal(card.querySelector('[data-photo-side="1"] option[selected]').value,'2026-01-03');
+    }
+    if(screen==='evolution()')assert.equal(card.querySelector('[data-go=fotos]').textContent,'Ver fotos');
+    if(screen==='photosPage()')assert.doesNotMatch(document.textContent||document.toString(),/os links expiram|Exporte-as individualmente/);
+   }
+  }
+ }
 });
