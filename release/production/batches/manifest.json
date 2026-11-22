@@ -60,5 +60,218 @@
       "auth.users.deleted_at:timestamp with time zone",
       "auth.users.is_anonymous:boolean"
     ]
+  },
+  "03-multiagentes-inertes": {
+    "files": [
+      {
+        "name": "202611200001_multiagent_foundation.sql",
+        "path": "supabase/migrations/202611200001_multiagent_foundation.sql",
+        "sha256": "fba0635aa0cd486fe76bcdeed3434a60d26d2de5efc4e5a74e6a33488562dec7"
+      },
+      {
+        "name": "202611200002_multiagent_runtime.sql",
+        "path": "supabase/migrations/202611200002_multiagent_runtime.sql",
+        "sha256": "845278d44d98c3741dac4ba9b464d25c1fc1a17f2085bd0b571656e0e6b4d420",
+        "stop": "-- Keep the installed wrappers intact"
+      },
+      {
+        "name": "multiagentes-inertes.sql",
+        "path": "release/production/batches/sql/multiagentes-inertes.sql",
+        "sha256": "4cc22dfbb8c8564e45fd2f9eeaf03bf488e04d74d8deb96a58c316a1129dcd97"
+      }
+    ],
+    "tables": [
+      "neo_private.agents",
+      "neo_private.agent_catalog_knowledge",
+      "neo_private.agent_runtime_attempts"
+    ],
+    "routines": [
+      "public.neo_multiagent(text,jsonb)"
+    ],
+    "columns": [],
+    "new_columns": {
+      "neo_private.ai_attempts.agent_id": "uuid",
+      "neo_private.ai_attempts.input_tokens": "bigint",
+      "neo_private.ai_attempts.output_tokens": "bigint",
+      "neo_private.ai_attempts.cost_microusd": "bigint",
+      "neo_private.ai_jobs.agent_id": "uuid",
+      "neo_private.ai_jobs.knowledge_revision": "text",
+      "neo_private.support_threads.agent_id": "uuid",
+      "neo_private.support_threads.planned_agent_id": "uuid",
+      "neo_private.support_threads.runtime_consent_provider": "text"
+    }
+  },
+  "04-monitoramento-operacoes": {
+    "files": [
+      {
+        "name": "20261121184939_admin_system_monitor.sql",
+        "path": "supabase/migrations/20261121184939_admin_system_monitor.sql",
+        "sha256": "ac0e4ca89a51d293258b7ebc6182bb472eb43b6a9fbaa0408e855bade8668a3d"
+      },
+      {
+        "name": "20261121190211_admin_operations.sql",
+        "path": "supabase/migrations/20261121190211_admin_operations.sql",
+        "sha256": "4e14985f78329ec7b8fe88b203734a9b324caded285e666c2b033edd17fcf8e7"
+      },
+      {
+        "name": "20261121192900_staging_audit_hardening.sql",
+        "path": "supabase/migrations/20261121192900_staging_audit_hardening.sql",
+        "sha256": "e63ef56abaa32170071fd8462c5ca6eb345bf05ff44bbd713a6a8aa0eafc4ef3",
+        "start": "alter table neo_private.system_ai_calls add column agent_id",
+        "replace": [
+          [
+            " if exists(select 1 from pg_policy where polname='neo_message_events_own' and polrelid=to_regclass('public.neo_message_events')) then\n  alter policy neo_message_events_own on public.neo_message_events using (user_id=(select auth.uid()));\n end if;\n",
+            ""
+          ],
+          [
+            "default 'staging'",
+            "default 'production'"
+          ],
+          [
+            "v_agent,'staging'",
+            "v_agent,'production'"
+          ]
+        ]
+      }
+    ],
+    "tables": [
+      "neo_private.system_monitor_snapshots",
+      "neo_private.system_monitor_limits",
+      "neo_private.system_ai_prices",
+      "neo_private.system_ai_calls",
+      "neo_private.system_monitor_alerts",
+      "neo_private.operations_audit",
+      "neo_private.operations_review",
+      "neo_private.operations_quality",
+      "neo_private.system_monitor_runs",
+      "neo_private.account_geo"
+    ],
+    "routines": [
+      "public.neo_admin_system(text,jsonb)",
+      "public.neo_quality_observe(text,integer,text)",
+      "public.neo_admin_operations(text,integer,jsonb)",
+      "public.neo_geo_control(text)",
+      "public.neo_admin_geo(uuid[])",
+      "public.neo_admin_signup_export(text,boolean,timestamptz,timestamptz,timestamptz,uuid,timestamptz)"
+    ],
+    "columns": []
+  },
+  "05-campanhas-push-whatsapp": {
+    "files": [
+      {
+        "name": "20261121195231_admin_campaigns.sql",
+        "path": "supabase/migrations/20261121195231_admin_campaigns.sql",
+        "sha256": "6c024e5ebe74d0a7b87d3c18d8a77dd1d14bcd16f579717da2faf84afa5501b9"
+      },
+      {
+        "name": "20261121195245_campaign_push.sql",
+        "path": "supabase/migrations/20261121195245_campaign_push.sql",
+        "sha256": "dedd9c1e5b38307cc51c6379efd4425aa7bbb93b67fe556c4f834d62fe505571"
+      },
+      {
+        "name": "20261121200721_campaign_editor_completion.sql",
+        "path": "supabase/migrations/20261121200721_campaign_editor_completion.sql",
+        "sha256": "d5b2a47e9a42bfcb8963ed9d9612ac05202a45ab084c9b743d6c84a3d24484e8"
+      },
+      {
+        "name": "20261121231451_campaign_whatsapp.sql",
+        "path": "supabase/migrations/20261121231451_campaign_whatsapp.sql",
+        "sha256": "0301f8eea19e5f615be9aae7441abc715ba108d628cf9585aca84fcfa8d15cdc"
+      },
+      {
+        "name": "campanhas-inertes.sql",
+        "path": "release/production/batches/sql/campanhas-inertes.sql",
+        "sha256": "64a681309e905b5db59ab6e184453b01387679014b2479f2d2b2aeab87731381"
+      }
+    ],
+    "tables": [
+      "neo_private.campaigns",
+      "neo_private.campaign_impressions",
+      "neo_private.campaign_push_opt_in",
+      "neo_private.campaign_push_delivery",
+      "neo_private.campaign_plans",
+      "neo_private.campaign_wa_groups",
+      "neo_private.campaign_wa_publications",
+      "neo_private.campaign_wa_confirmation",
+      "neo_private.campaign_wa_reminder_seen"
+    ],
+    "routines": [
+      "public.neo_campaign_admin(text,uuid,jsonb)",
+      "public.neo_campaign_visit(text,uuid)",
+      "public.neo_campaign_push_preference(boolean)",
+      "public.neo_campaign_image_allowed(text,boolean)",
+      "public.neo_campaign_wa(text,uuid,jsonb)"
+    ],
+    "columns": []
+  },
+  "06-connect-inerte": {
+    "files": [
+      {
+        "name": "20261121233733_neopep_connect.sql",
+        "path": "supabase/migrations/20261121233733_neopep_connect.sql",
+        "sha256": "e94333428448662b79a86223d7a3ccd14276b1ffe29930308e4e5a64928831a9"
+      },
+      {
+        "name": "20261122003342_neopep_connect_pause_where.sql",
+        "path": "supabase/migrations/20261122003342_neopep_connect_pause_where.sql",
+        "sha256": "70e9cdda3dfe6eab734bd856a43f5d08744363908179429637bbc9e541f4da8c"
+      },
+      {
+        "name": "update-channel.sql",
+        "path": "tests/fixtures/connect/update-channel.sql",
+        "sha256": "eaf0ec0ffb68edf61244e3c0fd36d688f0740129cc41b97c7c77eec3eb2a56a5"
+      },
+      {
+        "name": "whatsapp-grupos.sql",
+        "path": "tests/fixtures/connect/whatsapp-grupos.sql",
+        "sha256": "15013cd2b492fb36b240f424bdc66fba92df990dca7bf65a94636afc47640d88"
+      },
+      {
+        "name": "connect-metadados.sql",
+        "path": "release/production/batches/sql/connect-metadados.sql",
+        "sha256": "21ae61b25d9348bf5cff972d57bfe1122e9faf139a80612e60bf65f8ddff90b0"
+      },
+      {
+        "name": "20261122152200_neopep_connect_release_verified_drafts.sql",
+        "path": "supabase/migrations/20261122152200_neopep_connect_release_verified_drafts.sql",
+        "sha256": "c402231cfa8721adc759d79ed5566c1590063185ec65058307ce6b692268e0af"
+      },
+      {
+        "name": "connect-inerte.sql",
+        "path": "release/production/batches/sql/connect-inerte.sql",
+        "sha256": "a18056c3bb2c293aebed1162a75f7b8568e729942f948ba3bc09789d6c5e311e"
+      }
+    ],
+    "tables": [
+      "neo_private.connect_config",
+      "neo_private.connect_devices",
+      "neo_private.connect_accounts",
+      "neo_private.connect_sessions",
+      "neo_private.connect_group_accounts",
+      "neo_private.connect_tasks",
+      "neo_private.connect_audit",
+      "neo_private.connect_releases",
+      "neo_private.connect_update_events",
+      "neo_private.connect_wa_connections",
+      "neo_private.connect_wa_selected_groups",
+      "neo_private.connect_release_evidence"
+    ],
+    "routines": [],
+    "columns": []
+  },
+  "07-financeiro": {
+    "files": [
+      {
+        "name": "20261122190100_shop_checkout_retry.sql",
+        "path": "supabase/migrations/20261122190100_shop_checkout_retry.sql",
+        "sha256": "eb8c562bc0c0e59feb6072a4f494b02295b084b2181bd7ed2d4fc86514f9390c"
+      }
+    ],
+    "tables": [],
+    "routines": [],
+    "columns": [],
+    "changed_routines": [
+      "public.neo_shop_v36(text,jsonb)"
+    ]
   }
 }
