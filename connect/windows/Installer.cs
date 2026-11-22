@@ -10,7 +10,7 @@ using Microsoft.Win32;
 static class Installer {
     const string Runtime=ConnectVersion.Runtime;
     const string Name=ConnectProfile.InstallerName;
-    static readonly string Folder=ConnectProfile.LocalFolder;
+    static readonly string Folder=ConnectProfile.InstallFolder;
     static readonly string Uninstall=ConnectProfile.UninstallRegistryPath;
 
     [STAThread] static int Main(string[] args) {
@@ -24,7 +24,7 @@ static class Installer {
             if(uninstall) {
                 using(var run=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run",true))
                     if(run!=null)run.DeleteValue(ConnectProfile.StartupRegistryName,false);
-                foreach(string file in new[]{"NeoPepConnect.exe","session.dat","diagnostico.log","session.dat.new","whatsapp-session.dat","whatsapp-session.dat.new"})
+                foreach(string file in new[]{"NeoPepConnect.exe"})
                     File.Delete(Path.Combine(Folder,file));
                 string runtime=Path.Combine(Folder,Runtime);
                 if(Directory.Exists(runtime))Directory.Delete(runtime,true);
@@ -38,7 +38,7 @@ static class Installer {
                 return 0;
             }
             Directory.CreateDirectory(Folder);
-            if(ConnectProfile.ConnectEnabled){
+            {
                 InstallRuntime();
                 string helper=Path.Combine(Folder,"NeoPepUpdate-"+ConnectVersion.Number+".exe"),temporary=helper+".new";
                 using(Stream source=Assembly.GetExecutingAssembly().GetManifestResourceStream("NeoPepUpdate.exe"))

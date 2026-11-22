@@ -11,37 +11,39 @@ using System.Threading;
 
 internal static class UpdateHelper {
     static int Main(string[] args){
-        if(!ConnectProfile.ConnectEnabled||args.Length!=1||!Regex.IsMatch(args[0],"^[a-f0-9]{32}$"))return 2;
+        if(args.Length!=2||!Regex.IsMatch(args[1],"^[a-f0-9]{32}$"))return 2;
+        var profile=ConnectProfile.FromCode(args[0]);
+        if(profile==null)return 2;
         bool acquired;
         using(var mutex=new Mutex(true,ConnectProfile.MutexName+"-update",out acquired)){
             if(!acquired)return 2;
-            return Run(args[0]);
+            return Run(profile,args[1]);
         }
     }
-    static int Run(string ticketId){
+    static int Run(ConnectProfile profile,string ticketId){
         ServicePointManager.SecurityProtocol=SecurityProtocolType.Tls12;
-        string folder=ConnectProfile.LocalFolder,work=Path.Combine(UpdateTrust.Cache(),ticketId);
+        string folder=ConnectProfile.InstallFolder,work=Path.Combine(UpdateTrust.Cache(profile),ticketId);
         string application=Path.Combine(folder,"NeoPepConnect.exe"),setup=Path.Combine(work,UpdateTrust.FileName);
         string backup=Path.Combine(work,"previous.exe"),installPath=Path.Combine(folder,UpdateTrust.FileName),previousSetup=Path.Combine(work,"previous-setup.exe");
         UpdateManifest manifest=null;
         bool backupReady=false,safeWork=false,keepBackup=false;
         string current=null;
         try{
-            UpdateTrust.EnsureLocal(folder,UpdateTrust.Cache(),work,setup,Path.Combine(work,"ticket.dat"),application);
+            UpdateTrust.EnsureLocal(folder,profile.LocalFolder,UpdateTrust.Cache(profile),work,setup,Path.Combine(work,"ticket.dat"),application);
             if(File.Exists(installPath))UpdateTrust.EnsureLocal(installPath);
             safeWork=true;
             var ticket=Path.Combine(work,"ticket.dat");
             if(DateTime.UtcNow-File.GetLastWriteTimeUtc(ticket)>TimeSpan.FromMinutes(3)||new FileInfo(ticket).Length>20000)throw new IOException();
             var json=new JavaScriptSerializer();
             var credentials=json.Deserialize<Dictionary<string,string>>(Encoding.UTF8.GetString(
-                ProtectedData.Unprotect(File.ReadAllBytes(ticket),null,DataProtectionScope.CurrentUser)));
+                ProtectedData.Unprotect(File.ReadAllBytes(ticket),profile.Entropy,DataProtectionScope.CurrentUser)));
             manifest=UpdateManifest.Parse(credentials["manifest"]);
             var fileVersion=FileVersionInfo.GetVersionInfo(application);
             current=new Version(fileVersion.FileMajorPart,fileVersion.FileMinorPart,fileVersion.FileBuildPart).ToString();
-            if(!UpdateTrust.Verify(manifest,current,ConnectProfile.EnvironmentCode,UpdateTrust.PublisherKey()))throw new IOException();
+            if(!UpdateTrust.Verify(manifest,current,profile.EnvironmentCode,UpdateTrust.PublisherKey()))throw new IOException();
             if(!WaitForExit())throw new IOException();
-            var approval=CheckApproval(credentials,manifest);
-            if(!UpdateTrust.Verify(approval,current,ConnectProfile.EnvironmentCode,UpdateTrust.PublisherKey())
+            var approval=CheckApproval(profile,credentials,manifest);
+            if(!UpdateTrust.Verify(approval,current,profile.EnvironmentCode,UpdateTrust.PublisherKey())
                 ||approval.Canonical()!=manifest.Canonical())throw new IOException();
             using(var file=new FileStream(setup,FileMode.Open,FileAccess.Read,FileShare.Read)){
                 if(!UpdateTrust.Matches(file,manifest))throw new IOException();
@@ -62,7 +64,7 @@ internal static class UpdateHelper {
             using(var app=Process.Start(application)){
                 if(app==null||app.WaitForExit(2500))throw new IOException();
             }
-            try{Receipt(manifest.Version,"installed");}catch{}
+            try{Receipt(profile,manifest.Version,"installed");}catch{}
             return 0;
         }catch{
             if(!safeWork)return 1;
@@ -79,9 +81,9 @@ internal static class UpdateHelper {
                     }
                     keepBackup=false;
                 }
-                if(manifest!=null&&Regex.IsMatch(manifest.Version??"",@"^[0-9]+\.[0-9]+\.[0-9]+$"))Receipt(manifest.Version,backupReady?"rollback":"failed");
+                if(manifest!=null&&Regex.IsMatch(manifest.Version??"",@"^[0-9]+\.[0-9]+\.[0-9]+$"))Receipt(profile,manifest.Version,backupReady?"rollback":"failed");
                 if(File.Exists(application)&&WaitForExit())Process.Start(application);
-            }catch{if(manifest!=null)try{Receipt(manifest.Version,"failed");}catch{}}
+            }catch{if(manifest!=null)try{Receipt(profile,manifest.Version,"failed");}catch{}}
             return 1;
         }finally{
             if(safeWork){
@@ -92,11 +94,11 @@ internal static class UpdateHelper {
             }
         }
     }
-    static UpdateManifest CheckApproval(Dictionary<string,string> credentials,UpdateManifest manifest){
-        var request=(HttpWebRequest)WebRequest.Create(ConnectProfile.SupabaseUrl+"/functions/v1/connect-update");
+    static UpdateManifest CheckApproval(ConnectProfile profile,Dictionary<string,string> credentials,UpdateManifest manifest){
+        var request=(HttpWebRequest)WebRequest.Create(profile.Endpoint("/functions/v1/connect-update"));
         request.Method="POST";request.ContentType="application/json";request.AllowAutoRedirect=false;
         request.Timeout=15000;request.ReadWriteTimeout=10000;
-        request.Headers["apikey"]=ConnectProfile.PublishableKey;
+        request.Headers["apikey"]=profile.PublishableKey;
         request.Headers["Authorization"]="Bearer "+credentials["token"];
         var data=Encoding.UTF8.GetBytes(new JavaScriptSerializer().Serialize(new{
             action="authorize",version=manifest.Version,device=credentials["device"],secret=credentials["secret"]
@@ -111,8 +113,8 @@ internal static class UpdateHelper {
             return UpdateManifest.Parse(new String(buffer,0,count));
         }
     }
-    static void Receipt(string version,string result){
-        string path=Path.Combine(ConnectProfile.LocalFolder,"update-result.txt");
+    static void Receipt(ConnectProfile profile,string version,string result){
+        string path=Path.Combine(profile.LocalFolder,"update-result.txt");
         string temp=path+".new";File.WriteAllLines(temp,new[]{version,result});
         if(File.Exists(path))File.Replace(temp,path,null);else File.Move(temp,path);
     }

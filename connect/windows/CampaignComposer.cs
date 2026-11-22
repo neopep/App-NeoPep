@@ -217,7 +217,7 @@ sealed partial class WhatsApp {
         if(loadSources==null)return;
         int selection=sourceKind.SelectedIndex;
         string kind=selection==1?"product":selection==2?"offer":"templates";
-        loadingSources=true;sourceItems.Items.Clear();sendStatus.Text="Consultando conteúdo do NeoPep Teste…";
+        loadingSources=true;sourceItems.Items.Clear();sendStatus.Text="Consultando conteúdo de "+environment.EnvironmentName+"…";
         try{
             var rows=await loadSources(kind,sourceSearch.Text);
             if(closing||sourceKind.SelectedIndex!=selection)return;
@@ -228,7 +228,7 @@ sealed partial class WhatsApp {
             }
             if(sourceItems.Items.Count>0)sourceItems.SelectedIndex=0;
             sendStatus.Text=sourceItems.Items.Count>0?"Selecione o conteúdo e revise antes de publicar.":"Nenhum conteúdo encontrado.";
-        }catch{if(!closing)sendStatus.Text="Consulta indisponível. Confira a sessão administrativa do NeoPep Teste.";}
+        }catch{if(!closing)sendStatus.Text="Consulta indisponível. Confira a sessão administrativa de "+environment.EnvironmentName+".";}
         finally{loadingSources=false;}
     }
     static CampaignSource CreateCampaignSource(Dictionary<string,object> row,string kind,string title){
