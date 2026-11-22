@@ -12,6 +12,6 @@ window.NEO_CONFIG = Object.freeze({
   controllerName: 'NeoPeptídeos', // Empresa informada pelo responsável.
   controllerCnpj: '69.782.060/0001-00', // Dígitos conferidos; situação cadastral não consultada.
   legalVersion: '2026-11-v1',
-  publicRegistration: false,
-  previewRegistration: true
+  publicRegistration: true, // Intenção confirmada: cadastro aberto ao público, sujeito ao gate de publicação.
+  previewRegistration: false
 });
