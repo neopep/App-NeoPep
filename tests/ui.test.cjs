@@ -25,7 +25,52 @@ test('evento repetido da mesma sessão não apaga perfil em edição nem filtros
 test('falha ao atualizar galeria não apaga da tela o histórico já carregado',async()=>{const a=setup();a.ctx.NeoCloud.photos=async()=>{throw Error('Sem conexão')};await a.run("mode='cloud';photoList=[{id:'photo1',date:C.today(),role:'progress',url:'https://example.invalid/photo.jpg'}]");await assert.rejects(a.run('loadPhotos()'),/Sem conexão/);assert.equal(a.run('photoList.length'),1);assert.equal(a.run('photoList[0].id'),'photo1')});
 test('navegação destaca comunidade ao centro, calendário no topo e atendimento abre Conversa',async()=>{const a=setup();let direct;a.ctx.NeoCommunity={beginVisit:value=>direct=value,view:()=>'<p>Comunidade</p>',load:()=>{}};await a.run("go('inicio',false)");assert.deepEqual(Array.from(a.document.querySelectorAll('#nav button')).map(b=>b.dataset.go),['inicio','evolucao','comunidade','registros','loja']);assert.ok(a.document.querySelector('#nav .nav-community'));assert.equal(a.document.querySelector('#nav [data-go=calendario]'),null);assert.ok(a.document.querySelector('#calendarShortcut[data-go=calendario]'));a.document.querySelector('#communityIcon').click();await new Promise(setImmediate);assert.equal(direct,true)});
 test('início sem convite da comunidade, com adicionar redondo e atalho Dose',async()=>{const a=setup();a.ctx.NeoCommunityAlerts={home:()=>'<div class="old-community-promo">Convite</div>',refresh:()=>{}};await a.run("go('inicio',false)");assert.equal(a.document.querySelector('.old-community-promo'),null);assert.ok(a.document.querySelector('.home-quick-add[data-add=weight]'));assert.ok(a.document.querySelector('.home-dose-shortcut[data-go=calculadora]'));a.document.querySelector('.home-dose-shortcut').click();await new Promise(setImmediate);assert.ok(a.document.querySelector('#calcForm'))});
-test('calculadora aceita seleções e digitação, mantém fórmula e mostra UI dentro da seringa',async()=>{const a=setup();await a.run("go('calculadora',false)");const doc=a.document,change=(selector,value)=>{const field=doc.querySelector(selector);if(field.tagName==='SELECT'){for(const option of field.querySelectorAll('option')){if(option.value===value)option.setAttribute('selected','');else option.removeAttribute('selected')}}else field.value=value;field.dispatchEvent(new a.ctx.Event(field.tagName==='SELECT'?'change':'input',{bubbles:true}))};assert.equal(doc.querySelector('.syringe-reading'),null);change('#doseUnit','mg');change('#capacity','1');change('[data-calc-preset=mass]','10');change('[data-calc-preset=volume]','2');change('[data-calc-preset=dose]','2.5');assert.match(doc.querySelector('.syringe-reading').textContent,/50 UI/);assert.match(doc.querySelector('#result .big').textContent,/0,5/);assert.equal(doc.querySelectorAll('.syringe-ticks span').length,11);change('#dose','1');assert.match(doc.querySelector('.syringe-reading').textContent,/20 UI/);change('#doseUnit','mcg');assert.match(doc.querySelector('[data-calc-preset=dose]').textContent,/mcg/);change('#dose','2500');assert.match(doc.querySelector('.syringe-reading').textContent,/50 UI/);change('#capacity','0.3');assert.ok(doc.querySelector('.scale-overflow'));assert.match(doc.querySelector('#result .error').textContent,/capacidade/);assert.equal(doc.querySelectorAll('.syringe-ticks span').length,7);assert.equal(doc.querySelector('.syringe-ticks span:last-child em').textContent,'30');change('#mass','-1');doc.querySelector('#calcForm').dispatchEvent(new a.ctx.Event('submit',{bubbles:true,cancelable:true}));assert.match(doc.querySelector('#result').textContent,/valores positivos/)});
+test('calculadora sincroniza seleção rápida, controles deslizantes e valores exatos',async()=>{
+ const a=setup();await a.run("go('calculadora',false)");
+ const doc=a.document,node=selector=>doc.querySelector(selector);
+ const set=(selector,value,event='input')=>{
+  const field=node(selector);
+  if(field.tagName==='SELECT'){
+   for(const option of field.options)option.toggleAttribute('selected',option.value===value);
+  }else field.value=value;
+  field.dispatchEvent(new a.ctx.Event(event,{bubbles:true}));
+ };
+ assert.equal(node('.syringe-reading'),null);
+ assert.equal(node('#dose').value,'');
+ assert.equal(node('[data-calc-chip=dose]'),null);
+ node('[data-calc-chip=mass][data-value="10"]').click();
+ assert.equal(node('#mass').value,'10');
+ assert.equal(node('#calc-range-mass').value,'10');
+ assert.equal(node('[data-calc-chip=mass][data-value="10"]').getAttribute('aria-pressed'),'true');
+ set('#calc-range-volume','2');
+ assert.equal(node('#volume').value,'2');
+ set('#dose','2.5');
+ assert.match(node('.syringe-reading').textContent,/50 UI/);
+ assert.match(node('#result .big').textContent,/0,5/);
+ set('#doseUnit','mcg','change');
+ assert.equal(node('#dose').value,'2500');
+ assert.match(node('.syringe-reading').textContent,/50 UI/);
+ set('#dose','2500.125');
+ assert.equal(node('#dose').value,'2500.125');
+ assert.match(node('#calc-range-dose').getAttribute('aria-valuetext'),/2.500,125 mcg/);
+ const max=Number(node('#calc-range-dose').max);
+ set('#calc-range-dose','1000');
+ assert.equal(Number(node('#calc-range-dose').max),max);
+ assert.equal(node('#dose').value,'1000');
+ set('#dose','2500');
+ node('[name=capacity][value="1"]').removeAttribute('checked');
+ node('[name=capacity][value="0.3"]').setAttribute('checked','');
+ set('[name=capacity][value="0.3"]','0.3','change');
+ assert.ok(node('.scale-overflow'));
+ assert.match(node('#result .error').textContent,/capacidade/);
+ assert.match(node('.calc-scale figcaption').textContent,/30 UI/);
+ set('#mass','0');
+ assert.match(node('#result').textContent,/valores positivos/);
+ set('#mass','');
+ assert.match(node('#result').textContent,/Preencha/);
+ const css=require('node:fs').readFileSync('dist/style.css','utf8');
+ assert.match(css,/\.calc-layout,\.calc-inputs,\.calc-formula ol\{grid-template-columns:minmax\(0,1fr\)\}/);
+});
 function authFormData(a){a.ctx.FormData=class extends Map{constructor(form){super();for(const field of form.querySelectorAll('[name]'))if(field.type!=='checkbox'||field.checked||field.hasAttribute('checked'))this.set(field.getAttribute('name'),field.type==='checkbox'?'on':field.value)}}}
 test('cadastro usa um aceite desmarcado, volta ao login e preserva só o e-mail, com manter conectado padrão',async()=>{const calls=[],a=setup({}, {cloud:{configured:true,email:async(...args)=>(calls.push(args),{session:null,user:{id:'new'}})}});a.ctx.NEO_CONFIG.providers.email=true;a.ctx.NEO_CONFIG.previewRegistration=true;authFormData(a);await a.run("authMode='signup';go('bemvindo',false)");let form=a.document.querySelector('#authForm');assert.equal(a.document.querySelectorAll('input[name=consent]').length,1);assert.equal(form.querySelector('[name=consent]').hasAttribute('checked'),false);assert.equal(a.document.querySelector('#oauthConsent'),null);assert.ok(form.querySelector('[name=remember]').hasAttribute('checked'));form.querySelector('[name=name]').value='Pessoa Nova';form.querySelector('[name=email]').value='new@example.test';form.querySelector('[name=password]').value='password-not-persisted';form.querySelector('[name=consent]').setAttribute('checked','');form.dispatchEvent(new a.ctx.Event('submit',{bubbles:true,cancelable:true}));await new Promise(setImmediate);assert.equal(a.run('authMode'),'login');assert.equal(a.document.querySelector('[name=email]').value,'new@example.test');assert.equal(a.document.querySelector('[name=password]').value,'');assert.match(a.document.querySelector('#authMessage').textContent,/confirmar seu e-mail/);assert.equal(a.document.querySelector('[name=consent]'),null);assert.equal(calls[0][4].remember,true);assert.equal(a.document.querySelectorAll('a[href="#privacidade"]').length,1);assert.ok(!JSON.stringify([...a.data]).includes('password-not-persisted'))});
 test('login envia a escolha desmarcada e falha de cadastro mantém formulário sem anunciar confirmação',async()=>{const calls=[],a=setup({}, {cloud:{configured:true,email:async(...args)=>{calls.push(args);throw Error('Falha de teste')}}});a.ctx.NEO_CONFIG.providers.email=true;a.ctx.NEO_CONFIG.previewRegistration=true;authFormData(a);await a.run("go('bemvindo',false)");let form=a.document.querySelector('#authForm');form.querySelector('[name=email]').value='person@example.test';form.querySelector('[name=password]').value='password123456';form.querySelector('[name=remember]').removeAttribute('checked');form.dispatchEvent(new a.ctx.Event('submit',{bubbles:true,cancelable:true}));await new Promise(setImmediate);assert.equal(calls[0][4].remember,false);assert.match(a.document.querySelector('#authError').textContent,/Falha de teste/);await a.run("authMode='signup';render()");form=a.document.querySelector('#authForm');form.querySelector('[name=email]').value='person@example.test';form.querySelector('[name=password]').value='password123456';form.querySelector('[name=consent]').setAttribute('checked','');form.dispatchEvent(new a.ctx.Event('submit',{bubbles:true,cancelable:true}));await new Promise(setImmediate);assert.equal(a.run('authMode'),'signup');assert.equal(a.document.querySelector('#authMessage'),null);assert.match(a.document.querySelector('#authError').textContent,/Falha de teste/)});
@@ -58,7 +103,7 @@ test('jornada identifica ganho no cadastro e mostra desvio vermelho sem trocar i
  a.run("state.profile.initialWeight=100;state.profile.goal=80;state.weights=[{id:'peso',date:NeoCore.today(),value:105}]");
  const html=a.run('overview()');
  assert.match(html,/journey-away/);assert.match(html,/journey-negative-percent">-25%/);assert.match(html,/Você se distanciou da sua meta/);assert.match(html,/Início: 100/);
- assert.match(html,/Peso atual: 105/);assert.match(html,/journey-delta-away[^>]*>\+5 kg<\/b>/);
+ assert.match(html,/Peso atual: 105/);assert.match(html,/journey-delta-away[^>]*>\+5,00 kg<\/b>/);
  a.run('state.profile.goal=120;state.weights[0].value=110');
  const gain=a.run('overview()');assert.match(gain,/Meta de ganho de peso/);
  assert.match(gain,/>50%<\/b>/);assert.ok(!gain.includes('journey-away-note'));
@@ -67,7 +112,7 @@ test('jornada identifica ganho no cadastro e mostra desvio vermelho sem trocar i
 
 test('variação mostra sinal físico e cor conforme a direção da meta',()=>{
  const a=setup();
- for(const [goal,current,cls,label] of [[80,90,'toward','−10 kg'],[80,110,'away','+10 kg'],[120,110,'toward','+10 kg'],[120,90,'away','−10 kg']]){
+ for(const [goal,current,cls,label] of [[80,90,'toward','−10,00 kg'],[80,110,'away','+10,00 kg'],[120,110,'toward','+10,00 kg'],[120,90,'away','−10,00 kg']]){
   const html=a.run(`journeyProgress({initial:100,goal:${goal},current:${current}})`);
   assert.ok(html.includes(`journey-delta-${cls}" aria-label="Variação desde o peso inicial">${label}</b>`));
  }

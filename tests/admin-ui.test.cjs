@@ -1,5 +1,22 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),vm=require('vm'),fs=require('fs'),{parseHTML}=require('linkedom'),C=require('../dist/core.js');
-function app(summary,configured=true){const {document}=parseHTML(fs.readFileSync('dist/admin/index.html','utf8'));const cloud={configured,user:configured?{id:'user'}:null,init:async()=>null,adminSummary:async()=>{if(summary instanceof Error)throw summary;return summary}};const timers=[];let now=10000;const fakeDate=class extends Date{static now(){return now}};const ctx={document,Date:fakeDate,setTimeout:(callback,delay)=>{const timer={callback,delay,active:true};timers.push(timer);return timer},clearTimeout:timer=>{if(timer)timer.active=false},window:{NeoCore:C,NeoCloud:cloud},Number,confirm:()=>true};vm.createContext(ctx);vm.runInContext(fs.readFileSync('dist/admin/admin.js','utf8'),ctx);return {document,cloud,timers,run:code=>vm.runInContext(code,ctx),select(tab){return vm.runInContext('tab='+JSON.stringify(tab)+';refresh()',ctx)},advance(ms){now+=ms;timers.findLast(timer=>timer.active)?.callback()},refresh:()=>vm.runInContext('refresh()',ctx)}}
+function app(summary,configured=true){const {document}=parseHTML(fs.readFileSync('dist/admin/index.html','utf8'));const selectPrototype=Object.getPrototypeOf(document.createElement('select'));
+ const nativeValue=Object.getOwnPropertyDescriptor(selectPrototype,'value');
+ Object.defineProperty(selectPrototype,'value',{configurable:true,get(){return nativeValue.get.call(this)||''},set(value){
+  this.querySelectorAll('option').forEach(option=>{option.selected=option.value===value;});
+ }});
+ const formPrototype=Object.getPrototypeOf(document.createElement('form'));
+ if(!Object.getOwnPropertyDescriptor(formPrototype,'elements'))Object.defineProperty(formPrototype,'elements',{get(){
+  return Object.fromEntries([...this.querySelectorAll('[name]')].map(field=>[field.name,field]));
+ }});
+ formPrototype.reset??=function(){for(const field of this.querySelectorAll('[name]')){field.value='';if(field.type==='checkbox')field.checked=field.hasAttribute('checked');}};
+ class TestFormData{
+  constructor(form){this.fields=[...form.querySelectorAll('[name]')].filter(field=>field.type!=='checkbox'||field.checked);}
+  getAll(name){return this.fields.filter(field=>field.name===name).map(field=>field.value);}
+  get(name){return this.getAll(name)[0]??null;}
+  has(name){return this.get(name)!==null;}
+  *[Symbol.iterator](){for(const f of this.fields)yield [f.name,f.value];}
+ }
+const cloud={configured,user:configured?{id:'user'}:null,init:async()=>null,adminSummary:async()=>{if(summary instanceof Error)throw summary;return summary}};const timers=[];let now=10000;const fakeDate=class extends Date{static now(){return now}};const ctx={document,FormData:TestFormData,URL,URLSearchParams,location:new URL('https://teste.app.neopep.com.br/admin/'),Date:fakeDate,setTimeout:(callback,delay)=>{const timer={callback,delay,active:true};timers.push(timer);return timer},clearTimeout:timer=>{if(timer)timer.active=false},window:{NeoCore:C,NeoCloud:cloud},Number,confirm:()=>true};vm.createContext(ctx);vm.runInContext(fs.readFileSync('dist/admin/admin.js','utf8'),ctx);return {document,cloud,timers,run:code=>vm.runInContext(code,ctx),select(tab){return vm.runInContext('tab='+JSON.stringify(tab)+';refresh()',ctx)},advance(ms){now+=ms;timers.findLast(timer=>timer.active)?.callback()},refresh:()=>vm.runInContext('refresh()',ctx)}}
 test('painel administrativo não apresenta métricas inventadas sem backend nem dados após recusa',async()=>{const a=app(null,false);await a.refresh();assert.match(a.document.querySelector('#adminStatus').textContent,/não configurado/);assert.equal(a.document.querySelectorAll('.stat-value').length,0);const b=app(Error('administrator required'));await b.refresh();assert.match(b.document.querySelector('#adminStatus').textContent,/administrator required/);assert.equal(b.document.querySelectorAll('.stat-value').length,0)});
 test('renderização administrativa usa apenas indicadores permitidos, sem dados individuais extras',async()=>{const data={users_total:12,signups_7d:3,active_24h:2,active_7d:6,active_30d:10,profiles_total:10,records_total:25,photos_total:8,server_time:'2026-11-12T00:00:00Z',private_storage:true,database_status:'reachable',schema_version:'202611120002',signups_daily:[{day:'2026-11-12',count:null}],app_errors_7d:[],email:'private@example.invalid',health:{weight:91},photo_url:'https://private/photo.jpg'};const a=app(data);await a.refresh();const text=a.document.querySelector('#adminContent').textContent;assert.equal(a.document.querySelectorAll('.stat-value').length,8);assert.ok(!text.includes('private@example.invalid'));assert.ok(!text.includes('photo.jpg'));assert.ok(!text.includes('91'));assert.doesNotMatch(text,/Cadastros por dia/)});
 
@@ -233,6 +250,7 @@ test('ajudas de campanha preservam campos e manual usa leitor interno',async()=>
  await screen.select('campaigns');
  await new Promise(setImmediate);
  assert.equal(screen.run('Object.keys(campaignHelp).length'),26);
+ screen.document.querySelector('[data-campaign-action=view_plans]').click();
  const account=screen.document.querySelector('[name=account]');
  account.value='Rascunho';
  const help=screen.document.querySelector('[aria-controls=campaign-help-account]');
@@ -271,8 +289,11 @@ test('central separa canais e oferece balões WhatsApp sem deslocar o formulári
  assert.equal(Boolean(screen.document.querySelector('[data-campaign-action=next]')),false);
  screen.document.querySelector('[data-campaign-action=whatsapp]').click();await new Promise(setImmediate);
  assert.match(list.textContent,/Somente WhatsApp/);
+ assert.equal(screen.document.querySelector('[data-wa-publication]'),null);
+ screen.document.querySelector('[data-campaign-action=view_groups]').click();await new Promise(setImmediate);
+ screen.document.querySelector('[data-wa=new_item]').click();
  const invite=screen.document.querySelector('[name=invite]');
- const select=screen.document.querySelector('[name=campaign_id]');Object.defineProperty(select,'value',{value:'',writable:true});
+ const select=screen.document.querySelector('[name=campaign_id]');assert.ok(select);
  invite.value='https://chat.whatsapp.com/abcdefghij';
  const help=screen.document.querySelector('[aria-controls=wa-group-invite]');
  const tip=screen.document.getElementById('wa-group-invite'),parent=tip.parentElement;
@@ -283,6 +304,8 @@ test('central separa canais e oferece balões WhatsApp sem deslocar o formulári
  assert.equal(tip.style.left,'32px');
  assert.equal(tip.style.top,'102px');
  assert.match(tip.textContent,/não permite publicação automática/);
+ screen.document.querySelector('[data-wa=back_item]').click();
+ screen.document.querySelector('[data-campaign-action=view_publications]').click();
  screen.document.querySelector('[data-wa=prepare]').click();await new Promise(setImmediate);
  assert.equal(tip.parentElement,parent);
  for(const key of ['preview','title','message','link','share','copy_message','copy_link','confirm','cancel']){
@@ -319,4 +342,25 @@ test('barra compacta alterna App e WhatsApp com botões acessíveis e ação de 
  assert.match(css,/\.neo-campaign-switch button\[aria-pressed="true"\]/);
  assert.match(css,/@media\(max-width:460px\)/);
  assert.match(css,/\.neo-campaign-new-label\{display:none\}/);
+});
+
+test('prévia e compartilhamento manual compõem texto, emojis e links, com mídia separada no painel',()=>{
+ const screen=app(null);
+ screen.run(fs.readFileSync('dist/admin/admin-whatsapp.js','utf8'));
+ const payload=route=>JSON.parse(screen.run(`
+  JSON.stringify(neoWhatsappPayload({
+   title:'Campanha',message:'Olá ✨\\nSegunda linha',link_url:'/#loja',
+   link_label:'Ver oferta',image_path:'private.jpg'
+  }, '${route}'))
+ `));
+ assert.deepEqual(payload('web'),{
+  link:'https://teste.app.neopep.com.br/#loja',message:'Olá ✨\nSegunda linha',
+  text:'Campanha\n\nOlá ✨\nSegunda linha\n\nhttps://teste.app.neopep.com.br/#loja',
+  imageInBubble:false,separateMedia:true,attachments:[]
+ });
+ const connect=payload('connect');
+ assert.equal(connect.imageInBubble,true);
+ assert.equal(connect.separateMedia,false);
+ assert.match(connect.text,/Ver oferta https:/);
+ assert.equal(screen.run("neoWhatsappPayload({link_url:'javascript:alert(1)'}).link"),'');
 });

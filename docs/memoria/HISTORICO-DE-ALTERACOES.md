@@ -488,3 +488,11 @@ Multiagentes, migrações, funções Edge e demais mudanças de homologação se
 ## Issue #24 — candidata de paridade oficial
 
 Integração do snapshot de homologação fa8429a na candidata baseada na main f123749, com PRs #22 e #23 fora do lote. A build preserva configuração oficial, compatibilidade PWA e os arquivos das integrações exclusivas da produção. O inventário, os scripts de leitura e o plano de recuperação registram os pontos pendentes do backend. [Paridade funcional](../revisao/PARIDADE-FUNCIONAL-20261122.md) · [Go/No-go](../revisao/GO-NOGO-PRODUCAO.md)
+
+## Issue #20 — Central de Campanhas e prévia do WhatsApp
+
+A branch `desenvolvimento/admin-campaigns-navigation-v2` separa as listas, os detalhes e a criação guiada dos canais App e WhatsApp. A prévia em smartphone usa a composição do compartilhamento manual do painel e representa a legenda junto à imagem no modo Connect. Os testes locais utilizaram dados fictícios. A conferência em aparelhos físicos e em um painel autenticado de homologação consta no checklist. [Guia e evidências](../conhecimento/CAMPANHAS-NAVEGACAO-V2.md)
+
+## Issue #21 — visual, Biblioteca e calculadora
+
+O leitor PDF contínuo agora atende a Biblioteca e o manual administrativo. A pinça redimensiona a visualização antes da nova rasterização. Pesos exibidos usam duas casas no histórico, gráfico, resumos, Antes/Depois e CSV. O gráfico anuncia a data civil, e o avatar mantém o enquadramento da foto. A autorização de fotos é específica da conta e da finalidade. Na Biblioteca, o leitor interno permanece disponível e o compartilhamento aponta para a publicação. A nova calculadora reaproveita a conversão do núcleo e oferece entrada livre, controles deslizantes, opções de seringa e resultado automático com os dados preenchidos pelo usuário.

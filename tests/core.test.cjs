@@ -10,7 +10,7 @@ test('backup rejeita datas e números inválidos antes de modificar estado',()=>
 test('dashboard: IMC, meta para perda e ganho e janela temporal',()=>{const s=C.blank();s.profile.height=200;s.profile.initialWeight=100;s.profile.goal=80;s.weights=[{id:'1',date:d,value:90}];let m=C.metrics(s);assert.equal(m.bmi,22.5);assert.equal(m.progress,50);assert.equal(m.days,1);s.profile.goal=120;s.weights[0].value=110;assert.equal(C.metrics(s).progress,50);const old=new Date();old.setDate(old.getDate()-10);s.weights.push({id:'2',date:C.today(old),value:100});assert.equal(C.periodRows(s.weights,7).length,1)});
 test('dados fictícios ficam em objeto separado',()=>{const a=C.blank(),b=C.demoState();b.weights[0].value=200;assert.equal(a.weights.length,0);assert.equal(C.demoState().weights[0].value,84.2);assert.equal(b.profile.name,'Alex')});
 test('CSV evita fórmulas e inclui diário',()=>{const s=C.blank();s.weights.push({id:'1',date:d,value:80,note:'=HYPERLINK("x")'});s.journal.push({id:'2',date:d,note:'Olá',sleep:7});const csv=C.exportCsv(s);assert.match(csv,/'=HYPERLINK/);assert.match(csv,/Diário/);assert.match(csv,/Sono h/)});
-test('agenda tem eventos recorrentes e alerta sem prefixos Elo',()=>{const ics=C.calendar(C.blank());assert.match(ics,/BEGIN:VCALENDAR/);assert.match(ics,/RRULE:FREQ=DAILY/);assert.match(ics,/RRULE:FREQ=WEEKLY/);assert.match(ics,/BEGIN:VALARM/);assert.ok(!ics.includes('Elo'));assert.match(ics,/SUMMARY:NeoPep —/)});
+test('agenda tem eventos recorrentes e alerta sem prefixos Elo',()=>{const ics=C.calendar(C.blank());assert.match(ics,/BEGIN:VCALENDAR/);assert.match(ics,/RRULE:FREQ=DAILY/);assert.match(ics,/RRULE:FREQ=WEEKLY/);assert.match(ics,/BEGIN:VALARM/);assert.ok(!ics.includes('Elo'));assert.match(ics,/NeoPeptídeos/)});
 test('escaping de dados protege HTML',()=>assert.equal(C.escape('<img src=x onerror="x">'), '&lt;img src=x onerror=&quot;x&quot;&gt;'));
 test('chaves administrativas nunca são aceitas como chave pública Supabase',()=>{assert.equal(C.isPublicSupabaseKey('sb_publishable_example'),true);assert.equal(C.isPublicSupabaseKey('sb_secret_private'),false);const jwt=role=>'header.'+Buffer.from(JSON.stringify({role})).toString('base64url')+'.signature';assert.equal(C.isPublicSupabaseKey(jwt('anon')),true);assert.equal(C.isPublicSupabaseKey(jwt('service_role')),false);assert.equal(C.isPublicSupabaseKey('anything'),false)});
 test('preferências de acompanhamento respeitam os lembretes sem excluir módulos',()=>{const s=C.blank();s.profile.tracking.weight=false;s.profile.tracking.measures=false;assert.equal(C.nextReminders(s).length,0);assert.ok(Array.isArray(s.weights));const legacy=C.validateBackup({weights:[],measures:[],doses:[]});assert.equal(legacy.profile.tracking.weight,true)});
@@ -81,4 +81,14 @@ test('convite de configuração aparece uma vez por dia até salvar horários',(
  s.settings.measureDay='1';s.reminders=[{id:'r'}];assert.equal(C.shouldOfferReminderSetup(s,'2026-11-15'),false);
  assert.throws(()=>C.validateBackup({settings:{reminderSetupPromptDate:'2026-02-30'}}));
  assert.throws(()=>C.validateBackup({settings:{reminderScheduleConfigured:'true'}}));
+});
+
+test('peso usa duas casas em pt-BR e exportação CSV sem mudar o valor original',()=>{
+ const s=C.blank();
+ s.weights=[{id:'one',date:d,value:111.1}];
+ assert.equal(C.formatWeight(111.1),'111,10');
+ assert.equal(C.formatWeight(-1.8),'-1,80');
+ assert.equal(C.formatWeight(0),'0,00');
+ assert.match(C.exportCsv(s),/"111,10"/);
+ assert.equal(s.weights[0].value,111.1);
 });

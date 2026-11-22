@@ -29,7 +29,92 @@ const whatsappHelp={
  media_share:['Compartilhar arquivo','Depois de preparar o arquivo, escolha o aplicativo e o destinatário na interface do aparelho.']
 };
 
-function mountCampaignWhatsApp(root,{cloud,openManual}){
+function neoWhatsappPayload(record={},route='web',origin=location.origin){
+ let link='';
+ try{const raw=record.link_url??record.link;if(raw){const url=new URL(raw,origin);if(url.protocol==='https:'&&!url.username&&!url.password)link=url.href;}}catch{}
+ const message=record.message??(record.whatsapp_message||record.body||'');
+ const cta=link?[record.link_label,link].filter(Boolean).join(' '):record.link_label;
+ const caption=[record.title,message,cta&&cta.length<=240?cta:''].map(value=>String(value||'').trim()).filter(Boolean).join('\n\n');
+ const media=record.image_path||record.image_url||record.file?.size;
+ return {link,message,text:route==='connect'?caption:[record.title,message,link].filter(Boolean).join('\n\n'),
+  imageInBubble:route==='connect'&&Boolean(media),separateMedia:route==='web'&&Boolean(media),
+  attachments:record.attachments||[]};
+}
+function neoWhatsappEye(attributes=''){
+ return `<button class="secondary neo-wa-eye" type="button" aria-label="Ver prévia no WhatsApp" title="Ver prévia no WhatsApp" ${attributes}>
+ <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="2.7"/></svg> Ver prévia no WhatsApp</button>`;
+}
+function neoWhatsappPreview({cloud,read,trigger,form,onEdit,resolve}){
+ const modal=document.createElement('dialog');
+ modal.className='neo-wa-dialog';modal.setAttribute('aria-label','Ver prévia no WhatsApp');
+ modal.innerHTML=`<div class="neo-wa-dialog-tools"><button type="button" data-wa-close autofocus>← Voltar</button>
+ <label>Modo<select data-wa-route><option value="web">Painel · compartilhamento manual</option><option value="connect">Connect · imagem com legenda</option></select></label>
+ ${onEdit?'<button type="button" data-wa-edit>Editar conteúdo</button>':''}<button type="button" data-wa-close>Fechar</button></div>
+ ${onEdit&&form?'<details class="neo-wa-live"><summary>Ajustar mensagem nesta prévia</summary><label>Mensagem WhatsApp<textarea data-wa-live-message maxlength="4000" placeholder="Usa o texto comum se ficar vazia."></textarea></label></details>':''}
+ <div class="neo-wa-phone"><div class="neo-wa-camera" aria-hidden="true"></div>
+ <header class="neo-wa-chat"><span aria-hidden="true">‹</span><span class="neo-wa-avatar" aria-hidden="true">◉</span><strong data-wa-contact></strong></header>
+ <div class="neo-wa-thread"><article class="neo-wa-bubble"><div data-wa-inline-image></div><p data-wa-text></p><small>12:00 · prévia</small></article><div data-wa-separate></div></div><div class="neo-wa-home" aria-hidden="true"></div></div>
+ <p class="sub">Simulação — a aparência pode variar no WhatsApp.</p>`;
+ document.body.append(modal);
+ let alive=true,version=0,objectUrl='',activeFile=null,activePath=null,source=null;
+ const q=s=>modal.querySelector(s);
+ const finish=()=>{if(!alive)return;alive=false;window.removeEventListener('popstate',close);if(objectUrl)URL.revokeObjectURL(objectUrl);form?.removeEventListener('input',render);form?.removeEventListener('change',render);modal.remove();if(trigger?.isConnected)trigger.focus();};
+ const close=()=>{if(modal.open&&modal.close)modal.close();finish();};
+ function drawImage(url,payload){
+  const inline=q('[data-wa-inline-image]'),separate=q('[data-wa-separate]');
+  inline.replaceChildren();separate.replaceChildren();
+  if(url){
+   const img=document.createElement('img');img.src=url;img.alt='Imagem da campanha';
+   const target=payload.imageInBubble?inline:separate;
+   if(payload.separateMedia){const text=document.createElement('p');text.textContent='Arquivo separado no painel. Anexe manualmente.';target.append(text);}
+   target.append(img);
+  }
+  for(const attachment of payload.attachments){
+   const label=document.createElement('p');label.textContent='Anexo manual: '+attachment.name;separate.append(label);
+  }
+ }
+ async function render(){
+  const id=++version,record=read()||{},route=q('[data-wa-route]').value,payload=neoWhatsappPayload(record,route);
+  q('[data-wa-contact]').textContent=record.group_name||'Grupo de exemplo';
+  const text=q('[data-wa-text]');text.replaceChildren();
+  for(const part of (payload.text||'Sem texto nesta mensagem.').split(/(https?:\/\/[^\s]+)/i)){
+   if(/^https?:\/\//i.test(part)){const span=document.createElement('span');span.className='neo-wa-link';span.textContent=part;text.append(span);}
+   else text.append(document.createTextNode(part));
+  }
+  if(activeFile!==record.file){if(objectUrl)URL.revokeObjectURL(objectUrl);objectUrl='';activeFile=record.file;if(activeFile?.size)objectUrl=URL.createObjectURL(activeFile);}
+  if(activePath!==record.image_path){activePath=record.image_path;source=activePath?cloud.campaignImageURL(activePath).catch(()=>null):null;}
+  const local=/^\/(assets|campaign-media)\/[\w./-]+$/.test(record.image_url||'')&&!record.image_url.includes('..')?record.image_url:null;
+  drawImage(objectUrl||local,payload);
+  if(!objectUrl&&source){const signed=await source;if(alive&&id===version)drawImage(signed||local,payload);}
+ }
+ modal.addEventListener('close',finish);modal.addEventListener('cancel',event=>{event.preventDefault();close();});
+ modal.addEventListener('click',event=>{if(event.target.closest('[data-wa-close]'))close();if(event.target.closest('[data-wa-edit]')){close();onEdit?.();}});
+ modal.addEventListener('keydown',event=>{
+  if(event.key==='Escape'){event.preventDefault();close();return;}
+  if(event.key!=='Tab')return;
+  const controls=[...modal.querySelectorAll('button,select,summary,textarea')].filter(control=>!control.closest('details:not([open])')||control.tagName==='SUMMARY');
+  const first=controls[0],last=controls.at(-1);
+  if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}
+  else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
+ });
+ const draftMessage=form?.querySelector('[name=whatsapp_message]'),liveMessage=q('[data-wa-live-message]');
+ if(liveMessage&&draftMessage){
+  liveMessage.value=draftMessage.value;
+  liveMessage.addEventListener('input',()=>{
+   draftMessage.value=liveMessage.value;
+   draftMessage.dispatchEvent(new Event('input',{bubbles:true}));
+  });
+ }
+ window.addEventListener('popstate',close);
+ q('[data-wa-route]').addEventListener('change',render);
+ form?.addEventListener('input',render);form?.addEventListener('change',render);
+ if(modal.showModal)modal.showModal();else modal.setAttribute('open','');
+ void render();
+ if(resolve)void resolve().then(()=>{if(alive)void render();}).catch(()=>{});
+ return close;
+}
+
+function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  const rpc=(action,id=null,data={})=>cloud.campaignWhatsApp(action,id,data);
  const q=selector=>root.querySelector(selector);
  const help=(area,prefix)=>addCampaignHelp(area,whatsappHelp,prefix);
@@ -76,6 +161,44 @@ function mountCampaignWhatsApp(root,{cloud,openManual}){
  });
  const groupForm=q('[data-wa-group]'),form=q('[data-wa-publication]'),select=form.querySelector('[name=campaign_id]');
  help(groupForm,'wa-group');help(q('[data-wa-group-search]'),'wa-search');help(form,'wa-form');help(q('[data-wa-queue]').parentElement,'wa-queue');
+ const queue=q('[data-wa-queue]').parentElement,groupList=q('[data-wa-groups]'),groupSearchForm=q('[data-wa-group-search]');
+ const groupContainer=groupForm.closest('details');
+ let currentView='publications',openEditor='',unsaved=false;
+ const tool=document.createElement('div');
+ tool.className='neo-campaign-actions';
+ if(embedded){
+  tool.innerHTML=`<button class="primary" type="button" data-wa="new_item">Nova divulgação</button><button class="secondary" type="button" data-wa="back_item" hidden>← Voltar à lista</button>`;
+  q('[data-wa-status]').after(tool);
+  groupContainer.open=true;groupContainer.querySelector('summary').hidden=true;
+  const filter=document.createElement('label');filter.innerHTML='<span>Status da divulgação</span><select data-wa-queue-filter><option value="">Todos</option>'+Object.entries(states).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')+'</select>';
+  queue.prepend(filter);filter.addEventListener('change',renderQueue);
+ }
+ function canLeave(){
+  if(!unsaved)return true;
+  if(!confirm('Descartar as alterações não salvas nesta tela?'))return false;
+  unsaved=false;return true;
+ }
+ function setView(next,force=false){
+  if(!embedded)return;
+  if(!force&&next!==currentView&&!canLeave())return;
+  if(next!==currentView){openEditor='';unsaved=false;}
+  currentView=next;
+  const groups=next==='groups',pub=next==='publications';
+  connect.hidden=next!=='connect';
+  if(!connect.hidden)connect.open=true;
+  groupContainer.hidden=!groups;
+  groupForm.hidden=!groups||openEditor!=='groups';
+  groupSearchForm.hidden=groupList.hidden=!groups||openEditor==='groups';
+  form.hidden=!pub||openEditor!=='publications';queue.hidden=!pub||openEditor==='publications';
+  tool.hidden=!groups&&!pub;
+  const add=tool.querySelector('[data-wa=new_item]'),back=tool.querySelector('[data-wa=back_item]');
+  add.hidden=Boolean(openEditor);back.hidden=!openEditor;add.textContent=groups?'Novo grupo':'Nova divulgação';
+ }
+ function showEditor(pane){
+  if(embedded){openEditor=pane;setView(pane,true);}
+ }
+ groupForm.addEventListener('input',()=>{unsaved=true;});form.addEventListener('input',()=>{unsaved=true;});
+ groupForm.addEventListener('change',()=>{unsaved=true;});form.addEventListener('change',()=>{unsaved=true;});
  const tell=message=>{q('[data-wa-status]').textContent=message};
  function setCampaigns(rows){
   campaigns=rows;
@@ -96,7 +219,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual}){
   destination.prepend(...retained);
  }
  function renderQueue(){
-  q('[data-wa-queue]').innerHTML=queueRows.map(row=>`<article class="monitor-block">
+  q('[data-wa-queue]').innerHTML=queueRows.filter(row=>!q('[data-wa-queue-filter]')?.value||q('[data-wa-queue-filter]').value===row.state).map(row=>`<article class="monitor-block">
    <h4>${esc(row.title)} · ${esc(row.group_name)}</h4>
    <p>${states[row.state]} ${esc(dateLabel(row.scheduled_at,row.timezone))}</p>
    ${row.confirmed_at?`<p class="sub">Última confirmação ${esc(dateLabel(row.confirmed_at,row.timezone))}</p>`:''}
@@ -125,14 +248,15 @@ function mountCampaignWhatsApp(root,{cloud,openManual}){
    <div class="neo-campaign-actions">${['share','copy_message','copy_link',...(selectedJob?['confirm','cancel']:[])].map(key=>
    `<fieldset><legend data-campaign-legend="${key}">${action(key,{share:'Compartilhar no WhatsApp',copy_message:'Copiar mensagem',copy_link:'Copiar link',confirm:'Confirmar publicação',cancel:'Cancelar publicação'}[key])}</legend></fieldset>`).join('')}</div>
    ${selectedJob?`<div data-wa-file-actions>${files.map((file,i)=>`<button type="button" class="secondary" data-wa="file" data-id="${i}">Preparar ${esc(file.name)}</button>`).join('')}</div>`:''}
-   <div data-wa-media></div></fieldset>`;
+   ${neoWhatsappEye('data-wa="show_preview"')}<div data-wa-media></div></fieldset>`;
   help(pane,'wa-preview');
   const image=pane.querySelector('[data-wa-image]'),record=prepared;
   if(image){
    const url=record.image_path?cloud.campaignImageURL(record.image_path):Promise.resolve(record.image_url);
    void url.then(src=>{
     if(!image.isConnected||record!==prepared)return;
-    const picture=document.createElement('img');picture.src=src;picture.alt='';image.append(picture);
+    if(!src)return;
+   const picture=document.createElement('img');picture.src=src;picture.alt='';image.append(picture);
    }).catch(()=>{});
   }
  }
@@ -163,7 +287,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual}){
   event.preventDefault();const data=new FormData(groupForm);
   void protectedAction(async()=>{
    await rpc('group_save',groupForm.dataset.id||null,{name:data.get('name'),invite:data.get('invite'),category:data.get('category'),notes:data.get('notes'),active:data.has('active')});
-   resetGroup();await refresh();tell('Grupo salvo.');
+   unsaved=false;openEditor='';resetGroup();setView('groups',true);await refresh();tell('Grupo salvo.');
   });
  });
  select.addEventListener('change',()=>{void protectedAction(()=>prepare(select.value))});
@@ -174,25 +298,38 @@ function mountCampaignWhatsApp(root,{cloud,openManual}){
   void protectedAction(async()=>{
    await rpc('schedule',null,{campaign_id:data.get('campaign_id'),groups:data.getAll('group'),attachments:data.getAll('attachment'),
     local_time:day?day+'T'+time:null,timezone:data.get('timezone'),weekdays:data.getAll('weekday').map(Number),remind:data.has('remind')});
-   form.reset();selectedJob=null;prepared=null;files=[];preview();
+   unsaved=false;openEditor='';setView('publications',true);form.reset();selectedJob=null;prepared=null;files=[];preview();
    await refresh();tell('Publicação salva na fila. Para criar outra, selecione novamente a campanha e o grupo.');
   });
  });
  root.addEventListener('click',event=>{
   const button=event.target.closest?.('[data-wa]');if(!button)return;
   const {wa,id}=button.dataset;
-  const message=prepared?[prepared.title,prepared.message,prepared.link].filter(Boolean).join('\n\n'):'';
+  const message=prepared?neoWhatsappPayload(prepared).text:'';
   if(wa==='share'&&prepared){
    if(navigator.share){void navigator.share({text:message}).catch(error=>{if(error.name!=='AbortError')tell('Use Copiar mensagem para compartilhar manualmente.');});}
    else window.open('https://wa.me/?text='+encodeURIComponent(message),'_blank','noopener,noreferrer');
    return;
+  }
+  if(wa==='new_item'){
+   if(currentView==='groups'){resetGroup();showEditor('groups');groupForm.elements.name.focus();}
+   else{form.reset();prepared=null;selectedJob=null;files=[];preview();showEditor('publications');select.focus();}
+   return;
+  }
+  if(wa==='back_item'){
+   if(canLeave()){openEditor='';setView(currentView,true);tool.querySelector('[data-wa=new_item]')?.focus();}
+   return;
+  }
+  if(wa==='show_preview'&&prepared){
+   neoWhatsappPreview({cloud,trigger:button,form,read:()=>({...prepared,group_name:selectedJob?.group_name||
+    form.querySelector('[name=group]:checked')?.closest('label')?.textContent.trim()})});return;
   }
   if(wa==='manual'){openManual?.(button);return;}
   void protectedAction(async()=>{
    if(wa==='clear_group'){resetGroup();return;}
    if(wa==='edit_group'){
     const group=groupRows.find(row=>row.id===id);if(!group)return;
-    groupForm.dataset.id=group.id;
+    showEditor('groups');groupForm.dataset.id=group.id;
     for(const name of ['name','invite','category','notes'])groupForm.elements[name].value=group[name]||'';
     groupForm.elements.active.checked=group.active;groupForm.elements.name.focus();return;
    }
@@ -206,7 +343,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual}){
     list.prepend(...retained);return;
    }
    if(wa==='prepare'){
-    const row=queueRows.find(row=>row.id===id);if(row){root.dataset.waPage='publications';if(typeof showNeoWhatsappNavigation==='function')showNeoWhatsappNavigation(root);select.value=row.campaign_id;await prepare(row.campaign_id,row);}return;
+    const row=queueRows.find(row=>row.id===id);if(row){if(embedded)showEditor('publications');else {root.dataset.waPage='publications';if(typeof showNeoWhatsappNavigation==='function')showNeoWhatsappNavigation(root);}select.value=row.campaign_id;await prepare(row.campaign_id,row);}return;
    }
    if(wa==='copy_message'||wa==='copy_link'){
     const value=wa==='copy_link'?prepared?.link:message;if(!value)return;
@@ -238,12 +375,13 @@ function mountCampaignWhatsApp(root,{cloud,openManual}){
    }
   });
  });
- if(typeof installNeoWhatsappNavigation==='function')installNeoWhatsappNavigation(root);
- return {setCampaigns,show(id){
+ if(!embedded&&typeof installNeoWhatsappNavigation==='function')installNeoWhatsappNavigation(root);
+ if(embedded)setView('publications',true);
+ return {setCampaigns,setView,canLeave,dirty:()=>unsaved,show(id){
   if(!reminderTimer)reminderTimer=setInterval(()=>{
    if(!root.isConnected){clearInterval(reminderTimer);reminderTimer=null;return;}
    void reminders().catch(()=>{});
   },30000);
-  void protectedAction(async()=>{await refresh();if(id){root.dataset.waPage='publications';if(typeof showNeoWhatsappNavigation==='function')showNeoWhatsappNavigation(root);select.value=id;await prepare(id);}});
+  void protectedAction(async()=>{await refresh();if(id){if(embedded)showEditor('publications');else {root.dataset.waPage='publications';if(typeof showNeoWhatsappNavigation==='function')showNeoWhatsappNavigation(root);}select.value=id;await prepare(id);}});
  }};
 }
