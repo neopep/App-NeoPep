@@ -77,10 +77,10 @@ export async function createLab({providerFactory=createBaileysProvider,qrRendere
      if(provider){await provider.close?.();provider=null;}
      const candidate=await providerFactory({
       onQr:async raw=>{
-       const render=qrRenderer||async qr=>{
+       const render=qrRenderer||(async qr=>{
         const qrcode=(await import('qrcode')).default;
         return qrcode.toDataURL(qr,{width:260,margin:2,errorCorrectionLevel:'M'});
-       };
+       });
        const picture=await render(raw);
        if(!closed&&state.connection!=='conectado'&&state.connection!=='desconectado')update({connection:'aguardando_qr',qr:picture,error:null});
       },
