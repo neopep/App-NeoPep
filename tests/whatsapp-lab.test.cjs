@@ -54,13 +54,14 @@ test('Laboratório QR restringe HTTP ao localhost e não tem rota de envio',asyn
  }finally{await lab.close();}
 });
 
-test('A etapa não tem API de envio, impressão de QR nem sincronização de conversas',()=>{
+test('O laboratório HTTP não envia mensagens e o provedor não sincroniza conversas',()=>{
  const dir='connect/whatsapp-lab';
  const server=fs.readFileSync(dir+'/server.mjs','utf8');
  const provider=fs.readFileSync(dir+'/whatsapp-provider.mjs','utf8');
  const html=fs.readFileSync(dir+'/ui/index.html','utf8');
  const pkg=JSON.parse(fs.readFileSync(dir+'/package.json','utf8'));
- assert.doesNotMatch(server+provider,/\bsendMessage\s*\(|messages\.upsert|api\/sendMessage/);
+ assert.doesNotMatch(server,/\bsend(?:Message|Text|Image)\s*\(|api\/send/);
+ assert.doesNotMatch(server+provider,/messages\.upsert/);
  assert.match(html,/Nenhuma mensagem será enviada/);
  assert.match(provider,/markOnlineOnConnect:false/);
  assert.match(provider,/syncFullHistory:false/);
