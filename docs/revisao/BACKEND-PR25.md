@@ -2,7 +2,7 @@
 
 **NO-GO.** O preflight autenticado no comentário do PR confirmou 45 tabelas privadas com RLS, sete buckets privados, nove Edge Functions e o cron neo-push-dispatch ativo por minuto em produção. Em Teste, registrou 83 tabelas privadas, nove buckets privados, seis Edge Functions e 16 versões de migração. O ledger consultado em produção não retornou versões. Preserve o default verdadeiro de community_preferences.push_enabled em produção e os valores já gravados. A execução 45055909655 aprovou a candidata técnica e bloqueou o gate de evidências.
 
-A sessão atual não renovou a leitura autenticada. A API Supabase retornou 403 no proxy e não há conexão autenticada configurada. O catálogo passou a registrar nome e hash do SQL no ledger quando disponíveis. Essas evidências ainda precisam ser capturadas para os dois projetos, comparadas com os hashes dos arquivos e reconciliadas com a definição de cada objeto. O inventário do comentário não permite concluir a reconciliação das funções divergentes.
+A sessão atual não renovou a leitura autenticada. A API Supabase retornou 403 no proxy e não há conexão autenticada configurada. O catálogo passou a registrar nome e hash do SQL no ledger quando disponíveis. Essas evidências ainda precisam ser capturadas para os dois projetos, reconciliadas com as instruções versionadas e com a definição de cada objeto. O hash do array de instruções do ledger compara capturas no mesmo formato. Os SHA-256 do manifesto fixam os bytes dos arquivos de origem. O inventário do comentário não permite concluir a reconciliação das funções divergentes.
 
 ## Proteções por superfície
 
