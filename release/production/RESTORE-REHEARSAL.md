@@ -31,3 +31,35 @@ Se um lote falhar antes do commit, usar rollback da transação. Depois do commi
 `bash tests/production-postgres.sh` cria um contêiner PostgreSQL 17 sem rede, usa exclusivamente migrações da referência local `origin/main` e dados sintéticos, produz um dump lógico e o restaura em outro banco do contêiner. Verifica um registro Auth sintético e compara o catálogo, aceitando apenas ACL padrão do proprietário e três CHECKs conhecidos cuja expressão o PostgreSQL reserializa com a mesma conjunção. Ensaios por lote comparam o catálogo integral antes e depois do rollback e verificam as invariantes após os sete commits. O script registra o SHA da base, o dump, catálogos e SHA-256 em diretório privado.
 
 O ensaio local cobre o procedimento lógico e os deltas em PostgreSQL real. O backup oficial, a consistência entre banco e arquivos, o tempo de recuperação de produção e a restauração de arquivos de Storage seguem pendentes.
+
+## Verificação reproduzível de objetos Storage restaurados
+
+A restauração de Postgres **não traz automaticamente os bytes dos buckets Storage**. Para demonstrar a integridade dos arquivos, use o inventário de objetos obtido de uma exportação autorizada **no mesmo ponto lógico de recuperação**, com nomes, tamanhos e SHA-256 calculados a partir dos **bytes da origem**. O inventário e os objetos devem permanecer em diretório privado fora do Git e dos logs do CI.
+
+Formato de uma linha de `origem.jsonl` (valores ilustrativos, não dados reais):
+
+```json
+{"bucket":"neo-library","key":"exemplo.pdf","size":12345,"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+```
+
+Formato de `contagens.json` (contagens ilustrativas de objetos da origem, por bucket no mesmo corte temporal):
+
+```json
+{"neo-library":1,"neo-private":0}
+```
+
+Com os objetos restaurados em subpastas por bucket, por exemplo `/volume/restore/neo-library/exemplo.pdf`, executar **localmente no destino isolado**:
+
+```bash
+python3 release/production/verify-storage-restore.py --self-test
+python3 release/production/verify-storage-restore.py \
+  --manifest /area-privada/origem.jsonl \
+  --expected-counts /area-privada/contagens.json \
+  --root /volume/restore
+```
+
+O verificador rejeita objetos faltantes, tamanhos ou SHA-256 divergentes, nomes duplicados, cobertura incompleta de buckets, referências fora da raiz e links simbólicos. **Não baixa nem envia arquivos**, não recebe credenciais nem mostra nomes dos objetos no resultado. O autoteste executa casos positivos e negativos com objetos sintéticos e não comprova restauração de produção.
+
+**Evidência indispensável:** identidade e consistência do snapshot original, autenticidade do inventário, SHA-256 do backup, relógio/cutoff, bloqueio de egress e cron no clone, contagens e hashes do inventário de origem e destino, relatório do teste de integridade e teste isolado de acesso por conta/Storage RLS. Um arquivo JSONL autodeclarado não substitui prova da origem. Caso a exportação seja por amostragem, não rotular como restauração integral verificada. A integração com Auth/Storage e os direitos efetivos devem ser testados em clone isolado, sem login de usuários reais.
+
+**Limitação atual:** não temos backup oficial restaurado no destino isolado nem manifesto de objetos autorizado. A verificação foi adicionada, mas a evidência real continua pendente; o gate oficial segue NO-GO.
