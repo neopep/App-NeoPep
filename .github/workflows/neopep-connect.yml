@@ -2,7 +2,7 @@ name: NeoPep Connect Windows
 
 on:
   push:
-    branches: [desenvolvimento/connect-windows-02]
+    branches: [desenvolvimento/connect-windows-02, desenvolvimento/connect-whatsapp-grupos]
     paths: ['connect/windows/**', 'connect/whatsapp-lab/**', '.github/workflows/neopep-connect.yml']
   pull_request:
     branches: [staging/permanente]
@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   windows:
-    if: github.ref_name == 'desenvolvimento/connect-windows-02' || github.event.pull_request.head.ref == 'desenvolvimento/connect-windows-02'
+    if: contains(fromJSON('["desenvolvimento/connect-windows-02","desenvolvimento/connect-whatsapp-grupos"]'), github.event.pull_request.head.ref || github.ref_name)
     runs-on: windows-2022
     timeout-minutes: 15
     steps:

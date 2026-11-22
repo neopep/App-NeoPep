@@ -40,7 +40,7 @@ export async function createBaileysProvider(
   if(closed)return;
   const current=baileys.default({
    auth,logger:pino({level:'silent'}),markOnlineOnConnect:false,syncFullHistory:false,
-   shouldSyncHistoryMessage:()=>false
+   shouldSyncHistoryMessage:()=>false,defaultQueryTimeoutMs:15000
   });
   socket=current;
   current.ev.on('creds.update',save);
@@ -64,6 +64,11 @@ export async function createBaileysProvider(
  }
  return {
   start,
+  account(){
+   const user=connected?socket?.user:null;
+   const number=/^([0-9]{6,15})(?::[0-9]+)?@s\.whatsapp\.net$/.exec(user?.id??'')?.[1];
+   return {name:user?.name??'',number:number??''};
+  },
   async listGroups(){
    const current=socket;
    if(!connected||!current)throw Error('Sem sessão ativa.');

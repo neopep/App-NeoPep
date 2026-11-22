@@ -11,6 +11,7 @@ test('IPC guarda sessão local, invalida QR antigo e limita grupos aos metadados
   providerFactory:async options=>{
    hooks=options;
    return {start(){},close(){},async forget(){return true;},
+    account(){return {name:"Conta teste",number:"5511999999999",token:"omitido"};},
     async listGroups(){return [{id:'123@g.us',name:'Teste',members:7,participants:['omitido'],history:['omitido']},{id:'123@s.whatsapp.net'}]}}
   }
  });
@@ -27,7 +28,9 @@ test('IPC guarda sessão local, invalida QR antigo e limita grupos aos metadados
  await fresh;
  assert.deepEqual(messages.at(-1),{type:'qr',value:'qr-atual'});
  hooks.onState('conectado');
+ assert.deepEqual(messages.at(-1),{type:'account',value:{name:'Conta teste',number:'5511999999999'}});
  await bridge.receive({action:'groups'});
+ assert.deepEqual(messages.at(-2),{type:'groups_loading',value:null});
  assert.deepEqual(messages.at(-1),{type:'groups',value:[{id:'123@g.us',name:'Teste',members:7}]});
  hooks.onCredentials('vault-de-teste');
  assert.deepEqual(messages.at(-1),{type:'vault',value:'vault-de-teste'});
@@ -65,7 +68,7 @@ test('provedor limita retentativas, reconecta após falha e apaga sessão revoga
   default:options=>{
    assert.equal(options.syncFullHistory,false);
    assert.equal(options.shouldSyncHistoryMessage(),false);
-   const socket={ev:new EventEmitter(),end(){},async groupFetchAllParticipating(){return {fixture:{id:'123@g.us',subject:'Grupo teste',size:3}};}};
+   const socket={user:{name:'Conta teste',id:'5511999999999:3@s.whatsapp.net'},ev:new EventEmitter(),end(){},async groupFetchAllParticipating(){return {fixture:{id:'123@g.us',subject:'Grupo teste',size:3}};}};
    sockets.push(socket);
    return socket;
   }
@@ -82,6 +85,9 @@ test('provedor limita retentativas, reconecta após falha e apaga sessão revoga
  scheduled.at(-1).fn();
  sockets.at(-1).ev.emit('connection.update',{connection:'open'});
  assert.equal(states.at(-1),'conectado');
+ assert.deepEqual(provider.account(),{name:'Conta teste',number:'5511999999999'});
+ sockets.at(-1).user.id='123456789@lid';
+ assert.deepEqual(provider.account(),{name:'Conta teste',number:''});
  assert.deepEqual(await provider.listGroups(),[{id:'123@g.us',name:'Grupo teste',members:3}]);
  close(401);
  assert.equal(states.at(-1),'revogado');

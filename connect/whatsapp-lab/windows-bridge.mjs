@@ -17,7 +17,15 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
      const candidate=await providerFactory({
       serialized:typeof message.vault==='string'?message.vault:null,
       onCredentials:value=>{if(revision===generation)output('vault',value);},
-      onState:value=>{if(revision===generation)update(value);},
+      onState:value=>{
+       if(revision!==generation)return;
+       update(value);
+       if(value==='conectado'){
+        const account=current?.account?.();
+        output('account',{name:String(account?.name??'').slice(0,120),
+         number:/^[0-9]{6,15}$/.test(account?.number??'')?account.number:''});
+       }
+      },
       onQr:async raw=>{
        const version=++qrVersion;
        const renderer=renderQr||(async value=>{
@@ -33,12 +41,12 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
      if(closed||revision!==generation){await candidate.close();return;}
      current=candidate;await current.start();
     }else if(message.action==='groups'&&state==='conectado'&&!checking){
-     checking=true;
+     checking=true;output('groups_loading',null);
      const revision=generation;
      try{
       const rows=await current.listGroups();
       if(revision===generation&&state==='conectado')output('groups',rows.filter(row=>/^[0-9-]+@g\.us$/.test(row?.id))
-       .map(row=>({id:row.id,name:String(row.name||'Sem nome').slice(0,120),members:Number.isSafeInteger(row.members)&&row.members>=0?row.members:null})).slice(0,1000));
+       .map(row=>({id:row.id,name:String(row.name||'Sem nome').slice(0,120),members:Number.isSafeInteger(row.members)&&row.members>=0?row.members:null})));
      }finally{checking=false;}
     }else if(message.action==='disconnect'){
      ++generation;const previous=current;current=null;update('desconectando');output('vault',null);
