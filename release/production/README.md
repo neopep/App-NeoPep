@@ -15,6 +15,16 @@ A única exceção é a alteração de `body_hash` de `public.neo_shop_v36(p_act
 3. Executar `python3 release/production/compare-catalog.py prod-antes.jsonl teste.jsonl > delta.json`. Distinguir mudanças semânticas de formatação em sessão administrativa. Confirmar visibilidade do cron e do ledger antes de interpretar ausências.
 4. Pelo painel administrativo, inventariar Edge, verify_jwt, Auth, callbacks, CORS, SMTP, CAPTCHA, DNS, Vercel e recuperação. Registrar configurações públicas, presença e nomes das variáveis. O catálogo PostgreSQL não verifica esses serviços.
 
+## Escopo de lançamento público revisado: Financeiro oficial preservado
+
+A Produção é **fonte de verdade de cadastro/Auth, Loja e Mercado Pago**. O Teste foi originado como cópia desses módulos e não houve intenção de alterá-los. Para o lançamento inicial do PR #25:
+
+- `supabase/functions/mercadopago-create/index.ts` e `supabase/functions/mercadopago-webhook/index.ts` foram **restaurados byte a byte ao conteúdo de `main`**, que deve permanecer em vigor em Produção.
+- As mudanças propostas de reembolso parcial e chave de idempotência foram preservadas exclusivamente em `release/production/optional-finance/`, **fora do caminho implantável `supabase/functions/`**.
+- A migração `20261122190100_shop_checkout_retry.sql` foi movida de `supabase/migrations/` para `release/production/optional-finance/`. O lote **07-financeiro é opcional e excluído da primeira publicação**, mantendo os testes sintéticos para uma eventual homologação financeira própria. **Não executar o lote 07 e não implantar Edge financeira opcional neste lançamento.**
+- O teste `tests/production-finance-baseline.test.cjs` verifica a identidade dos arquivos financeiros ativos com os blobs Git da origem oficial para evitar regressão. Testes da correção proposta leem apenas o arquivo opcional.
+- As contas existentes, cobranças, webhooks, cadastros e pagamentos do Supabase oficial não foram modificados por essa preparação. Abertura de novos usuários ainda depende de configurações Auth e validação de cadastro, e os fluxos financeiros oficiais requerem smoke test com conta controlada antes do lançamento público.
+
 ## Ordem e cobertura dos lotes de homologação
 
 | Lote | Entrega SQL | Dependências e limites |
