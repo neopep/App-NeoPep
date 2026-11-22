@@ -1,0 +1,4 @@
+# Cliente Windows de Teste usa chamada administrativa autenticada ou assinador de maquina com credencial dedicada.
+# O handler connect-release-draft valida explicitamente ambos os modos; o gateway deve deixar o handler realizar essa verificacao.
+[functions.connect-release-draft]
+verify_jwt = false

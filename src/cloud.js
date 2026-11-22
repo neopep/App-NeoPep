@@ -47,6 +47,15 @@ const api={configured,
   return path;
  },
  ...(config.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co' ? {
+  async importConnectRelease(manifest){
+   const response=await need().functions.invoke('connect-release-draft',{body:manifest});
+   if(response.error){
+    let message='Não foi possível verificar o manifesto no servidor de Teste.';
+    try{const detail=await response.error.context.json();if(typeof detail.error==='string')message=detail.error;}catch{}
+    throw Error(message);
+   }
+   return response.data;
+  },
   async connectUpdateAdmin(action,data={}){return ok(await need().rpc('neo_connect_update_admin',{p_action:action,p_data:data}));}
  } : {}),
  async connectWaConnections(){return ok(await need().rpc('neo_connect_wa_list_connections'));},
