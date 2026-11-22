@@ -57,3 +57,7 @@ O responsável esclareceu a cronologia: a Produção existia antes da homologaç
 ## Atualização oficial — migrações incrementais JÁ aplicadas em 22/11/2026
 
 **Não executar novamente os lotes 01–06 na Produção.** O Supabase oficial agora tem 90 tabelas e 177 funções (`public` + `neo_private`), sete versões de migração próprias, dois buckets privados novos, mantendo 8 contas, 18 pedidos e 34 objetos Storage em contagem. Os agentes adicionais, campanhas automáticas e Connect estão inertes/pausados; o lote 07 financeiro não foi aplicado. A lista exata das sete versões e os guardas executados constam no [registro oficial de aplicação](APLICACAO-PRODUCAO-INCREMENTAL-20261122.md). A **publicação web e Edge** continua pendente, sem merge do PR #25. Não inferir GO da presença das novas tabelas.
+
+## Preview candidato autorizado — sem publicação da main
+
+Após a autorização do responsável para implementar as melhorias do Teste no ambiente oficial, a branch `release/preparacao-paridade-producao-20261122` recebeu `vercel.json` com `git.deploymentEnabled=true` **apenas para a própria branch**. O objetivo é gerar um **deployment Preview** com a configuração oficial, identificar o projeto Vercel correto e validar o shell real antes do merge. O Vercel deve manter a branch Production oficial `main` inalterada até aprovação do pacote web. O build de staging pode recusar essa branch, o que não constitui falha da candidata oficial. O CI preserva `release:check` e as 12 evidências pendentes; não marcar GO automaticamente.
