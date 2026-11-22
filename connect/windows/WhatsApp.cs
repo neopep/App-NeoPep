@@ -103,7 +103,7 @@ sealed class WhatsApp : Form {
         messageText.TextChanged+=delegate{previewText.Text=String.IsNullOrWhiteSpace(messageText.Text)?
             "Sua mensagem aparecerá aqui.":messageText.Text;UpdateComposer();};
         targetGroup.SelectedIndexChanged+=delegate{UpdateComposer();};
-        sendTextButton=Action("Revisar e publicar agora",delegate{void PublishManualText();});
+        sendTextButton=Action("Revisar e publicar agora",delegate{PublishManualText();});
         sendTextButton.Enabled=false;compose.Controls.Add(sendTextButton);
         var draftActions=new FlowLayoutPanel{AutoSize=true,WrapContents=true};
         draftActions.Controls.Add(Action("Salvar rascunho",SaveDraft));
@@ -175,7 +175,8 @@ sealed class WhatsApp : Form {
         public override string ToString(){return Name;}
     }
     void RefreshComposerGroups(){
-        string previous=(targetGroup.SelectedItem as GroupChoice)?.Id;
+        var currentChoice=targetGroup.SelectedItem as GroupChoice;
+        string previous=currentChoice==null?null:currentChoice.Id;
         targetGroup.Items.Clear();
         foreach(var row in groupRows){
             string id=TextValue(row,"id");
@@ -228,7 +229,7 @@ sealed class WhatsApp : Form {
             File.AppendAllText(sendAuditPath,DateTime.UtcNow.ToString("u")+" "+outcome+Environment.NewLine);
         }catch{}
     }
-    async Task PublishManualText(){
+    void PublishManualText(){
         if(!ready||sendingText||!groupReadAt.HasValue||pendingSend!=Guid.Empty||canPublish==null||!canPublish())return;
         var choice=targetGroup.SelectedItem as GroupChoice;
         string text=messageText.Text.Trim();
