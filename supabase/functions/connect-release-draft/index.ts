@@ -1,4 +1,4 @@
-import {createHash} from 'node:crypto';
+import {createHash,timingSafeEqual} from 'node:crypto';
 import {createClient} from 'npm:@supabase/supabase-js@2.80.0';
 import {bucket,fileName,parseManifest,precedes,sameRelease,staging,verifyManifest,verifyObject} from './manifest.mjs';
 
@@ -12,17 +12,33 @@ Deno.serve(async request=>{
  if(request.headers.has('Origin')&&request.headers.get('Origin')!==origin)return reply(403,null);
  if(request.method==='OPTIONS')return new Response(null,{status:204,headers});
  if(request.method!=='POST')return reply(405,null);
+ const machineToken=request.headers.get('X-Neo-Release-Agent');
+ const machine=machineToken!==null;
+ if(machine){
+  const expected=Deno.env.get('NEO_CONNECT_AGENT_TOKEN_SHA256')??'';
+  if(request.headers.has('Origin')||!/^[a-f0-9]{64}$/.test(machineToken)||!/^[a-f0-9]{64}$/.test(expected)||
+     !timingSafeEqual(createHash('sha256').update(machineToken).digest(),Uint8Array.from(expected.match(/../g)!,x=>parseInt(x,16))))
+   return reply(401,{error:'Assinador não autorizado.'});
+ }
  const auth=request.headers.get('Authorization')??'';
- if(!/^Bearer [A-Za-z0-9_.-]{20,4096}$/.test(auth))return reply(401,{error:'Entre com uma conta administrativa.'});
+ if(!machine&&!/^Bearer [A-Za-z0-9_.-]{20,4096}$/.test(auth))return reply(401,{error:'Entre com uma conta administrativa.'});
  const anon=Deno.env.get('SUPABASE_ANON_KEY'),service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
  const publicKey=Deno.env.get('NEO_CONNECT_RELEASE_PUBLIC_JWK');
  if(!anon||!service||!publicKey)return reply(503,{error:'Verificação de releases ainda não configurada.'});
- const admin=createClient(staging,anon,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});
+ const backend=()=>createClient(staging,service,{auth:{persistSession:false,autoRefreshToken:false}});
  try{
-  const identity=await admin.auth.getUser(auth.slice(7));
-  if(identity.error||!identity.data.user)return reply(401,{error:'Sessão inválida.'});
-  const listing=await admin.rpc('neo_connect_update_admin',{p_action:'list',p_data:{}});
-  if(listing.error)return reply(listing.error.code==='42501'?403:502,{error:'Não foi possível confirmar a permissão administrativa.'});
+  let actor=null,listing;
+  if(machine){
+   listing=await backend().rpc('neo_connect_release_stage',{p_action:'list',p_data:{}});
+  }else{
+   const admin=createClient(staging,anon,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});
+   const identity=await admin.auth.getUser(auth.slice(7));
+   if(identity.error||!identity.data.user)return reply(401,{error:'Sessão inválida.'});
+   actor=identity.data.user.id;
+   listing=await admin.rpc('neo_connect_update_admin',{p_action:'list',p_data:{}});
+  }
+  if(listing.error)return reply(listing.error.code==='42501'?403:502,{error:'Não foi possível confirmar a autorização.'});
+  let evidence;
   let manifest;
   try{
    const reader=request.body?.getReader();
@@ -37,7 +53,18 @@ Deno.serve(async request=>{
     raw+=decoder.decode(value,{stream:true});
    }
    const input=JSON.parse(raw+decoder.decode());
-   manifest=parseManifest(input);
+   manifest=parseManifest(machine?input.manifest:input);
+   if(machine){
+    const {commit,runId,attempt}=input;
+    if(typeof commit!=='string'||!/^[a-f0-9]{40}$/.test(commit)||
+      typeof runId!=='string'||!/^[1-9][0-9]{0,19}$/.test(runId)||typeof attempt!=='string'||!/^[1-9][0-9]{0,8}$/.test(attempt)||
+      manifest.artifact!==`connect-teste-${manifest.version}-${runId}-${attempt}`)
+     throw Error('Evidências de origem do build inválidas.');
+    evidence={commit,run_id:runId,attempt};
+   }else{
+    if(manifest.version!=='0.2.5')throw Error('A importação local é reservada à versão 0.2.5.');
+    evidence={commit:'75f5b441beb2d0a6472d5544e639f53f9184c069',run_id:'45032627045',attempt:null};
+   }
   }catch(error){return reply(400,{error:error instanceof SyntaxError?'JSON inválido.':String((error as Error).message)});}
   if(!await verifyManifest(manifest,JSON.parse(publicKey)))return reply(422,{error:'A assinatura não corresponde à chave pública de Teste.'});
   const releases=listing.data?.releases??[];
@@ -50,6 +77,7 @@ Deno.serve(async request=>{
   const operation=new URL(request.url).searchParams.get('action');
   if(operation!==null&&operation!=='upload')return reply(400,{error:'Operação inválida.'});
   if(operation==='upload'){
+   if(!machine)return reply(403,{error:'Somente o assinador pode solicitar upload.'});
    const storage=createClient(staging,service,{auth:{persistSession:false,autoRefreshToken:false}}).storage.from(bucket);
    const object=await storage.exists(path);
    if(object.data===true)return reply(200,{exists:true});
@@ -68,8 +96,7 @@ Deno.serve(async request=>{
   });
   if(!object.ok||!await verifyObject(object.body,manifest,createHash('sha256')))
    return reply(422,{error:'O objeto privado está ausente ou seu tamanho ou SHA-256 diverge do manifesto.'});
-  if(existing)return reply(200,{version:manifest.version,path,sha256:manifest.sha256,state:'draft'});
-  const saved=await admin.rpc('neo_connect_update_admin',{p_action:'register',p_data:manifest});
+  const saved=await backend().rpc('neo_connect_release_stage',{p_action:'register',p_data:{...manifest,...evidence,actor}});
   if(saved.error){
    if(saved.error.code==='23505')return reply(409,{error:'A versão foi cadastrada em paralelo. Confira a lista antes de tentar novamente.'});
    return reply(502,{error:'Não foi possível cadastrar o rascunho.'});

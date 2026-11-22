@@ -16,6 +16,7 @@ begin
  if p_action='list' then
   return jsonb_build_object(
    'approval_policy',1,
+   'evidence',(select coalesce(jsonb_object_agg(e.version,to_jsonb(e)),'{}') from neo_private.connect_release_evidence e),
    'releases',(select coalesce(jsonb_agg(to_jsonb(rel) order by coalesce(rel.created_at,rel.approved_at) desc nulls last,rel.version),'[]')
     from neo_private.connect_releases rel),
    'events',(select coalesce(jsonb_agg(to_jsonb(e) order by e.created_at desc,id desc),'[]') from (
@@ -75,6 +76,11 @@ begin
    failure:='release_manifest';
   elsif octet_length(decode(r.release_signature,'base64'))<256 then
    failure:='release_manifest';
+  elsif string_to_array(v,'.')::numeric[]>=array[0,2,5]::numeric[] and not exists(
+   select 1 from neo_private.connect_release_evidence e where e.version=v
+    and e.artifact=r.artifact and e.sha256=r.sha256 and e.bytes=r.bytes
+  ) then
+   failure:='release_evidence';
   elsif not exists(
    select 1 from storage.objects o join storage.buckets b on b.id=o.bucket_id
    where b.id='neo-connect-releases' and b.public is false and o.name=r.path

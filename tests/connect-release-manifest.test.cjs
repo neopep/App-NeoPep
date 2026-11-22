@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {webcrypto,createHash}=require('node:crypto');
+const {webcrypto,createHash,timingSafeEqual}=require('node:crypto');
 const shared=import('../supabase/functions/connect-release-draft/manifest.mjs');
 
 test('manifesto assinado vincula versão, artefato e bytes ao pacote privado',async()=>{
@@ -54,20 +54,21 @@ test('Edge só registra rascunho depois de verificar o objeto e tolera reimporta
  const source=readFileSync('supabase/functions/connect-release-draft/index.ts','utf8').replace(/^import .*;\n/gm,'');
  const bytes=Buffer.from('object-fixture');
  const manifest={version:'0.2.6',profile:'staging',channel:'stable',bytes:bytes.length,
-  sha256:createHash('sha256').update(bytes).digest('hex'),artifact:'artifact-1',signature:'A'.repeat(344)};
+  sha256:createHash('sha256').update(bytes).digest('hex'),artifact:'connect-teste-0.2.6-123-1',signature:'A'.repeat(344)};
  let handler,stored=bytes,releases=[];
- const operations=[];
+ const operations=[], token='a'.repeat(64);
  const path=manifest.version+'/'+service.fileName;
  runInNewContext(transformSync(source,{loader:'ts'}).code,{
-  ...service,async verifyManifest(){return true;},Request,Response,URL,createHash,AbortSignal,TextDecoder,
-  Deno:{serve(fn){handler=fn;},env:{get(key){return key==='SUPABASE_URL'?service.staging:'{}';}}},
+  ...service,async verifyManifest(){return true;},Request,Response,URL,createHash,timingSafeEqual,AbortSignal,TextDecoder,
+  Deno:{serve(fn){handler=fn;},env:{get(key){return key==='SUPABASE_URL'?service.staging:key==='NEO_CONNECT_AGENT_TOKEN_SHA256'?createHash('sha256').update(token).digest('hex'):'{}';}}},
   createClient(){return {auth:{async getUser(){return {data:{user:{id:'admin'}}};}},
    async rpc(_,params){
     operations.push(params.p_action);
     if(params.p_action==='list')return {data:{releases}};
     assert.equal(params.p_action,'register');
+    const reused=releases.length>0;
     releases=[{...params.p_data,distribution_state:'draft'}];
-    return {data:{ok:true}};
+    return {data:{ok:true,reused}};
    },
    storage:{from(bucket){
     assert.equal(bucket,service.bucket);
@@ -85,8 +86,9 @@ test('Edge só registra rascunho depois de verificar o objeto e tolera reimporta
    return new Response(stored);
   }
  });
- const call=(data=manifest,suffix='')=>handler(new Request(service.staging+'/'+suffix,
-  {method:'POST',headers:{Authorization:'Bearer '+'a'.repeat(40)},body:JSON.stringify(data)}));
+ const call=(data=manifest,suffix='',agent=token)=>handler(new Request(service.staging+'/'+suffix,
+  {method:'POST',headers:{'X-Neo-Release-Agent':agent},body:JSON.stringify({manifest:data,commit:'b'.repeat(40),runId:'123',attempt:'1'})}));
+ assert.equal((await call(manifest,'?action=upload','b'.repeat(64))).status,401);
  assert.equal((await call(manifest,'?action=upload')).status,200);
  assert.deepEqual(operations,['list']);
  stored=Buffer.alloc(bytes.length);
@@ -96,6 +98,6 @@ test('Edge só registra rascunho depois de verificar o objeto e tolera reimporta
  const first=await call();
  assert.equal(first.status,201);assert.equal((await first.json()).state,'draft');
  assert.equal((await call()).status,200);
- assert.equal((await call({...manifest,artifact:'different'})).status,409);
- assert.equal(operations.filter(action=>action==='register').length,1);
+ assert.equal((await call({...manifest,artifact:'different'})).status,400);
+ assert.equal(operations.filter(action=>action==='register').length,2);
 });

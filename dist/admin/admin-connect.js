@@ -76,6 +76,12 @@ function mountNeoConnect(root,cloud){
   [snapshot,groups,queue]=result;
   releaseInfo=result[3];
   const enabled=snapshot.accounts.filter(x=>x.enabled);
+  const evidenceFor=r=>{
+   const e=releaseInfo?.evidence?.[r.version];
+   return e&&e.sha256===r.sha256&&Number(e.bytes)===Number(r.bytes)&&e.artifact===r.artifact&&
+    /^[a-f0-9]{40}$/.test(e.commit_sha)&&/^\d+$/.test(e.run_id)&&e.verified_at?e:null;
+  };
+  const needsEvidence=r=>{const [major,minor,patch]=r.version.split('.').map(Number);return major>0||minor>2||minor===2&&patch>=5;};
   html(body,`<h4>Instaladores aprovados</h4>
    ${snapshot.releases.filter(downloadable).map(r=>`<article class="monitor-block"><p>Versão ${esc(r.version)} · ${esc(time(r.approved_at))} · ${Number(r.bytes).toLocaleString('pt-BR')} bytes</p>
    <p class="sub">SHA-256 <code>${esc(r.sha256)}</code></p><button class="secondary" type="button" data-connect="download" data-version="${esc(r.version)}">Preparar download privado</button></article>`).join('')||'<p>Nenhuma versão aprovada disponível.</p>'}
@@ -86,7 +92,7 @@ function mountNeoConnect(root,cloud){
      <label>Manifesto assinado<input name="manifest" type="file" accept=".json,application/json" required></label>
      <button type="submit" class="secondary">Importar como rascunho</button>
     </form>
-    <p>Cadastro manual</p>
+    <details><summary>Cadastro manual de contingência</summary>
     <form data-connect-form="update_register" class="space">
      <label>Versão<input name="version" required pattern="[0-9]{1,8}[.][0-9]{1,8}[.][0-9]{1,8}"></label>
      <label>Identificador do artefato<input name="artifact" required maxlength="120" pattern="[A-Za-z0-9._\\-]{1,120}"></label>
@@ -96,18 +102,25 @@ function mountNeoConnect(root,cloud){
      <label>Notas da atualização<textarea name="notes" maxlength="4000"></textarea></label>
      <button type="submit" class="secondary">Cadastrar rascunho</button>
     </form>
+    </details>
     ${releaseInfo.approval_policy===1?'':'<p>Aprovação e bloqueio aguardam a atualização do servidor de Teste.</p>'}
-    ${releaseInfo.releases.map(r=>`<article class="monitor-block">
+    ${releaseInfo.releases.map(r=>{const e=evidenceFor(r);return `<article class="monitor-block">
      <p>Versão ${esc(r.version)} · ${esc(releaseStates[r.distribution_state]||r.distribution_state)}</p>
      <p class="sub">Artefato ${esc(r.artifact||'—')} · ${Number(r.bytes).toLocaleString('pt-BR')} bytes</p>
      <p>SHA-256 <code style="overflow-wrap:anywhere">${esc(r.sha256)}</code></p>
      <p>${esc(r.notes||'Sem notas da atualização.')}</p>
      <p>Cadastro ${esc(time(r.created_at))} · Aprovação ${esc(time(r.distribution_state==='draft'?null:r.approved_at))}</p>
-     ${r.distribution_state==='draft'?`<form class="space" data-connect-form="update_approve" data-version="${esc(r.version)}">
+     ${e?`<p>${r.distribution_state==='draft'?'Pronto para aprovar · ':''}assinatura e arquivo privado verificados · ${esc(time(e.verified_at))}</p>
+      <p>Commit <code>${esc(e.commit_sha)}</code> · <a href="https://github.com/neopep/NeoPep-Connect-Build-Privado/actions/runs/${esc(e.run_id)}">Execução e testes de CI</a></p>`:
+      r.distribution_state==='draft'&&needsEvidence(r)?'<p>Aguardando evidências de CI, assinatura e arquivo privado verificado.</p>':''}
+     ${r.distribution_state==='draft'&&(!needsEvidence(r)||e)?`<form class="space" data-connect-form="update_approve" data-version="${esc(r.version)}">
       <label class="check"><input type="checkbox" name="required" ${releaseInfo.approval_policy===1?'':'disabled'}> Indicar como obrigatória</label>
       <button type="submit" class="secondary" ${releaseInfo.approval_policy===1?'':'disabled'}>Aprovar versão</button></form>`:''}
      ${r.distribution_state==='approved'?`<button type="button" class="secondary" data-connect="update_block" data-version="${esc(r.version)}" ${releaseInfo.approval_policy===1?'':'disabled'}>Bloquear versão</button>`:''}
-     </article>`).join('')||'<p>Nenhuma versão cadastrada.</p>'}
+     </article>`;}).join('')||'<p>Nenhuma versão cadastrada. Aguardando um build assinado e verificado.</p>'}
+    <details><summary>Resultados dos computadores</summary>
+     ${(releaseInfo.events||[]).map(e=>`<p>${esc(time(e.created_at))} · Versão ${esc(e.version)} · ${esc(({download_requested:'Download solicitado',installed:'Instalado',failed:'Falha na instalação',rollback:'Versão anterior restaurada'})[e.outcome]||e.outcome)} · ${esc(computer(e.device_id))}</p>`).join('')||'<p>Nenhum resultado recebido.</p>'}
+    </details>
     <details><summary>Histórico de ações</summary>
      ${(releaseInfo.audit||snapshot.audit.filter(a=>['update_register','update_approve','update_block'].includes(a.event))).map(a=>
       `<p>${esc(time(a.created_at))} · ${esc(events[a.event]||a.event)} · Versão ${esc(a.release_version||'—')} · ${esc(a.release_result==='ok'?'Concluída':a.release_result==='rejected'?'Recusada':'—')} · Administrador ${esc(a.actor_id||'—')}</p>`).join('')||'<p>Nenhuma ação registrada.</p>'}
