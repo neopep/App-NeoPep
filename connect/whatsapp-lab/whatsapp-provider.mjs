@@ -1,7 +1,12 @@
 // Adaptador experimental, restrito a pareamento e metadados de grupos.
-export async function createBaileysProvider({onQr,onState,onCredentials=()=>{},serialized=null}){
+const loadModules=()=>Promise.all([import('@whiskeysockets/baileys'),import('pino')]);
+
+export async function createBaileysProvider(
+ {onQr,onState,onCredentials=()=>{},serialized=null},
+ {load=loadModules,schedule=setTimeout,cancel=clearTimeout}={}
+){
  let socket=null,connected=false,closed=false,retries=0,reconnectTimer;
- const [baileys,{default:pino}]=await Promise.all([import('@whiskeysockets/baileys'),import('pino')]);
+ const [baileys,{default:pino}]=await load();
  const {BufferJSON,DisconnectReason,proto}=baileys;
  const stored=serialized?JSON.parse(serialized,BufferJSON.reviver):null;
  const creds=stored?.creds||baileys.initAuthCreds();
@@ -52,7 +57,7 @@ export async function createBaileysProvider({onQr,onState,onCredentials=()=>{},s
    if(code===DisconnectReason.connectionReplaced){onState('sessao_substituida');return;}
    if(++retries>5){onState('rede_indisponivel');return;}
    onState('reconectando');
-   reconnectTimer=setTimeout(()=>{
+   reconnectTimer=schedule(()=>{
     try{start()}catch{onState('rede_indisponivel');}
    },code===DisconnectReason.restartRequired?250:Math.min(15000,1000*2**(retries-1)));
   });
@@ -69,7 +74,7 @@ export async function createBaileysProvider({onQr,onState,onCredentials=()=>{},s
    }));
   },
   async forget(){
-   closed=true;connected=false;clearTimeout(reconnectTimer);
+   closed=true;connected=false;cancel(reconnectTimer);
    const current=socket;socket=null;keys.clear();onCredentials(null);
    if(!current)return !creds.registered;
    let timeout;
@@ -80,7 +85,7 @@ export async function createBaileysProvider({onQr,onState,onCredentials=()=>{},s
    finally{clearTimeout(timeout);detach(current);}
   },
   close(){
-   closed=true;connected=false;clearTimeout(reconnectTimer);detach(socket);socket=null;keys.clear();
+   closed=true;connected=false;cancel(reconnectTimer);detach(socket);socket=null;keys.clear();
   }
  };
 }

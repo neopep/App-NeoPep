@@ -77,6 +77,12 @@ jobs:
             & (Join-Path $runtime 'node.exe') -e "import('@whiskeysockets/baileys').catch(() => process.exit(2))"
             if ($LASTEXITCODE) { throw 'Dependências empacotadas inválidas' }
           } finally { Pop-Location }
+          $app = Start-Process $installed -ArgumentList '--background' -PassThru
+          try {
+            if ($app.WaitForExit(2000)) { throw 'Cliente WinForms encerrou durante a inicialização' }
+          } finally {
+            if (!$app.HasExited) { $app.Kill(); $app.WaitForExit() }
+          }
           Invoke-Setup $setup '--quiet --uninstall'
           if ((Test-Path $installed) -or (Test-Path $runtime) -or (Test-Path $vault)) { throw 'Arquivos ativos permanecem instalados' }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

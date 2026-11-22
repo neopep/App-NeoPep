@@ -52,3 +52,11 @@ O aplicativo abre um navegador local. NÃO executar com credenciais de um númer
 ## Critério de aceite
 
 Conseguir exibir e renovar QR de uma conta dedicada; reconhecer autenticação, desconexão e revogação; mostrar apenas IDs locais, nomes e contagem dos grupos da própria conta; nunca divulgar a sessão, conteúdos privados ou enviar mensagens; passar por avaliação de segurança e possuir um instalador Windows próprio.
+
+## Candidato Windows 0.2.0
+
+O instalador Windows incorpora o runtime Node.js x64 e as dependências fixadas no lockfile. A interface WinForms usa pipes herdados para falar com o bridge local, sem porta HTTP. O cofre do WhatsApp é separado de `session.dat` e protegido com DPAPI vinculada ao usuário Windows. Nenhum QR, token de sessão ou dado dos grupos segue para o Supabase. A interface só recebe identificador, nome e contagem dos grupos participantes. O adaptador não assina eventos de mensagens ou contatos.
+
+Para atualizar, encerre o Connect 0.1.1 pela bandeja, confira o tamanho e o SHA-256 do EXE com o manifesto do mesmo workflow e execute o candidato com a mesma conta Windows. Preserve o diretório de dados local e não desinstale a versão anterior antes da atualização. Ao reabrir, confira o computador aprovado e `fixture-principal`. Em **WhatsApp experimental**, conecte apenas um número próprio de teste. Para fechar a sessão, use **Desconectar WhatsApp**. Se a revogação remota falhar, confirme a remoção em **Dispositivos conectados** no telefone.
+
+O candidato segue fora do canal aprovado. A integração com o cliente não oficial é experimental e pode sofrer restrições pelo WhatsApp. São necessários ensaios interativos em Windows 10 e 11 com número e grupo próprios para validar QR, desconexão, reconexão real, coexistência do simulador e revogação remota. A distribuição aprovada exige revisão de assinatura do instalador. [PR de homologação](https://github.com/neopep/App-NeoPep/pull/10)

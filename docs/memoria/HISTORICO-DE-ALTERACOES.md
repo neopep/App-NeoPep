@@ -471,3 +471,7 @@ Build, checagem, prévia e 22 testes focados passaram. A suíte com 351 casos te
 A migração corretiva `20261122003342` restringiu a atualização de pausa do NeoPep Connect à linha `singleton = true`. Apenas o corpo dessa operação mudou. A revisão confirmou filtros nas demais atualizações e chaves explícitas nos upserts.
 
 O teste automatizado validou a cláusula e as duas transições. No Supabase de homologação, a mesma RPC acionada pelos botões foi testada como administrador autenticado em transação revertida. A fila foi comparada integralmente antes do rollback. Depois dele, o processamento permaneceu pausado, com um computador aprovado, uma sessão conectada, a conta fixture-principal, um vínculo de grupo, cinco registros de auditoria e uma única tarefa em fila, sem simulação.
+
+## MEM-20261122-002
+
+O candidato NeoPep Connect 0.2.0 incorpora o laboratório do PR #8 e a tarefa #9 em uma interface WinForms. O bridge usa IPC local, dependências com lockfile e cofre DPAPI separado. A versão mantém os dados locais do 0.1.1 e o simulador existente. O candidato segue em PR de rascunho. A suíte completa teve 295 aprovações em 357 testes e os mesmos 62 casos herdados. [Guia de teste Windows](../conhecimento/NEOPEP-CONNECT-WHATSAPP-LAB.md)
