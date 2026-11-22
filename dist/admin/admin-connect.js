@@ -64,6 +64,7 @@ function mountNeoConnect(root,cloud){
    </form>
    ${snapshot.tasks.map(t=>`<p>${esc(job(t.publication_id))} · ${esc(events[t.state]||t.state)} · ${esc(actor(t.account_id))} · ${esc(computer(t.device_id))} · ${esc(time(t.occurrence))}</p>`).join('')}
    <details><summary>Tentativas e auditoria</summary>${snapshot.audit.map(a=>`<p>${esc(time(a.created_at))} · ${esc(events[a.event]||a.event)} · ${esc(computer(a.device_id))} · ${esc(actor(a.account_id))}</p>`).join('')}</details>`);
+  if(typeof installNeoConnectNavigation==='function')installNeoConnectNavigation(root);
  }
  async function perform(action){
   try{note('Consultando NeoPep Connect…');await action();note('Atualizado.');}

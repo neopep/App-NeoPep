@@ -1,0 +1,53 @@
+.neo-connect-tabs{
+ display:flex;flex-wrap:wrap;gap:8px;
+ margin:14px 0 18px;align-items:stretch
+}
+.neo-connect-tabs button{
+ flex:1 1 auto;min-width:100px;
+ padding:10px 14px;border-radius:12px;
+ text-align:center;white-space:normal;line-height:1.35
+}
+.neo-connect-tabs button[aria-pressed="true"]{
+ box-shadow:0 0 0 1px rgba(255,255,255,.19) inset
+}
+.neo-connect-pane[hidden],[data-neo-wa-panel][hidden]{
+ display:none!important
+}
+.neo-connect-pane{
+ display:block;min-width:0;max-width:100%;
+ overflow-wrap:anywhere;
+ padding:10px 0 18px;
+}
+.neo-connect-pane>h4:first-child{
+ margin-top:4px
+}
+.neo-connect-action-grid{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:10px;margin:18px 0
+}
+.neo-connect-action-grid button{
+ width:100%;min-height:48px;
+ white-space:normal;text-align:left
+}
+.neo-connect-pane form{
+ max-width:100%
+}
+.neo-connect-pane input,.neo-connect-pane select{
+ max-width:100%
+}
+.neo-connect-back{margin-top:18px}
+.neo-connect-pane .monitor-block{
+ min-width:0
+}
+.neo-connect-pane details[open]{
+ margin-bottom:18px
+}
+@media(max-width:650px){
+ .neo-connect-tabs{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px
+ }
+ .neo-connect-tabs button{min-width:0;padding:12px 8px}
+ .neo-connect-action-grid{grid-template-columns:1fr}
+ .neo-connect-pane{padding:6px 0 18px}
+}

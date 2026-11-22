@@ -173,7 +173,8 @@ function mountCampaignWhatsApp(root,{cloud,openManual}){
   void protectedAction(async()=>{
    await rpc('schedule',null,{campaign_id:data.get('campaign_id'),groups:data.getAll('group'),attachments:data.getAll('attachment'),
     local_time:day?day+'T'+time:null,timezone:data.get('timezone'),weekdays:data.getAll('weekday').map(Number),remind:data.has('remind')});
-   await refresh();tell('Publicação salva na fila.');
+   form.reset();selectedJob=null;prepared=null;files=[];preview();
+   await refresh();tell('Publicação salva na fila. Para criar outra, selecione novamente a campanha e o grupo.');
   });
  });
  root.addEventListener('click',event=>{
@@ -204,7 +205,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual}){
     list.prepend(...retained);return;
    }
    if(wa==='prepare'){
-    const row=queueRows.find(row=>row.id===id);if(row){select.value=row.campaign_id;await prepare(row.campaign_id,row);}return;
+    const row=queueRows.find(row=>row.id===id);if(row){root.dataset.waPage='publications';if(typeof showNeoWhatsappNavigation==='function')showNeoWhatsappNavigation(root);select.value=row.campaign_id;await prepare(row.campaign_id,row);}return;
    }
    if(wa==='copy_message'||wa==='copy_link'){
     const value=wa==='copy_link'?prepared?.link:message;if(!value)return;
@@ -236,11 +237,12 @@ function mountCampaignWhatsApp(root,{cloud,openManual}){
    }
   });
  });
+ if(typeof installNeoWhatsappNavigation==='function')installNeoWhatsappNavigation(root);
  return {setCampaigns,show(id){
   if(!reminderTimer)reminderTimer=setInterval(()=>{
    if(!root.isConnected){clearInterval(reminderTimer);reminderTimer=null;return;}
    void reminders().catch(()=>{});
   },30000);
-  void protectedAction(async()=>{await refresh();if(id){select.value=id;await prepare(id);}});
+  void protectedAction(async()=>{await refresh();if(id){root.dataset.waPage='publications';if(typeof showNeoWhatsappNavigation==='function')showNeoWhatsappNavigation(root);select.value=id;await prepare(id);}});
  }};
 }
