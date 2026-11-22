@@ -1,0 +1,17 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>NeoPep Connect — Pareamento experimental</title><link rel="stylesheet" href="/style.css">
+<script src="/app.js" defer></script></head><body><main>
+<header><span class="brand">NeoPep Connect</span><span class="pill">Laboratório local</span></header>
+<h1>Conectar WhatsApp</h1>
+<p class="lead">Nesta etapa, apenas conectamos uma conta e consultamos os grupos dos quais ela participa. <strong>Nenhuma mensagem será enviada.</strong></p>
+<section class="warning"><strong>Integração não oficial, com risco de restrições.</strong> Use somente uma conta de teste que você controla. O WhatsApp pode limitar ou suspender contas que utilizem clientes não autorizados.</section>
+<section class="panel"><h2>1 · Pareamento por QR Code</h2>
+<p>No telefone: WhatsApp → <strong>Aparelhos conectados</strong> → <strong>Conectar aparelho</strong> e leia o QR abaixo. O código é temporário.</p>
+<p id="state" role="status" aria-live="polite">Preparando interface local…</p>
+<div id="qr-area" hidden><img id="qr" alt="QR Code para parear seu próprio WhatsApp"><p>Leia com o WhatsApp do telefone de teste.</p></div>
+<div class="buttons"><button id="connect">Iniciar pareamento</button><button id="forget" class="secondary" disabled>Desconectar e apagar sessão</button></div>
+</section>
+<section class="panel"><h2>2 · Seus grupos</h2><p>Apenas nome e quantidade de participantes são mostrados aqui. Nenhuma lista de membros ou mensagem é enviada ao NeoPep.</p>
+<button id="refresh" class="secondary" disabled>Atualizar lista de grupos</button><ul id="groups" aria-live="polite"><li>Conecte a conta para consultar seus grupos.</li></ul></section>
+<p class="footer">Este laboratório ainda não faz parte do instalador NeoPep Connect 0.1.1. Integração com painel, publicação e agendamento continuam desativados.</p>
+</main></body></html>
