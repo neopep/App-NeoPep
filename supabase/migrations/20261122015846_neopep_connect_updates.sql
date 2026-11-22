@@ -20,7 +20,7 @@ create table neo_private.connect_update_events(
  id bigint generated always as identity primary key,
  device_id uuid not null references neo_private.connect_devices(id) on delete cascade,
  version text not null check(version ~ '^[0-9]{1,8}[.][0-9]{1,8}[.][0-9]{1,8}$'),
- outcome text not null check(outcome in ('installed','failed','rollback')),
+ outcome text not null check(outcome in ('download_requested','installed','failed','rollback')),
  created_at timestamptz not null default now()
 );
 alter table neo_private.connect_update_events enable row level security;
@@ -39,13 +39,16 @@ begin
   insert into neo_private.connect_update_events(device_id,version,outcome) values(p_device,p_version,p_outcome);
   return jsonb_build_object('ok',true);
  end if;
- if p_action not in ('check','download') or p_action is null then raise exception 'Operação inválida.';end if;
+ if p_action not in ('check','download','authorize') or p_action is null then raise exception 'Operação inválida.';end if;
  select jsonb_build_object('version',r.version,'profile',r.profile,'channel',r.channel,'bytes',r.bytes,
   'sha256',r.sha256,'artifact',r.artifact,'signature',r.release_signature,'notes',r.notes,'required',r.required,'path',r.path)
  into result from neo_private.connect_releases r
  where r.distribution_state='approved' and r.profile='staging' and r.channel='stable'
  and (p_action='check' or r.version=p_version)
  order by string_to_array(r.version,'.')::int[] desc limit 1;
+ if p_action='download' and result is not null then
+  insert into neo_private.connect_update_events(device_id,version,outcome) values(p_device,p_version,'download_requested');
+ end if;
  return result;
 end $$;
 
@@ -62,6 +65,8 @@ begin
  elsif p_action='register' then
   if v is null or v !~ '^[0-9]{1,8}[.][0-9]{1,8}[.][0-9]{1,8}$' then raise exception 'Versão inválida.';end if;
   if nullif(p_data->>'artifact','') is null or nullif(p_data->>'signature','') is null then raise exception 'Artefato e assinatura obrigatórios.';end if;
+  if coalesce(p_data->>'bytes','') !~ '^[1-9][0-9]{0,7}$' then raise exception 'Tamanho inválido.';end if;
+  if (p_data->>'bytes')::bigint>52428800 then raise exception 'Tamanho excede o limite do bucket.';end if;
   insert into neo_private.connect_releases(version,path,sha256,bytes,artifact,release_signature,notes,distribution_state)
   values(v,v||'/NeoPepConnectSetup.exe',p_data->>'sha256',(p_data->>'bytes')::bigint,p_data->>'artifact',p_data->>'signature',coalesce(p_data->>'notes',''),'draft');
  elsif p_action='approve' then

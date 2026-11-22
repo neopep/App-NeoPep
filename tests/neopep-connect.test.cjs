@@ -71,6 +71,7 @@ test('Connect protege registros, seleciona reservas elegíveis e bloqueia reenvi
   await admin('associate',{group,account:a.id,verified:true,may_publish:true});
   assert.equal(await update('check',first),null,'legacy manual release stays outside the automatic channel');
   const prepared={version:'0.2.3',artifact:'runner-fixture',sha256:'a'.repeat(64),bytes:42,signature:'A'.repeat(342)+'=='};
+  await assert.rejects(release('register',{...prepared,bytes:52428801}),/limite do bucket/);
   await release('register',prepared);
   assert.equal(await update('check',first),null);
   assert.equal(await allowed('0.2.3/NeoPepConnectSetup.exe'),false);
@@ -82,12 +83,16 @@ test('Connect protege registros, seleciona reservas elegíveis e bloqueia reenvi
   assert.equal(offered.required,true);
   assert.equal(offered.profile,'staging');
   assert.equal(offered.artifact,'runner-fixture');
+  assert.deepEqual(await update('authorize',first,'0.2.3'),offered);
+  await assert.rejects(update('authorize',{...first,key:secret(9)},'0.2.3'),{code:'42501'});
+  assert.deepEqual((await release('list')).events.map(event=>event.outcome),['download_requested']);
   await update('report',first,'0.2.3','rollback');
   assert.equal((await release('list')).events[0].outcome,'rollback');
   await as(member);await assert.rejects(update('check',first),{code:'42501'});
   await assert.rejects(release('list'),{code:'42501'});
   await as(main);await release('block',{version:'0.2.3'});
   assert.equal(await update('download',first,'0.2.3'),null);
+  assert.equal(await update('authorize',first,'0.2.3'),null);
   await heartbeat(first,a.id);await heartbeat(same,a.id);
   assert.deepEqual((await rpc(first,'reminders')).items,[]);
   await as(backup);

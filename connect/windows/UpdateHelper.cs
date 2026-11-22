@@ -12,15 +12,24 @@ using System.Threading;
 internal static class UpdateHelper {
     static int Main(string[] args){
         if(!ConnectProfile.ConnectEnabled||args.Length!=1||!Regex.IsMatch(args[0],"^[a-f0-9]{32}$"))return 2;
+        bool acquired;
+        using(var mutex=new Mutex(true,ConnectProfile.MutexName+"-update",out acquired)){
+            if(!acquired)return 2;
+            return Run(args[0]);
+        }
+    }
+    static int Run(string ticketId){
         ServicePointManager.SecurityProtocol=SecurityProtocolType.Tls12;
-        string folder=ConnectProfile.LocalFolder,work=Path.Combine(UpdateTrust.Cache(),args[0]);
+        string folder=ConnectProfile.LocalFolder,work=Path.Combine(UpdateTrust.Cache(),ticketId);
         string application=Path.Combine(folder,"NeoPepConnect.exe"),setup=Path.Combine(work,UpdateTrust.FileName);
         string backup=Path.Combine(work,"previous.exe"),installPath=Path.Combine(folder,UpdateTrust.FileName),previousSetup=Path.Combine(work,"previous-setup.exe");
         UpdateManifest manifest=null;
-        bool backupReady=false;
+        bool backupReady=false,safeWork=false,keepBackup=false;
+        string current=null;
         try{
-            foreach(string path in new[]{folder,UpdateTrust.Cache(),work,setup,Path.Combine(work,"ticket.dat")})
-                if((File.GetAttributes(path)&FileAttributes.ReparsePoint)!=0)throw new IOException();
+            UpdateTrust.EnsureLocal(folder,UpdateTrust.Cache(),work,setup,Path.Combine(work,"ticket.dat"),application);
+            if(File.Exists(installPath))UpdateTrust.EnsureLocal(installPath);
+            safeWork=true;
             var ticket=Path.Combine(work,"ticket.dat");
             if(DateTime.UtcNow-File.GetLastWriteTimeUtc(ticket)>TimeSpan.FromMinutes(3)||new FileInfo(ticket).Length>20000)throw new IOException();
             var json=new JavaScriptSerializer();
@@ -28,7 +37,7 @@ internal static class UpdateHelper {
                 ProtectedData.Unprotect(File.ReadAllBytes(ticket),null,DataProtectionScope.CurrentUser)));
             manifest=UpdateManifest.Parse(credentials["manifest"]);
             var fileVersion=FileVersionInfo.GetVersionInfo(application);
-            var current=new Version(fileVersion.FileMajorPart,fileVersion.FileMinorPart,fileVersion.FileBuildPart).ToString();
+            current=new Version(fileVersion.FileMajorPart,fileVersion.FileMinorPart,fileVersion.FileBuildPart).ToString();
             if(!UpdateTrust.Verify(manifest,current,ConnectProfile.EnvironmentCode,UpdateTrust.PublisherKey()))throw new IOException();
             if(!WaitForExit())throw new IOException();
             var approval=CheckApproval(credentials,manifest);
@@ -53,21 +62,34 @@ internal static class UpdateHelper {
             using(var app=Process.Start(application)){
                 if(app==null||app.WaitForExit(2500))throw new IOException();
             }
-            Receipt(manifest.Version,"installed");
+            try{Receipt(manifest.Version,"installed");}catch{}
             return 0;
         }catch{
+            if(!safeWork)return 1;
+            keepBackup=backupReady;
             try{
                 if(backupReady){
-                    if(File.Exists(application))File.Replace(backup,application,null);else File.Move(backup,application);
+                    var restored=Path.Combine(work,"restore.exe");
+                    File.Copy(backup,restored);
+                    if(File.Exists(application))File.Replace(restored,application,null);else File.Move(restored,application);
                     if(File.Exists(previousSetup))File.Copy(previousSetup,installPath,true);
+                    else File.Delete(installPath);
+                    using(var key=Microsoft.Win32.Registry.CurrentUser.OpenSubKey(ConnectProfile.UninstallRegistryPath,true)){
+                        if(key!=null)key.SetValue("DisplayVersion",current);
+                    }
+                    keepBackup=false;
                 }
                 if(manifest!=null&&Regex.IsMatch(manifest.Version??"",@"^[0-9]+\.[0-9]+\.[0-9]+$"))Receipt(manifest.Version,backupReady?"rollback":"failed");
                 if(File.Exists(application)&&WaitForExit())Process.Start(application);
             }catch{if(manifest!=null)try{Receipt(manifest.Version,"failed");}catch{}}
             return 1;
         }finally{
-            foreach(string file in new[]{setup,backup,previousSetup,Path.Combine(work,"ticket.dat")})try{File.Delete(file);}catch{}
-            try{Directory.Delete(work);}catch{}
+            if(safeWork){
+                try{File.Delete(setup);File.Delete(Path.Combine(work,"ticket.dat"));}catch{}
+                if(!keepBackup){
+                    try{File.Delete(backup);File.Delete(previousSetup);Directory.Delete(work);}catch{}
+                }
+            }
         }
     }
     static UpdateManifest CheckApproval(Dictionary<string,string> credentials,UpdateManifest manifest){
@@ -77,7 +99,7 @@ internal static class UpdateHelper {
         request.Headers["apikey"]=ConnectProfile.PublishableKey;
         request.Headers["Authorization"]="Bearer "+credentials["token"];
         var data=Encoding.UTF8.GetBytes(new JavaScriptSerializer().Serialize(new{
-            action="download",version=manifest.Version,device=credentials["device"],secret=credentials["secret"]
+            action="authorize",version=manifest.Version,device=credentials["device"],secret=credentials["secret"]
         }));
         request.ContentLength=data.Length;
         using(var body=request.GetRequestStream())body.Write(data,0,data.Length);

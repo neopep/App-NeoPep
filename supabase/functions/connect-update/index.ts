@@ -26,7 +26,11 @@ Deno.serve(async (req) => {
       raw+=decoder.decode(part.value,{stream:true});
     }
     const body=JSON.parse(raw+decoder.decode());
-    if (!["check","download","report"].includes(body?.action)) return respond(400, null);
+    if (!["check","download","authorize","report"].includes(body?.action)) return respond(400, null);
+    if (typeof body.device !== "string" || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(body.device) ||
+        typeof body.secret !== "string" || !/^[0-9a-f]{64}$/.test(body.secret) ||
+        (body.action !== "check" && (typeof body.version !== "string" || !/^[0-9]{1,8}\.[0-9]{1,8}\.[0-9]{1,8}$/.test(body.version))) ||
+        (body.action === "report" && !["installed","failed","rollback"].includes(body.outcome))) return respond(400,null);
     const client = createClient(staging, apiKey, {global:{headers:{Authorization:authorization}},auth:{persistSession:false,autoRefreshToken:false}});
     const {error: identityError} = await client.auth.getUser(authorization.slice(7));
     if (identityError) return respond(401, null);
@@ -36,10 +40,17 @@ Deno.serve(async (req) => {
     if (error) return respond(error.code==="42501"?403:400,null);
     if (!data || body.action==="report") return respond(200,data);
     const {path,...manifest}=data;
-    if (body.action==="check") return respond(200,manifest);
+    if (body.action!=="download") return respond(200,manifest);
+    const version = manifest.version;
+    if (typeof version !== "string" || !/^[0-9]{1,8}\.[0-9]{1,8}\.[0-9]{1,8}$/.test(version) ||
+        path !== version+"/NeoPepConnectSetup.exe") return respond(503,null);
     const storage=createClient(staging,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}}).storage;
     const signed=await storage.from("neo-connect-releases").createSignedUrl(path,90);
     if (signed.error) return respond(503,null);
-    return respond(200,{...manifest,url:signed.data.signedUrl});
+    const url = new URL(signed.data.signedUrl);
+    if (url.origin !== staging || url.username || url.password || url.hash ||
+        url.pathname !== "/storage/v1/object/sign/neo-connect-releases/"+path ||
+        !/^\?token=[A-Za-z0-9_.-]{1,8192}$/.test(url.search)) return respond(503,null);
+    return respond(200,{...manifest,url:url.href});
   } catch { return respond(400,null); }
 });

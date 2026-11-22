@@ -40,6 +40,8 @@ function mountNeoConnect(root,cloud){
     <button type="submit" class="secondary">Cadastrar rascunho</button></form>
     ${releaseInfo.releases.map(r=>`<article class="monitor-block"><p>${esc(r.version)} · ${esc(r.distribution_state)} · ${esc(r.artifact||'sem manifesto assinado')}</p>
      <p class="sub"><code>${esc(r.sha256)}</code> · ${Number(r.bytes)} bytes</p>
+     <details><summary>Revisar manifesto</summary><p>${esc(r.profile)} · ${esc(r.channel)} · ${Number(r.bytes).toLocaleString('pt-BR')} bytes</p>
+     <p>${esc(r.notes||'Sem notas da versão.')}</p><p>Assinatura <code style="overflow-wrap:anywhere">${esc(r.release_signature||'Indisponível')}</code></p></details>
      ${r.release_signature?`<form data-connect-form="update_approve" class="space"><input type="hidden" name="version" value="${esc(r.version)}">
      <label class="check"><input type="checkbox" name="required">Indicar como obrigatória</label>
      <button type="submit" class="secondary">Aprovar distribuição</button></form>`:''}

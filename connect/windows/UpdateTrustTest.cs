@@ -18,9 +18,17 @@ internal static class UpdateTrustTest {
             using(var valid=new MemoryStream(Encoding.ASCII.GetBytes("abc")))Require(UpdateTrust.Matches(valid,m));
             using(var altered=new MemoryStream(Encoding.ASCII.GetBytes("abd")))Require(!UpdateTrust.Matches(altered,m));
             m.Artifact="other";Require(!UpdateTrust.Verify(m,"0.2.2","staging",key));
-            Require(!UpdateTrust.TrustedDownload(new Uri("https://example.invalid/storage/v1/object/sign/neo-connect-releases/x")));
-            Require(!UpdateTrust.TrustedDownload(new Uri(ConnectProfile.SupabaseUrl.Replace("https:","http:")+"/storage/v1/object/sign/neo-connect-releases/x")));
-            Require(UpdateTrust.TrustedDownload(new Uri(ConnectProfile.SupabaseUrl+"/storage/v1/object/sign/neo-connect-releases/x")));
+            const string version="0.2.2";
+            var url=ConnectProfile.SupabaseUrl+"/storage/v1/object/sign/neo-connect-releases/"+version+"/NeoPepConnectSetup.exe";
+            const string token="?token=header.payload.signature";
+            Require(UpdateTrust.TrustedDownload(new Uri(url+token),version));
+            Require(!UpdateTrust.TrustedDownload(new Uri(url),version));
+            Require(!UpdateTrust.TrustedDownload(new Uri(url+token),"0.2.1"));
+            Require(!UpdateTrust.TrustedDownload(new Uri(url+token+"&extra=1"),version));
+            Require(!UpdateTrust.TrustedDownload(new Uri(url+token+"#other"),version));
+            Require(!UpdateTrust.TrustedDownload(new Uri(url.Replace("https:","http:")+token),version));
+            Require(!UpdateTrust.TrustedDownload(new Uri(url.Replace(new Uri(ConnectProfile.SupabaseUrl).Host,"example.invalid")+token),version));
+            Require(!UpdateTrust.TrustedDownload(new Uri(url.Replace("neo-connect-releases","public")+token),version));
         }
         Console.WriteLine("Assinatura, integridade, downgrade e origem: aprovados.");
         return 0;

@@ -180,9 +180,16 @@ sealed partial class Connect : Form {
         if(File.Exists(log)&&new FileInfo(log).Length>64000)File.Delete(log);
         File.AppendAllText(log,DateTime.UtcNow.ToString("u")+" "+code+Environment.NewLine);
     }
+    sealed class UpdateBrokerClient : WebClient {
+        protected override WebRequest GetWebRequest(Uri address){
+            var request=(HttpWebRequest)base.GetWebRequest(address);
+            request.AllowAutoRedirect=false;
+            return request;
+        }
+    }
     async Task<Dictionary<string,object>> Post(string route, object data, bool session) {
         if(!ConnectProfile.ConnectEnabled||!ConnectProfile.IsValid)throw new InvalidOperationException();
-        using(var client=new WebClient()) {
+        using(var client=route=="/functions/v1/connect-update"?new UpdateBrokerClient():new WebClient()) {
             client.Proxy=WebRequest.DefaultWebProxy;
             client.Encoding=Encoding.UTF8;
             client.Headers["Content-Type"]="application/json";client.Headers["apikey"]=ConnectProfile.PublishableKey;

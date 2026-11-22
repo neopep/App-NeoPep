@@ -11,7 +11,7 @@ using System.Windows.Forms;
 
 sealed partial class Connect {
     readonly Timer updateTimer=new Timer();
-    Label updateStatus,updateDetails;
+    Label updateStatus,updateDetails,updateHistory;
     ProgressBar updateProgress;
     Button updateInstall;
     bool checkingUpdate,whatsappOpen;
@@ -22,6 +22,7 @@ sealed partial class Connect {
         var page=Page(tabs,"Atualizações");
         updateStatus=new Label{Text="Versão instalada "+Version,AutoSize=true,MaximumSize=new Size(500,0)};
         updateDetails=new Label{AutoSize=true,MaximumSize=new Size(500,0)};
+        updateHistory=new Label{AutoSize=true,MaximumSize=new Size(500,0),Text=Value(local,"updates_history")};
         updateProgress=new ProgressBar{Dock=DockStyle.Top,Maximum=100};
         var check=Button("Verificar atualizações");var defer=Button("Adiar");
         updateInstall=Button("Atualizar agora");updateInstall.Enabled=false;
@@ -31,6 +32,7 @@ sealed partial class Connect {
         page.Controls.Add(updateStatus);page.Controls.Add(updateDetails);page.Controls.Add(updateProgress);
         page.Controls.Add(check);page.Controls.Add(updateInstall);page.Controls.Add(defer);
         page.Controls.Add(enabled);AddField(page,"Intervalo de verificação em minutos",interval);
+        AddField(page,"Histórico local",updateHistory);
         check.Click+=async delegate {await CheckUpdate(true);};
         updateInstall.Click+=async delegate {await InstallUpdate();};
         defer.Click+=delegate {
@@ -57,10 +59,10 @@ sealed partial class Connect {
         }
         checkingUpdate=true;
         try{
+            updateStatus.Text="Instalada "+Version+" • verificação "+DateTime.Now.ToString("g");
             offer=await FetchUpdate("check");
             updateInstall.Enabled=UpdateTrust.Verify(offer,Version,ConnectProfile.EnvironmentCode,UpdateTrust.PublisherKey());
-            updateStatus.Text="Instalada "+Version+" • verificação "+DateTime.Now.ToString("g");
-            updateDetails.Text=updateInstall.Enabled?("Disponível "+offer.Version+(offer.Required?" • obrigatória":"")+"\n"+offer.Notes)
+            updateDetails.Text=updateInstall.Enabled?("Disponível "+offer.Version+(offer.Required?" • obrigatória":"")+"\n"+(offer.Bytes/1048576.0).ToString("0.0")+" MiB\n"+offer.Notes)
                 :offer==null?"Nenhuma versão aprovada em distribuição.":"Nenhuma versão mais recente com assinatura confiável.";
             if(updateInstall.Enabled&&!manual&&Value(local,"updates_notify")!="False"&&notificationVersion!=offer.Version&&Value(local,"updates_deferred")!=offer.Version){
                 notificationVersion=offer.Version;tray.BalloonTipTitle="NeoPep Connect";
@@ -76,8 +78,17 @@ sealed partial class Connect {
         var result=File.ReadAllLines(receipt);
         if(result.Length!=2||!Regex.IsMatch(result[0],@"^[0-9]{1,8}\.[0-9]{1,8}\.[0-9]{1,8}$")
          ||Array.IndexOf(new[]{"installed","failed","rollback"},result[1])<0)return;
+        string stamp=File.GetLastWriteTimeUtc(receipt).Ticks.ToString();
+        if(Value(local,"updates_receipt")!=stamp){
+            var history=new System.Collections.Generic.List<string>(Value(local,"updates_history").Split(new[]{'\n'},StringSplitOptions.RemoveEmptyEntries));
+            string outcome=result[1]=="installed"?"instalada":result[1]=="rollback"?"versão anterior restaurada":"falha na instalação";
+            history.Insert(0,File.GetLastWriteTime(receipt).ToString("g")+" • "+result[0]+" • "+outcome);
+            if(history.Count>5)history.RemoveRange(5,history.Count-5);
+            local["updates_history"]=updateHistory.Text=String.Join("\n",history);
+            local["updates_receipt"]=stamp;
+            Save();
+        }
         await Post("/functions/v1/connect-update",new {action="report",device=Value(local,"device"),secret=Value(local,"secret"),version=result[0],outcome=result[1]},true);
-        updateDetails.Text+="\nResultado anterior: "+(result[1]=="installed"?"instalada":result[1]=="rollback"?"versão anterior restaurada":"falha na instalação");
         File.Delete(receipt);
     }
     async Task InstallUpdate(){
@@ -88,13 +99,17 @@ sealed partial class Connect {
         checkingUpdate=true;updateInstall.Enabled=false;
         var token=Guid.NewGuid().ToString("N");
         string work=Path.Combine(UpdateTrust.Cache(),token),setup=Path.Combine(work,UpdateTrust.FileName);
-        bool handedOff=false;
+        bool handedOff=false,safeWork=false;
         try{
             var selected=await FetchUpdate("download",offer.Version);
             if(!UpdateTrust.Verify(selected,Version,ConnectProfile.EnvironmentCode,UpdateTrust.PublisherKey())||selected.Canonical()!=offer.Canonical())throw new IOException();
             Uri url;
-            if(!Uri.TryCreate(selected.Url,UriKind.Absolute,out url)||!UpdateTrust.TrustedDownload(url))throw new IOException();
+            if(!Uri.TryCreate(selected.Url,UriKind.Absolute,out url)||!UpdateTrust.TrustedDownload(url,selected.Version))throw new IOException();
+            Directory.CreateDirectory(UpdateTrust.Cache());
+            UpdateTrust.EnsureLocal(Folder,UpdateTrust.Cache());
             Directory.CreateDirectory(work);
+            UpdateTrust.EnsureLocal(work);
+            safeWork=true;
             updateDetails.Text="Baixando instalador…";updateProgress.Value=0;
             var request=(HttpWebRequest)WebRequest.Create(url);request.AllowAutoRedirect=false;request.Timeout=90000;request.ReadWriteTimeout=15000;
             using(var deadline=new System.Threading.Timer(_=>request.Abort(),null,TimeSpan.FromMinutes(3),System.Threading.Timeout.InfiniteTimeSpan))
@@ -110,7 +125,7 @@ sealed partial class Connect {
                 output.Position=0;if(!UpdateTrust.Matches(output,selected))throw new IOException();
             }
             // Recheck the distribution before handing control to the helper.
-            var current=await FetchUpdate("download",selected.Version);
+            var current=await FetchUpdate("authorize",selected.Version);
             if(!UpdateTrust.Verify(current,Version,ConnectProfile.EnvironmentCode,UpdateTrust.PublisherKey())||current.Canonical()!=selected.Canonical())throw new IOException();
             if(busy||whatsappOpen||exiting){updateDetails.Text="Ainda há uma operação em andamento. Tente novamente quando terminar.";return;}
             var claims=new {version=current.Version,profile=current.Profile,channel=current.Channel,bytes=current.Bytes,sha256=current.Sha256,artifact=current.Artifact,signature=current.Signature};
@@ -124,7 +139,9 @@ sealed partial class Connect {
             handedOff=true;exiting=true;updateTimer.Stop();timer.Stop();Close();
         }catch{updateDetails.Text="Instalação interrompida. A versão atual continua disponível.";}
         finally {
-            if(!handedOff){try{Directory.Delete(work,true);}catch{}checkingUpdate=false;updateInstall.Enabled=true;}
+            if(!handedOff){if(safeWork){
+                    try{File.Delete(setup);File.Delete(Path.Combine(work,"ticket.dat"));Directory.Delete(work);}catch{}
+                }checkingUpdate=false;updateInstall.Enabled=true;}
         }
     }
 }
