@@ -68,7 +68,13 @@ sealed partial class Connect {
                 tray.BalloonTipText="Uma atualização está disponível na aba Atualizações.";tray.ShowBalloonTip(5000);
             }
             await ReportUpdate();
-        }catch{updateInstall.Enabled=false;updateDetails.Text="Verificação indisponível. O programa pode continuar em uso.";}
+        }catch(WebException error){
+            updateInstall.Enabled=false;offer=null;
+            using(var response=error.Response as HttpWebResponse)
+                updateDetails.Text=response!=null&&response.StatusCode==HttpStatusCode.NotFound?
+                    "O serviço de atualização não está disponível neste ambiente.":
+                    "Verificação indisponível. O programa pode continuar em uso.";
+        }catch{updateInstall.Enabled=false;offer=null;updateDetails.Text="Verificação indisponível. O programa pode continuar em uso.";}
         finally{checkingUpdate=false;}
     }
     async Task ReportUpdate(){

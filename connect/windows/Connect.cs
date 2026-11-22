@@ -212,8 +212,8 @@ sealed partial class Connect : Form {
 
     void ExitBoth(){
         exiting=true;
-        if(sibling!=null){sibling.exiting=true;sibling.whatsapp?.Close();sibling.Close();}
-        whatsapp?.Close();Close();
+        if(sibling!=null){sibling.exiting=true;if(sibling.whatsapp!=null)sibling.whatsapp.Close();sibling.Close();}
+        if(whatsapp!=null)whatsapp.Close();Close();
     }
 
     string WhatsAppFolder(){
@@ -249,7 +249,7 @@ sealed partial class Connect : Form {
                 try{await Post("/auth/v1/logout?scope=local",new {},true);}catch{}
             }
             access=null;expires=DateTime.MinValue;sessionOwner=Guid.Empty;deviceApproved=false;
-            whatsapp?.Close();offer=null;updateInstall.Enabled=false;updateDetails.Text="";
+            if(whatsapp!=null)whatsapp.Close();offer=null;updateInstall.Enabled=false;updateDetails.Text="";
             foreach(var key in new[]{"refresh_token","device","secret","account","owner","campaign_review_notified"})local.Remove(key);
             accounts.Items.Clear();email.Clear();password.Clear();Save();
             state.Text="Sessão local encerrada neste ambiente.";
@@ -419,7 +419,7 @@ sealed partial class Connect : Form {
                 await Register();
             }
         } catch(Exception) {
-            local=previous;access=null;sessionOwner=Guid.Empty;deviceApproved=false;whatsapp?.Close();
+            local=previous;access=null;sessionOwner=Guid.Empty;deviceApproved=false;if(whatsapp!=null)whatsapp.Close();
             state.Text="Falha no login. Use a conta administrativa que autorizou este computador.";
             Record("login_ou_registro_falhou");
         }

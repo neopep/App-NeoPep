@@ -17,4 +17,6 @@ O candidato 0.2.7 usa uma instalação e abre duas janelas, **TESTE** e **PRODU�
 4. Ensaiar checagem de atualização, assinatura, revogação após o download e recuperação com manifestos de fixture. Conferir isolamento do histórico e recusa de manifesto ou URL do outro ambiente.
 5. Conferir falhas de rede e reconexão com os dois perfis abertos. Produção exige ação explícita para conectar o WhatsApp. O envio e o consumo automático de filas oficiais permanecem bloqueados até ensaio controlado e aprovação específica. A simulação e o envio manual já existentes continuam restritos à janela Teste.
 
+A inspeção somente leitura confirmou os RPCs do Connect e os buckets privados de releases, campanhas e produtos em ambos os projetos. A função Edge `connect-update` está disponível em Teste. Produção ainda precisa do broker e da configuração de distribuição para oferecer atualizações próprias.
+
 Nenhum ajuste de banco ou de aplicação web acompanha o PR. [Issue #27](https://github.com/neopep/App-NeoPep/issues/27)
