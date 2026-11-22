@@ -205,7 +205,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual}){
     list.prepend(...retained);return;
    }
    if(wa==='prepare'){
-    const row=queueRows.find(row=>row.id===id);if(row){root.dataset.waPage='publications';showNeoWhatsappNavigation(root);select.value=row.campaign_id;await prepare(row.campaign_id,row);}return;
+    const row=queueRows.find(row=>row.id===id);if(row){root.dataset.waPage='publications';if(typeof showNeoWhatsappNavigation==='function')showNeoWhatsappNavigation(root);select.value=row.campaign_id;await prepare(row.campaign_id,row);}return;
    }
    if(wa==='copy_message'||wa==='copy_link'){
     const value=wa==='copy_link'?prepared?.link:message;if(!value)return;
