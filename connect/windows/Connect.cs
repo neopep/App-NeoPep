@@ -137,9 +137,9 @@ sealed partial class Connect : Form {
             var back=Button("Voltar");back.Dock=DockStyle.Bottom;back.Click+=delegate{tabs.SelectedIndex=0;};
             tab.Controls.Add(back);back.BringToFront();
         }
-        Controls.Add(tabs);
         ConnectTheme.Apply(this,tabs);
         ConnectTheme.ApplyContent(tabs);
+        Controls.Add(ConnectTheme.BuildShell(tabs,"NEOPEP"));
         ConnectTheme.Primary(login);
         tray.Icon=SystemIcons.Application;tray.Text=ConnectProfile.AppName;tray.Visible=true;
         var menu=new ContextMenuStrip();
