@@ -16,6 +16,7 @@ sealed class WhatsApp : Form {
     readonly TabControl tabs=new TabControl();
     readonly Label connection=new Label(),summary=new Label(),diagnostic=new Label();
     readonly PictureBox qr=new PictureBox();
+    Button pair,disconnect;
     readonly ListView groups=new ListView();
     readonly JavaScriptSerializer json=new JavaScriptSerializer { MaxJsonLength=16*1024*1024 };
     Process process;
@@ -23,43 +24,47 @@ sealed class WhatsApp : Form {
     bool closing,forgetting,ready;
     int generation;
 
-    public WhatsApp(string profile) {
+    public WhatsApp(string profile,bool showGroups=false) {
         vault=Path.Combine(profile,"whatsapp-session.dat");
-        runtime=Path.Combine(profile,"whatsapp-runtime-0.2.0");
-        Text="NeoPep Connect • WhatsApp experimental"; Size=new Size(555,550); MinimumSize=new Size(420,460);
+        runtime=Path.Combine(profile,"whatsapp-runtime-0.2.1");
+        Text="NeoPep Connect • WhatsApp experimental"; Size=new Size(620,600); MinimumSize=new Size(460,510); AutoScaleMode=AutoScaleMode.Dpi;
         BackColor=Color.FromArgb(23,22,19); ForeColor=Color.Gainsboro; Font=new Font("Segoe UI",10);
         tabs.Dock=DockStyle.Fill;
         var status=Page("Estado");status.Controls.Add(LabelOf("Homologação. Use somente um número próprio de teste. O agente simulado funciona separadamente."));
         summary.Text="WhatsApp desconectado.";Format(summary);status.Controls.Add(summary);
         var pairing=Page("Conexão WhatsApp");pairing.Controls.Add(LabelOf("No telefone de teste, abra Dispositivos conectados e escaneie o QR Code desta janela."));
-        var pair=Action("Conectar WhatsApp",ConnectSession);
-        var disconnect=Action("Desconectar WhatsApp",Disconnect);
+        pair=Action("Conectar WhatsApp",ConnectSession);
+        disconnect=Action("Desconectar WhatsApp",Disconnect);
         var actions=new FlowLayoutPanel{AutoSize=true,Dock=DockStyle.Top};actions.Controls.Add(pair);actions.Controls.Add(disconnect);
         pairing.Controls.Add(actions);Format(connection);connection.Text="Desconectado.";pairing.Controls.Add(connection);
         qr.Size=new Size(270,270);qr.SizeMode=PictureBoxSizeMode.Zoom;qr.AccessibleName="QR Code temporário do WhatsApp";pairing.Controls.Add(qr);
-        var listing=new TabPage("Grupos");tabs.TabPages.Add(listing);
-        groups.Dock=DockStyle.Fill;groups.View=View.Details;groups.FullRowSelect=true;
+        var listing=new TabPage("Grupos"){BackColor=Color.FromArgb(23,22,19),ForeColor=Color.Gainsboro};tabs.TabPages.Add(listing);
+        groups.Dock=DockStyle.Fill;groups.BackColor=Color.FromArgb(36,33,27);groups.ForeColor=Color.Gainsboro;groups.View=View.Details;groups.FullRowSelect=true;
         groups.Columns.Add("Grupo",300);groups.Columns.Add("Participantes",110);
         var refresh=Action("Atualizar grupos",delegate{if(ready)Send("groups",null);else Notify("Conecte o WhatsApp para consultar grupos.");});
         refresh.Dock=DockStyle.Top;listing.Controls.Add(groups);listing.Controls.Add(refresh);
         var diagnostics=Page("Diagnóstico");Format(diagnostic);
         diagnostic.Text="A conexão e o QR Code ficam neste computador. Os diagnósticos mostram apenas estados e erros genéricos.";diagnostics.Controls.Add(diagnostic);
         var back=Action("Voltar",Close);back.Dock=DockStyle.Bottom;
-        Controls.Add(tabs);Controls.Add(back);
+        Controls.Add(tabs);Controls.Add(back);if(showGroups)tabs.SelectedTab=listing;
         FormClosing+=delegate{closing=true;StopBridge();ClearQr();};
     }
     FlowLayoutPanel Page(string name) {
-        var page=new TabPage(name);tabs.TabPages.Add(page);
+        var page=new TabPage(name){BackColor=Color.FromArgb(23,22,19),ForeColor=Color.Gainsboro};tabs.TabPages.Add(page);
         var panel=new FlowLayoutPanel{Dock=DockStyle.Fill,FlowDirection=FlowDirection.TopDown,WrapContents=false,AutoScroll=true,Padding=new Padding(12)};
         page.Controls.Add(panel);return panel;
     }
-    static void Format(Label value){value.AutoSize=true;value.MaximumSize=new Size(370,0);value.ForeColor=Color.FromArgb(34,30,23);}
+    static void Format(Label value){value.AutoSize=true;value.MaximumSize=new Size(370,0);value.ForeColor=Color.FromArgb(245,232,207);}
     static Label LabelOf(string text){var label=new Label{Text=text};Format(label);return label;}
     static Button Action(string label,System.Action handler){
         var button=new Button{Text=label,AutoSize=true,BackColor=Color.FromArgb(234,192,111),ForeColor=Color.FromArgb(30,24,15)};
         button.Click+=delegate{handler();};return button;
     }
-    void Notify(string text){connection.Text=text;summary.Text=text;diagnostic.Text=text;}
+    void Notify(string text){
+        connection.Text=text;summary.Text=text;diagnostic.Text=text;
+        pair.Enabled=ConnectProfile.ConnectEnabled&&process==null&&!forgetting;
+        disconnect.Enabled=ConnectProfile.ConnectEnabled&&!forgetting;
+    }
     void ClearQr(){var previous=qr.Image;qr.Image=null;if(previous!=null)previous.Dispose();}
     string OpenVault(){
         if(!File.Exists(vault))return null;
@@ -71,7 +76,7 @@ sealed class WhatsApp : Form {
         if(File.Exists(vault))File.Replace(vault+".new",vault,null);else File.Move(vault+".new",vault);
     }
     void ConnectSession(){
-        if(forgetting||ready||process!=null)return;
+        if(!ConnectProfile.ConnectEnabled||forgetting||ready||process!=null)return;
         try{
             string existing=OpenVault();
             var start=new ProcessStartInfo(Path.Combine(runtime,"node.exe"),"windows-bridge.mjs") {
@@ -105,7 +110,7 @@ sealed class WhatsApp : Form {
         catch{StopBridge();Notify("A conexão local foi interrompida. Tente novamente.");}
     }
     void Disconnect(){
-        if(forgetting)return;
+        if(!ConnectProfile.ConnectEnabled||forgetting)return;
         forgetting=true;ready=false;ClearQr();groups.Items.Clear();
         try{
             WriteVault(null);

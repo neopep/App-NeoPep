@@ -30,14 +30,13 @@ sealed class SimulatedProvider : ICampaignProvider {
 }
 
 sealed class Connect : Form {
-    const string Version = "0.2.0";
-    const string Origin = "https://qnuluspqfazdppciermw.supabase.co";
-    const string StagingPanel = "https://teste.app.neopep.com.br/admin/";
-    static readonly string Folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NeoPep Connect");
+    const string Version = "0.2.1";
+    static readonly string Origin = ConnectProfile.SupabaseUrl;
+    static readonly string Folder = ConnectProfile.LocalFolder;
     readonly string vault = Path.Combine(Folder, "session.dat");
     readonly string log = Path.Combine(Folder, "diagnostico.log");
     readonly JavaScriptSerializer json = new JavaScriptSerializer();
-    readonly TextBox key = new TextBox(), email = new TextBox(), password = new TextBox();
+    readonly TextBox email = new TextBox(), password = new TextBox();
     readonly ComboBox accounts = new ComboBox();
     readonly Label state = new Label();
     readonly CheckBox startup = new CheckBox();
@@ -51,7 +50,7 @@ sealed class Connect : Form {
 
     [STAThread] static void Main(string[] args) {
         bool created;
-        using (var instance = new Mutex(true, @"Local\NeoPepConnectStaging", out created)) {
+        using (var instance = new Mutex(true, ConnectProfile.MutexName, out created)) {
             if (!created) return;
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             Application.EnableVisualStyles();
@@ -62,42 +61,73 @@ sealed class Connect : Form {
 
     Connect(bool background) {
         Directory.CreateDirectory(Folder);
-        Text="NeoPep Connect • Teste"; BackColor=Color.FromArgb(23,22,19); ForeColor=Color.Gainsboro;
-        Size=new Size(540,430); MinimumSize=new Size(435,380); Font=new Font("Segoe UI",10);
-        var layout=new TableLayoutPanel{Dock=DockStyle.Fill,Padding=new Padding(18),ColumnCount=1,AutoScroll=true};
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        Text=ConnectProfile.AppName; BackColor=Color.FromArgb(23,22,19); ForeColor=Color.Gainsboro;
+        Size=new Size(720,550); MinimumSize=new Size(500,430); Font=new Font("Segoe UI",10);
+        AutoScaleMode=AutoScaleMode.Dpi;
+        var tabs=new TabControl{Dock=DockStyle.Fill};
+        var overview=Page(tabs,"Visão geral");
+        var credentials=Page(tabs,"Conta NeoPep");
+        var computer=Page(tabs,"Computador");
+        var diagnostics=Page(tabs,"Diagnóstico");
+        var settings=Page(tabs,"Configurações");
         var title=new Label{Text="NeoPep Connect",ForeColor=Color.FromArgb(236,193,112),Font=new Font("Segoe UI",21),AutoSize=true};
-        layout.Controls.Add(title);
-        layout.Controls.Add(new Label{Text="Homologação • provedor simulado",AutoSize=true});
-        AddField(layout,"Chave pública do Supabase de teste",key);
-        AddField(layout,"E-mail administrativo",email);
-        password.UseSystemPasswordChar=true; AddField(layout,"Senha",password);
-        AddField(layout,"Sessão fictícia deste computador",accounts);accounts.DropDownStyle=ComboBoxStyle.DropDownList;
+        overview.Controls.Add(title);
+        overview.Controls.Add(new Label{Text=ConnectProfile.EnvironmentName+" • versão "+Version+" • configuração automática",AutoSize=true});
+        overview.Controls.Add(new Label{Text=ConnectProfile.ConnectEnabled?"Conexão NeoPep • provedor simulado":"Produção preparada • Connect ainda não habilitado no servidor",AutoSize=true});
+        AddField(credentials,"E-mail administrativo",email);
+        password.UseSystemPasswordChar=true; AddField(credentials,"Senha",password);
+        AddField(computer,"Sessão fictícia deste computador",accounts);accounts.DropDownStyle=ComboBoxStyle.DropDownList;
         accounts.SelectedIndexChanged+=delegate {
             var account=accounts.SelectedItem as Account;
             var next=account==null?"":account.Id;
             if(next!=Value(local,"account")){local["account"]=next;Save();}
         };
         var actions=new FlowLayoutPanel{AutoSize=true,WrapContents=true,Dock=DockStyle.Top};
-        var login=Button("Entrar e registrar");var diagnose=Button("Diagnóstico");var open=Button("Painel / atualizações");
-        login.Click+=async delegate {await Login();};
-        diagnose.Click+=delegate {MessageBox.Show(File.Exists(log)?File.ReadAllText(log):"Sem eventos registrados.",Text);};
-        open.Click+=delegate {Process.Start(StagingPanel);};
-        var whatsapp=Button("WhatsApp experimental");
-        whatsapp.Click+=delegate {using(var pairing=new WhatsApp(Folder))pairing.ShowDialog(this);};
-        actions.Controls.AddRange(new Control[]{login,whatsapp,diagnose,open});layout.Controls.Add(actions);
+        var login=Button("Entrar e registrar");var diagnose=Button("Atualizar diagnóstico");var open=Button("Painel / atualizações");
+        var statusLog=new TextBox{Multiline=true,ReadOnly=true,ScrollBars=ScrollBars.Vertical,Height=235,Dock=DockStyle.Top};
+        AddField(diagnostics,"Eventos locais",statusLog);
+        diagnostics.Controls.Add(diagnose);
+        computer.Controls.Add(new Label{Text="Gerencie a aprovação do computador pelo painel de homologação.",AutoSize=true});
+        var whatsAppPage=Page(tabs,"WhatsApp");
+        whatsAppPage.Controls.Add(new Label{Text="Integração experimental. Use somente conta própria de teste.",AutoSize=true});
+        var groupsPage=Page(tabs,"Grupos");
+        groupsPage.Controls.Add(new Label{Text="Consulte apenas o nome e a contagem dos grupos da conta conectada.",AutoSize=true});
+        var pairing=Button("Abrir conexão WhatsApp");var groupList=Button("Abrir consulta de grupos");
+        pairing.Enabled=groupList.Enabled=ConnectProfile.ConnectEnabled&&ConnectProfile.IsValid;
+        pairing.Click+=delegate {using(var window=new WhatsApp(Folder))window.ShowDialog(this);};
+        groupList.Click+=delegate {using(var window=new WhatsApp(Folder,true))window.ShowDialog(this);};
+        whatsAppPage.Controls.Add(pairing);groupsPage.Controls.Add(groupList);
+        login.Enabled=ConnectProfile.ConnectEnabled && ConnectProfile.IsValid;
+        var loginFeedback=new Label{AutoSize=true,MaximumSize=new Size(420,0)};
+        login.Click+=async delegate {
+            if(busy)return;
+            login.Enabled=false;
+            try {await Login();loginFeedback.Text=state.Text;}
+            finally{login.Enabled=ConnectProfile.ConnectEnabled&&ConnectProfile.IsValid;}
+        };
+        credentials.Controls.Add(loginFeedback);
+        diagnose.Click+=delegate {statusLog.Text=File.Exists(log)?File.ReadAllText(log):"Sem eventos registrados.";};
+        open.Enabled=!String.IsNullOrEmpty(ConnectProfile.PanelUrl);
+        open.Click+=delegate {if(!String.IsNullOrEmpty(ConnectProfile.PanelUrl))Process.Start(ConnectProfile.PanelUrl);};
+        credentials.Controls.Add(login);actions.Controls.Add(open);overview.Controls.Add(actions);
         startup.Text="Iniciar com o Windows";startup.AutoSize=true;
         using(var run=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")){
-            startup.Checked=run.GetValue("NeoPepConnectStaging")!=null;
+            startup.Checked=run.GetValue(ConnectProfile.StartupRegistryName)!=null;
         }
         startup.CheckedChanged+=delegate {
             using(var run=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")){
-                if(startup.Checked)run.SetValue("NeoPepConnectStaging","\""+Application.ExecutablePath+"\" --background");
-                else run.DeleteValue("NeoPepConnectStaging",false);
+                if(startup.Checked)run.SetValue(ConnectProfile.StartupRegistryName,"\""+Application.ExecutablePath+"\" --background");
+                else run.DeleteValue(ConnectProfile.StartupRegistryName,false);
             }
         };
-        layout.Controls.Add(startup);state.AutoSize=true;layout.Controls.Add(state);Controls.Add(layout);
-        tray.Icon=SystemIcons.Application;tray.Text="NeoPep Connect • Teste";tray.Visible=true;
+        settings.Controls.Add(startup);state.AutoSize=true;overview.Controls.Add(state);
+        foreach(TabPage tab in tabs.TabPages) {
+            if(tab==tabs.TabPages[0])continue;
+            var back=Button("Voltar");back.Dock=DockStyle.Bottom;back.Click+=delegate{tabs.SelectedIndex=0;};
+            tab.Controls.Add(back);back.BringToFront();
+        }
+        Controls.Add(tabs);
+        tray.Icon=SystemIcons.Application;tray.Text=ConnectProfile.AppName;tray.Visible=true;
         var menu=new ContextMenuStrip();
         menu.Items.Add("Abrir",null,delegate {Show();Activate();});menu.Items.Add("Sair",null,delegate {exiting=true;Close();});
         tray.ContextMenuStrip=menu;tray.DoubleClick+=delegate {Show();Activate();};
@@ -105,10 +135,17 @@ sealed class Connect : Form {
             if(!exiting&&e.CloseReason==CloseReason.UserClosing){e.Cancel=true;Hide();return;}
             timer.Stop();tray.Dispose();
         };
-        LoadVault();key.Text=Value(local,"key");
-        state.Text=String.IsNullOrEmpty(Value(local,"refresh_token"))?"Entre para registrar este computador.":"Aguardando estado do computador.";
+        LoadVault();local.Remove("key");
+        state.Text=!ConnectProfile.IsValid?"Configuração inválida. Instale uma versão oficial.":!ConnectProfile.ConnectEnabled?"Produção preparada • Connect ainda não habilitado.":String.IsNullOrEmpty(Value(local,"refresh_token"))?"Entre para registrar este computador.":"Aguardando estado do computador.";
         timer.Interval=12000;timer.Tick+=async delegate {await Tick();};timer.Start();
         Shown+=async delegate {if(background)Hide();await Tick();};
+    }
+
+    static TableLayoutPanel Page(TabControl tabs,string title) {
+        var page=new TabPage(title){BackColor=Color.FromArgb(23,22,19),ForeColor=Color.Gainsboro};
+        var content=new TableLayoutPanel{Dock=DockStyle.Fill,Padding=new Padding(22),ColumnCount=1,AutoScroll=true};
+        content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        page.Controls.Add(content);tabs.TabPages.Add(page);return content;
     }
 
     static void AddField(TableLayoutPanel panel,string text,Control control) {
@@ -136,21 +173,22 @@ sealed class Connect : Form {
         File.AppendAllText(log,DateTime.UtcNow.ToString("u")+" "+code+Environment.NewLine);
     }
     async Task<Dictionary<string,object>> Post(string route, object data, bool session) {
+        if(!ConnectProfile.ConnectEnabled||!ConnectProfile.IsValid)throw new InvalidOperationException();
         using(var client=new WebClient()) {
             client.Proxy=WebRequest.DefaultWebProxy;
             client.Encoding=Encoding.UTF8;
-            client.Headers["Content-Type"]="application/json";client.Headers["apikey"]=Value(local,"key");
+            client.Headers["Content-Type"]="application/json";client.Headers["apikey"]=ConnectProfile.PublishableKey;
             if(session)client.Headers["Authorization"]="Bearer "+access;
             string result=await client.UploadStringTaskAsync(new Uri(Origin+route),"POST",json.Serialize(data));
             return json.Deserialize<Dictionary<string,object>>(result);
         }
     }
-    async Task Tokens(string grant,object credentials) {
+    async Task Tokens(string grant,object credentials,bool persist=true) {
         var result=await Post("/auth/v1/token?grant_type="+grant,credentials,false);
         var nextAccess=Value(result,"access_token");var nextRefresh=Value(result,"refresh_token");
         if(String.IsNullOrEmpty(nextAccess)||String.IsNullOrEmpty(nextRefresh))throw new InvalidOperationException();
         access=nextAccess;expires=DateTime.UtcNow.AddSeconds(Convert.ToInt32(result["expires_in"])-60);
-        local["refresh_token"]=nextRefresh;Save();
+        local["refresh_token"]=nextRefresh;if(persist)Save();
     }
     Task<Dictionary<string,object>> RPC(string action,object data) {
         var device=Value(local,"device");
@@ -159,16 +197,27 @@ sealed class Connect : Form {
         },true);
     }
     async Task Login() {
-        if(busy)return;busy=true;
+        if(busy || !ConnectProfile.ConnectEnabled)return;busy=true;
+        var previous=new Dictionary<string,object>(local);
         try {
-            var publicKey=key.Text.Trim();
-            if(!System.Text.RegularExpressions.Regex.IsMatch(publicKey,@"^sb_publishable_[A-Za-z0-9_-]+$"))throw new InvalidOperationException();
-            access=null;local.Clear();local["key"]=publicKey;
-            await Tokens("password",new {email=email.Text.Trim(),password=password.Text});
-            var buffer=new byte[32];using(var rng=RandomNumberGenerator.Create())rng.GetBytes(buffer);
-            local["secret"]=BitConverter.ToString(buffer).Replace("-","").ToLowerInvariant();
-            Save();await Register();
-        } catch(Exception) {state.Text="Falha no login ou no registro. Confira o acesso administrativo.";Record("login_ou_registro_falhou");}
+            if(!ConnectProfile.IsValid)throw new InvalidOperationException();
+            await Tokens("password",new {email=email.Text.Trim(),password=password.Text},false);
+            if(!String.IsNullOrEmpty(Value(local,"device"))){
+                var identity=Value(local,"account");
+                var heartbeat=await RPC("heartbeat",new {version=Version,working_set_mb=Environment.WorkingSet/1048576,
+                    account=String.IsNullOrEmpty(identity)?null:identity});
+                Save();RenderAccounts(heartbeat);
+                state.Text=Value(heartbeat,"state")=="approved"?"Computador autorizado • simulação":"Aprovação pendente.";
+            }else{
+                var buffer=new byte[32];using(var rng=RandomNumberGenerator.Create())rng.GetBytes(buffer);
+                local["secret"]=BitConverter.ToString(buffer).Replace("-","").ToLowerInvariant();
+                await Register();
+            }
+        } catch(Exception) {
+            local=previous;access=null;
+            state.Text="Falha no login. Use a conta administrativa que autorizou este computador.";
+            Record("login_ou_registro_falhou");
+        }
         finally {password.Clear();busy=false;}
     }
     async Task Register() {
@@ -197,7 +246,7 @@ sealed class Connect : Form {
         accounts.SelectedIndex=index<0?0:index;
     }
     async Task Tick() {
-        if(busy||String.IsNullOrEmpty(Value(local,"refresh_token")))return;
+        if(!ConnectProfile.ConnectEnabled||!ConnectProfile.IsValid||busy||String.IsNullOrEmpty(Value(local,"refresh_token")))return;
         busy=true;
         try {
             if(String.IsNullOrEmpty(access)||DateTime.UtcNow>=expires)await Tokens("refresh_token",new {refresh_token=Value(local,"refresh_token")});

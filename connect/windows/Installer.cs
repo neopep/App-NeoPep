@@ -8,32 +8,34 @@ using System.Windows.Forms;
 using Microsoft.Win32;
 
 static class Installer {
-    const string Runtime="whatsapp-runtime-0.2.0";
-    const string Name="NeoPep Connect (Teste)";
-    static readonly string Folder=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"NeoPep Connect");
-    static readonly string Uninstall=@"Software\Microsoft\Windows\CurrentVersion\Uninstall\NeoPepConnectStaging";
+    const string Runtime="whatsapp-runtime-0.2.1";
+    const string Name=ConnectProfile.InstallerName;
+    static readonly string Folder=ConnectProfile.LocalFolder;
+    static readonly string Uninstall=ConnectProfile.UninstallRegistryPath;
 
     [STAThread] static int Main(string[] args) {
         bool uninstall=Array.IndexOf(args,"--uninstall")>=0,quiet=Array.IndexOf(args,"--quiet")>=0;
         try {
-            if(!quiet&&MessageBox.Show(uninstall?"Desinstalar o NeoPep Connect Teste?":"Instalar ou atualizar o NeoPep Connect Teste?",
+            if(!quiet&&MessageBox.Show(uninstall?"Desinstalar o "+Name+"?":"Instalar ou atualizar o "+Name+"?",
                 Name,MessageBoxButtons.OKCancel,MessageBoxIcon.Question)!=DialogResult.OK)return 1;
             try {
-                using(Mutex running=Mutex.OpenExisting(@"Local\NeoPepConnectStaging"))return 2;
+                using(Mutex running=Mutex.OpenExisting(ConnectProfile.MutexName))return 2;
             } catch(WaitHandleCannotBeOpenedException){}
             if(uninstall) {
                 using(var run=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run",true))
-                    if(run!=null)run.DeleteValue("NeoPepConnectStaging",false);
+                    if(run!=null)run.DeleteValue(ConnectProfile.StartupRegistryName,false);
                 foreach(string file in new[]{"NeoPepConnect.exe","session.dat","diagnostico.log","session.dat.new","whatsapp-session.dat","whatsapp-session.dat.new"})
                     File.Delete(Path.Combine(Folder,file));
                 string runtime=Path.Combine(Folder,Runtime);
                 if(Directory.Exists(runtime))Directory.Delete(runtime,true);
+                string legacy=Path.Combine(Folder,"whatsapp-runtime-0.2.0");
+                if(Directory.Exists(legacy))Directory.Delete(legacy,true);
                 Registry.CurrentUser.DeleteSubKeyTree(Uninstall,false);
                 File.Delete(Shortcut());
                 return 0;
             }
             Directory.CreateDirectory(Folder);
-            InstallRuntime();
+            if(ConnectProfile.ConnectEnabled)InstallRuntime();
             string binary=Path.Combine(Folder,"NeoPepConnect.exe"),pending=binary+".new";
             using(Stream source=Assembly.GetExecutingAssembly().GetManifestResourceStream("NeoPepConnect.exe"))
             using(var destination=File.Create(pending)){source.CopyTo(destination);}
@@ -42,7 +44,7 @@ static class Installer {
             string sourcePath=Assembly.GetExecutingAssembly().Location;
             if(!String.Equals(sourcePath,installed,StringComparison.OrdinalIgnoreCase))File.Copy(sourcePath,installed,true);
             using(var item=Registry.CurrentUser.CreateSubKey(Uninstall)){
-                item.SetValue("DisplayName",Name);item.SetValue("DisplayVersion","0.2.0");item.SetValue("Publisher","NeoPep");
+                item.SetValue("DisplayName",Name);item.SetValue("DisplayVersion","0.2.1");item.SetValue("Publisher","NeoPep");
                 item.SetValue("UninstallString","\""+installed+"\" --uninstall");
             }
             Type shell=Type.GetTypeFromProgID("WScript.Shell");
@@ -79,5 +81,5 @@ static class Installer {
             if(Directory.Exists(staging))Directory.Delete(staging,true);
         }
     }
-    static string Shortcut(){return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs),"NeoPep Connect Teste.lnk");}
+    static string Shortcut(){return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs),ConnectProfile.ShortcutName);}
 }
