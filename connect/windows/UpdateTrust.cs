@@ -59,8 +59,8 @@ internal static class UpdateTrust {
             return String.Equals(actual,m.Sha256,StringComparison.Ordinal);
         }
     }
-    internal static bool TrustedDownload(Uri url,string version){
-        var project=new Uri(ConnectProfile.SupabaseUrl);
+    internal static bool TrustedDownload(Uri url,string version,ConnectProfile profile){
+        var project=new Uri(profile.SupabaseUrl);
         return url!=null&&url.IsAbsoluteUri&&version!=null&&Regex.IsMatch(version,@"\A[0-9]{1,8}\.[0-9]{1,8}\.[0-9]{1,8}\z")&&url.Scheme=="https"&&url.Host==project.Host&&url.IsDefaultPort&&url.UserInfo==""
           &&url.AbsolutePath=="/storage/v1/object/sign/neo-connect-releases/"+version+"/"+FileName
           &&Regex.IsMatch(url.Query,@"\A\?token=[A-Za-z0-9_.-]{1,8192}\z")
@@ -70,5 +70,5 @@ internal static class UpdateTrust {
         foreach(string path in paths)
             if((File.GetAttributes(path)&FileAttributes.ReparsePoint)!=0)throw new IOException();
     }
-    internal static string Cache(){return Path.Combine(ConnectProfile.LocalFolder,"updates");}
+    internal static string Cache(ConnectProfile profile){return Path.Combine(profile.LocalFolder,"updates");}
 }

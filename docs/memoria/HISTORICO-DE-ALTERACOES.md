@@ -487,3 +487,7 @@ A branch `desenvolvimento/admin-campaigns-navigation-v2` separa as listas, os de
 ## Issue #21 — visual, Biblioteca e calculadora
 
 O leitor PDF contínuo agora atende a Biblioteca e o manual administrativo. A pinça redimensiona a visualização antes da nova rasterização. Pesos exibidos usam duas casas no histórico, gráfico, resumos, Antes/Depois e CSV. O gráfico anuncia a data civil, e o avatar mantém o enquadramento da foto. A autorização de fotos é específica da conta e da finalidade. Na Biblioteca, o leitor interno permanece disponível e o compartilhamento aponta para a publicação. A nova calculadora reaproveita a conversão do núcleo e oferece entrada livre, controles deslizantes, opções de seringa e resultado automático com os dados preenchidos pelo usuário.
+
+## Issue #27 — Perfis simultâneos no NeoPep Connect Windows
+
+O candidato 0.2.7 mantém o cofre legado em Teste e cria uma janela Produção com sessão, dados e consulta de atualização independentes. O instalador e o runtime são compartilhados. O manifesto assinado continua vinculado ao perfil emissor. [Guia de homologação e recuperação](../conhecimento/NEOPEP-CONNECT-DOIS-AMBIENTES.md)
