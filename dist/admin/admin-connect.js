@@ -2,7 +2,9 @@
 
 function mountNeoConnect(root,cloud){
  const rpc=(action,data)=>cloud.connectAdmin(action,data);
- let snapshot,groups=[],queue=[],loadVersion=0;
+ const canManageUpdates=typeof cloud.connectUpdateAdmin==='function';
+ const downloadable=release=>!release.distribution_state||['legacy','approved'].includes(release.distribution_state);
+ let snapshot,groups=[],queue=[],loadVersion=0,savingDraft=false;
  const html=(node,value)=>{node.innerHTML=value;};
  const opt=(rows,label)=>rows.map(x=>`<option value="${esc(x.id)}">${esc(label(x))}</option>`).join('');
  const time=value=>value?new Date(value).toLocaleString('pt-BR'):'—';
@@ -10,7 +12,7 @@ function mountNeoConnect(root,cloud){
  const computer=id=>snapshot.devices.find(row=>row.id===id)?.label||'—';
  const group=id=>groups.find(row=>row.id===id)?.name||id;
  const job=id=>queue.find(row=>row.id===id)?.title||id;
- const events={register:'Registro',approved:'Aprovado',approve:'Aprovação',revoke:'Revogação',priority:'Prioridade',leased:'Reserva',started:'Início',simulated:'Simulado',uncertain:'Incerto',queued:'Em fila',cancelled:'Cancelado'};
+ const events={update_register:'Cadastro de rascunho de atualização',register:'Registro',approved:'Aprovado',approve:'Aprovação',revoke:'Revogação',priority:'Prioridade',leased:'Reserva',started:'Início',simulated:'Simulado',uncertain:'Incerto',queued:'Em fila',cancelled:'Cancelado'};
  root.innerHTML=`<p class="sub">Cliente Windows 10/11 x64. Instale a versão aprovada, entre com a conta administrativa e aprove o computador abaixo. Confira o SHA-256 antes de executar o instalador.</p>
  <p role="status" data-connect-status></p><div class="neo-campaign-actions"><button type="button" class="secondary" data-connect="refresh">Atualizar diagnóstico</button></div>
  <div data-connect-content></div>`;
@@ -18,14 +20,34 @@ function mountNeoConnect(root,cloud){
  function note(text){status.textContent=text}
  async function load(){
   const version=++loadVersion;
-  const result=await Promise.all([rpc('snapshot'),cloud.campaignWhatsApp('groups'),cloud.campaignWhatsApp('queue')]);
+  const result=await Promise.all([rpc('snapshot'),cloud.campaignWhatsApp('groups'),cloud.campaignWhatsApp('queue'),
+   canManageUpdates?cloud.connectUpdateAdmin('list').catch(()=>null):null]);
   if(!root.isConnected||version!==loadVersion)return;
   [snapshot,groups,queue]=result;
+  const releaseInfo=result[3];
   const enabled=snapshot.accounts.filter(x=>x.enabled);
   html(body,`<h4>Instaladores aprovados</h4>
-   ${snapshot.releases.map(r=>`<article class="monitor-block"><p>Versão ${esc(r.version)} · ${esc(time(r.approved_at))} · ${Number(r.bytes).toLocaleString('pt-BR')} bytes</p>
+   ${snapshot.releases.filter(downloadable).map(r=>`<article class="monitor-block"><p>Versão ${esc(r.version)} · ${esc(time(r.approved_at))} · ${Number(r.bytes).toLocaleString('pt-BR')} bytes</p>
    <p class="sub">SHA-256 <code>${esc(r.sha256)}</code></p><button class="secondary" type="button" data-connect="download" data-version="${esc(r.version)}">Preparar download privado</button></article>`).join('')||'<p>Nenhuma versão aprovada disponível.</p>'}
    <div data-connect-link></div>
+   ${canManageUpdates?`<div data-connect-updates>
+    <h4>Atualizações de Teste</h4>
+    ${releaseInfo?`<p>Use os dados do manifesto assinado do instalador enviado ao bucket de Teste.</p>
+    <form data-connect-form="update_register" class="space">
+     <label>Versão<input name="version" required pattern="[0-9]{1,8}[.][0-9]{1,8}[.][0-9]{1,8}"></label>
+     <label>Identificador do artefato<input name="artifact" required maxlength="120" pattern="[A-Za-z0-9._\\-]{1,120}"></label>
+     <label>Tamanho em bytes<input name="bytes" type="number" required min="1" max="52428800" step="1"></label>
+     <label>SHA-256<input name="sha256" required pattern="[0-9a-f]{64}" spellcheck="false"></label>
+     <label>Assinatura do manifesto (Base64)<textarea name="signature" required minlength="344" maxlength="1024" spellcheck="false"></textarea></label>
+     <label>Notas da atualização<textarea name="notes" maxlength="4000"></textarea></label>
+     <button type="submit" class="secondary">Cadastrar rascunho</button>
+    </form>
+    ${releaseInfo.releases.map(r=>`<article class="monitor-block">
+     <p>Versão ${esc(r.version)} · ${esc(r.distribution_state==='draft'?'Rascunho':r.distribution_state)}</p>
+     <p class="sub">${esc(r.artifact||'—')} · ${Number(r.bytes).toLocaleString('pt-BR')} bytes</p>
+     <p>${esc(r.notes||'')}</p></article>`).join('')||'<p>Nenhuma versão cadastrada.</p>'}`:
+    '<p>Canal de atualizações indisponível para esta sessão.</p>'}
+   </div>`:''}
    <h4>Computadores</h4><p>Simulação ${snapshot.paused?'pausada':'habilitada'}. O painel registra apenas resultados fictícios.</p>
    <button type="button" class="secondary" data-connect="pause">${snapshot.paused?'Retomar simulação':'Pausar simulação'}</button>
    ${snapshot.devices.map(d=>{
@@ -74,6 +96,34 @@ function mountNeoConnect(root,cloud){
   const form=event.target;if(!form.dataset.connectForm)return;
   event.preventDefault();
   const data=Object.fromEntries(new FormData(form)),action=form.dataset.connectForm;
+  if(action==='update_register'){
+   if(!canManageUpdates||savingDraft)return;
+   const signature=data.signature.trim();
+   if(!/^[A-Za-z0-9+/]+={0,2}$/.test(signature)||signature.length<344||signature.length>1024||signature.length%4){
+    note('Informe a assinatura Base64 do manifesto.');
+    return;
+   }
+   const draft={version:data.version,artifact:data.artifact,bytes:Number(data.bytes),sha256:data.sha256,signature,notes:data.notes};
+   const button=form.querySelector('button[type="submit"]');
+   savingDraft=true;
+   button.disabled=true;
+   void (async()=>{
+    note('Cadastrando rascunho…');
+    try{
+     await cloud.connectUpdateAdmin('register',draft);
+     form.reset();
+     try{await load();note('Rascunho cadastrado.');}
+     catch{note('Rascunho cadastrado. Atualize o diagnóstico para revisar a lista.');}
+    }catch(error){
+     note(error.code==='42501'?'Uma sessão administrativa é necessária.':
+      error.code==='23505'?'Essa versão já está cadastrada.':'Não foi possível cadastrar o rascunho. Confira os dados do manifesto.');
+    }finally{
+     savingDraft=false;
+     button.disabled=false;
+    }
+   })();
+   return;
+  }
   if(action==='priority')data.id=form.dataset.id;
   if(action==='associate'){
    data.verified=Boolean(data.verified);data.may_publish=Boolean(data.may_publish);
@@ -87,7 +137,7 @@ function mountNeoConnect(root,cloud){
   if(['revoke','disable_account'].includes(action)&&!confirm('Revogar acesso ao NeoPep Connect?'))return;
   void perform(async()=>{
    if(action==='download'){
-    const release=snapshot.releases.find(x=>x.version===version);
+    const release=snapshot.releases.find(x=>x.version===version&&downloadable(x));
     if(!release)return;
     const url=await cloud.connectReleaseURL(release.path);
     if(!root.isConnected)return;

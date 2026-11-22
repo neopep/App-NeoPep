@@ -16,3 +16,5 @@
 - Campanhas de homologação: validar o painel autenticado, as prévias e o pop-up no iPhone/PWA, Android e desktop. Configurar vínculo confiável de planos para as contas fictícias e ensaiar push com dispositivo isolado antes de habilitar o consumo da fila. [Guia](../conhecimento/CAMPANHAS.md)
 
 - Central de Campanhas: conferir balões na borda e na abertura de campos condicionais no Safari do iPhone e no PWA. Ensaiar escolha manual de destinatário, compartilhamento de arquivo e o aviso de agenda com contas fictícias. Publicar o manual WhatsApp quando houver PDF aprovado.
+
+- NeoPep Connect: validar a aba **Atualizações** no painel autenticado de Teste e cadastrar o rascunho 0.2.3 com os dados do manifesto correspondente ao EXE já enviado. [Procedimento](../conhecimento/NEOPEP-CONNECT.md#cadastro-de-rascunho-de-atualização)

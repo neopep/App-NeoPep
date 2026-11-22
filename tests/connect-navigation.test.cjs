@@ -62,3 +62,64 @@ test('A página carrega scripts na ordem correta e limpa o formulário após sal
  assert.match(whatsapp,/form\.reset\(\);selectedJob=null;prepared=null;files=\[\];preview\(\);/);
  assert.match(connect,/installNeoConnectNavigation\(root\)/);
 });
+
+test('Atualizações cadastra somente rascunhos e não oferece download para eles',async()=>{
+ const {document,window,scope}=load('dist/admin/connect-navigation.js','<div id="connect"></div>');
+ const root=document.querySelector('#connect');
+ const values={version:'0.2.3',artifact:'ensaio-0.2.3-9224ae0aa963',bytes:'50072576',
+  sha256:'a'.repeat(64),signature:Buffer.alloc(384).toString('base64'),notes:'<teste>'};
+ scope.esc=value=>String(value).replaceAll('<','&lt;');
+ scope.FormData=class{*[Symbol.iterator](){yield*Object.entries(values);}};
+ vm.runInNewContext(fs.readFileSync('dist/admin/admin-connect.js','utf8'),scope);
+ const releases=[];
+ const actions=[];
+ const cloud={
+  connectAdmin:async()=>({releases,accounts:[],devices:[],sessions:[],groups:[],tasks:[],audit:[]}),
+  campaignWhatsApp:async()=>[],
+  async connectUpdateAdmin(action,data){
+   actions.push(action);
+   if(action==='register'){
+    assert.deepEqual({...data},{...values,bytes:50072576});
+    releases.push({...data,distribution_state:'draft'});
+   }
+   return {releases};
+  }
+ };
+ const panel=scope.mountNeoConnect(root,cloud);
+ await panel.load();
+ click(window,root.querySelector('[data-neo-connect-view="updates"]'));
+ const form=root.querySelector('[data-connect-form="update_register"]');
+ form.reset=()=>{};
+ const submit=()=>form.dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));
+ const signature=values.signature;
+ values.signature='inválida';
+ submit();
+ assert.deepEqual(actions,['list']);
+ values.signature=signature;
+ submit();
+ submit();
+ await new Promise(setImmediate);
+ assert.deepEqual(actions,['list','register','list']);
+ assert.match(root.querySelector('[data-connect-updates]').textContent,/0\.2\.3 · Rascunho/);
+ assert.equal(root.querySelector('[data-connect-updates] script'),null);
+ assert.equal(root.querySelector('[data-connect="download"][data-version="0.2.3"]'),null);
+ assert.equal(root.querySelector('[data-neo-connect-panel="updates"]').hidden,false);
+ assert.equal(root.querySelector('[data-connect-status]').textContent,'Rascunho cadastrado.');
+});
+
+test('Atualizações fica indisponível sem acesso à RPC administrativa',async()=>{
+ const {document,scope}=load('dist/admin/connect-navigation.js','<div id="connect"></div>');
+ const root=document.querySelector('#connect');
+ scope.esc=String;
+ vm.runInNewContext(fs.readFileSync('dist/admin/admin-connect.js','utf8'),scope);
+ const cloud={connectAdmin:async()=>({releases:[],accounts:[],devices:[],groups:[],tasks:[],audit:[]}),
+  campaignWhatsApp:async()=>[]};
+ await scope.mountNeoConnect(root,cloud).load();
+ assert.equal(root.querySelector('[data-neo-connect-view="updates"]'),null);
+ const restricted=document.createElement('div');
+ document.body.append(restricted);
+ cloud.connectUpdateAdmin=async()=>{throw new Error('Administrador obrigatório');};
+ await scope.mountNeoConnect(restricted,cloud).load();
+ assert.equal(restricted.querySelector('[data-connect-form="update_register"]'),null);
+ assert.match(restricted.querySelector('[data-connect-updates]').textContent,/indisponível/);
+});

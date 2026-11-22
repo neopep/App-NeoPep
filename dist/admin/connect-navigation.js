@@ -5,6 +5,7 @@ function installNeoConnectNavigation(root){
  const body=root.querySelector('[data-connect-content]');
  if(!body)return;
  const views=[['overview','Visão geral'],['devices','Computadores'],['accounts','Contas'],['groups','Vínculos'],['simulation','Simulação'],['history','Histórico'],['help','Ajuda']];
+ if(body.querySelector('[data-connect-updates]'))views.splice(2,0,['updates','Atualizações']);
  let nav=root.querySelector('[data-neo-connect-tabs]');
  if(!nav){
   nav=document.createElement('nav');nav.dataset.neoConnectTabs='';
@@ -59,7 +60,7 @@ function installNeoConnectNavigation(root){
    else if(title==='Fila de simulação')page='simulation';
   }
   if(child.tagName==='DETAILS'&&child.querySelector('summary')?.textContent.trim()==='Tentativas e auditoria')page='history';
-  panes[page].append(child);
+  panes[child.hasAttribute('data-connect-updates')?'updates':page].append(child);
  });
  // O controle de pausa pertence à tela de Simulação, onde o usuário espera encontrá-lo.
  const children=Array.from(panes.devices.children);
@@ -87,7 +88,7 @@ function installNeoConnectNavigation(root){
  showNeoConnectNavigation(root);
 }
 function showNeoConnectNavigation(root){
- const allowed=['overview','devices','accounts','groups','simulation','history','help'];
+ const allowed=Array.from(root.querySelectorAll('[data-neo-connect-tabs] button'),button=>button.dataset.neoConnectView);
  const active=allowed.includes(root.dataset.neoConnectPage)?root.dataset.neoConnectPage:'overview';
  root.dataset.neoConnectPage=active;
  root.querySelectorAll('[data-neo-connect-tabs] button').forEach(function(button){

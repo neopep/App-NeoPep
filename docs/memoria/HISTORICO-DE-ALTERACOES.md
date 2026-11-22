@@ -471,3 +471,7 @@ Build, checagem, prévia e 22 testes focados passaram. A suíte com 351 casos te
 A migração corretiva `20261122003342` restringiu a atualização de pausa do NeoPep Connect à linha `singleton = true`. Apenas o corpo dessa operação mudou. A revisão confirmou filtros nas demais atualizações e chaves explícitas nos upserts.
 
 O teste automatizado validou a cláusula e as duas transições. No Supabase de homologação, a mesma RPC acionada pelos botões foi testada como administrador autenticado em transação revertida. A fila foi comparada integralmente antes do rollback. Depois dele, o processamento permaneceu pausado, com um computador aprovado, uma sessão conectada, a conta fixture-principal, um vínculo de grupo, cinco registros de auditoria e uma única tarefa em fila, sem simulação.
+
+## MEM-20261122-001
+
+Integração seletiva do PR #10 a partir de `60016a9` para o painel de homologação. A aba **Atualizações** usa a RPC administrativa existente para listar versões e registrar rascunhos com auditoria. O build web, a verificação estática e os testes direcionados passaram. Um ensaio local com PGlite confirmou o registro como `draft`, a negativa para usuário comum e o registro do autor na auditoria. A validação autenticada no painel publicado segue pendente. O revert deste commit retira a interface e preserva os registros do banco.
