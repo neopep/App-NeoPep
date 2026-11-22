@@ -22,7 +22,8 @@ with relations as (
  union all
  select 'routine',format('%I.%I(%s)',n.nspname,p.proname,pg_get_function_identity_arguments(p.oid)),
   jsonb_build_object('body_hash',md5(pg_get_functiondef(p.oid)),'definer',p.prosecdef,'owner',pg_get_userbyid(p.proowner),
-   'anon',has_function_privilege('anon',p.oid,'EXECUTE'),'authenticated',has_function_privilege('authenticated',p.oid,'EXECUTE'),'acl',p.proacl)
+   'anon',has_function_privilege('anon',p.oid,'EXECUTE'),'authenticated',has_function_privilege('authenticated',p.oid,'EXECUTE'),
+   'service_role',has_function_privilege('service_role',p.oid,'EXECUTE'),'acl',p.proacl)
  from pg_proc p join pg_namespace n on n.oid=p.pronamespace
  where n.nspname in ('public','neo_private','storage','auth') and p.prokind in ('f','p','w')
  union all
