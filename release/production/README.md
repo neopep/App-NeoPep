@@ -1,5 +1,7 @@
 # Preparação da publicação oficial
 
+**Estado atualizado:** os lotes aditivos 01–06 foram aplicados ao banco oficial em 22/11/2026. Não reaplicar. [Registro da execução](../../docs/revisao/APLICACAO-PRODUCAO-INCREMENTAL-20261122.md). A descrição de lotes abaixo é histórico do plano, não instrução para executar novamente na Produção.
+
 **NO-GO para produção.** A aplicação depende de catálogo remoto autenticado, histórico reconciliado, evidência de restauração e aprovação específica. O diretório supabase/migrations contém históricos de instalação e de Teste. Preserve-os como referência e evite replay.
 
 ## Gate de preservação do catálogo
