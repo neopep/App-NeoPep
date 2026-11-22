@@ -61,8 +61,9 @@ from objects order by kind,identity;
 select (to_regclass('supabase_migrations.schema_migrations') is not null)::int as has_ledger,
        (to_regclass('cron.job') is not null)::int as has_cron \gset
 \if :has_ledger
-select jsonb_build_object('kind','migration','id',version,'definition',jsonb_build_object())
-from supabase_migrations.schema_migrations order by version;
+select jsonb_build_object('kind','migration','id',m.version,'definition',
+ jsonb_build_object('name',to_jsonb(m)->>'name','statements_hash',md5((to_jsonb(m)->'statements')::text)))
+from supabase_migrations.schema_migrations m order by m.version;
 \endif
 \if :has_cron
 select jsonb_build_object('kind','cron','id',coalesce(jobname,jobid::text),'definition',

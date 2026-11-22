@@ -31,6 +31,10 @@ jobs:
         run: node release/production/assert-candidate.cjs
       - name: Testes focalizados
         run: node --test tests/{admin-ui,pwa,release-check,cloud,auth-persistence,photos,shop-payments-edge,shop-core,auth-settings,delete-account}.test.cjs
+      - name: Ensaio sintético dos lotes e catálogo
+        run: |
+          node --test tests/production-rehearsal.test.cjs
+          node release/production/test-catalog.cjs
       - name: Auditoria de dependencias
         run: npm audit --omit=dev --audit-level=high
 

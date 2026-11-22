@@ -4,7 +4,7 @@
     "public_url_https": {
       "status": "pending",
       "evidence": "",
-      "note": "Escolher URL de lançamento; domínio próprio ainda não conectado."
+      "note": "Domínio oficial documentado. Falta confirmar projeto Vercel, HTTPS e publicação READY da candidata após autorização."
     },
     "auth_email_delivery": {
       "status": "pending",
@@ -19,12 +19,12 @@
     "two_account_isolation": {
       "status": "pending",
       "evidence": "",
-      "note": "Validar leituras/escritas indevidas com duas contas de teste e RLS real."
+      "note": "ACL e RLS dos lotes de cadastro e engajamento foram exercitadas localmente. Falta evidência entre duas contas no ambiente isolado com configuração representativa."
     },
     "private_storage": {
       "status": "pending",
       "evidence": "",
-      "note": "Conferir buckets privados e tentativa de acesso de outra conta."
+      "note": "Configuração de buckets relatada no preflight do PR #25. Falta restaurar amostra e testar acesso entre contas e anônimo."
     },
     "delete_account": {
       "status": "pending",
@@ -44,7 +44,7 @@
     "catalog_release": {
       "status": "pending",
       "evidence": "",
-      "note": "Responsável informou revisão do catálogo e remoção da retatrutida. Falta conferir a versão final e validar integração de pagamento antes de operar vendas."
+      "note": "Testes sintéticos do contrato Orders, webhook e Auth foram executados. O caso de reembolso parcial permanece pendente. Falta validação financeira autenticada em sandbox."
     },
     "iphone_android": {
       "status": "pending",
@@ -54,7 +54,7 @@
     "backup_monitoring": {
       "status": "pending",
       "evidence": "",
-      "note": "Definir backups de banco e arquivos, recuperação, alertas e responsável."
+      "note": "Existe procedimento de ensaio e rollback local de lotes. Falta comprovar restauração isolada do banco e dos objetos e registrar RPO/RTO."
     },
     "notifications_scope": {
       "status": "pending",

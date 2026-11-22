@@ -30,3 +30,14 @@ O histórico relatado de Teste inclui 20261122022149, 20261122040259, 2026112204
 - Executar somente o lote aprovado. Repetir a captura e rodar `python3 release/production/verify-invariants.py prod-antes.jsonl prod-depois.jsonl`. Comparar o delta com o manifesto aprovado e verificar isolamento, filas, pedidos, pagamentos e objetos privados.
 - Em falha antes do commit, reverter a transação. Após commit, desligar ativações novas no servidor, restaurar código ou Edge anterior quando compatível e preparar migração compensatória. Preservar dados e auditoria. Reconciliar IDs de transação e webhooks antes de reversão financeira. Restauração na origem oficial exige avaliação de perda de gravações posteriores e autorização.
 - Publicar o frontend por último, após decisão Go. Confirmar no painel a supressão de deploy da branch de preparação. Após publicação autorizada, observar Vercel READY e testar a origem oficial.
+
+## Lotes incrementais de ensaio
+
+Os dois primeiros lotes têm SQL renderizável com SHA-256 dos arquivos de origem fixado em batches/manifest.json. O lote 01 prepara avisos de novos cadastros. O lote 02 prepara audiência e engajamento numa única transação. O gerador rejeita banco com nome diferente de neopep_release_rehearsal, dependências incompatíveis e colisões. O pós-teste na transação confere RLS e EXECUTE/SELECT de cliente. Reaplicar um lote já instalado resulta em erro explícito, sem sobrescrita nem registro no ledger.
+
+- Gerar com `python3 release/production/batches/render.py 01-cadastros --rollback` e depois `02-audiencia-engajamento --rollback`, gravando cada saída em arquivo separado.
+- Executar com psql e ON_ERROR_STOP exclusivamente na cópia isolada, após confirmar endpoint e banco. Remover --rollback na geração apenas para a rodada persistente do ensaio isolado. Nenhum dos lotes é um SQL de aplicação oficial.
+- Comparar os hashes do ledger e as definições remotas antes de redigir a versão de produção. Campos de histórico que não estiverem presentes devem aparecer como desconhecidos. Nunca inferir que um objeto existe porque o ID de migração coincide.
+- Antes de levar esses lotes para a origem oficial, verificar especialmente a autorização de administrador de plataforma, exposição de dados de cadastro e dependências atuais de Auth. Demais lotes dependem do catálogo autenticado e ainda não têm SQL executável de produção.
+
+[Procedimento de restauração](RESTORE-REHEARSAL.md)

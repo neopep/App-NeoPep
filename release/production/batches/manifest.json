@@ -1,0 +1,64 @@
+{
+  "01-cadastros": {
+    "files": [
+      {
+        "name": "20261121170551_admin_signup_notices.sql",
+        "sha256": "07d1ed187d4dbf9ed848e56f8a8680d502087497bef50d9e0d05432f69a7bdf1"
+      }
+    ],
+    "tables": [
+      "neo_private.signup_notice_reads",
+      "neo_private.signup_notice_rollout"
+    ],
+    "routines": [
+      "public.neo_admin_signups(text,text,boolean,timestamptz,timestamptz,timestamptz,uuid,timestamptz)"
+    ],
+    "columns": [
+      "auth.users.id:uuid",
+      "auth.users.email:character varying",
+      "auth.users.created_at:timestamp with time zone",
+      "auth.users.last_sign_in_at:timestamp with time zone",
+      "auth.users.deleted_at:timestamp with time zone",
+      "auth.users.is_anonymous:boolean",
+      "auth.users.raw_app_meta_data:jsonb",
+      "auth.users.raw_user_meta_data:jsonb",
+      "public.neo_profiles.user_id:uuid",
+      "public.neo_profiles.data:jsonb",
+      "neo_private.activity.user_id:uuid",
+      "neo_private.activity.last_seen:timestamp with time zone",
+      "neo_private.admin_members.user_id:uuid"
+    ]
+  },
+  "02-audiencia-engajamento": {
+    "files": [
+      {
+        "name": "20261121181510_admin_audience.sql",
+        "sha256": "6ad7a4534ab754529b337e33dac266242639a79be14b56332dddf7c73665d50f"
+      },
+      {
+        "name": "20261121183535_product_engagement.sql",
+        "sha256": "8403410749f72c3649f6118c8893cfd10e84db8520507b6c0e96bb3cfa4310da"
+      }
+    ],
+    "tables": [
+      "neo_private.audience_observations",
+      "neo_private.engagement_events"
+    ],
+    "routines": [
+      "public.neo_audience_self(text,jsonb,jsonb)",
+      "public.neo_admin_audience(date,date,uuid[])",
+      "public.neo_engagement(text,jsonb)",
+      "public.neo_admin_engagement(date,date,text)"
+    ],
+    "columns": [
+      "auth.users.id:uuid",
+      "auth.users.created_at:timestamp with time zone",
+      "neo_private.activity.user_id:uuid",
+      "neo_private.activity.last_seen:timestamp with time zone",
+      "neo_private.admin_members.user_id:uuid",
+      "auth.users.last_sign_in_at:timestamp with time zone",
+      "auth.users.deleted_at:timestamp with time zone",
+      "auth.users.is_anonymous:boolean"
+    ]
+  }
+}
