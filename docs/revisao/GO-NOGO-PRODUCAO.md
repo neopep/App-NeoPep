@@ -45,3 +45,7 @@ O ensaio PostgreSQL 17 isolado cobriu backup e restauração lógicos sintético
 - [x] Execução `Production Candidate CI` [#45078658088](https://github.com/neopep/App-NeoPep/actions/runs/45078658088): job **Candidata sem deploy aprovado** (inclui testes novos); job **Gate de evidências falhou de propósito** pois o release continua **NO-GO**, aguardando homologação e autorizações.
 - [ ] Rodar pré e pós-catálogo e comparar invariantes em restauração real isolada autorizada; testar RPCs privilegiadas com duas contas. A decisão de adiar esse ensaio não significa teste aprovado.
 
+
+## Roteiro prioritário para disponibilizar a nova Produção
+
+A verificação do log de CI identificou exatamente **12 itens pending** em `release/web-readiness.json` e `cloudValidated: false`. O job de compilação passou e o de evidências bloqueou o merge de forma intencional. Foram separados gates prévios e verificações pós-deploy, com opção de liberação controlada e recursos de alto risco inertes, **sem relaxar automaticamente as proteções**. Consultar [plano de desbloqueio do PR #25](PLANO-DESBLOQUEIO-PRODUCAO-PR25.md) para prioridade, evidência faltante e decisões de autorização.
