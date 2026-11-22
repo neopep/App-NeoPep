@@ -54,3 +54,16 @@ test('Build exige perfil explícito e CI só publica o instalador staging',()=>{
  assert.match(upload,/connect\/NeoPepConnectSetup\.exe/);
  assert.doesNotMatch(upload,/connect-prod/);
 });
+
+test('WinForms mantém reautenticação e bridge bloqueado no perfil Produção',()=>{
+ const whatsapp=fs.readFileSync(path+'WhatsApp.cs','utf8');
+ assert.match(client,/await Tokens\("password".*false\)/);
+ assert.match(client,/if\(!String\.IsNullOrEmpty\(Value\(local,"device"\)\)\)/);
+ assert.match(client,/if\(!ConnectProfile\.ConnectEnabled\|\|!ConnectProfile\.IsValid\)throw/);
+ assert.match(installer,/if\(ConnectProfile\.ConnectEnabled\)\{\s*InstallRuntime\(\)/);
+ assert.match(whatsapp,/Color\.FromArgb\(245,232,207\)/);
+ assert.match(whatsapp,/!ConnectProfile\.ConnectEnabled\|\|forgetting/);
+ assert.match(build,/commit=\$commit/);
+ assert.match(build,/run_id=\$env:GITHUB_RUN_ID/);
+ assert.match(build,/run_attempt=\$env:GITHUB_RUN_ATTEMPT/);
+});

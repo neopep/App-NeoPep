@@ -21,11 +21,33 @@ function mountNeoConnect(root,cloud){
   const result=await Promise.all([rpc('snapshot'),cloud.campaignWhatsApp('groups'),cloud.campaignWhatsApp('queue')]);
   if(!root.isConnected||version!==loadVersion)return;
   [snapshot,groups,queue]=result;
+  let releaseInfo=null;
+  if(cloud.connectUpdateAdmin){try{releaseInfo=await cloud.connectUpdateAdmin('list');}catch{}}
+  if(!root.isConnected||version!==loadVersion)return;
   const enabled=snapshot.accounts.filter(x=>x.enabled);
   html(body,`<h4>Instaladores aprovados</h4>
-   ${snapshot.releases.map(r=>`<article class="monitor-block"><p>Versão ${esc(r.version)} · ${esc(time(r.approved_at))} · ${Number(r.bytes).toLocaleString('pt-BR')} bytes</p>
+   ${snapshot.releases.filter(r=>!r.distribution_state||["legacy","approved"].includes(r.distribution_state)).map(r=>`<article class="monitor-block"><p>Versão ${esc(r.version)} · ${esc(time(r.approved_at))} · ${Number(r.bytes).toLocaleString('pt-BR')} bytes</p>
    <p class="sub">SHA-256 <code>${esc(r.sha256)}</code></p><button class="secondary" type="button" data-connect="download" data-version="${esc(r.version)}">Preparar download privado</button></article>`).join('')||'<p>Nenhuma versão aprovada disponível.</p>'}
    <div data-connect-link></div>
+   <details><summary>Canal de atualizações de Teste</summary>
+   ${releaseInfo?`<form data-connect-form="update_register" class="space">
+    <label>Versão<input name="version" required pattern="[0-9]{1,8}[.][0-9]{1,8}[.][0-9]{1,8}"></label>
+    <label>Identificação do artefato<input name="artifact" required maxlength="120"></label>
+    <label>Tamanho em bytes<input type="number" name="bytes" required min="1" max="52428800"></label>
+    <label>SHA-256<input name="sha256" required pattern="[0-9a-f]{64}"></label>
+    <label>Assinatura do manifesto (Base64)<textarea name="signature" required maxlength="1024"></textarea></label>
+    <label>Notas da versão<textarea name="notes" maxlength="4000"></textarea></label>
+    <button type="submit" class="secondary">Cadastrar rascunho</button></form>
+    ${releaseInfo.releases.map(r=>`<article class="monitor-block"><p>${esc(r.version)} · ${esc(r.distribution_state)} · ${esc(r.artifact||'sem manifesto assinado')}</p>
+     <p class="sub"><code>${esc(r.sha256)}</code> · ${Number(r.bytes)} bytes</p>
+     <details><summary>Revisar manifesto</summary><p>${esc(r.profile)} · ${esc(r.channel)} · ${Number(r.bytes).toLocaleString('pt-BR')} bytes</p>
+     <p>${esc(r.notes||'Sem notas da versão.')}</p><p>Assinatura <code style="overflow-wrap:anywhere">${esc(r.release_signature||'Indisponível')}</code></p></details>
+     ${r.release_signature?`<form data-connect-form="update_approve" class="space"><input type="hidden" name="version" value="${esc(r.version)}">
+     <label class="check"><input type="checkbox" name="required">Indicar como obrigatória</label>
+     <button type="submit" class="secondary">Aprovar distribuição</button></form>`:''}
+     ${r.distribution_state!=='blocked'?`<button type="button" class="secondary" data-connect="update_block" data-version="${esc(r.version)}">Bloquear</button>`:''}</article>`).join('')}
+    <h5>Resultados recentes</h5>${releaseInfo.events.map(event=>`<p>${esc(computer(event.device_id))} · ${esc(event.version)} · ${esc(event.outcome)} · ${esc(time(event.created_at))}</p>`).join('')||'<p>Sem resultados registrados.</p>'}`:'<p>Canal ainda indisponível no servidor.</p>'}
+   </details>
    <h4>Computadores</h4><p>Simulação ${snapshot.paused?'pausada':'habilitada'}. O painel registra apenas resultados fictícios.</p>
    <button type="button" class="secondary" data-connect="pause">${snapshot.paused?'Retomar simulação':'Pausar simulação'}</button>
    ${snapshot.devices.map(d=>{
@@ -74,6 +96,12 @@ function mountNeoConnect(root,cloud){
   const form=event.target;if(!form.dataset.connectForm)return;
   event.preventDefault();
   const data=Object.fromEntries(new FormData(form)),action=form.dataset.connectForm;
+  if(action.startsWith('update_')){
+   if(action==='update_approve'&&!confirm('Aprovar esta versão assinada para o canal Teste?'))return;
+   data.required=Boolean(data.required);
+   void perform(async()=>{await cloud.connectUpdateAdmin(action.slice(7),data);await load();});
+   return;
+  }
   if(action==='priority')data.id=form.dataset.id;
   if(action==='associate'){
    data.verified=Boolean(data.verified);data.may_publish=Boolean(data.may_publish);
@@ -86,6 +114,7 @@ function mountNeoConnect(root,cloud){
   const {connect:action,id,version}=button.dataset;
   if(['revoke','disable_account'].includes(action)&&!confirm('Revogar acesso ao NeoPep Connect?'))return;
   void perform(async()=>{
+   if(action==='update_block'){await cloud.connectUpdateAdmin('block',{version});await load();return;}
    if(action==='download'){
     const release=snapshot.releases.find(x=>x.version===version);
     if(!release)return;
