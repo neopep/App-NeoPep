@@ -8,6 +8,8 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repo = 'neopep/NeoPep-Connect-Build-Privado'
+$ghDirectory=Join-Path $env:ProgramFiles 'GitHub CLI'
+if(Test-Path -LiteralPath (Join-Path $ghDirectory 'gh.exe')){ $env:Path=$ghDirectory+';'+$env:Path }
 $origin = 'https://qnuluspqfazdppciermw.supabase.co'
 $workflow = '.github/workflows/neopep-connect-release.yml'
 $dir = Join-Path $env:TEMP ('neopep-release-'+[Guid]::NewGuid().ToString('N'))
