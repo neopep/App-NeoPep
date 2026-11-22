@@ -512,3 +512,7 @@ Passaram build, check, 7 testes focados, verificação sintática do Edge e o wo
 ## MEM-20261122-008 — WhatsApp Windows e seleção local de grupos
 
 A branch `desenvolvimento/connect-whatsapp-grupos` reaproveita Baileys e o IPC por pipes do cliente Windows. Acrescenta restauração do cofre ao abrir a janela, identificação local, consulta automática de grupos, filtro, contagem, seleção e atualização manual. A proposta de sincronização no Supabase e painel web está em revisão. A evidência de QR e grupos reais depende de ensaio com conta própria no Windows. [Guia do módulo](../conhecimento/NEOPEP-CONNECT-WHATSAPP-LAB.md)
+
+## NeoPep Connect 0.2.6 — Editor de campanhas para Teste
+
+A branch `desenvolvimento/connect-windows-campanhas-v026` parte da 0.2.5 homologada. Adiciona tema persistente, marca, editor com prévia, leitura do catálogo e campanhas do painel, rascunho DPAPI e revisão programada. A confirmação do envio manual de texto continua no mesmo canal. [Guia 0.2.6](../conhecimento/NEOPEP-CONNECT-CAMPANHAS-026.md)

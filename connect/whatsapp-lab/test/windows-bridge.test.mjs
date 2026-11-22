@@ -100,3 +100,25 @@ test('provedor limita retentativas, reconecta após falha e apaga sessão revoga
  assert.equal(states.at(-1),'rede_indisponivel');
  next.close();
 });
+
+test('IPC exige JPEG limitado e envia uma imagem apenas ao grupo solicitado',async()=>{
+ const sent=[],messages=[];
+ const bridge=createBridge({emit:message=>messages.push(message),providerFactory:async hooks=>({
+  start(){hooks.onState('conectado');},close(){},
+  async sendImage(jid,caption,image){sent.push({jid,caption,image});return {messageId:'fixture'};}
+ })});
+ const request={action:'send_image',request_id:'11111111-1111-4111-8111-111111111111',group_jid:'123@g.us',text:'Legenda',
+  image:Buffer.from([255,216,1,255,217]).toString('base64')};
+ await bridge.receive(request);
+ assert.equal(sent.length,0);
+ await bridge.receive({action:'connect'});
+ await bridge.receive({...request,image:'AAAB'});
+ assert.equal(messages.at(-1).value.status,'rejected');
+ await bridge.receive({...request,group_jid:'123@s.whatsapp.net'});
+ assert.equal(messages.at(-1).value.status,'rejected');
+ await bridge.receive(request);
+ assert.deepEqual(sent,[{jid:'123@g.us',caption:'Legenda',image:Buffer.from([255,216,1,255,217])}]);
+ assert.equal(messages.at(-1).value.status,'accepted');
+ assert.equal(JSON.stringify(messages).includes(request.image),false);
+ await bridge.close();
+});

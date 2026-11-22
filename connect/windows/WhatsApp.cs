@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
-sealed class WhatsApp : Form {
+sealed partial class WhatsApp : Form {
     static readonly Encoding Utf8=new UTF8Encoding(false);
     readonly string vault;
     readonly string runtime;
@@ -46,8 +46,8 @@ sealed class WhatsApp : Form {
     bool closing,forgetting,ready;
     int generation;
 
-    public WhatsApp(string profile,bool showGroups=false,Func<Guid,long,object[],Task<long>> saveSelection=null,Func<Guid,string,Task> reportStatus=null,Func<bool> canPublish=null) {
-        this.saveSelection=saveSelection;this.reportStatus=reportStatus;this.canPublish=canPublish;
+    public WhatsApp(string profile,bool showGroups=false,Func<Guid,long,object[],Task<long>> saveSelection=null,Func<Guid,string,Task> reportStatus=null,Func<bool> canPublish=null,Func<string,string,Task<Dictionary<string,object>[]>> loadSources=null,bool showComposer=false) {
+        this.saveSelection=saveSelection;this.reportStatus=reportStatus;this.canPublish=canPublish;this.loadSources=loadSources;
         var waHeartbeat=new Timer{Interval=60000};
         waHeartbeat.Tick+=async delegate{if(ready)await ReportStatus("connected");};
         waHeartbeat.Start();
@@ -87,37 +87,7 @@ sealed class WhatsApp : Form {
         groupTools.Controls.Add(sync);
         Format(groupStatus);groupStatus.Text="Conecte o WhatsApp para consultar grupos.";groupStatus.Dock=DockStyle.Bottom;
         listing.Controls.Add(groups);listing.Controls.Add(groupTools);listing.Controls.Add(groupStatus);
-        var compose=Page("Publicar");
-        compose.Controls.Add(LabelOf("PUBLICAÇÃO MANUAL • apenas grupos da própria conta"));
-        compose.Controls.Add(LabelOf("Grupo de destino"));
-        targetGroup.DropDownStyle=ComboBoxStyle.DropDownList;
-        targetGroup.Width=480;targetGroup.Enabled=false;
-        compose.Controls.Add(targetGroup);
-        compose.Controls.Add(LabelOf("Mensagem de texto"));
-        messageText.Multiline=true;messageText.Width=480;messageText.Height=155;
-        messageText.MaxLength=2000;messageText.ScrollBars=ScrollBars.Vertical;
-        compose.Controls.Add(messageText);
-        compose.Controls.Add(LabelOf("Prévia"));
-        Format(previewText);previewText.MaximumSize=new Size(470,0);
-        previewText.Text="Sua mensagem aparecerá aqui.";compose.Controls.Add(previewText);
-        messageText.TextChanged+=delegate{previewText.Text=String.IsNullOrWhiteSpace(messageText.Text)?
-            "Sua mensagem aparecerá aqui.":messageText.Text;UpdateComposer();};
-        targetGroup.SelectedIndexChanged+=delegate{UpdateComposer();};
-        sendTextButton=Action("Revisar e publicar agora",delegate{PublishManualText();});
-        sendTextButton.Enabled=false;compose.Controls.Add(sendTextButton);
-        var draftActions=new FlowLayoutPanel{AutoSize=true,WrapContents=true};
-        draftActions.Controls.Add(Action("Salvar rascunho",SaveDraft));
-        draftActions.Controls.Add(Action("Reabrir rascunho",LoadDraft));
-        draftActions.Controls.Add(Action("Limpar editor",delegate{
-            if(MessageBox.Show("Limpar o texto não enviado?","Limpar editor",
-                MessageBoxButtons.YesNo,MessageBoxIcon.Question)!=DialogResult.Yes)return;
-            messageText.Clear();
-        }));
-        compose.Controls.Add(draftActions);
-        Format(sendStatus);sendStatus.MaximumSize=new Size(470,0);
-        sendStatus.Text="Conecte o WhatsApp e consulte os grupos para publicar.";
-        compose.Controls.Add(sendStatus);
-        compose.Controls.Add(LabelOf("Sem agendamento, sem envio em massa e sem repetição automática. Mensagens aceitas pelo servidor não garantem entrega ou leitura."));
+        var compose=BuildCampaignPage();
         var diagnostics=Page("Diagnóstico");Format(diagnostic);
         diagnostic.Text="A conexão e o QR Code ficam neste computador. Os diagnósticos mostram apenas estados e erros genéricos.";diagnostics.Controls.Add(diagnostic);
         var back=Action("Voltar",Close);back.Dock=DockStyle.Bottom;
@@ -126,12 +96,13 @@ sealed class WhatsApp : Form {
         ConnectTheme.ApplyContent(tabs);
         Controls.Add(ConnectTheme.BuildShell(tabs,"NEOPEP CONNECT"));
         ConnectTheme.Primary(pair);ConnectTheme.Primary(sendTextButton);ConnectTheme.Primary(sync);
-        if(showGroups)tabs.SelectedTab=listing;
+        ConnectTheme.Restyle(this);
+        if(showComposer)tabs.SelectedTab=compose;else if(showGroups)tabs.SelectedTab=listing;
         Shown+=delegate{LoadDraft();if(File.Exists(vault))ConnectSession();};
         FormClosing+=delegate{if(ready)ReportStatus("disconnected");closing=true;StopBridge();ClearQr();};
     }
     FlowLayoutPanel Page(string name) {
-        var page=new TabPage(name){BackColor=Color.FromArgb(23,22,19),ForeColor=Color.Gainsboro};tabs.TabPages.Add(page);
+        var page=new TabPage(name){BackColor=ConnectTheme.Background,ForeColor=ConnectTheme.Text};tabs.TabPages.Add(page);
         var panel=new FlowLayoutPanel{Dock=DockStyle.Fill,FlowDirection=FlowDirection.TopDown,WrapContents=false,AutoScroll=true,Padding=new Padding(22)};
         page.Controls.Add(panel);return panel;
     }
@@ -181,7 +152,7 @@ sealed class WhatsApp : Form {
         targetGroup.Items.Clear();
         foreach(var row in groupRows){
             string id=TextValue(row,"id");
-            if(!selected.Contains(id))continue;
+            if(!selected.Contains(id)||TextValue(row,"name").IndexOf(destinationSearch.Text.Trim(),StringComparison.CurrentCultureIgnoreCase)<0)continue;
             targetGroup.Items.Add(new GroupChoice{Id=id,Name=TextValue(row,"name")});
         }
         if(targetGroup.Items.Count>0){
@@ -189,28 +160,31 @@ sealed class WhatsApp : Form {
             int index=-1;
             for(int i=0;i<targetGroup.Items.Count;i++)
                 if(((GroupChoice)targetGroup.Items[i]).Id==previous){index=i;break;}
-            targetGroup.SelectedIndex=index>=0?index:0;
+            targetGroup.SelectedIndex=index>=0?index:String.IsNullOrEmpty(previous)?0:-1;
             if(index>=0)draftGroupId="";
         }
         UpdateComposer();
     }
     void UpdateComposer(){
         if(sendTextButton==null)return;
+        UpdatePhone();
         targetGroup.Enabled=ready&&!sendingText&&targetGroup.Items.Count>0;
         sendTextButton.Enabled=ready&&!sendingText&&canPublish!=null&&canPublish()&&groupReadAt.HasValue&&
-            targetGroup.SelectedItem is GroupChoice&&!String.IsNullOrWhiteSpace(messageText.Text);
+            targetGroup.SelectedItem is GroupChoice&&(campaignImage!=null||!String.IsNullOrWhiteSpace(CampaignText()))&&CampaignText().Length<=2000;
     }
-    void SaveDraft(){
+    void SaveDraft(){SaveCampaignDraft();}
+    bool SaveCampaignDraft(){
         try{
             var choice=targetGroup.SelectedItem as GroupChoice;
-            var payload=json.Serialize(new {text=messageText.Text,group=choice==null?draftGroupId:choice.Id});
+            var payload=json.Serialize(new {text=messageText.Text,group=choice==null?draftGroupId:choice.Id,title=campaignTitle.Text,cta=campaignCta.Text,
+                image=campaignImage==null?null:Convert.ToBase64String(campaignImage),due=scheduledUtc.HasValue?scheduledUtc.Value.ToString("o"):null});
             byte[] bytes=ProtectedData.Protect(Utf8.GetBytes(payload),null,DataProtectionScope.CurrentUser);
             string temporary=draftPath+".new";
             File.WriteAllBytes(temporary,bytes);
             if(File.Exists(draftPath))File.Replace(temporary,draftPath,null);
             else File.Move(temporary,draftPath);
-            sendStatus.Text="Rascunho salvo com proteção do usuário Windows.";
-        }catch{sendStatus.Text="Não foi possível salvar o rascunho neste computador.";}
+            sendStatus.Text="Rascunho salvo com proteção do usuário Windows.";return true;
+        }catch{sendStatus.Text="Não foi possível salvar o rascunho neste computador.";return false;}
     }
     void LoadDraft(){
         if(!File.Exists(draftPath))return;
@@ -219,6 +193,8 @@ sealed class WhatsApp : Form {
             var draft=json.Deserialize<Dictionary<string,object>>(Utf8.GetString(data));
             draftGroupId=TextValue(draft,"group");
             messageText.Text=TextValue(draft,"text");
+            campaignTitle.Text=TextValue(draft,"title");campaignCta.Text=TextValue(draft,"cta");
+            RestoreCampaignMedia(TextValue(draft,"image"),TextValue(draft,"due"));
             RefreshComposerGroups();
             sendStatus.Text="Rascunho local restaurado.";
         }catch{sendStatus.Text="Não foi possível restaurar o rascunho protegido.";}
@@ -233,10 +209,10 @@ sealed class WhatsApp : Form {
     void PublishManualText(){
         if(!ready||sendingText||!groupReadAt.HasValue||pendingSend!=Guid.Empty||canPublish==null||!canPublish())return;
         var choice=targetGroup.SelectedItem as GroupChoice;
-        string text=messageText.Text.Trim();
-        if(choice==null||!selected.Contains(choice.Id)||String.IsNullOrEmpty(text)||text.Length>2000)return;
+        string text=CampaignText();
+        if(choice==null||!selected.Contains(choice.Id)||(campaignImage==null&&String.IsNullOrEmpty(text))||text.Length>2000)return;
         string question="Enviar uma mensagem real para o grupo '"+choice.Name+"'?"+
-            Environment.NewLine+Environment.NewLine+text+
+            Environment.NewLine+Environment.NewLine+(campaignImage==null?"":"Imagem JPEG anexada."+Environment.NewLine)+text+
             Environment.NewLine+Environment.NewLine+"A ação não pode ser desfeita. Não haverá repetição automática.";
         if(MessageBox.Show(question,"Confirmar publicação real",
             MessageBoxButtons.YesNo,MessageBoxIcon.Warning,MessageBoxDefaultButton.Button2)!=DialogResult.Yes)return;
@@ -245,8 +221,10 @@ sealed class WhatsApp : Form {
         sendingText=true;UpdateComposer();
         sendStatus.Text="Enviando ao WhatsApp. Não feche esta janela nem repita a operação.";
         try{
-            pipe.WriteLine(json.Serialize(new {action="send_text",request_id=pendingSend.ToString(),
+            if(campaignImage==null)pipe.WriteLine(json.Serialize(new {action="send_text",request_id=pendingSend.ToString(),
                 group_jid=choice.Id,text=text}));
+            else pipe.WriteLine(json.Serialize(new {action="send_image",request_id=pendingSend.ToString(),
+                group_jid=choice.Id,text=text,image=Convert.ToBase64String(campaignImage)}));
         }catch{
             AuditSend("uncertain");
             pendingSend=Guid.Empty;sendingText=false;UpdateComposer();

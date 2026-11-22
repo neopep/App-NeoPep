@@ -70,7 +70,7 @@ sealed partial class Connect : Form {
         var computer=Page(tabs,"Computador");
         var diagnostics=Page(tabs,"Diagnóstico");
         var settings=Page(tabs,"Configurações");
-        var title=new Label{Text="NeoPep Connect",ForeColor=ConnectTheme.Accent,Font=new Font("Segoe UI Semibold",24,FontStyle.Bold),AutoSize=true};
+        var title=new Label{Tag="accent",Text="NeoPep Connect",ForeColor=ConnectTheme.Accent,Font=new Font("Segoe UI Semibold",24,FontStyle.Bold),AutoSize=true};
         overview.Controls.Add(title);
         overview.Controls.Add(new Label{Text=ConnectProfile.EnvironmentName+" • versão "+Version+" • configuração automática",AutoSize=true});
         overview.Controls.Add(new Label{Text=ConnectProfile.ConnectEnabled?"Conexão NeoPep • provedor simulado":"Produção preparada • Connect ainda não habilitado no servidor",AutoSize=true});
@@ -106,6 +106,12 @@ sealed partial class Connect : Form {
         pairing.Click+=delegate {OpenWhatsApp(false);};
         groupList.Click+=delegate {OpenWhatsApp(true);};
         whatsAppPage.Controls.Add(pairing);groupsPage.Controls.Add(groupList);
+        var publishPage=Page(tabs,"Publicar");
+        var prepare=Button("Preparar campanha");
+        prepare.Enabled=ConnectProfile.ConnectEnabled&&ConnectProfile.IsValid;
+        prepare.Click+=delegate{OpenWhatsApp(false,true);};
+        publishPage.Controls.Add(new Label{Text="Organize a mensagem, confira a prévia e revise o destino.",AutoSize=true});
+        publishPage.Controls.Add(prepare);
         login.Enabled=ConnectProfile.ConnectEnabled && ConnectProfile.IsValid;
         var loginFeedback=new Label{AutoSize=true,MaximumSize=new Size(420,0)};
         login.Click+=async delegate {
@@ -131,6 +137,15 @@ sealed partial class Connect : Form {
         };
         settings.Controls.Add(startup);state.AutoSize=true;overview.Controls.Add(state);
         LoadVault();local.Remove("key");
+        var theme=new ComboBox{DropDownStyle=ComboBoxStyle.DropDownList,Width=210};
+        theme.Items.AddRange(new object[]{"Claro","Escuro","Seguir sistema"});
+        string savedTheme=Value(local,"theme");
+        theme.SelectedItem=theme.Items.Contains(savedTheme)?savedTheme:"Escuro";
+        ConnectTheme.Select(theme.Text);AddField(settings,"Tema",theme);
+        theme.SelectedIndexChanged+=delegate{
+            ConnectTheme.Select(theme.Text);ConnectTheme.Restyle(this);
+            try{local["theme"]=theme.Text;Save();}catch{Record("tema_nao_salvo");}
+        };
         InitUpdates(tabs);
         foreach(TabPage tab in tabs.TabPages) {
             if(tab==tabs.TabPages[0])continue;
@@ -140,6 +155,7 @@ sealed partial class Connect : Form {
         ConnectTheme.Apply(this,tabs);
         ConnectTheme.ApplyContent(tabs);
         Controls.Add(ConnectTheme.BuildShell(tabs,"NEOPEP"));
+        ConnectTheme.Restyle(this);
         ConnectTheme.Primary(login);
         tray.Icon=SystemIcons.Application;tray.Text=ConnectProfile.AppName;tray.Visible=true;
         var menu=new ContextMenuStrip();
@@ -150,13 +166,40 @@ sealed partial class Connect : Form {
             timer.Stop();tray.Dispose();
         };
         state.Text=!ConnectProfile.IsValid?"Configuração inválida. Instale uma versão oficial.":!ConnectProfile.ConnectEnabled?"Produção preparada • Connect ainda não habilitado.":String.IsNullOrEmpty(Value(local,"refresh_token"))?"Entre para registrar este computador.":"Aguardando estado do computador.";
-        timer.Interval=12000;timer.Tick+=async delegate {await Tick();};timer.Start();
+        timer.Interval=12000;timer.Tick+=async delegate {CheckCampaignReview();await Tick();};timer.Start();
         Shown+=async delegate {if(background)Hide();await Tick();await CheckUpdate(false);};
     }
 
-    void OpenWhatsApp(bool groups){
+    DateTime campaignDraftWrite;
+    DateTime? campaignReview;
+    void CheckCampaignReview(){
+        if(!ConnectProfile.ConnectEnabled)return;
+        try{
+            string path=Path.Combine(Folder,"whatsapp-message-draft.dat");
+            var file=new FileInfo(path);
+            if(!file.Exists||file.Length>2*1024*1024){campaignReview=null;campaignDraftWrite=DateTime.MinValue;return;}
+            if(file.LastWriteTimeUtc!=campaignDraftWrite){
+                campaignReview=null;
+                var clear=ProtectedData.Unprotect(File.ReadAllBytes(path),null,DataProtectionScope.CurrentUser);
+                var draft=json.Deserialize<Dictionary<string,object>>(Encoding.UTF8.GetString(clear));
+                DateTime due;
+                if(DateTime.TryParseExact(Value(draft,"due"),"o",System.Globalization.CultureInfo.InvariantCulture,System.Globalization.DateTimeStyles.RoundtripKind,out due))
+                    campaignReview=due.ToUniversalTime();
+                campaignDraftWrite=file.LastWriteTimeUtc;
+            }
+            if(!campaignReview.HasValue||campaignReview.Value>DateTime.UtcNow)return;
+            string key=campaignReview.Value.ToString("o");
+            if(Value(local,"campaign_review_notified")==key)return;
+            local["campaign_review_notified"]=key;Save();
+            tray.BalloonTipTitle="NeoPep Connect";
+            tray.BalloonTipText="Uma campanha está pronta para revisão. Abra Publicar para conferir.";
+            tray.ShowBalloonTip(5000);
+        }catch{}
+    }
+
+    void OpenWhatsApp(bool groups,bool composer=false){
         whatsappOpen=true;
-        try{using(var window=new WhatsApp(Folder,groups,SyncWhatsAppGroups,SetWhatsAppStatus,()=>SessionReady()&&deviceApproved))window.ShowDialog(this);}
+        try{using(var window=new WhatsApp(Folder,groups,SyncWhatsAppGroups,SetWhatsAppStatus,()=>SessionReady()&&deviceApproved,LoadCampaignSources,composer))window.ShowDialog(this);}
         finally{whatsappOpen=false;}
     }
 
@@ -177,11 +220,13 @@ sealed partial class Connect : Form {
     }
 
     static Panel Metric(string heading,Label figure,string detail){
-        var panel=new Panel{Width=194,Height=116,BackColor=ConnectTheme.Surface,
-            Padding=new Padding(14),Margin=new Padding(8)};
+        var panel=ConnectTheme.Card(194,116);
+        panel.Margin=new Padding(8);
+        panel.Padding=new Padding(12);
+
         var caption=new Label{Text=heading,Dock=DockStyle.Top,Height=25,
             ForeColor=ConnectTheme.Muted,Font=new Font("Segoe UI",9,FontStyle.Bold)};
-        figure.Dock=DockStyle.Top;figure.Height=36;figure.ForeColor=ConnectTheme.Accent;
+        figure.Tag="accent";figure.Dock=DockStyle.Top;figure.Height=36;figure.ForeColor=ConnectTheme.Accent;
         figure.Font=new Font("Segoe UI Semibold",14,FontStyle.Bold);
         var sub=new Label{Text=detail,Dock=DockStyle.Bottom,Height=24,
             ForeColor=ConnectTheme.Muted,Font=new Font("Segoe UI",8)};
@@ -227,7 +272,10 @@ sealed partial class Connect : Form {
             return request;
         }
     }
-    async Task<Dictionary<string,object>> Post(string route, object data, bool session) {
+    Task<Dictionary<string,object>> Post(string route,object data,bool session){
+        return PostJson<Dictionary<string,object>>(route,data,session);
+    }
+    async Task<T> PostJson<T>(string route, object data, bool session) {
         if(!ConnectProfile.ConnectEnabled||!ConnectProfile.IsValid)throw new InvalidOperationException();
         using(var client=route=="/functions/v1/connect-update"?new UpdateBrokerClient():new WebClient()) {
             client.Proxy=WebRequest.DefaultWebProxy;
@@ -235,8 +283,14 @@ sealed partial class Connect : Form {
             client.Headers["Content-Type"]="application/json";client.Headers["apikey"]=ConnectProfile.PublishableKey;
             if(session)client.Headers["Authorization"]="Bearer "+access;
             string result=await client.UploadStringTaskAsync(new Uri(Origin+route),"POST",json.Serialize(data));
-            return json.Deserialize<Dictionary<string,object>>(result);
+            return json.Deserialize<T>(result);
         }
+    }
+    async Task<Dictionary<string,object>[]> LoadCampaignSources(string kind,string search){
+        if(!SessionReady()||!deviceApproved)throw new InvalidOperationException();
+        var body=kind=="templates"?new {p_action="list",p_data=(object)new {offset=0}}:
+            new {p_action="catalog",p_data=(object)new {kind=kind,search=search}};
+        return await PostJson<Dictionary<string,object>[]>("/rest/v1/rpc/neo_campaign_admin",body,true);
     }
     async Task Tokens(string grant,object credentials,bool persist=true) {
         var result=await Post("/auth/v1/token?grant_type="+grant,credentials,false);
