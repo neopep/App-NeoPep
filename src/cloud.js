@@ -5,6 +5,7 @@ let client=null,user=null,profileRevision=null,listener=null,consents=[],isAdmin
 function authRedirect(){const current=new URL(location.href),target=new URL(config.authRedirectPath||'./',current);if(target.origin!==current.origin)throw Error('O retorno de autenticação deve permanecer neste site.');target.hash='';target.search='';return target;}
 const official=config.supabaseUrl==='https://cpslafpzjtbpmoxxysaa.supabase.co';
 const connectTestEnabled=config.connectTestEnabled===true&&!official;
+const connectEnabled=connectTestEnabled||(official&&config.connectEnabled===true);
 const campaignsEnabled=!official||config.campaignActivationEnabled===true;
 const configured=/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(config.supabaseUrl||'')&&C.isPublicSupabaseKey(config.supabasePublishableKey);
 const ok=r=>{if(r.error){const source=r.error,emailLimit=source.code==='over_email_send_rate_limit'||/email rate limit exceeded/i.test(source.message||'');const error=new Error(emailLimit?'O limite de envio de e-mails foi atingido. Aguarde antes de tentar novamente. Se o problema continuar, entre em contato com o responsável pelo aplicativo.':source.message||'Não foi possível acessar a nuvem.');error.code=source.code||null;error.status=source.status||null;throw error}return r.data};
@@ -26,7 +27,7 @@ const authStorage={
 };
 function chooseRemember(value){if(typeof value!=='boolean')return;const saved=rememberSession===value?null:AUTH_KEYS.map(key=>[key,authStorage.getItem(key)]);rememberSession=value;writeStore(browserStore('localStorage'),REMEMBER_KEY,String(value));if(saved){for(const [key] of saved)authStorage.removeItem(key);for(const [key,item] of saved)if(item!==null)authStorage.setItem(key,item)}}
 const clearAuthStorage=()=>AUTH_KEYS.forEach(key=>authStorage.removeItem(key));
-const api={configured,connectTestEnabled,
+const api={configured,connectTestEnabled:connectEnabled,
  async campaignImageURL(path){
   const result=ok(await need().storage.from('neo-campaign-images').createSignedUrl(path,120));
   return result.signedUrl;
@@ -59,12 +60,12 @@ const api={configured,connectTestEnabled,
    }
    return response.data;
   },
-  async connectUpdateAdmin(action,data={}){return ok(await need().rpc('neo_connect_update_admin',{p_action:action,p_data:data}));}
  } : {}),
- async connectWaConnections(){if(!connectTestEnabled)throw Error('Canal Windows indisponível.');return ok(await need().rpc('neo_connect_wa_list_connections'));},
- async connectWaGroups(connection,after=null){if(!connectTestEnabled)throw Error('Canal Windows indisponível.');return ok(await need().rpc('neo_connect_wa_list_groups',{p_connection:connection,p_after:after,p_limit:50}));},
- async connectAdmin(action,data={}){if(!connectTestEnabled)throw Error('Canal Windows indisponível.');return ok(await need().rpc('neo_connect_admin',{p_action:action,p_data:data}));},
- async connectReleaseURL(path){if(!connectTestEnabled)throw Error('Canal Windows indisponível.');return ok(await need().storage.from('neo-connect-releases').createSignedUrl(path,120,{download:'NeoPepConnectSetup.exe'})).signedUrl;},
+ async connectUpdateAdmin(action,data={}){if(!connectEnabled)throw Error('Canal Windows indisponível.');return ok(await need().rpc('neo_connect_update_admin',{p_action:action,p_data:data}));},
+ async connectWaConnections(){if(!connectEnabled)throw Error('Canal Windows indisponível.');return ok(await need().rpc('neo_connect_wa_list_connections'));},
+ async connectWaGroups(connection,after=null){if(!connectEnabled)throw Error('Canal Windows indisponível.');return ok(await need().rpc('neo_connect_wa_list_groups',{p_connection:connection,p_after:after,p_limit:50}));},
+ async connectAdmin(action,data={}){if(!connectEnabled)throw Error('Canal Windows indisponível.');return ok(await need().rpc('neo_connect_admin',{p_action:action,p_data:data}));},
+ async connectReleaseURL(path){if(!connectEnabled)throw Error('Canal Windows indisponível.');return ok(await need().storage.from('neo-connect-releases').createSignedUrl(path,120,{download:'NeoPepConnectSetup.exe'})).signedUrl;},
  async campaignWhatsApp(action,id=null,data={}){return ok(await need().rpc('neo_campaign_wa',{p_action:action,p_id:id,p_data:data}));},
  async campaignAdmin(action,id=null,data={}){if(action==='activate'&&!campaignsEnabled)throw Error('Ativação de campanhas indisponível.');return ok(await need().rpc('neo_campaign_admin',{p_action:action,p_id:id,p_data:data}));},
  async campaignPushPreference(enabled=null){if(!campaignsEnabled)return false;return ok(await need().rpc('neo_campaign_push_preference',{p_enabled:enabled}));},
