@@ -61,7 +61,7 @@ sealed partial class Connect : Form {
 
     Connect(bool background) {
         Directory.CreateDirectory(Folder);
-        Text=ConnectProfile.AppName; BackColor=Color.FromArgb(23,22,19); ForeColor=Color.Gainsboro;
+        Text=ConnectProfile.AppName; BackColor=ConnectTheme.Background; ForeColor=ConnectTheme.Text;
         Size=new Size(720,550); MinimumSize=new Size(500,430); Font=new Font("Segoe UI",10);
         AutoScaleMode=AutoScaleMode.Dpi;
         var tabs=new TabControl{Dock=DockStyle.Fill};
@@ -70,7 +70,7 @@ sealed partial class Connect : Form {
         var computer=Page(tabs,"Computador");
         var diagnostics=Page(tabs,"Diagnóstico");
         var settings=Page(tabs,"Configurações");
-        var title=new Label{Text="NeoPep Connect",ForeColor=Color.FromArgb(236,193,112),Font=new Font("Segoe UI",21),AutoSize=true};
+        var title=new Label{Text="NeoPep Connect",ForeColor=ConnectTheme.Accent,Font=new Font("Segoe UI Semibold",24,FontStyle.Bold),AutoSize=true};
         overview.Controls.Add(title);
         overview.Controls.Add(new Label{Text=ConnectProfile.EnvironmentName+" • versão "+Version+" • configuração automática",AutoSize=true});
         overview.Controls.Add(new Label{Text=ConnectProfile.ConnectEnabled?"Conexão NeoPep • provedor simulado":"Produção preparada • Connect ainda não habilitado no servidor",AutoSize=true});
@@ -129,6 +129,9 @@ sealed partial class Connect : Form {
             tab.Controls.Add(back);back.BringToFront();
         }
         Controls.Add(tabs);
+        ConnectTheme.Apply(this,tabs);
+        ConnectTheme.ApplyContent(tabs);
+        ConnectTheme.Primary(login);
         tray.Icon=SystemIcons.Application;tray.Text=ConnectProfile.AppName;tray.Visible=true;
         var menu=new ContextMenuStrip();
         menu.Items.Add("Abrir",null,delegate {Show();Activate();});menu.Items.Add("Sair",null,delegate {exiting=true;Close();});
@@ -165,7 +168,7 @@ sealed partial class Connect : Form {
     }
 
     static TableLayoutPanel Page(TabControl tabs,string title) {
-        var page=new TabPage(title){BackColor=Color.FromArgb(23,22,19),ForeColor=Color.Gainsboro};
+        var page=new TabPage(title){BackColor=ConnectTheme.Background,ForeColor=ConnectTheme.Text};
         var content=new TableLayoutPanel{Dock=DockStyle.Fill,Padding=new Padding(22),ColumnCount=1,AutoScroll=true};
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
         page.Controls.Add(content);tabs.TabPages.Add(page);return content;
@@ -175,7 +178,7 @@ sealed partial class Connect : Form {
         panel.Controls.Add(new Label{Text=text,AutoSize=true});control.Dock=DockStyle.Top;panel.Controls.Add(control);
     }
     static Button Button(string text) {
-        return new Button{Text=text,AutoSize=true,BackColor=Color.FromArgb(234,192,111),ForeColor=Color.FromArgb(30,24,15)};
+        return new Button{Text=text,AutoSize=true,BackColor=ConnectTheme.Raised,ForeColor=ConnectTheme.Text};
     }
     static string Value(Dictionary<string,object> row,string name) {
         object value; return row!=null&&row.TryGetValue(name,out value)&&value!=null?Convert.ToString(value):"";
