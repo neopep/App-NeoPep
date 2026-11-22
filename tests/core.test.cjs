@@ -82,3 +82,13 @@ test('convite de configuração aparece uma vez por dia até salvar horários',(
  assert.throws(()=>C.validateBackup({settings:{reminderSetupPromptDate:'2026-02-30'}}));
  assert.throws(()=>C.validateBackup({settings:{reminderScheduleConfigured:'true'}}));
 });
+
+test('peso usa duas casas em pt-BR e exportação CSV sem mudar o valor original',()=>{
+ const s=C.blank();
+ s.weights=[{id:'one',date:d,value:111.1}];
+ assert.equal(C.formatWeight(111.1),'111,10');
+ assert.equal(C.formatWeight(-1.8),'-1,80');
+ assert.equal(C.formatWeight(0),'0,00');
+ assert.match(C.exportCsv(s),/"111,10"/);
+ assert.equal(s.weights[0].value,111.1);
+});

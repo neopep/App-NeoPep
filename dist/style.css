@@ -459,3 +459,7 @@ legend>.campaign-field-help{display:inline-grid;grid-template-columns:auto;verti
 [data-campaign-more]{min-height:1px;}
 [data-wa-image] img{display:block;max-width:min(100%,20rem);max-height:18rem;object-fit:contain;}
 .admin-pdf .admin-pdf-view{overscroll-behavior:contain;}
+
+/* Mostra o mesmo enquadramento no cabeçalho e no perfil, inclusive em fotos retangulares antigas. */
+.avatar img{display:block;object-fit:contain;object-position:center}
+.avatar:has(img),.profile-head .avatar:has(img){border-radius:24%}
