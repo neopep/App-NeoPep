@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url';
 import {createBaileysProvider} from './whatsapp-provider.mjs';
 
 export function createBridge({emit,providerFactory=createBaileysProvider,renderQr}){
- let current,generation=0,qrVersion=0,state='desconectado',checking=false,closed=false;
+ let current,generation=0,qrVersion=0,state='desconectado',checking=false,sending=false,closed=false;
  const output=(type,value)=>{if(!closed)emit({type,value});};
  function update(next){state=next;++qrVersion;output('state',next);}
  return {
@@ -48,6 +48,25 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
       if(revision===generation&&state==='conectado')output('groups',rows.filter(row=>/^[0-9-]+@g\.us$/.test(row?.id))
        .map(row=>({id:row.id,name:String(row.name||'Sem nome').slice(0,120),members:Number.isSafeInteger(row.members)&&row.members>=0?row.members:null})));
      }finally{checking=false;}
+    }else if(message.action==='send_text'){
+     const requestId=typeof message.request_id==='string'&&/^[a-f0-9-]{36}$/i.test(message.request_id)?message.request_id:null;
+     if(!requestId)return;
+     if(sending||state!=='conectado'||!current){
+      output('send_result',{request_id:requestId,status:'rejected',reason:'Envio indisponível ou em andamento.'});return;
+     }
+     const jid=message.group_jid,text=message.text;
+     if(typeof jid!=='string'||!/^[0-9-]{1,64}@g\\.us$/.test(jid)
+       ||typeof text!=='string'||!text.trim()||text.length>2000){
+      output('send_result',{request_id:requestId,status:'rejected',reason:'Grupo ou texto inválido.'});return;
+     }
+     sending=true;const revision=generation,provider=current;
+     try{
+      const receipt=await provider.sendText(jid,text);
+      output('send_result',{request_id:requestId,status:revision===generation&&state==='conectado'?'accepted':'uncertain',
+       message_id:String(receipt?.messageId??'').slice(0,160)});
+     }catch{
+      output('send_result',{request_id:requestId,status:'uncertain',reason:'O envio não pôde ser confirmado. Confira no WhatsApp antes de tentar novamente.'});
+     }finally{sending=false;}
     }else if(message.action==='disconnect'){
      ++generation;const previous=current;current=null;update('desconectando');output('vault',null);
      const revoked=previous?await previous.forget():false;
