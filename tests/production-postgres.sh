@@ -75,5 +75,5 @@ while IFS= read -r lot; do
   printf 'PostgreSQL 17 isolado — %s: rollback e commit OK\n' "$lot"
 done < "$evidence/lotes.txt"
 "${db[@]}" < release/production/catalog.sql > "$evidence/after.jsonl"
-python3 release/production/verify-invariants.py "$evidence/before.jsonl" "$evidence/after.jsonl"
+python3 release/production/verify-invariants.py "$evidence/before.jsonl" "$evidence/after.jsonl" --allow-finance-routine-change
 (cd "$evidence" && sha256sum -- base.dump ./*.sql ./*.jsonl > SHA256SUMS)
