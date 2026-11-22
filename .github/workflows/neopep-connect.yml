@@ -21,7 +21,7 @@ jobs:
   windows:
     if: contains(fromJSON('["desenvolvimento/connect-windows-02","desenvolvimento/connect-whatsapp-grupos","desenvolvimento/connect-windows-campanhas-v026","desenvolvimento/connect-windows-026-integracao-staging"]'), github.event.pull_request.head.ref || github.ref_name)
     env:
-      CONNECT_TEST_VERSION: ${{ (github.event.pull_request.head.ref || github.ref_name) in ['desenvolvimento/connect-windows-campanhas-v026','desenvolvimento/connect-windows-026-integracao-staging'] && '0.2.6' || (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/connect-whatsapp-grupos' && '0.2.4' || '0.2.2' }}
+      CONNECT_TEST_VERSION: ${{ contains(fromJSON('["desenvolvimento/connect-windows-campanhas-v026","desenvolvimento/connect-windows-026-integracao-staging"]'), (github.event.pull_request.head.ref || github.ref_name)) && '0.2.6' || (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/connect-whatsapp-grupos' && '0.2.4' || '0.2.2' }}
     runs-on: windows-2022
     timeout-minutes: 15
     steps:
