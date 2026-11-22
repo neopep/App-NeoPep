@@ -4,7 +4,7 @@ const fs=require('node:fs');
 (async()=>{
  const db=new PGlite();
  try {
-  await db.exec(`create role anon; create role authenticated;
+  await db.exec(`create role anon; create role authenticated; create role service_role;
    create schema neo_private; create schema storage;
    create table storage.buckets(id text primary key,name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
    create table neo_private.example (id int primary key, data text default 'value');
