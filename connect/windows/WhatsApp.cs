@@ -14,6 +14,9 @@ sealed class WhatsApp : Form {
     static readonly Encoding Utf8=new UTF8Encoding(false);
     readonly string vault;
     readonly string runtime;
+    readonly string draftPath;
+    readonly string sendAuditPath;
+    string draftGroupId="";
     readonly TabControl tabs=new TabControl();
     readonly Label connection=new Label(),summary=new Label(),diagnostic=new Label();
     readonly PictureBox qr=new PictureBox();
@@ -50,6 +53,8 @@ sealed class WhatsApp : Form {
         FormClosed+=delegate{waHeartbeat.Dispose();};
         vault=Path.Combine(profile,"whatsapp-session.dat");
         runtime=Path.Combine(profile,ConnectVersion.Runtime);
+        draftPath=Path.Combine(profile,"whatsapp-message-draft.dat");
+        sendAuditPath=Path.Combine(profile,"whatsapp-send-audit.log");
         Text="NeoPep Connect • Campanhas WhatsApp"; Size=new Size(1024,700); MinimumSize=new Size(800,570); AutoScaleMode=AutoScaleMode.Dpi;
         BackColor=ConnectTheme.Background; ForeColor=ConnectTheme.Text; Font=new Font("Segoe UI",10);
         tabs.Dock=DockStyle.Fill;
@@ -99,6 +104,15 @@ sealed class WhatsApp : Form {
         targetGroup.SelectedIndexChanged+=delegate{UpdateComposer();};
         sendTextButton=Action("Revisar e publicar agora",delegate{void PublishManualText();});
         sendTextButton.Enabled=false;compose.Controls.Add(sendTextButton);
+        var draftActions=new FlowLayoutPanel{AutoSize=true,WrapContents=true};
+        draftActions.Controls.Add(Action("Salvar rascunho",SaveDraft));
+        draftActions.Controls.Add(Action("Reabrir rascunho",LoadDraft));
+        draftActions.Controls.Add(Action("Limpar editor",delegate{
+            if(MessageBox.Show("Limpar o texto não enviado?","Limpar editor",
+                MessageBoxButtons.YesNo,MessageBoxIcon.Question)!=DialogResult.Yes)return;
+            messageText.Clear();
+        }));
+        compose.Controls.Add(draftActions);
         Format(sendStatus);sendStatus.MaximumSize=new Size(470,0);
         sendStatus.Text="Conecte o WhatsApp e consulte os grupos para publicar.";
         compose.Controls.Add(sendStatus);
@@ -111,7 +125,7 @@ sealed class WhatsApp : Form {
         ConnectTheme.ApplyContent(tabs);
         ConnectTheme.Primary(pair);ConnectTheme.Primary(sendTextButton);ConnectTheme.Primary(sync);
         if(showGroups)tabs.SelectedTab=listing;
-        Shown+=delegate{if(File.Exists(vault))ConnectSession();};
+        Shown+=delegate{LoadDraft();if(File.Exists(vault))ConnectSession();};
         FormClosing+=delegate{if(ready)ReportStatus("disconnected");closing=true;StopBridge();ClearQr();};
     }
     FlowLayoutPanel Page(string name) {
@@ -168,10 +182,12 @@ sealed class WhatsApp : Form {
             targetGroup.Items.Add(new GroupChoice{Id=id,Name=TextValue(row,"name")});
         }
         if(targetGroup.Items.Count>0){
+            if(!String.IsNullOrEmpty(draftGroupId))previous=draftGroupId;
             int index=-1;
             for(int i=0;i<targetGroup.Items.Count;i++)
                 if(((GroupChoice)targetGroup.Items[i]).Id==previous){index=i;break;}
             targetGroup.SelectedIndex=index>=0?index:0;
+            if(index>=0)draftGroupId="";
         }
         UpdateComposer();
     }
@@ -180,6 +196,36 @@ sealed class WhatsApp : Form {
         targetGroup.Enabled=ready&&!sendingText&&targetGroup.Items.Count>0;
         sendTextButton.Enabled=ready&&!sendingText&&groupReadAt.HasValue&&
             targetGroup.SelectedItem is GroupChoice&&!String.IsNullOrWhiteSpace(messageText.Text);
+    }
+    void SaveDraft(){
+        try{
+            var choice=targetGroup.SelectedItem as GroupChoice;
+            var payload=json.Serialize(new {text=messageText.Text,group=choice==null?draftGroupId:choice.Id});
+            byte[] bytes=ProtectedData.Protect(Utf8.GetBytes(payload),null,DataProtectionScope.CurrentUser);
+            string temporary=draftPath+".new";
+            File.WriteAllBytes(temporary,bytes);
+            if(File.Exists(draftPath))File.Replace(temporary,draftPath,null);
+            else File.Move(temporary,draftPath);
+            sendStatus.Text="Rascunho salvo com proteção do usuário Windows.";
+        }catch{sendStatus.Text="Não foi possível salvar o rascunho neste computador.";}
+    }
+    void LoadDraft(){
+        if(!File.Exists(draftPath))return;
+        try{
+            var data=ProtectedData.Unprotect(File.ReadAllBytes(draftPath),null,DataProtectionScope.CurrentUser);
+            var draft=json.Deserialize<Dictionary<string,object>>(Utf8.GetString(data));
+            draftGroupId=TextValue(draft,"group");
+            messageText.Text=TextValue(draft,"text");
+            RefreshComposerGroups();
+            sendStatus.Text="Rascunho local restaurado.";
+        }catch{sendStatus.Text="Não foi possível restaurar o rascunho protegido.";}
+    }
+    void AuditSend(string outcome){
+        // Sem número, JID, conteúdo da mensagem ou identificador de destinatário.
+        try{
+            if(File.Exists(sendAuditPath)&&new FileInfo(sendAuditPath).Length>64000)File.Delete(sendAuditPath);
+            File.AppendAllText(sendAuditPath,DateTime.UtcNow.ToString("u")+" "+outcome+Environment.NewLine);
+        }catch{}
     }
     async Task PublishManualText(){
         if(!ready||sendingText||!groupReadAt.HasValue||pendingSend!=Guid.Empty)return;
@@ -199,6 +245,7 @@ sealed class WhatsApp : Form {
             pipe.WriteLine(json.Serialize(new {action="send_text",request_id=pendingSend.ToString(),
                 group_jid=choice.Id,text=text}));
         }catch{
+            AuditSend("uncertain");
             pendingSend=Guid.Empty;sendingText=false;UpdateComposer();
             sendStatus.Text="Conexão interrompida. Resultado incerto: confira o grupo antes de reenviar.";
         }
@@ -362,6 +409,7 @@ sealed class WhatsApp : Form {
                     }else{
                         sendStatus.Text="Resultado incerto. Confira no WhatsApp antes de tentar novamente. Não será reenviado automaticamente.";
                     }
+                    AuditSend(status=="accepted"?"accepted":status=="rejected"?"rejected":"uncertain");
                     sentRequests.Add(pendingSend.ToString());
                     pendingSend=Guid.Empty;sendingText=false;UpdateComposer();
                 }
@@ -373,6 +421,7 @@ sealed class WhatsApp : Form {
     void StopBridge(){
         ++generation;ready=false;forgetting=false;
         if(pendingSend!=Guid.Empty){
+            AuditSend("uncertain");
             sendStatus.Text="Conexão encerrada durante envio: resultado incerto. Consulte o grupo antes de tentar novamente.";
             pendingSend=Guid.Empty;sendingText=false;
         }
