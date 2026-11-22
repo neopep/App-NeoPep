@@ -92,7 +92,7 @@ jobs:
             $form.Dispose()
             Remove-Item -LiteralPath $profile -Recurse -Force
           }
-      - name: Verificar checksum, instalação, atualização de 0.1.1 e 0.1.2, perfis e remoção
+      - name: Verificar checksum, instalação, migração legada e remoção
         shell: powershell
         run: |
           $output = Join-Path $env:RUNNER_TEMP 'connect'
@@ -118,25 +118,36 @@ jobs:
           Add-Type -AssemblyName System.Security
           foreach ($baseline in @(
             @{version='0.1.1'; commit='4264a48c8503b4c2749b25ef25e5de4af67691c6'},
-            @{version='0.1.2'; commit='60016a98f6d8ef526a8ad2f04a27e0d57ec879c4'}
+            @{version='0.1.2'; commit='60016a98f6d8ef526a8ad2f04a27e0d57ec879c4'},
+            @{version='0.2.6'; commit='fa8429a22b0639f5ab9d48614cd6458ada29ceb0'}
           )) {
             $worktree = Join-Path $env:RUNNER_TEMP ('baseline-' + $baseline.version)
             git worktree add --detach $worktree $baseline.commit
             if ($LASTEXITCODE) { throw 'Linha de base ausente' }
             $baselineOutput = Join-Path $worktree 'output'
-            & (Join-Path $worktree 'connect/windows/build.ps1') -Output $baselineOutput
+            $baselineBuild = Join-Path $worktree 'connect/windows/build.ps1'
+            if ($baseline.version -eq '0.2.6') {
+              $modules = (Resolve-Path 'connect/whatsapp-lab/node_modules').Path
+              $target = Join-Path $worktree 'connect/whatsapp-lab/node_modules'
+              New-Item -ItemType Junction -Path $target -Target $modules | Out-Null
+              & $baselineBuild -Output $baselineOutput -Version '0.2.6'
+            } else { & $baselineBuild -Output $baselineOutput }
             Invoke-Setup (Join-Path $baselineOutput 'NeoPepConnectSetup.exe') '--quiet'
             $fixture = '{"device":"fixture-windows","account":"fixture-principal"}'
             $bytes = [Text.Encoding]::UTF8.GetBytes($fixture)
             [IO.File]::WriteAllBytes($vault,[Security.Cryptography.ProtectedData]::Protect($bytes,$null,'CurrentUser'))
             $previousHash = (Get-FileHash $vault).Hash
+            $waVault = Join-Path $folder 'whatsapp-session.dat'
+            [IO.File]::WriteAllBytes($waVault,[Security.Cryptography.ProtectedData]::Protect($bytes,$null,'CurrentUser'))
+            $previousWaHash = (Get-FileHash $waVault).Hash
             Invoke-Setup $setup '--quiet'
             if ((Get-FileHash $installed).Hash -ne (Get-FileHash $client).Hash) { throw 'Binario instalado diverge' }
             if ((Get-FileHash $vault).Hash -ne $previousHash) { throw "A atualizacao alterou o cofre $($baseline.version)" }
+            if ((Get-FileHash $waVault).Hash -ne $previousWaHash) { throw "A atualização alterou a sessão WhatsApp legada." }
             Write-Host ("Cofre preservado apos atualizar " + $baseline.version)
           }
           $productionVault = Join-Path $folder 'profiles\production\session.dat'
-          if (Test-Path $productionVault) { throw 'O instalador criou um cofre de produção na migração' }
+          if ((Test-Path $productionVault) -or (Test-Path (Join-Path $folder 'profiles\production\whatsapp-session.dat'))) { throw 'O instalador criou um cofre de produção na migração' }
           if (!(Test-Path (Join-Path $folder ("NeoPepUpdate-"+$env:CONNECT_TEST_VERSION+".exe")))) { throw 'Auxiliar ausente' }
           if ($manifest.updater_trust_configured) { throw 'A CI nao deve incorporar chaves de teste' }
           $runtime = Join-Path $folder ('whatsapp-runtime-'+$env:CONNECT_TEST_VERSION)
