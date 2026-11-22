@@ -50,8 +50,8 @@ sealed class WhatsApp : Form {
         FormClosed+=delegate{waHeartbeat.Dispose();};
         vault=Path.Combine(profile,"whatsapp-session.dat");
         runtime=Path.Combine(profile,ConnectVersion.Runtime);
-        Text="NeoPep Connect • WhatsApp experimental"; Size=new Size(620,600); MinimumSize=new Size(460,510); AutoScaleMode=AutoScaleMode.Dpi;
-        BackColor=Color.FromArgb(23,22,19); ForeColor=Color.Gainsboro; Font=new Font("Segoe UI",10);
+        Text="NeoPep Connect • Campanhas WhatsApp"; Size=new Size(1024,700); MinimumSize=new Size(800,570); AutoScaleMode=AutoScaleMode.Dpi;
+        BackColor=ConnectTheme.Background; ForeColor=ConnectTheme.Text; Font=new Font("Segoe UI",10);
         tabs.Dock=DockStyle.Fill;
         var status=Page("Estado");status.Controls.Add(LabelOf("Homologação. Use somente um número próprio de teste. O agente simulado funciona separadamente."));
         summary.Text="WhatsApp desconectado.";Format(summary);status.Controls.Add(summary);
@@ -61,10 +61,10 @@ sealed class WhatsApp : Form {
         var actions=new FlowLayoutPanel{AutoSize=true,Dock=DockStyle.Top};actions.Controls.Add(pair);actions.Controls.Add(disconnect);
         pairing.Controls.Add(actions);Format(connection);connection.Text="Desconectado.";pairing.Controls.Add(connection);Format(accountStatus);pairing.Controls.Add(accountStatus);
         qr.Size=new Size(270,270);qr.SizeMode=PictureBoxSizeMode.Zoom;qr.AccessibleName="QR Code temporário do WhatsApp";pairing.Controls.Add(qr);
-        var listing=new TabPage("Grupos"){BackColor=Color.FromArgb(23,22,19),ForeColor=Color.Gainsboro};tabs.TabPages.Add(listing);
-        groups.Dock=DockStyle.Fill;groups.BackColor=Color.FromArgb(36,33,27);groups.ForeColor=Color.Gainsboro;groups.View=View.Details;groups.FullRowSelect=true;
+        var listing=new TabPage("Grupos"){BackColor=ConnectTheme.Background,ForeColor=ConnectTheme.Text};tabs.TabPages.Add(listing);
+        groups.Dock=DockStyle.Fill;groups.BackColor=ConnectTheme.Surface;groups.ForeColor=ConnectTheme.Text;groups.View=View.Details;groups.FullRowSelect=true;
         groups.CheckBoxes=true;
-        groups.Columns.Add("Grupo",215);groups.Columns.Add("Participantes",96);groups.Columns.Add("Identificador",235);
+        groups.Columns.Add("Grupo",350);groups.Columns.Add("Participantes",130);groups.Columns.Add("Identificador",290);
         groups.ItemChecked+=delegate(object sender,ItemCheckedEventArgs args){
             if(drawingGroups||!ready)return;
             string id=(string)args.Item.Tag;
@@ -106,19 +106,23 @@ sealed class WhatsApp : Form {
         var diagnostics=Page("Diagnóstico");Format(diagnostic);
         diagnostic.Text="A conexão e o QR Code ficam neste computador. Os diagnósticos mostram apenas estados e erros genéricos.";diagnostics.Controls.Add(diagnostic);
         var back=Action("Voltar",Close);back.Dock=DockStyle.Bottom;
-        Controls.Add(tabs);Controls.Add(back);if(showGroups)tabs.SelectedTab=listing;
+        Controls.Add(tabs);Controls.Add(back);
+        ConnectTheme.Apply(this,tabs);
+        ConnectTheme.ApplyContent(tabs);
+        ConnectTheme.Primary(pair);ConnectTheme.Primary(sendTextButton);ConnectTheme.Primary(sync);
+        if(showGroups)tabs.SelectedTab=listing;
         Shown+=delegate{if(File.Exists(vault))ConnectSession();};
         FormClosing+=delegate{if(ready)ReportStatus("disconnected");closing=true;StopBridge();ClearQr();};
     }
     FlowLayoutPanel Page(string name) {
         var page=new TabPage(name){BackColor=Color.FromArgb(23,22,19),ForeColor=Color.Gainsboro};tabs.TabPages.Add(page);
-        var panel=new FlowLayoutPanel{Dock=DockStyle.Fill,FlowDirection=FlowDirection.TopDown,WrapContents=false,AutoScroll=true,Padding=new Padding(12)};
+        var panel=new FlowLayoutPanel{Dock=DockStyle.Fill,FlowDirection=FlowDirection.TopDown,WrapContents=false,AutoScroll=true,Padding=new Padding(22)};
         page.Controls.Add(panel);return panel;
     }
-    static void Format(Label value){value.AutoSize=true;value.MaximumSize=new Size(370,0);value.ForeColor=Color.FromArgb(245,232,207);}
+    static void Format(Label value){value.AutoSize=true;value.MaximumSize=new Size(370,0);value.ForeColor=ConnectTheme.Muted;}
     static Label LabelOf(string text){var label=new Label{Text=text};Format(label);return label;}
     static Button Action(string label,System.Action handler){
-        var button=new Button{Text=label,AutoSize=true,BackColor=Color.FromArgb(234,192,111),ForeColor=Color.FromArgb(30,24,15)};
+        var button=new Button{Text=label,AutoSize=true,BackColor=ConnectTheme.Raised,ForeColor=ConnectTheme.Text};
         button.Click+=delegate{handler();};return button;
     }
     void Notify(string text){
