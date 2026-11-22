@@ -83,7 +83,7 @@ export async function createBaileysProvider(
   async sendText(groupJid,text){
    const current=socket;
    if(!connected||!current)throw Error('WhatsApp desconectado.');
-   if(!/^[0-9-]{1,64}@g\\.us$/.test(groupJid))throw Error('Grupo inválido.');
+   if(!/^[0-9-]{1,64}@g\.us$/.test(groupJid))throw Error('Grupo inválido.');
    if(typeof text!=='string'||!text.trim()||text.length>2000)throw Error('Mensagem inválida.');
    const groups=await current.groupFetchAllParticipating();
    if(!connected||socket!==current)throw Error('A sessão mudou.');
