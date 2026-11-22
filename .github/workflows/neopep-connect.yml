@@ -22,6 +22,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '24.22.1'
@@ -60,6 +61,10 @@ jobs:
           if ((Get-FileHash $productionSetup).Hash.ToLowerInvariant() -ne $production.sha256 -or (Get-Item $productionSetup).Length -ne $production.bytes) { throw 'Integridade do perfil producao' }
           Write-Host ("EXE SHA-256 " + $manifest.sha256)
           Write-Host ("EXE bytes " + $manifest.bytes)
+          Write-Host ("EXE commit " + $manifest.commit)
+          Write-Host ("EXE run " + $manifest.run_id + "/" + $manifest.run_attempt)
+          Write-Host ("Internal production SHA-256 " + $production.sha256)
+          Write-Host ("Internal production bytes " + $production.bytes)
           function Invoke-Setup([string]$binary,[string]$arguments) {
             $execution = Start-Process $binary -ArgumentList $arguments -Wait -PassThru
             if ($execution.ExitCode -ne 0) { throw "Falha no instalador: $($execution.ExitCode)" }
