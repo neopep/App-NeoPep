@@ -80,7 +80,7 @@ sealed class WhatsApp : Form {
         var back=Action("Voltar",Close);back.Dock=DockStyle.Bottom;
         Controls.Add(tabs);Controls.Add(back);if(showGroups)tabs.SelectedTab=listing;
         Shown+=delegate{if(File.Exists(vault))ConnectSession();};
-        FormClosing+=delegate{if(ready)_=ReportStatus("disconnected");closing=true;StopBridge();ClearQr();};
+        FormClosing+=delegate{if(ready)ReportStatus("disconnected");closing=true;StopBridge();ClearQr();};
     }
     FlowLayoutPanel Page(string name) {
         var page=new TabPage(name){BackColor=Color.FromArgb(23,22,19),ForeColor=Color.Gainsboro};tabs.TabPages.Add(page);
@@ -215,7 +215,7 @@ sealed class WhatsApp : Form {
     }
     void Disconnect(){
         if(!ConnectProfile.ConnectEnabled||forgetting)return;
-        _=ReportStatus("revoked");
+        ReportStatus("revoked");
         forgetting=true;ready=false;ClearQr();ClearGroups();
         try{
             WriteVault(null);
@@ -230,7 +230,7 @@ sealed class WhatsApp : Form {
             var message=json.Deserialize<Dictionary<string,object>>(line);
             string type=TextValue(message,"type"),value=TextValue(message,"value");
             if(type=="vault"){
-                if(message["value"]==null){if(!forgetting)_=ReportStatus("revoked");WriteVault(null);}
+                if(message["value"]==null){if(!forgetting)ReportStatus("revoked");WriteVault(null);}
                 else if(!forgetting)WriteVault(value);
             }else if(type=="state"){
                 ready=value=="conectado";
@@ -242,7 +242,7 @@ sealed class WhatsApp : Form {
                 switch(value){
                     case "conectando": Notify("Conectando…");break;
                     case "aguardando_qr": Notify("Escaneie o QR Code no telefone de teste.");break;
-                    case "conectado": Notify("WhatsApp conectado. Consulte os grupos na aba Grupos.");RefreshGroups();_=ReportStatus("connected");break;
+                    case "conectado": Notify("WhatsApp conectado. Consulte os grupos na aba Grupos.");RefreshGroups();ReportStatus("connected");break;
                     case "reconectando": Notify("Rede interrompida. Reconectando…");break;
                     case "desconectando": break;
                     case "desconectado": StopBridge();Notify("Sessão desconectada e removida.");break;
