@@ -123,3 +123,65 @@ test('Atualizações fica indisponível sem acesso à RPC administrativa',async(
  assert.equal(restricted.querySelector('[data-connect-form="update_register"]'),null);
  assert.match(restricted.querySelector('[data-connect-updates]').textContent,/indisponível/);
 });
+
+test('Atualizações exige política do servidor e confirmação para aprovar e bloquear',async()=>{
+ const {document,window,scope}=load('dist/admin/connect-navigation.js','<div id="connect"></div>');
+ const root=document.querySelector('#connect');
+ scope.esc=String;
+ scope.FormData=class{*[Symbol.iterator](){}};
+ let confirmed=false;
+ const confirmations=[];
+ scope.confirm=message=>{confirmations.push(message);return confirmed;};
+ vm.runInNewContext(fs.readFileSync('dist/admin/admin-connect.js','utf8'),scope);
+ const release={version:'0.2.3',distribution_state:'draft',artifact:'ensaio-0.2.3-9224ae0aa963',
+  bytes:50072576,sha256:'a'.repeat(64),approved_at:'2020-01-01T12:00:00Z'};
+ let policy;
+ const calls=[],audit=[];
+ const cloud={
+  connectAdmin:async()=>({releases:[{...release}],accounts:[],devices:[],sessions:[],groups:[],tasks:[],audit:[]}),
+  campaignWhatsApp:async()=>[],
+  async connectUpdateAdmin(action,data){
+   if(action==='list')return {approval_policy:policy,releases:[{...release}],audit};
+   calls.push([action,{...data}]);
+   release.distribution_state=action==='approve'?'approved':'blocked';
+   audit.push({event:'update_'+action,release_version:release.version,release_result:'ok',actor_id:'admin'});
+   return {ok:true};
+  }
+ };
+ const panel=scope.mountNeoConnect(root,cloud);
+ await panel.load();
+ const section=()=>root.querySelector('[data-connect-updates]');
+ const approve=()=>section().querySelector('[data-connect-form="update_approve"]');
+ const submit=()=>approve().dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));
+ assert.match(section().textContent,/Rascunho/);
+ assert.match(section().textContent,/Aprovação —/);
+ assert.ok(approve().querySelector('button').hasAttribute('disabled'));
+ submit();
+ assert.equal(confirmations.length,0);
+ policy=1;
+ await panel.load();
+ assert.equal(approve().querySelector('input').hasAttribute('checked'),false);
+ submit();
+ assert.match(confirmations[0],/opcional/);
+ assert.deepEqual(calls,[]);
+ confirmed=true;
+ submit();
+ submit();
+ await new Promise(setImmediate);
+ assert.deepEqual(calls,[['approve',{version:'0.2.3',required:false}]]);
+ assert.match(section().textContent,/Aprovada/);
+ const block=()=>section().querySelector('[data-connect="update_block"]');
+ confirmed=false;
+ click(window,block());
+ assert.equal(calls.length,1);
+ confirmed=true;
+ click(window,block());
+ click(window,block());
+ await new Promise(setImmediate);
+ assert.deepEqual(calls[1],['block',{version:'0.2.3'}]);
+ assert.equal(calls.length,2);
+ assert.match(section().textContent,/Bloqueada/);
+ assert.match(section().textContent,/Bloqueio de atualização · Versão 0\.2\.3 · Concluída · Administrador admin/);
+ assert.equal(block(),null);
+ assert.equal(root.querySelector('[data-connect="download"][data-version="0.2.3"]'),null);
+});
