@@ -100,21 +100,30 @@
   dialog.querySelector('[data-pdf=close]').addEventListener('click',()=>dialog.close());
   view.addEventListener('scroll',moved,{passive:true});
   view.addEventListener('touchstart',event=>{
+   if(event.touches.length<2)return;
+   event.preventDefault();
    if(event.touches.length!==2)return;
    const center=point(event);if(!center.gap)return;
-   event.preventDefault();
+   cancelAnimationFrame(zoomFrame);visualZoom();
    cancelAnimationFrame(frame);frame=null;
    for(const slot of slots)if(slot.job){slot.revision++;slot.job.cancel();slot.job=null;}
    pinch={gap:center.gap,zoom,last:center};
   },{passive:false});
   view.addEventListener('touchmove',event=>{
-   if(!pinch||event.touches.length!==2)return;
-   event.preventDefault();pending=point(event);
+   if(!pinch)return;
+   event.preventDefault();
+   if(event.touches.length!==2)return;
+   pending=point(event);
    if(!zoomFrame)zoomFrame=requestAnimationFrame(visualZoom);
   },{passive:false});
   for(const name of ['touchend','touchcancel'])view.addEventListener(name,event=>{
-   if(!pinch||(name==='touchend'&&event.touches.length===2))return;
-   cancelAnimationFrame(zoomFrame);visualZoom();pinch=null;moved();
+   if(!pinch)return;
+   cancelAnimationFrame(zoomFrame);visualZoom();
+   if(name==='touchend'&&event.touches.length===2){
+    const center=point(event);
+    if(center.gap){pinch={gap:center.gap,zoom,last:center};return;}
+   }
+   pinch=null;moved();
   });
   view.addEventListener('keydown',event=>{
    if(!['+','=','-','0'].includes(event.key)||event.ctrlKey||event.metaKey||event.altKey)return;

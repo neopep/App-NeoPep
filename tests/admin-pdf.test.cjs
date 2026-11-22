@@ -75,13 +75,19 @@ test('leitor contínuo carrega páginas próximas, amplia com pinça e restaura 
  assert.ok(renders.some(([page])=>page===5));
  assert.equal(Boolean(dialog.querySelector('.admin-pdf-page').querySelector('canvas')),false);
  assert.match(dialog.querySelector('.admin-pdf-accessible').textContent,/Página 1/);
- const pinch=(type,x)=>{
+ const pinch=(type,x,touches)=>{
   const event=new Event(type,{cancelable:true});
-  Object.defineProperty(event,'touches',{value:type==='touchend'?[]:[{clientX:0,clientY:0},{clientX:x,clientY:0}]});
+  Object.defineProperty(event,'touches',{value:touches??(type==='touchend'?[]:[{clientX:0,clientY:0},{clientX:x,clientY:0}])});
   view.dispatchEvent(event);
  };
  pinch('touchstart',100);pinch('touchmove',150);
  await new Promise(resolve=>setTimeout(resolve,100));
+ assert.equal(dialog.querySelector('[data-pdf-pages]').style.width,'480px');
+ assert.equal(renders.at(-1)[1],320);
+ const replacement=[{clientX:20,clientY:20},{clientX:220,clientY:20}];
+ pinch('touchend',0,replacement);
+ pinch('touchmove',0,replacement);
+ await new Promise(resolve=>setTimeout(resolve,30));
  assert.equal(dialog.querySelector('[data-pdf-pages]').style.width,'480px');
  assert.equal(renders.at(-1)[1],320);
  pinch('touchend',150);
