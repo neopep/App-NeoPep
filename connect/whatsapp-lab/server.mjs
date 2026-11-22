@@ -67,13 +67,14 @@ export async function createLab({providerFactory=createBaileysProvider,qrRendere
    send(res,403,{error:'origem_invalida'});return;
   }
   if(target.pathname==='/api/connect'){
-   if(starting||state.connection==='conectado'){
+   if(starting||['conectando','aguardando_qr','conectado'].includes(state.connection)){
     send(res,409,{error:'conexao_ja_iniciada'});return;
    }
    starting=true;update({connection:'conectando',qr:null,error:null});
    send(res,202,{started:true});
    void (async()=>{
     try{
+     if(provider){await provider.close?.();provider=null;}
      const candidate=await providerFactory({
       onQr:async raw=>{
        const render=qrRenderer||async qr=>{
@@ -81,7 +82,7 @@ export async function createLab({providerFactory=createBaileysProvider,qrRendere
         return qrcode.toDataURL(qr,{width:260,margin:2,errorCorrectionLevel:'M'});
        };
        const picture=await render(raw);
-       if(!closed)update({connection:'aguardando_qr',qr:picture,error:null});
+       if(!closed&&state.connection!=='conectado'&&state.connection!=='desconectado')update({connection:'aguardando_qr',qr:picture,error:null});
       },
       onState:next=>{
        if(closed)return;
@@ -112,7 +113,7 @@ export async function createLab({providerFactory=createBaileysProvider,qrRendere
    return;
   }
   if(target.pathname==='/api/forget'){
-   if(busy){send(res,409,{error:'ocupado'});return;}
+   if(busy||starting){send(res,409,{error:'ocupado'});return;}
    busy=true;
    try{
     await provider?.forget();
