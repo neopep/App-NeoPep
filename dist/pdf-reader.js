@@ -1,7 +1,7 @@
 /* Leitor contínuo de PDFs para a Biblioteca e o painel administrativo. */
 'use strict';
 (() => {
- const base=new URL('./',document.currentScript?.src||document.baseURI);
+ const base=new URL('./',document.currentScript?.src||document.baseURI||location.href);
  const asset=path=>new URL(path,base).href;
  let library,active;
  function pdfLibrary(){

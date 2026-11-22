@@ -591,7 +591,7 @@ test('formulário de fotos usa consentimento específico da conta atual e exige 
  assert.ok(field().hasAttribute('checked'));
  granted=false;
  const consent=field();consent.checked=true;
- const form={elements:{namedItem:()=>consent}};
+ const form={dataset:{photoOwner:'a'},elements:{namedItem:()=>consent}};
  const authorize=run('authorizePhotoUpload');
  await assert.rejects(authorize(form),/mudou/);
  assert.equal(consent.checked,false);
@@ -600,6 +600,7 @@ test('formulário de fotos usa consentimento específico da conta atual e exige 
  await authorize(form);
  assert.equal(changed,1);
  cloud.user={id:'b'};
+ await assert.rejects(authorize(form),/conta mudou/);
  run("openRecord('avatar')");
  assert.equal(field().hasAttribute('checked'),false);
  cloud.user=null;granted=true;
