@@ -8,7 +8,7 @@ using System.Windows.Forms;
 using Microsoft.Win32;
 
 static class Installer {
-    const string Runtime="whatsapp-runtime-0.2.1";
+    const string Runtime="whatsapp-runtime-0.2.2";
     const string Name=ConnectProfile.InstallerName;
     static readonly string Folder=ConnectProfile.LocalFolder;
     static readonly string Uninstall=ConnectProfile.UninstallRegistryPath;
@@ -30,12 +30,21 @@ static class Installer {
                 if(Directory.Exists(runtime))Directory.Delete(runtime,true);
                 string legacy=Path.Combine(Folder,"whatsapp-runtime-0.2.0");
                 if(Directory.Exists(legacy))Directory.Delete(legacy,true);
+                if(Directory.Exists(Folder))foreach(string helper in Directory.GetFiles(Folder,"NeoPepUpdate-*.exe"))File.Delete(helper);
+                string updates=Path.Combine(Folder,"updates");
+                if(Directory.Exists(updates))Directory.Delete(updates,true);
                 Registry.CurrentUser.DeleteSubKeyTree(Uninstall,false);
                 File.Delete(Shortcut());
                 return 0;
             }
             Directory.CreateDirectory(Folder);
-            if(ConnectProfile.ConnectEnabled)InstallRuntime();
+            if(ConnectProfile.ConnectEnabled){
+                InstallRuntime();
+                string helper=Path.Combine(Folder,"NeoPepUpdate-0.2.2.exe"),temporary=helper+".new";
+                using(Stream source=Assembly.GetExecutingAssembly().GetManifestResourceStream("NeoPepUpdate.exe"))
+                using(var output=File.Create(temporary))source.CopyTo(output);
+                if(File.Exists(helper))File.Replace(temporary,helper,null);else File.Move(temporary,helper);
+            }
             string binary=Path.Combine(Folder,"NeoPepConnect.exe"),pending=binary+".new";
             using(Stream source=Assembly.GetExecutingAssembly().GetManifestResourceStream("NeoPepConnect.exe"))
             using(var destination=File.Create(pending)){source.CopyTo(destination);}
@@ -44,7 +53,7 @@ static class Installer {
             string sourcePath=Assembly.GetExecutingAssembly().Location;
             if(!String.Equals(sourcePath,installed,StringComparison.OrdinalIgnoreCase))File.Copy(sourcePath,installed,true);
             using(var item=Registry.CurrentUser.CreateSubKey(Uninstall)){
-                item.SetValue("DisplayName",Name);item.SetValue("DisplayVersion","0.2.1");item.SetValue("Publisher","NeoPep");
+                item.SetValue("DisplayName",Name);item.SetValue("DisplayVersion","0.2.2");item.SetValue("Publisher","NeoPep");
                 item.SetValue("UninstallString","\""+installed+"\" --uninstall");
             }
             Type shell=Type.GetTypeFromProgID("WScript.Shell");

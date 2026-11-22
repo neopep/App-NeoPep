@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using Microsoft.Win32;
+[assembly: System.Reflection.AssemblyFileVersion("0.2.2.0")]
 
 interface ICampaignProvider {
     string Identity { get; set; }
@@ -29,8 +30,8 @@ sealed class SimulatedProvider : ICampaignProvider {
     }
 }
 
-sealed class Connect : Form {
-    const string Version = "0.2.1";
+sealed partial class Connect : Form {
+    const string Version = "0.2.2";
     static readonly string Origin = ConnectProfile.SupabaseUrl;
     static readonly string Folder = ConnectProfile.LocalFolder;
     readonly string vault = Path.Combine(Folder, "session.dat");
@@ -94,8 +95,8 @@ sealed class Connect : Form {
         groupsPage.Controls.Add(new Label{Text="Consulte apenas o nome e a contagem dos grupos da conta conectada.",AutoSize=true});
         var pairing=Button("Abrir conexão WhatsApp");var groupList=Button("Abrir consulta de grupos");
         pairing.Enabled=groupList.Enabled=ConnectProfile.ConnectEnabled&&ConnectProfile.IsValid;
-        pairing.Click+=delegate {using(var window=new WhatsApp(Folder))window.ShowDialog(this);};
-        groupList.Click+=delegate {using(var window=new WhatsApp(Folder,true))window.ShowDialog(this);};
+        pairing.Click+=delegate {OpenWhatsApp(false);};
+        groupList.Click+=delegate {OpenWhatsApp(true);};
         whatsAppPage.Controls.Add(pairing);groupsPage.Controls.Add(groupList);
         login.Enabled=ConnectProfile.ConnectEnabled && ConnectProfile.IsValid;
         var loginFeedback=new Label{AutoSize=true,MaximumSize=new Size(420,0)};
@@ -121,6 +122,8 @@ sealed class Connect : Form {
             }
         };
         settings.Controls.Add(startup);state.AutoSize=true;overview.Controls.Add(state);
+        LoadVault();local.Remove("key");
+        InitUpdates(tabs);
         foreach(TabPage tab in tabs.TabPages) {
             if(tab==tabs.TabPages[0])continue;
             var back=Button("Voltar");back.Dock=DockStyle.Bottom;back.Click+=delegate{tabs.SelectedIndex=0;};
@@ -135,10 +138,15 @@ sealed class Connect : Form {
             if(!exiting&&e.CloseReason==CloseReason.UserClosing){e.Cancel=true;Hide();return;}
             timer.Stop();tray.Dispose();
         };
-        LoadVault();local.Remove("key");
         state.Text=!ConnectProfile.IsValid?"Configuração inválida. Instale uma versão oficial.":!ConnectProfile.ConnectEnabled?"Produção preparada • Connect ainda não habilitado.":String.IsNullOrEmpty(Value(local,"refresh_token"))?"Entre para registrar este computador.":"Aguardando estado do computador.";
         timer.Interval=12000;timer.Tick+=async delegate {await Tick();};timer.Start();
-        Shown+=async delegate {if(background)Hide();await Tick();};
+        Shown+=async delegate {if(background)Hide();await Tick();await CheckUpdate(false);};
+    }
+
+    void OpenWhatsApp(bool groups){
+        whatsappOpen=true;
+        try{using(var window=new WhatsApp(Folder,groups))window.ShowDialog(this);}
+        finally{whatsappOpen=false;}
     }
 
     static TableLayoutPanel Page(TabControl tabs,string title) {

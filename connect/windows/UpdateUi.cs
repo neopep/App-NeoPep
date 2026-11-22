@@ -1,0 +1,130 @@
+using System;
+using System.Diagnostics;
+using System.Drawing;
+using System.IO;
+using System.Net;
+using System.Text;
+using System.Security.Cryptography;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+sealed partial class Connect {
+    readonly Timer updateTimer=new Timer();
+    Label updateStatus,updateDetails;
+    ProgressBar updateProgress;
+    Button updateInstall;
+    bool checkingUpdate,whatsappOpen;
+    UpdateManifest offer;
+    string notificationVersion;
+
+    void InitUpdates(TabControl tabs){
+        var page=Page(tabs,"Atualizações");
+        updateStatus=new Label{Text="Versão instalada "+Version,AutoSize=true,MaximumSize=new Size(500,0)};
+        updateDetails=new Label{AutoSize=true,MaximumSize=new Size(500,0)};
+        updateProgress=new ProgressBar{Dock=DockStyle.Top,Maximum=100};
+        var check=Button("Verificar atualizações");var defer=Button("Adiar");
+        updateInstall=Button("Atualizar agora");updateInstall.Enabled=false;
+        var enabled=new CheckBox{Text="Notificar automaticamente",AutoSize=true,Checked=Value(local,"updates_notify")!="False"};
+        int minutes; if(!Int32.TryParse(Value(local,"updates_minutes"),out minutes)||minutes<15||minutes>1440)minutes=60;
+        var interval=new NumericUpDown{Minimum=15,Maximum=1440,Value=minutes};
+        page.Controls.Add(updateStatus);page.Controls.Add(updateDetails);page.Controls.Add(updateProgress);
+        page.Controls.Add(check);page.Controls.Add(updateInstall);page.Controls.Add(defer);
+        page.Controls.Add(enabled);AddField(page,"Intervalo de verificação em minutos",interval);
+        check.Click+=async delegate {await CheckUpdate(true);};
+        updateInstall.Click+=async delegate {await InstallUpdate();};
+        defer.Click+=delegate {
+            if(offer!=null){local["updates_deferred"]=offer.Version;Save();updateStatus.Text="Atualização adiada. Você pode verificar novamente quando desejar.";}
+        };
+        enabled.CheckedChanged+=delegate {local["updates_notify"]=enabled.Checked;Save();};
+        interval.ValueChanged+=delegate {local["updates_minutes"]=(int)interval.Value;Save();updateTimer.Interval=(int)interval.Value*60000;};
+        updateTimer.Interval=minutes*60000;updateTimer.Tick+=async delegate {await CheckUpdate(false);};
+        if(ConnectProfile.ConnectEnabled){updateTimer.Start();Shown+=async delegate {await CheckUpdate(false);};}
+        else{check.Enabled=false;updateStatus.Text="Atualizações indisponíveis no perfil Produção.";}
+        FormClosed+=delegate {updateTimer.Dispose();};
+    }
+    async Task<UpdateManifest> FetchUpdate(string action,string version=null){
+        var response=await Post("/functions/v1/connect-update",new {action=action,device=Value(local,"device"),secret=Value(local,"secret"),version=version},true);
+        return UpdateManifest.Parse(json.Serialize(response));
+    }
+    bool SessionReady(){return ConnectProfile.ConnectEnabled&&ConnectProfile.IsValid&&!String.IsNullOrEmpty(access)&&DateTime.UtcNow<expires
+        &&!String.IsNullOrEmpty(Value(local,"device"))&&!String.IsNullOrEmpty(Value(local,"secret"));}
+    async Task CheckUpdate(bool manual){
+        if(checkingUpdate||exiting)return;
+        if(!SessionReady()){
+            if(manual)updateStatus.Text="Entre com uma conta e aguarde a autorização do computador.";
+            return;
+        }
+        checkingUpdate=true;
+        try{
+            offer=await FetchUpdate("check");
+            updateInstall.Enabled=UpdateTrust.Verify(offer,Version,ConnectProfile.EnvironmentCode,UpdateTrust.PublisherKey());
+            updateStatus.Text="Instalada "+Version+" • verificação "+DateTime.Now.ToString("g");
+            updateDetails.Text=updateInstall.Enabled?("Disponível "+offer.Version+(offer.Required?" • obrigatória":"")+"\n"+offer.Notes)
+                :offer==null?"Nenhuma versão aprovada em distribuição.":"Nenhuma versão mais recente com assinatura confiável.";
+            if(updateInstall.Enabled&&!manual&&Value(local,"updates_notify")!="False"&&notificationVersion!=offer.Version&&Value(local,"updates_deferred")!=offer.Version){
+                notificationVersion=offer.Version;tray.BalloonTipTitle="NeoPep Connect";
+                tray.BalloonTipText="Uma atualização está disponível na aba Atualizações.";tray.ShowBalloonTip(5000);
+            }
+            await ReportUpdate();
+        }catch{updateInstall.Enabled=false;updateDetails.Text="Verificação indisponível. O programa pode continuar em uso.";}
+        finally{checkingUpdate=false;}
+    }
+    async Task ReportUpdate(){
+        string receipt=Path.Combine(Folder,"update-result.txt");
+        if(!File.Exists(receipt)||new FileInfo(receipt).Length>1000)return;
+        var result=File.ReadAllLines(receipt);
+        if(result.Length!=2||!Regex.IsMatch(result[0],@"^[0-9]{1,8}\.[0-9]{1,8}\.[0-9]{1,8}$")
+         ||Array.IndexOf(new[]{"installed","failed","rollback"},result[1])<0)return;
+        await Post("/functions/v1/connect-update",new {action="report",device=Value(local,"device"),secret=Value(local,"secret"),version=result[0],outcome=result[1]},true);
+        updateDetails.Text+="\nResultado anterior: "+(result[1]=="installed"?"instalada":result[1]=="rollback"?"versão anterior restaurada":"falha na instalação");
+        File.Delete(receipt);
+    }
+    async Task InstallUpdate(){
+        if(checkingUpdate||exiting||!SessionReady()||offer==null)return;
+        if(busy||whatsappOpen){updateDetails.Text="Aguarde o fim da operação ou feche a janela WhatsApp antes de atualizar.";return;}
+        if(MessageBox.Show("Baixar e instalar a atualização aprovada? O NeoPep Connect será reiniciado.",
+            "Atualizações",MessageBoxButtons.YesNo,MessageBoxIcon.Question)!=DialogResult.Yes)return;
+        checkingUpdate=true;updateInstall.Enabled=false;
+        var token=Guid.NewGuid().ToString("N");
+        string work=Path.Combine(UpdateTrust.Cache(),token),setup=Path.Combine(work,UpdateTrust.FileName);
+        bool handedOff=false;
+        try{
+            var selected=await FetchUpdate("download",offer.Version);
+            if(!UpdateTrust.Verify(selected,Version,ConnectProfile.EnvironmentCode,UpdateTrust.PublisherKey())||selected.Canonical()!=offer.Canonical())throw new IOException();
+            Uri url;
+            if(!Uri.TryCreate(selected.Url,UriKind.Absolute,out url)||!UpdateTrust.TrustedDownload(url))throw new IOException();
+            Directory.CreateDirectory(work);
+            updateDetails.Text="Baixando instalador…";updateProgress.Value=0;
+            var request=(HttpWebRequest)WebRequest.Create(url);request.AllowAutoRedirect=false;request.Timeout=90000;request.ReadWriteTimeout=15000;
+            using(var deadline=new System.Threading.Timer(_=>request.Abort(),null,TimeSpan.FromMinutes(3),System.Threading.Timeout.InfiniteTimeSpan))
+            using(var response=(HttpWebResponse)await request.GetResponseAsync())
+            using(var source=response.GetResponseStream())
+            using(var output=new FileStream(setup,FileMode.CreateNew,FileAccess.ReadWrite,FileShare.None)){
+                if(response.StatusCode!=HttpStatusCode.OK||(response.ContentLength>=0&&response.ContentLength!=selected.Bytes))throw new IOException();
+                var buffer=new byte[65536];long size=0;int count;
+                while((count=await source.ReadAsync(buffer,0,buffer.Length))!=0){
+                    size+=count;if(size>selected.Bytes)throw new IOException();
+                    await output.WriteAsync(buffer,0,count);updateProgress.Value=(int)(100*size/selected.Bytes);
+                }
+                output.Position=0;if(!UpdateTrust.Matches(output,selected))throw new IOException();
+            }
+            // Recheck the distribution before handing control to the helper.
+            var current=await FetchUpdate("download",selected.Version);
+            if(!UpdateTrust.Verify(current,Version,ConnectProfile.EnvironmentCode,UpdateTrust.PublisherKey())||current.Canonical()!=selected.Canonical())throw new IOException();
+            if(busy||whatsappOpen||exiting){updateDetails.Text="Ainda há uma operação em andamento. Tente novamente quando terminar.";return;}
+            var claims=new {version=current.Version,profile=current.Profile,channel=current.Channel,bytes=current.Bytes,sha256=current.Sha256,artifact=current.Artifact,signature=current.Signature};
+            var ticket=new {manifest=json.Serialize(claims),token=access,device=Value(local,"device"),secret=Value(local,"secret")};
+            File.WriteAllBytes(Path.Combine(work,"ticket.dat"),ProtectedData.Protect(
+                Encoding.UTF8.GetBytes(json.Serialize(ticket)),null,DataProtectionScope.CurrentUser));
+            string helper=Path.Combine(Folder,"NeoPepUpdate-"+Version+".exe");
+            using(var process=Process.Start(new ProcessStartInfo(helper,token){UseShellExecute=false,CreateNoWindow=true})){
+                if(process==null)throw new IOException();
+            }
+            handedOff=true;exiting=true;updateTimer.Stop();timer.Stop();Close();
+        }catch{updateDetails.Text="Instalação interrompida. A versão atual continua disponível.";}
+        finally {
+            if(!handedOff){try{Directory.Delete(work,true);}catch{}checkingUpdate=false;updateInstall.Enabled=true;}
+        }
+    }
+}

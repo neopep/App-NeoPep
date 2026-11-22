@@ -37,6 +37,15 @@ jobs:
           if ($LASTEXITCODE) { throw 'Auditoria npm falhou' }
           npm test
           if ($LASTEXITCODE) { throw 'Testes do bridge falharam' }
+      - name: Testar autenticidade e rejeição de pacote alterado
+        shell: powershell
+        run: |
+          $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+          $test = Join-Path $env:RUNNER_TEMP 'UpdateTrustTest.exe'
+          & $compiler /nologo /platform:x64 "/out:$test" /r:System.Web.Extensions.dll connect/windows/ConnectProfile.cs connect/windows/UpdateTrust.cs connect/windows/UpdateTrustTest.cs
+          if ($LASTEXITCODE) { throw 'Falha ao compilar teste do atualizador' }
+          & $test
+          if ($LASTEXITCODE) { throw 'Falha na verificacao de autenticidade' }
       - name: Compilar aplicativo e instalador x64
         shell: powershell
         run: ./connect/windows/build.ps1 -Perfil Teste -Output "$env:RUNNER_TEMP\connect"
@@ -94,11 +103,13 @@ jobs:
             Write-Host ("Cofre preservado apos atualizar " + $baseline.version)
           }
           Invoke-Setup $productionSetup '--quiet'
-          if (!(Test-Path (Join-Path $productionFolder 'NeoPepConnect.exe')) -or (Test-Path (Join-Path $productionFolder 'whatsapp-runtime-0.2.1')) -or (Test-Path (Join-Path $productionFolder 'session.dat'))) { throw 'Perfil producao compartilha dados ou runtime' }
+          if (!(Test-Path (Join-Path $productionFolder 'NeoPepConnect.exe')) -or (Test-Path (Join-Path $productionFolder 'whatsapp-runtime-0.2.2')) -or (Test-Path (Join-Path $productionFolder 'session.dat'))) { throw 'Perfil producao compartilha dados ou runtime' }
           if ((Get-FileHash $vault).Hash -ne $previousHash) { throw 'Perfil producao alterou cofre de Teste' }
           Invoke-Setup $productionSetup '--quiet --uninstall'
           if (!(Test-Path $installed) -or !(Test-Path $vault)) { throw 'Remocao de outro perfil afetou Teste' }
-          $runtime = Join-Path $folder 'whatsapp-runtime-0.2.1'
+          if (!(Test-Path (Join-Path $folder 'NeoPepUpdate-0.2.2.exe'))) { throw 'Auxiliar ausente' }
+          if ($manifest.updater_trust_configured) { throw 'A CI nao deve incorporar chaves de teste' }
+          $runtime = Join-Path $folder 'whatsapp-runtime-0.2.2'
           & (Join-Path $runtime 'node.exe') --check (Join-Path $runtime 'bridge/windows-bridge.mjs')
           if ($LASTEXITCODE) { throw 'Bridge empacotado inválido' }
           Push-Location (Join-Path $runtime 'bridge')
@@ -116,7 +127,7 @@ jobs:
           if ((Test-Path $installed) -or (Test-Path $runtime) -or (Test-Path $vault)) { throw 'Arquivos ativos permanecem instalados' }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: NeoPep-Connect-0.2.1-Teste-Windows-x64-candidato
+          name: NeoPep-Connect-0.2.2-Teste-Windows-x64-candidato
           path: |
             ${{ runner.temp }}/connect/NeoPepConnectSetup.exe
             ${{ runner.temp }}/connect/manifest.json

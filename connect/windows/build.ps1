@@ -1,6 +1,7 @@
 param(
     [string]$Output = "$PSScriptRoot\output",
-    [ValidateSet('Teste','Producao')][string]$Perfil = 'Teste'
+    [ValidateSet('Teste','Producao')][string]$Perfil = 'Teste',
+    [string]$PublisherPublicKey = ''
 )
 $ErrorActionPreference = 'Stop'
 $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
@@ -16,6 +17,16 @@ $setup = Join-Path $Output 'NeoPepConnectSetup.exe'
 $archive = Join-Path $Output 'whatsapp-runtime.zip'
 $bundle = Join-Path $env:TEMP ('neopep-runtime-' + [Guid]::NewGuid().ToString('N'))
 $runtimeResources = @()
+$trustResource = @()
+if ($staging -and $PublisherPublicKey) {
+    $key = (Resolve-Path $PublisherPublicKey).Path
+    [xml]$publicXml = Get-Content $key -Raw
+    $properties = @($publicXml.RSAKeyValue.ChildNodes | Where-Object { $_.NodeType -eq 'Element' } | ForEach-Object { $_.Name })
+    if ($properties.Count -ne 2 -or $properties -notcontains 'Modulus' -or $properties -notcontains 'Exponent') {
+        throw 'Apenas uma chave publica RSA XML e aceita'
+    }
+    $trustResource = @("/resource:$key,NeoPepUpdatePublisher")
+}
 try {
     if ($staging) {
         $node = (Get-Command node.exe -ErrorAction Stop).Source
@@ -34,15 +45,19 @@ try {
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         Remove-Item $archive -ErrorAction SilentlyContinue
         [IO.Compression.ZipFile]::CreateFromDirectory($bundle,$archive)
-        $runtimeResources = @("/resource:$archive,whatsapp-runtime.zip")
+        $helper = Join-Path $Output 'NeoPepUpdate.exe'
+        & $csc /nologo /target:winexe /platform:x64 /codepage:65001 "/out:$helper" /r:System.Web.Extensions.dll /r:System.Security.dll @trustResource "$PSScriptRoot\ConnectProfile.cs" "$PSScriptRoot\UpdateTrust.cs" "$PSScriptRoot\UpdateHelper.cs"
+        if ($LASTEXITCODE) { throw 'Falha ao compilar auxiliar de atualizacao' }
+        $runtimeResources = @("/resource:$archive,whatsapp-runtime.zip", "/resource:$helper,NeoPepUpdate.exe")
     }
-    & $csc /nologo /target:winexe /platform:x64 /codepage:65001 $define "/out:$client" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Security.dll /r:System.Web.Extensions.dll "$PSScriptRoot\ConnectProfile.cs" "$PSScriptRoot\Connect.cs" "$PSScriptRoot\WhatsApp.cs"
+    & $csc /nologo /target:winexe /platform:x64 /codepage:65001 $define "/out:$client" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Security.dll /r:System.Web.Extensions.dll @trustResource "$PSScriptRoot\ConnectProfile.cs" "$PSScriptRoot\Connect.cs" "$PSScriptRoot\WhatsApp.cs" "$PSScriptRoot\UpdateTrust.cs" "$PSScriptRoot\UpdateUi.cs"
     if ($LASTEXITCODE) { throw 'Falha ao compilar o cliente' }
     & $csc /nologo /target:winexe /platform:x64 /codepage:65001 $define "/out:$setup" /r:System.Windows.Forms.dll /r:System.IO.Compression.FileSystem.dll "/resource:$client,NeoPepConnect.exe" @runtimeResources "$PSScriptRoot\ConnectProfile.cs" "$PSScriptRoot\Installer.cs"
     if ($LASTEXITCODE) { throw 'Falha ao compilar o instalador' }
     $hash = (Get-FileHash -Algorithm SHA256 $setup).Hash.ToLowerInvariant()
     [ordered]@{
-        version='0.2.1'; profile=$profile; connect_enabled=$staging; commit=$commit
+        version='0.2.2'; profile=$profile; connect_enabled=$staging; commit=$commit
+        updater_trust_configured=($trustResource.Count -gt 0)
         run_id=$env:GITHUB_RUN_ID; run_attempt=$env:GITHUB_RUN_ATTEMPT; file='NeoPepConnectSetup.exe'
         bytes=(Get-Item $setup).Length; sha256=$hash; platform='win-x64'; built_at=(Get-Date).ToUniversalTime().ToString('o')
         node=if ($staging) { '24.22.1' } else { $null }

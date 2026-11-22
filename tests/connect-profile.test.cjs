@@ -60,7 +60,7 @@ test('WinForms mantém reautenticação e bridge bloqueado no perfil Produção'
  assert.match(client,/await Tokens\("password".*false\)/);
  assert.match(client,/if\(!String\.IsNullOrEmpty\(Value\(local,"device"\)\)\)/);
  assert.match(client,/if\(!ConnectProfile\.ConnectEnabled\|\|!ConnectProfile\.IsValid\)throw/);
- assert.match(installer,/if\(ConnectProfile\.ConnectEnabled\)InstallRuntime\(\)/);
+ assert.match(installer,/if\(ConnectProfile\.ConnectEnabled\)\{\s*InstallRuntime\(\)/);
  assert.match(whatsapp,/Color\.FromArgb\(245,232,207\)/);
  assert.match(whatsapp,/!ConnectProfile\.ConnectEnabled\|\|forgetting/);
  assert.match(build,/commit=\$commit/);
