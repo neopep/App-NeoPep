@@ -263,7 +263,7 @@
     "files": [
       {
         "name": "20261122190100_shop_checkout_retry.sql",
-        "path": "supabase/migrations/20261122190100_shop_checkout_retry.sql",
+        "path": "release/production/optional-finance/20261122190100_shop_checkout_retry.sql",
         "sha256": "ae4e114d2b605311c6bf81761f62cb2867c04af95407d289269cd1a8a2e3ab39"
       }
     ],
@@ -272,6 +272,8 @@
     "columns": [],
     "changed_routines": [
       "public.neo_shop_v36(text,jsonb)"
-    ]
+    ],
+    "optional": true,
+    "approval": "SEPARATE_FINANCE_RELEASE_ONLY"
   }
 }
