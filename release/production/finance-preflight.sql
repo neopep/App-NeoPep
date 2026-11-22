@@ -14,12 +14,13 @@ with required(signature) as (values
  ('public.neo_shop_payment_event_v22(uuid,text,text,bigint,text)')
 )
 select signature,p.oid is not null as present,p.prosecdef as security_definer,
- encode(sha256(convert_to(p.prosrc,'UTF8')),'hex') as fingerprint,
+ encode(sha256(convert_to(replace(p.prosrc,E'\r\n',E'\n'),'UTF8')),'hex') as fingerprint,
+ encode(sha256(convert_to(p.prosrc,'UTF8')),'hex') as raw_fingerprint,
  has_function_privilege('anon',p.oid,'EXECUTE') as anon_execute,
  has_function_privilege('authenticated',p.oid,'EXECUTE') as authenticated_execute,
  has_function_privilege('service_role',p.oid,'EXECUTE') as service_execute,
  case when signature='public.neo_shop_v36(text,jsonb)' then
-  case encode(sha256(convert_to(p.prosrc,'UTF8')),'hex')
+  case encode(sha256(convert_to(replace(p.prosrc,E'\r\n',E'\n'),'UTF8')),'hex')
    when '2ce19e73bcb43f0d86793b99155143ef841c9559d665129278dd6749cbb222c9' then 'baseline_git'
    when 'cba1a27d4d54e0cb050877b3434003440a3ba9493cd27dad43b4a4ebd1038521' then 'patched_git'
    else 'divergent_or_missing'

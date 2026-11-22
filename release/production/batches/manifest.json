@@ -264,7 +264,7 @@
       {
         "name": "20261122190100_shop_checkout_retry.sql",
         "path": "supabase/migrations/20261122190100_shop_checkout_retry.sql",
-        "sha256": "eb8c562bc0c0e59feb6072a4f494b02295b084b2181bd7ed2d4fc86514f9390c"
+        "sha256": "ae4e114d2b605311c6bf81761f62cb2867c04af95407d289269cd1a8a2e3ab39"
       }
     ],
     "tables": [],

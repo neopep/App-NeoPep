@@ -43,15 +43,15 @@ $fragment$;
   end;
 $fragment$;
 begin
- select encode(sha256(convert_to(prosrc,'UTF8')),'hex') into body_hash from pg_proc where oid=routine;
+ select encode(sha256(convert_to(replace(prosrc,E'\r\n',E'\n'),'UTF8')),'hex') into body_hash from pg_proc where oid=routine;
  if body_hash='cba1a27d4d54e0cb050877b3434003440a3ba9493cd27dad43b4a4ebd1038521' then return;end if;
  if body_hash is distinct from '2ce19e73bcb43f0d86793b99155143ef841c9559d665129278dd6749cbb222c9' then
   raise exception 'neo_shop_v36 difere da definição auditada; suspenda a operação';
  end if;
- definition:=pg_get_functiondef(routine);
+ definition:=replace(pg_get_functiondef(routine),E'\r\n',E'\n');
  if strpos(definition,old_fragment)=0 then raise exception 'Trecho esperado ausente';end if;
  execute replace(definition,old_fragment,new_fragment);
- select encode(sha256(convert_to(prosrc,'UTF8')),'hex') into body_hash from pg_proc where oid=routine;
+ select encode(sha256(convert_to(replace(prosrc,E'\r\n',E'\n'),'UTF8')),'hex') into body_hash from pg_proc where oid=routine;
  if body_hash is distinct from 'cba1a27d4d54e0cb050877b3434003440a3ba9493cd27dad43b4a4ebd1038521' then raise exception 'Fingerprint posterior inesperado';end if;
 end
 $migration$;
