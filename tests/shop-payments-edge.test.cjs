@@ -14,12 +14,28 @@ test('indisponibilidade do provedor não grava confirmação',async()=>{
  assert.equal(failed.calls.length,0);
 });
 
-test('reembolso parcial deve ser distinguido de aprovação', {todo:'Contrato de Orders e tratamento SQL exigem homologação em ambiente isolado'}, async()=>{
- const s=setup('mercadopago-webhook',{payment:{status:'processed',transactions:{payments:[
-  {id:'101',status:'processed',refunded_amount:'5.00'}
- ]}}});
- assert.equal((await s.handle(await webhook())).status,200);
- assert.equal(s.calls[0][1].p_status,'partially_refunded');
+test('reembolso parcial em Orders tem precedência sobre aprovação e repete a mesma identidade financeira',async()=>{
+ for(const payment of [
+  {status:'processed',status_detail:'partially_refunded',transactions:{payments:[{id:'101',status:'processed',status_detail:'accredited'}]}},
+  {status:'processed',status_detail:'accredited',transactions:{payments:[{id:'101',status:'processed',status_detail:'partially_refunded'}]}},
+  {status:'processed',transactions:{payments:[{id:'101',status:'processed',refunded_amount:'5.00'}]}}
+ ]){
+  const s=setup('mercadopago-webhook',{payment});
+  for(let i=0;i<2;i++)assert.equal((await s.handle(await webhook())).status,200);
+  assert.equal(s.calls.length,2);
+  assert.deepEqual(s.calls[0][1],s.calls[1][1]);
+  assert.equal(s.calls[0][1].p_status,'partially_refunded');
+  assert.equal(s.calls[0][1].p_amount,4480);
+  assert.equal(s.calls[0][1].p_payment,'101');
+ }
+});
+
+test('reembolso integral e chargeback de Orders preservam seus estados terminais',async()=>{
+ for(const status of ['refunded','charged_back']){
+  const s=setup('mercadopago-webhook',{payment:{status,status_detail:'partially_refunded'}});
+  assert.equal((await s.handle(await webhook())).status,200);
+  assert.equal(s.calls[0][1].p_status,status);
+ }
 });
 
 test('credencial produtiva não é usada como se fosse conta de teste',async()=>{const s=setup('mercadopago-create',{settings:{...env,MP_MODE:'test'}});const r=await s.handle(new Request('https://edge.test',{method:'POST',headers:{Origin:'https://app.test',Authorization:'Bearer valid-user','Content-Type':'application/json'},body:JSON.stringify({order_id:O})}));assert.equal(r.status,503);assert.ok(!s.http.some(c=>c[0].endsWith('/v1/orders')))});
@@ -33,4 +49,19 @@ test('origem externa é recusada e preflight autorizado não consulta o provedor
   assert.equal((await s.handle(new Request('https://edge.test',{method:'OPTIONS',headers:{Origin:origin}}))).status,status);
  }
  assert.equal(s.calls.length,0);assert.equal(s.http.length,0);
+});
+
+test('a tentativa de criar o pagamento usa a mesma chave do pedido se o link ainda não foi salvo',async()=>{
+ const s=setup('mercadopago-create');
+ for(let i=0;i<2;i++){
+  const response=await s.handle(new Request('https://edge.test',{method:'POST',headers:{
+   Origin:'https://app.test',Authorization:'Bearer valid-user','Content-Type':'application/json'
+  },body:JSON.stringify({order_id:O})}));
+  assert.equal(response.status,200);
+ }
+ const requests=s.http.filter(([url])=>url.endsWith('/v1/orders'));
+ assert.equal(requests.length,2);
+ assert.equal(requests[0][1].headers['X-Idempotency-Key'],O);
+ assert.equal(requests[1][1].headers['X-Idempotency-Key'],O);
+ assert.equal(requests[0][1].body,requests[1][1].body);
 });
