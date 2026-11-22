@@ -1,0 +1,99 @@
+# Instalar em .github/workflows no repositório privado de builds.
+name: Connect Windows Teste Release Candidate
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: SHA completo revisado no App-NeoPep
+        required: true
+        type: string
+      version:
+        description: Versão Teste
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  build:
+    if: github.repository == 'neopep/NeoPep-Connect-Build-Privado' && github.event.repository.private
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - name: Validar entradas
+        shell: powershell
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          if ($env:SOURCE_SHA -cnotmatch '\A[a-f0-9]{40}\z' -or $env:RELEASE_VERSION -notmatch '\A(0|[1-9][0-9]{0,4})(\.(0|[1-9][0-9]{0,4})){2}\z') { throw 'Entradas inválidas.' }
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          repository: neopep/App-NeoPep
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.22.1'
+          architecture: x64
+      - name: Testar dependências e bridge
+        working-directory: connect/whatsapp-lab
+        shell: powershell
+        run: |
+          npm ci --omit=dev --ignore-scripts
+          if ($LASTEXITCODE) { throw 'Falha instalando dependências.' }
+          npm audit --omit=dev --audit-level=high
+          if ($LASTEXITCODE) { throw 'Falha na auditoria.' }
+          npm test
+          if ($LASTEXITCODE) { throw 'Falha no bridge.' }
+      - name: Compilar, testar instalação e conferir manifesto
+        shell: powershell
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          PUBLIC_XML: ${{ vars.CONNECT_PUBLISHER_PUBLIC_XML }}
+        run: |
+          if ((git rev-parse HEAD).Trim() -cne $env:SOURCE_SHA -or !$env:PUBLIC_XML) { throw 'Origem ou chave pública indisponível.' }
+          $output = Join-Path $env:RUNNER_TEMP 'connect'
+          $public = Join-Path $env:RUNNER_TEMP 'public.xml'
+          [IO.File]::WriteAllText($public,$env:PUBLIC_XML)
+          ./connect/windows/build.ps1 -Perfil Teste -Version $env:RELEASE_VERSION -Output $output -PublisherPublicKey $public
+          $setup = Join-Path $output 'NeoPepConnectSetup.exe'
+          $m = Get-Content (Join-Path $output 'manifest.json') -Raw | ConvertFrom-Json
+          $item = Get-Item -LiteralPath $setup
+          if ($m.version -cne $env:RELEASE_VERSION -or $m.commit -cne $env:SOURCE_SHA -or
+              $m.profile -cne 'staging' -or !$m.connect_enabled -or !$m.updater_trust_configured -or
+              $m.run_id -ne $env:GITHUB_RUN_ID -or $m.run_attempt -ne $env:GITHUB_RUN_ATTEMPT -or
+              $m.platform -cne 'win-x64' -or $item.VersionInfo.FileVersion -ne "$env:RELEASE_VERSION.0" -or
+              $m.bytes -ne $item.Length -or $m.bytes -gt 52428800 -or
+              $m.sha256 -cne (Get-FileHash -LiteralPath $setup).Hash.ToLowerInvariant()) { throw 'Manifesto inconsistente.' }
+          $artifact = "connect-teste-$env:RELEASE_VERSION-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          function Invoke-Setup([string]$arguments) {
+            $p = Start-Process -FilePath $setup -ArgumentList $arguments -Wait -PassThru
+            if ($p.ExitCode) { throw "Falha no instalador: $($p.ExitCode)" }
+          }
+          Invoke-Setup '--quiet'
+          $folder = Join-Path $env:LOCALAPPDATA 'NeoPep Connect'
+          $app = Join-Path $folder 'NeoPepConnect.exe'
+          if ((Get-FileHash $app).Hash -ne (Get-FileHash (Join-Path $output 'NeoPepConnect.exe')).Hash) { throw 'Instalação inconsistente.' }
+          $client = Start-Process -FilePath $app -ArgumentList '--background' -PassThru
+          try { if ($client.WaitForExit(2000)) { throw 'Cliente encerrou inesperadamente.' } }
+          finally { if (!$client.HasExited) { $client.Kill(); $client.WaitForExit() } }
+          Invoke-Setup '--quiet --uninstall'
+          if (Test-Path $app) { throw 'Falha na remoção.' }
+          $xml = [xml]$env:PUBLIC_XML
+          $pin = '<RSAKeyValue><Modulus>'+([Convert]::ToBase64String([Convert]::FromBase64String($xml.RSAKeyValue.Modulus)))+'</Modulus><Exponent>'+([Convert]::ToBase64String([Convert]::FromBase64String($xml.RSAKeyValue.Exponent)))+'</Exponent></RSAKeyValue>'
+          $sha = [Security.Cryptography.SHA256]::Create()
+          try { $pinHash = [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($pin))).Replace('-','').ToLowerInvariant() }
+          finally { $sha.Dispose() }
+          $m | Add-Member NoteProperty artifact $artifact
+          $m | Add-Member NoteProperty publisher_key_sha256 $pinHash
+          $m | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $output 'manifest.json')
+          "CONNECT_ARTIFACT=$artifact" >> $env:GITHUB_ENV
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ env.CONNECT_ARTIFACT }}
+          path: |
+            ${{ runner.temp }}/connect/NeoPepConnectSetup.exe
+            ${{ runner.temp }}/connect/manifest.json
+          if-no-files-found: error
+          retention-days: 7

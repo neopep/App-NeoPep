@@ -47,6 +47,22 @@ Deno.serve(async request=>{
   if(!existing&&releases.some((r:{version:string})=>precedes(manifest.version,r.version)))
    return reply(409,{error:'A versão é inferior a uma já cadastrada.'});
   const path=manifest.version+'/'+fileName;
+  const operation=new URL(request.url).searchParams.get('action');
+  if(operation!==null&&operation!=='upload')return reply(400,{error:'Operação inválida.'});
+  if(operation==='upload'){
+   const storage=createClient(staging,service,{auth:{persistSession:false,autoRefreshToken:false}}).storage.from(bucket);
+   const object=await storage.exists(path);
+   if(object.data===true)return reply(200,{exists:true});
+   if(object.data!==false)return reply(503,{error:'Não foi possível confirmar se o objeto já existe.'});
+   if(existing)return reply(409,{error:'O rascunho existe e seu objeto requer revisão administrativa.'});
+   const signed=await storage.createSignedUploadUrl(path,{upsert:false});
+   if(signed.error)return reply(503,{error:'Não foi possível autorizar o upload privado.'});
+   const url=new URL(signed.data.signedUrl);
+   if(url.origin!==staging||url.username||url.password||url.hash||
+      url.pathname!=='/storage/v1/object/upload/sign/'+bucket+'/'+path||
+      !/^\?token=[A-Za-z0-9_.-]+$/.test(url.search))return reply(503,{error:'Autorização de upload inválida.'});
+   return reply(200,{exists:false,url:url.href});
+  }
   const object=await fetch(staging+'/storage/v1/object/authenticated/'+bucket+'/'+path,{
    headers:{Authorization:'Bearer '+service,apikey:service},redirect:'error',signal:AbortSignal.timeout(90000)
   });
