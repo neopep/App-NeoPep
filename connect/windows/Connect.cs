@@ -412,7 +412,7 @@ sealed partial class Connect : Form {
                     account=String.IsNullOrEmpty(identity)?null:identity});
                 Save();RenderAccounts(heartbeat);
                 deviceApproved=Value(heartbeat,"state")=="approved";
-                state.Text=deviceApproved?"Computador autorizado • simulação":"Aprovação pendente.";
+                state.Text=deviceApproved?ApprovedStatus():"Aprovação pendente.";
             }else{
                 var buffer=new byte[32];using(var rng=RandomNumberGenerator.Create())rng.GetBytes(buffer);
                 local["secret"]=BitConverter.ToString(buffer).Replace("-","").ToLowerInvariant();
@@ -425,6 +425,7 @@ sealed partial class Connect : Form {
         }
         finally {password.Clear();busy=false;}
     }
+    string ApprovedStatus(){return profile.IsProduction?"Computador autorizado • produção":"Computador autorizado • simulação";}
     async Task Register() {
         var device=await RPC("register",new {label=Environment.MachineName});
         local["device"]=Value(device,"id");Save();Record("registrado");
@@ -435,7 +436,9 @@ sealed partial class Connect : Form {
         public override string ToString(){return Name;}
     }
     void RenderAccounts(Dictionary<string,object> data) {
-        var list=data["accounts"] as System.Collections.IEnumerable;
+        object accountRows;
+        if(!data.TryGetValue("accounts",out accountRows))return;
+        var list=accountRows as System.Collections.IEnumerable;
         if(list==null)return;
         var selected=Value(local,"account");
         var next=new List<Account>{new Account{ Id="",Name="Sem sessão fictícia"}};
@@ -466,7 +469,7 @@ sealed partial class Connect : Form {
             RenderAccounts(heartbeat);
             deviceApproved=Value(heartbeat,"state")=="approved";
             if(!deviceApproved){state.Text="Aprovação pendente.";return;}
-            state.Text=profile.IsProduction?"Computador autorizado • produção":"Computador autorizado • simulação";
+            state.Text=ApprovedStatus();
             var reminders=await RPC("reminders",new { });
             var entries=reminders["items"] as System.Collections.ICollection;
             if(entries!=null&&entries.Count>0) {
