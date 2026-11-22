@@ -1,8 +1,20 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),{parseHTML}=require('linkedom');
-const ID='10000000-0000-4000-8000-000000000001',tick=()=>new Promise(setImmediate);
+const ID='10000000-0000-4000-8000-000000000001';
 function setup(navigator={}){const {window}=parseHTML('<html><body></body></html>');const calls=[],ctx={window,document:window.document,navigator,location:{href:'https://app.test/neo/?code=secret&payment_id=hidden#perfil'},URL,AbortController,File,Blob,fetch:async()=>new Response('file-content',{headers:{'Content-Type':'application/pdf'}})};window.NeoCloud={libraryMediaURL:async(f,download)=>{calls.push([f.path,download]);return 'https://private.test/signed'}};vm.createContext(ctx);vm.runInContext(fs.readFileSync('dist/library-shelf.js','utf8'),ctx);window.NeoLibraryShelf.session({id:'A'});return {ui:window.NeoLibraryShelf,document:window.document,window,ctx,calls};}
 const row=()=>({id:ID,title:'Material de leitura',attachments:[{path:'A/doc.pdf',name:'Documento.pdf',mime:'application/pdf',allow_download:true}]});
 test('link compartilhado aponta para a publicação e nunca contém tokens nem URL assinada',async()=>{const writes=[],s=setup({clipboard:{writeText:async value=>writes.push(value)}});await s.ui.shareLink(row());const url=new URL(writes[0]);assert.equal(url.origin,'https://app.test');assert.equal(url.pathname,'/neo/');assert.equal(url.searchParams.get('material'),ID);assert.equal(url.hash,'#comunidade');assert.equal(url.searchParams.has('code'),false);assert.equal(url.searchParams.has('payment_id'),false);assert.ok(!writes[0].includes('signed'));assert.equal(s.calls.length,0);});
-test('arquivo precisa estar permitido e só abre o compartilhamento nativo após preparo e novo toque',async()=>{const sent=[],s=setup({canShare:({files})=>files.length===1,share:async value=>sent.push(value)});s.ui.shareFile({...row(),attachments:[{...row().attachments[0],allow_download:false}]});assert.equal(s.document.querySelector('dialog'),null);assert.equal(s.calls.length,0);s.ui.shareFile(row());await tick();assert.equal(s.calls[0][1],true);assert.equal(sent.length,0);s.document.querySelector('[data-library-share=send]').click();await tick();assert.equal(sent.length,1);assert.equal(sent[0].files[0].name,'Documento.pdf');assert.equal(await sent[0].files[0].text(),'file-content');assert.equal(sent[0].url,undefined);});
-test('navegador sem envio de arquivos oferece baixar e sessão nova limpa o compartilhamento',async()=>{const s=setup();s.ui.shareFile(row());await tick();assert.equal(s.document.querySelector('[data-library-share=send]'),null);assert.ok(s.document.querySelector('a[download]'));s.ui.session({id:'B'});assert.equal(s.document.querySelector('dialog'),null);});
-test('permissão recusada pelo servidor impede preparar o arquivo e não chama o compartilhamento',async()=>{const sent=[],s=setup({canShare:()=>true,share:async value=>sent.push(value)});s.window.NeoCloud.libraryMediaURL=async()=>{throw Error('Download não permitido')};s.ui.shareFile(row());await tick();assert.match(s.document.querySelector('[data-share-body]').textContent,/não permitido/);assert.equal(sent.length,0);assert.equal(s.document.querySelector('[data-library-share=send]'),null);});
+test('compartilhamento nativo recebe somente o link interno e a troca de conta limpa o diálogo',async()=>{
+ const sent=[],s=setup({share:async value=>sent.push(value)});
+ await s.ui.shareLink(row());
+ assert.equal(sent.length,1);
+ assert.equal(sent[0].files,undefined);
+ assert.equal(new URL(sent[0].url).searchParams.get('material'),ID);
+ assert.equal(s.ui.shareFile,undefined);
+ assert.equal(s.calls.length,0);
+ const fallback=setup();
+ await fallback.ui.shareLink(row());
+ assert.ok(fallback.document.querySelector('[data-share-link]'));
+ assert.equal(fallback.document.querySelector('a[download]'),null);
+ fallback.ui.session({id:'B'});
+ assert.equal(fallback.document.querySelector('dialog'),null);
+});

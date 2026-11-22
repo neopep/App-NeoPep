@@ -19,3 +19,7 @@ Imagens abrem dentro do aplicativo. PDFs têm miniatura da primeira página e le
 **Permitir download controla a função disponibilizada pelo aplicativo, não é DRM.** Quem pode visualizar recebe o conteúdo e ainda pode capturá-lo ou salvá-lo com recursos do aparelho. Não há garantia de bloquear cópias. Links assinados já emitidos continuam válidos até expirar; imagens/textos usam 60 segundos, PDFs e vídeos até 30 minutos para suportar leitura/reprodução. A opção não revoga retroativamente um link já emitido.
 
 Validação automatizada cobre seleção durante atualização, envio imediato, miniaturas, falha/reenvio, preservação de rascunho, configuração de download, autorização por conta, anexação a material existente e leitura/renderização real de PDF. Revisão visual e testes em Safari/iPhone real ainda precisam ser feitos no aparelho.
+
+## Visualização e compartilhamento na Biblioteca
+
+Os cartões e leitores da Biblioteca oferecem visualização autorizada e compartilhamento do link interno da publicação. O acesso ao conteúdo privado continua sujeito à sessão e às permissões do servidor. A opção administrativa de permitir o uso do arquivo em campanhas preserva o contrato existente de `allow_download`. O leitor PDF da Biblioteca compartilha a visualização contínua do leitor administrativo e abre o anexo por uma URL temporária autorizada.
