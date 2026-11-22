@@ -33,3 +33,7 @@ Testar usuário anônimo, outro titular, prova incorreta e computador revogado; 
 ## Candidato Windows 0.2.4
 
 O workflow no branch de grupos compila e testa somente o perfil Teste, com versão, SHA-256 e tamanho no manifesto. Um instalador de teste sem chave de atualização deve ser usado em conta Windows separada da que fará o ensaio 0.2.3. O passo de anexar o EXE exige repositório privado. Em repositório público a compilação é validada sem disponibilizar o binário.
+
+## SQL para aprovação
+
+O [SQL integral](../revisao/connect-whatsapp-grupos.sql) está separado de `supabase/migrations` para evitar aplicação acidental. O painel Windows envia uma seleção confirmada pelo titular. O painel web lê as conexões e grupos pelo JWT NeoPep e oferece paginação. O painel pode ser atualizado pelo controle **Atualizar diagnóstico**. A primeira compilação 0.2.4 para o teste local do QR independe desta migração.

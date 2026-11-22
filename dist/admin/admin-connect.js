@@ -13,10 +13,58 @@ function mountNeoConnect(root,cloud){
  const events={register:'Registro',approved:'Aprovado',approve:'Aprovação',revoke:'Revogação',priority:'Prioridade',leased:'Reserva',started:'Início',simulated:'Simulado',uncertain:'Incerto',queued:'Em fila',cancelled:'Cancelado'};
  root.innerHTML=`<p class="sub">Cliente Windows 10/11 x64. Instale a versão aprovada, entre com a conta administrativa e aprove o computador abaixo. Confira o SHA-256 antes de executar o instalador.</p>
  <p role="status" data-connect-status></p><div class="neo-campaign-actions"><button type="button" class="secondary" data-connect="refresh">Atualizar diagnóstico</button></div>
- <div data-connect-content></div>`;
+ <details data-wa-selected><summary>Meus grupos WhatsApp sincronizados</summary>
+ <p role="status" data-wa-selected-status></p>
+ <label>Conexão<select data-wa-connection aria-label="Conexão WhatsApp"></select></label>
+ <ul data-wa-selected-groups></ul>
+ <button type="button" class="secondary" data-wa-more hidden>Carregar mais</button>
+ </details><div data-connect-content></div>`;
  const status=root.querySelector('[data-connect-status]'),body=root.querySelector('[data-connect-content]');
+ const wa=root.querySelector('[data-wa-selected]'),waStatus=wa.querySelector('[data-wa-selected-status]');
+ const waConnection=wa.querySelector('[data-wa-connection]'),waGroups=wa.querySelector('[data-wa-selected-groups]');
+ const waMore=wa.querySelector('[data-wa-more]');
+ let waRevision=0,waAfter=null;
+ async function loadWaGroups(append=false){
+  const request=++waRevision,id=waConnection.value;
+  if(!append){waAfter=null;waGroups.replaceChildren();}
+  waMore.hidden=true;
+  if(!id)return;
+  waStatus.textContent="Consultando grupos…";
+  try{
+   const rows=await cloud.connectWaGroups(id,waAfter);
+   if(request!==waRevision||!wa.isConnected)return;
+   for(const row of rows){
+    const li=document.createElement('li');
+    li.textContent=row.display_name+(row.participant_count==null?'':' · '+row.participant_count+' participantes');
+    waGroups.append(li);
+   }
+   waAfter=rows.at(-1)?.group_jid??waAfter;
+   waStatus.textContent=waGroups.childElementCount?'':'Nenhum grupo sincronizado nesta conexão.';
+   waMore.hidden=rows.length<50;
+  }catch{if(request===waRevision)waStatus.textContent="Não foi possível consultar os grupos.";}
+ }
+ async function loadWaConnections(){
+  const request=++waRevision,chosen=waConnection.value;
+  waStatus.textContent="Consultando conexões…";
+  waMore.hidden=true;waGroups.replaceChildren();waConnection.replaceChildren();
+  try{
+   const rows=await cloud.connectWaConnections();
+   if(request!==waRevision||!wa.isConnected)return;
+   for(const row of rows){
+    const option=document.createElement('option');
+    option.value=row.id;option.textContent=row.label+' · '+time(row.last_synced_at);waConnection.append(option);
+   }
+   if(rows.some(row=>row.id===chosen))waConnection.value=chosen;
+   if(!rows.length){waStatus.textContent="Nenhuma conexão sincronizada.";return;}
+   await loadWaGroups();
+  }catch{if(request===waRevision)waStatus.textContent="Sincronização de grupos indisponível neste ambiente.";}
+ }
+ wa.addEventListener('toggle',()=>{if(wa.open)void loadWaConnections();});
+ waConnection.addEventListener('change',()=>{void loadWaGroups();});
+ waMore.addEventListener('click',()=>{void loadWaGroups(true);});
  function note(text){status.textContent=text}
  async function load(){
+  if(wa.open)void loadWaConnections();
   const version=++loadVersion;
   const result=await Promise.all([rpc('snapshot'),cloud.campaignWhatsApp('groups'),cloud.campaignWhatsApp('queue')]);
   if(!root.isConnected||version!==loadVersion)return;
