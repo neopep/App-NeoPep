@@ -18,9 +18,8 @@ A fase 2.1 cria um adaptador de leitura por QR Code na modalidade de dispositivo
 - URL do navegador com segredo aleatório no fragmento (não enviado ao servidor). As rotas privadas exigem header Bearer e as operações exigem Origin local.
 - QR Code fica somente na interface local e na memória; jamais é escrito no log ou exportado.
 - Consulta de grupos devolve somente ID, nome e contagem agregada. Não existe rota para enviar mensagens.
-- Sessão armazenada no perfil local, em LOCALAPPDATA/NeoPep Connect/whatsapp-lab-auth.
-- IMPORTANTE: nesta prova de conceito a sessão utiliza o formato de arquivos do Baileys, que ainda NÃO possui proteção adicional DPAPI. Distribuição e utilização com contas reais exigem revisão de proteção de credenciais.
-- A função de desconectar apaga explicitamente os arquivos de sessão do laboratório.
+- O modo HTTP de laboratório mantém o estado em memória. O candidato WinForms usa seu próprio cofre DPAPI, descrito abaixo.
+- Ao desconectar, o adaptador solicita revogação do vínculo. O cliente Windows apaga o cofre local mesmo se a revogação remota falhar.
 
 ## Opções técnicas examinadas
 
@@ -28,7 +27,7 @@ A API oficial de Grupos da Meta exige uma Official Business Account (OBA), limit
 
 O QR Code via Baileys é uma integração não oficial, sujeita a alterações técnicas e às restrições dos termos do WhatsApp. Documentação: https://github.com/WhiskeySockets/docs/blob/main/quickstart.mdx e https://www.whatsapp.com/legal/WhatsApp-Terms-for-WhatsApp-Business-App.
 
-## Pendências obrigatórias antes de um teste REAL no Windows
+## Critérios originais de implementação e homologação Windows
 
 1. Gerar, auditar e versionar o package-lock.json reprodutível para as dependências pinadas; bloquear distribuições sem lock.
 2. Revisar a compatibilidade e testes de pareamento com versão específica de Baileys e Node.js em um Windows limpo.

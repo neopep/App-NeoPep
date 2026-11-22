@@ -48,6 +48,8 @@ jobs:
           $manifest = Get-Content (Join-Path $output 'manifest.json') -Raw | ConvertFrom-Json
           if ((Get-FileHash $setup).Hash.ToLowerInvariant() -ne $manifest.sha256) { throw 'Checksum incorreto' }
           if ((Get-Item $setup).Length -ne $manifest.bytes) { throw 'Tamanho incorreto' }
+          Write-Host ("EXE SHA-256 " + $manifest.sha256)
+          Write-Host ("EXE bytes " + $manifest.bytes)
           function Invoke-Setup([string]$binary,[string]$arguments) {
             $execution = Start-Process $binary -ArgumentList $arguments -Wait -PassThru
             if ($execution.ExitCode -ne 0) { throw "Falha no instalador: $($execution.ExitCode)" }
