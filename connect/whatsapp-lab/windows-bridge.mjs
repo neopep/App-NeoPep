@@ -55,7 +55,7 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
       output('send_result',{request_id:requestId,status:'rejected',reason:'Envio indisponível ou em andamento.'});return;
      }
      const jid=message.group_jid,text=message.text;
-     if(typeof jid!=='string'||!/^[0-9-]{1,64}@g\\.us$/.test(jid)
+     if(typeof jid!=='string'||!/^[0-9-]{1,64}@g\.us$/.test(jid)
        ||typeof text!=='string'||!text.trim()||text.length>2000){
       output('send_result',{request_id:requestId,status:'rejected',reason:'Grupo ou texto inválido.'});return;
      }
