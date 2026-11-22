@@ -1,0 +1,42 @@
+name: Connect Windows 0.2.5 - validação isolada
+
+on:
+  push:
+    branches:
+      - desenvolvimento/connect-windows-campanhas-v025
+    paths:
+      - 'connect/windows/**'
+      - 'connect/whatsapp-lab/**'
+      - '.github/workflows/connect-windows-v025-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-windows:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.22.1'
+      - name: Instalar dependências fixadas do bridge
+        shell: pwsh
+        run: npm ci --prefix connect/whatsapp-lab
+      - name: Testar bridge e validação de envio
+        shell: pwsh
+        run: node --test connect/whatsapp-lab/test
+      - name: Compilar cliente Windows Teste sem distribuir
+        shell: pwsh
+        run: |
+          ./connect/windows/build.ps1 -Version 0.2.5 -Perfil Teste -Output "$env:RUNNER_TEMP/connect-025"
+          $manifest = Get-Content "$env:RUNNER_TEMP/connect-025/manifest.json" -Raw | ConvertFrom-Json
+          if ($manifest.version -ne '0.2.5' -or $manifest.profile -ne 'staging') { throw 'Manifesto de Teste inválido' }
+          if ((Get-FileHash "$env:RUNNER_TEMP/connect-025/NeoPepConnectSetup.exe").Hash.ToLowerInvariant() -ne $manifest.sha256) { throw 'SHA-256 inválido' }
+      - name: Nenhum instalador publicado em repositório público
+        shell: pwsh
+        run: Write-Output "Validação local concluída. Nenhum artefato binário será disponibilizado neste workflow."
