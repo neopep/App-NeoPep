@@ -44,7 +44,7 @@
     "catalog_release": {
       "status": "pending",
       "evidence": "",
-      "note": "Mercado Pago em Produção é a fonte de verdade: Edge mercadopago-create e mercadopago-webhook restauradas aos blobs oficiais da main; nenhuma Edge financeira nem lote SQL 07 integra esta publicação. Falta confirmar um checkout controlado, retorno, webhook e estado de pedido na configuração oficial sem gerar cobrança real não autorizada."
+      "note": "Banco oficial recebeu 7 migrações aditivas (lotes 01–06), confirmados 90 tabelas/177 funções, 8 contas/18 pedidos/34 objetos; Edge e Mercado Pago oficiais preservados. Lote 07 financeiro não aplicado. Faltam teste funcional de checkout e ativação controlada das integrações web/Edge; ver docs/revisao/APLICACAO-PRODUCAO-INCREMENTAL-20261122.md."
     },
     "iphone_android": {
       "status": "pending",
@@ -54,7 +54,7 @@
     "backup_monitoring": {
       "status": "pending",
       "evidence": "",
-      "note": "Existe procedimento de ensaio e rollback local de lotes. Falta comprovar restauração isolada do banco e dos objetos e registrar RPO/RTO."
+      "note": "Backup lógico e Storage já exportados; restauração real ainda não ensaiada (risco aceito para avançar nas migrações aditivas, não considerado teste aprovado). Acompanhar comportamento do banco e cron após migrações; registrar restauração quando possível."
     },
     "notifications_scope": {
       "status": "pending",
