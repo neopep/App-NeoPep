@@ -61,3 +61,11 @@ O responsável esclareceu a cronologia: a Produção existia antes da homologaç
 ## Preview candidato autorizado — sem publicação da main
 
 Após a autorização do responsável para implementar as melhorias do Teste no ambiente oficial, a branch `release/preparacao-paridade-producao-20261122` recebeu `vercel.json` com `git.deploymentEnabled=true` **apenas para a própria branch**. O objetivo é gerar um **deployment Preview** com a configuração oficial, identificar o projeto Vercel correto e validar o shell real antes do merge. O Vercel deve manter a branch Production oficial `main` inalterada até aprovação do pacote web. O build de staging pode recusar essa branch, o que não constitui falha da candidata oficial. O CI preserva `release:check` e as 12 evidências pendentes; não marcar GO automaticamente.
+
+## Checagem posterior ao Preview — 22/11/2026
+
+- Deployment de prévia da branch candidata **confirmado pelos status checks GitHub/Vercel** no commit `053213a3906ca8ce68151f7019193ba2ab4b9019`: `Vercel – app-neopep` **success**, [deployment Vercel candidato](https://vercel.com/neo-pep/app-neopep/AGLJFZaw9JhNzK4AGM1H271ySK4Z). O outro projeto `app-neopep-staging` também retornou success para essa branch; **não representa nova publicação do Teste oficial**.
+- CI [run #45082373598](https://github.com/neopep/App-NeoPep/actions/runs/45082373598): job **Candidata sem deploy = success**; `Gate de evidencias (NO-GO ate liberacao) = failure` deliberada porque os 12 itens de readiness não foram verificados e `cloudValidated=false`.
+- **Não ocorreu merge para `main` nem deployment Production do projeto oficial**. Os checks Vercel indicam sucesso do deployment **Preview**, não equivalem a teste real de fluxo de Auth/cadastro, isolamento de dados, Mercado Pago, PWA ou retorno do domínio público.
+- Última auditoria de banco oficial: 8 usuários, 18 pedidos, 34 objetos de Storage, 177 funções; não houve inserção de campanhas nem tarefas de Connect; Connect permanece pausado e nenhum agente adicional ativo. Os 17 registros preexistentes em `ai_jobs` continuam presentes em contagem (não foi validado o estado de cada job).
+- **Status público: NO-GO**. Antes da publicação da main, registrar testes reais e decisão explícita para Auth/signup, CAPTCHA, e-mail, pagamento, privacidade entre duas contas, previews mobile e rollback.
