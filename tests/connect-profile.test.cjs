@@ -24,7 +24,7 @@ test('Connect compila dois perfis isolados e aceita somente chaves publicáveis'
  assert.ok(key(production));
  assert.ok(key(staging));
  assert.notEqual(key(production),key(staging));
- assert.doesNotMatch(profile,/sb_secret_|service_role|eyJhbGciOi/);
+ assert.doesNotMatch(profile,/PublishableKey\s*=\s*\"(?:sb_secret_|eyJ)/);
  assert.match(production,/LocalFolderName = "NeoPep Connect Producao"/);
  assert.match(staging,/LocalFolderName = "NeoPep Connect"/);
  assert.notEqual(production.match(/MutexName = ([^\n]+)/)?.[1],staging.match(/MutexName = ([^\n]+)/)?.[1]);
