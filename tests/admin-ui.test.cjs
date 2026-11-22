@@ -292,3 +292,31 @@ test('central separa canais e oferece balões WhatsApp sem deslocar o formulári
  assert.ok(calls.includes('prepare'));
  assert.ok(!calls.some(action=>['confirm','send'].includes(action)));
 });
+
+
+test('barra compacta alterna App e WhatsApp com botões acessíveis e ação de nova campanha',async()=>{
+ const screen=app({signups_daily:[],app_errors_7d:[]});
+ screen.cloud.campaignAdmin=async()=>[];
+ await screen.select('campaigns');await new Promise(setImmediate);
+ const root=screen.document.querySelector('.neo-campaign-toolbar');
+ assert.ok(root,'barra de campanhas deve existir');
+ const tabs=root.querySelector('.neo-campaign-switch');
+ assert.ok(tabs,'seletor de canal deve ser separado das ações');
+ assert.deepEqual([...tabs.querySelectorAll('button')].map(button=>button.textContent.trim()),['App','WhatsApp']);
+ const appButton=root.querySelector('[data-campaign-action="app"]');
+ const waButton=root.querySelector('[data-campaign-action="whatsapp"]');
+ const add=root.querySelector('[data-campaign-action="new"]');
+ const help=root.querySelector('[data-campaign-action="manual"]');
+ assert.equal(add.getAttribute('aria-label'),'Criar nova campanha');
+ assert.equal(help.getAttribute('aria-label'),'Ajuda para campanhas');
+ assert.equal(appButton.getAttribute('aria-pressed'),'true');
+ assert.equal(waButton.getAttribute('aria-pressed'),'false');
+ waButton.click();await new Promise(setImmediate);
+ assert.equal(appButton.getAttribute('aria-pressed'),'false');
+ assert.equal(waButton.getAttribute('aria-pressed'),'true');
+ assert.equal(add.closest('.neo-campaign-toolbar-actions')!==null,true);
+ const css=fs.readFileSync('dist/admin/connect-ui.css','utf8');
+ assert.match(css,/\.neo-campaign-switch button\[aria-pressed="true"\]/);
+ assert.match(css,/@media\(max-width:460px\)/);
+ assert.match(css,/\.neo-campaign-new-label\{display:none\}/);
+});
