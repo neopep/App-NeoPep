@@ -15,7 +15,7 @@ test('WhatsApp sincroniza seleções por titular e conexão e bloqueia provas in
    create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
    create table neo_private.connect_devices(id uuid primary key,owner_id uuid not null,state text not null,secret_hash bytea not null);
    insert into neo_private.connect_devices values ('${device}','${owner}','approved',sha256(convert_to('${key}','UTF8')));`);
-  await db.exec(readFileSync('docs/revisao/connect-whatsapp-grupos.sql','utf8'));
+  await db.exec(readFileSync('tests/fixtures/connect/whatsapp-grupos.sql','utf8'));
   const as=async(role,id)=>{
    await db.exec('reset role');
    await db.query("select set_config('request.jwt.claim.sub',$1,false)",[id]);

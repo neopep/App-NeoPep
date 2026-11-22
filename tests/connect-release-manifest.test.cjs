@@ -60,7 +60,7 @@ test('Edge só registra rascunho depois de verificar o objeto e tolera reimporta
  const path=manifest.version+'/'+service.fileName;
  runInNewContext(transformSync(source,{loader:'ts'}).code,{
   ...service,async verifyManifest(){return true;},Request,Response,URL,createHash,timingSafeEqual,AbortSignal,TextDecoder,
-  Deno:{serve(fn){handler=fn;},env:{get(key){return key==='SUPABASE_URL'?service.staging:key==='NEO_CONNECT_AGENT_TOKEN_SHA256'?createHash('sha256').update(token).digest('hex'):'{}';}}},
+  Deno:{serve(fn){handler=fn;},env:{get(key){return key==='SUPABASE_URL'?service.staging:key==='NEO_CONNECT_AGENT_TOKEN_SHA256'?createHash('sha256').update(token).digest('hex'):key==='NEO_CONNECT_RELEASE_PUBLIC_JWK'?undefined:'fixture';}}},
   createClient(){return {auth:{async getUser(){return {data:{user:{id:'admin'}}};}},
    async rpc(_,params){
     operations.push(params.p_action);
@@ -114,7 +114,7 @@ test('importação administrativa de 0.2.5 usa a referência existente e cria s�
   sha256:'314d03ffba3871da65ffb95df82fba3b35f19e4aba14038ef583590db7d9b759',artifact:'fixture-v025',signature:'A'.repeat(344)};
  runInNewContext(transformSync(source,{loader:'ts'}).code,{
   ...service,Request,Response,URL,createHash,timingSafeEqual,AbortSignal,TextDecoder,
-  Deno:{serve(fn){handler=fn;},env:{get(key){return key==='SUPABASE_URL'?service.staging:'{}';}}},
+  Deno:{serve(fn){handler=fn;},env:{get(key){return key==='SUPABASE_URL'?service.staging:key==='NEO_CONNECT_RELEASE_PUBLIC_JWK'?undefined:'fixture';}}},
   async verifyManifest(value){assert.equal(value.signature,manifest.signature);return true;},
   async verifyObject(_,value){assert.equal(value.bytes,manifest.bytes);assert.equal(value.sha256,manifest.sha256);return true;},
   async fetch(url){

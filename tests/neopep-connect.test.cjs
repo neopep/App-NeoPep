@@ -38,7 +38,7 @@ test('Connect protege registros, seleciona reservas elegíveis e bloqueia reenvi
   const correction=fs.readFileSync('supabase/migrations/20261122003342_neopep_connect_pause_where.sql','utf8');
   assert.match(correction,/update neo_private\.connect_config set paused = \(p_data->>'paused'\)::boolean where singleton = true;/i);
   await db.exec(correction);
-  await db.exec(fs.readFileSync('supabase/migrations/20261122022149_neopep_connect_updates.sql','utf8'));
+  await db.exec(fs.readFileSync('tests/fixtures/connect/update-channel.sql','utf8'));
   const as=async(account,role='authenticated')=>{
    await db.exec('reset role');
    await db.query("select set_config('request.jwt.claim.sub',$1,false)",[account||'']);
