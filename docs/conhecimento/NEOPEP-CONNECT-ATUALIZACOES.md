@@ -49,3 +49,31 @@ O SQL do arquivo `20261122015846_neopep_connect_updates.sql` foi aplicado em `qn
 A distribuição segue vazia, com zero releases, zero objetos no bucket privado e zero eventos persistidos. Os testes de RPC usaram dispositivos e release bloqueado fictícios em transação revertida. O acesso HTTP à Edge sem JWT ou com JWT inválido retornou 401. A tentativa anônima pelo endpoint público do Storage retornou 400 e não entregou conteúdo. O formato de URL assinada foi validado por teste automatizado. A emissão real pelo broker depende do ensaio autorizado com release assinado e aprovado especificamente para aquele teste.
 
 O dispositivo já autorizado continuou enviando heartbeat com o cliente 0.1.1 e a sessão vinculada a `fixture-principal`. A simulação permaneceu pausada, com a tarefa anterior em estado `simulated`. O ensaio em Windows 10/11, a autenticação positiva da Edge com o cliente atualizador e a emissão de URL real continuam pendentes.
+
+## Primeiro ensaio com 0.2.2 e 0.2.3
+
+### Preparar os candidatos em uma conta Windows de assinatura
+
+Use Windows x64, Windows PowerShell 5.1, Git, .NET Framework 4.8 e Node.js oficial 24.22.1 x64. Examine o commit revisado e mantenha o checkout limpo. Em `connect\whatsapp-lab`, execute `npm ci --omit=dev --ignore-scripts` e `npm test`. Se o responsável ainda não tiver uma chave dedicada, execute uma vez na conta Windows de assinatura:
+
+```powershell
+$cert = New-SelfSignedCertificate -Subject 'CN=NeoPep Connect Teste Update Signing' `
+  -CertStoreLocation 'Cert:\CurrentUser\My' -Provider 'Microsoft Software Key Storage Provider' `
+  -KeyAlgorithm RSA -KeyLength 3072 -KeyExportPolicy NonExportable `
+  -KeyUsage DigitalSignature -Type Custom -NotAfter (Get-Date).AddYears(1)
+.\connect\windows\prepare-update-trial.ps1 `
+  -SigningThumbprint $cert.Thumbprint -Output "$env:LOCALAPPDATA\NeoPep-Connect-Ensaio-01"
+```
+
+Se a chave já existir, use a impressão digital do certificado conferida no repositório pessoal de certificados do Windows. A chave privada permanece no provedor CNG e o script escreve apenas a parte pública. A impressão SHA-256 de `publisher-public.xml` identifica a chave incorporada. O script gera dois diretórios, cada um com o EXE, `manifest.json` do empacotamento e `release-manifest.json` assinado. Registre a versão, commit, tamanho, SHA-256 e assinatura de cada candidato. Antes de instalar, compare os hashes com `Get-FileHash -Algorithm SHA256`. O manifesto assina a identidade do pacote; o EXE pode continuar sujeito ao aviso de reputação do Windows.
+
+### Executar depois da aprovação do proprietário
+
+1. Confira que há apenas um computador autorizado no projeto Teste e que a simulação segue pausada. Registre versão instalada, autorização, sessão de login, preferências, vínculo `fixture-principal` e estado da tarefa. Proteja a cópia de recuperação do perfil local na mesma conta Windows. Feche o Connect e instale 0.2.2 por cima da versão atual, sem usar a desinstalação, que remove o cofre. Abra o programa e confirme a sessão e o heartbeat. Em **Atualizações**, clique **Verificar atualizações**. O canal vazio deve responder sem versão disponível.
+2. Após aprovação explícita do candidato 0.2.3, envie somente seu EXE ao bucket privado `neo-connect-releases` no caminho `0.2.3/NeoPepConnectSetup.exe`, com MIME `application/octet-stream`. Confira tamanho e SHA-256 do objeto por uma leitura administrativa segura. Em **NeoPep Connect → Atualizações**, cadastre 0.2.3 como rascunho com os campos do `release-manifest.json`. Confirme que o cliente ainda não recebe oferta. Aprove apenas durante o ensaio e deixe a opção de obrigatoriedade desmarcada.
+3. No 0.2.2, clique **Verificar atualizações**, **Atualizar agora** e confirme. Verifique o download, a instalação, a abertura do 0.2.3 e o resultado administrativo. O evento `download_requested` indica uma solicitação, e download concluído no Windows é a evidência de que o bucket entregou o objeto por URL assinada. Registre apenas status e resultado, sem copiar a URL assinada. Compare login, autorização, cofre DPAPI, preferências e sessão experimental antes e depois. Bloqueie a versão ao encerrar a janela.
+4. Faça os cenários negativos em uma máquina isolada, restaurando o snapshot 0.2.2 entre eles. Para revogação, pause o cliente com o depurador na revalidação imediatamente após verificar o SHA-256. Bloqueie 0.2.3 no painel e retome o cliente. A instalação deve ser recusada. Para perda de conexão, desconecte a rede durante o download, confirme que 0.2.2 permanece funcional e faça uma nova tentativa ao reconectar. Para testar a recuperação, somente no perfil de ensaio crie um arquivo vazio com o nome do futuro diretório `whatsapp-runtime-0.2.3` antes da instalação. Isso força falha na preparação do runtime. Verifique reinício no 0.2.2 e o resultado de restauração. Remova só o arquivo de teste. Em falha da própria recuperação, preserve o cache `updates` e os cofres para análise.
+
+A aprovação descrita acima é a única etapa que abre o canal do release. No ensaio local ou na CI com chave descartável, mantenha os arquivos fora do bucket e evite anexar o instalador a um release do GitHub.
+
+A CI Windows do commit `295e484` gerou e conferiu os dois manifestos com uma chave descartável, depois removeu a chave e os arquivos temporários. Os EXEs tinham 50.072.576 bytes cada. Os SHA-256 foram `ac04d99f800b3d21e4ada26df2bfbc5db974753bd0023ef66bf981e5f2ec5b30` para 0.2.2 e `bc303573bc598a6358457a0615259e853c8b419df8e53f643ba65d34250f56ab` para 0.2.3. Esses valores identificam a rodada automatizada. Os manifestos e checksums para aprovação correspondem aos binários preparados com a chave do responsável. [CI Windows](https://github.com/neopep/App-NeoPep/actions/runs/44976204731)
