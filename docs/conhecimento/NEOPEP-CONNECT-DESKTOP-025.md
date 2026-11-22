@@ -14,7 +14,7 @@ Evoluir o cliente Windows legado para um ambiente de trabalho integrado às camp
 - Dashboard com indicadores de computador e ações de campanha.
 
 ## Entregue nesta primeira etapa de código
-1. Tema WinForms centralizado em `ConnectTheme.cs`, utilizado nas telas principais e do WhatsApp.
+1. Tema WinForms centralizado em `ConnectTheme.cs`, utilizado nas telas principais e do WhatsApp, com navegação lateral fixa e destaque da seção ativa.
 2. Nova aba **Publicar**, com seleção apenas dos grupos locais marcados, texto (até 2.000 caracteres), prévia e confirmação humana nominal do grupo.
 3. Envio direto de **texto** via operação privada `send_text` do bridge Node/Baileys; sem porta HTTP e sem envio automático.
 4. Provedor confirma participação real naquele grupo antes da chamada `sendMessage`.
@@ -35,7 +35,7 @@ Evoluir o cliente Windows legado para um ambiente de trabalho integrado às camp
 - O próprio painel web segue independente e sem alteração de banco nesta etapa.
 
 ## Evolução planejada para paridade com o painel NeoPep
-1. Construir navegação lateral em vez de abas WinForms e telas com cartões responsivos; dashboard unificado com Conexões, Grupos, Campanhas, Publicações, Agenda, Histórico, Diagnósticos e Configurações.
+1. Evoluir a navegação lateral já implementada e construir telas com cartões responsivos; dashboard unificado com Conexões, Grupos, Campanhas, Publicações, Agenda, Histórico, Diagnósticos e Configurações.
 2. Adicionar catálogo de campanhas compartilhado com Supabase de Teste sob autorização de administrador e RLS específica; ler campanhas e filas existentes, sem reaproveitar identificadores de simulação como autorização real.
 3. Editor de campanhas com título, texto, prévia de imagem/anexos, links, modelos reutilizáveis, busca e filtros por grupo. Tratar transferência e segurança de arquivos em módulo separado.
 4. Publicações por grupo individuais, revisão, confirmação humana, deduplicação por chave persistente, estados pendente/aceito/incerto e monitoramento.
