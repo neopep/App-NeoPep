@@ -121,9 +121,10 @@ sealed class WhatsApp : Form {
         var diagnostics=Page("Diagnóstico");Format(diagnostic);
         diagnostic.Text="A conexão e o QR Code ficam neste computador. Os diagnósticos mostram apenas estados e erros genéricos.";diagnostics.Controls.Add(diagnostic);
         var back=Action("Voltar",Close);back.Dock=DockStyle.Bottom;
-        Controls.Add(tabs);Controls.Add(back);
+        Controls.Add(back);
         ConnectTheme.Apply(this,tabs);
         ConnectTheme.ApplyContent(tabs);
+        Controls.Add(ConnectTheme.BuildShell(tabs,"NEOPEP CONNECT"));
         ConnectTheme.Primary(pair);ConnectTheme.Primary(sendTextButton);ConnectTheme.Primary(sync);
         if(showGroups)tabs.SelectedTab=listing;
         Shown+=delegate{LoadDraft();if(File.Exists(vault))ConnectSession();};
