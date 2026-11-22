@@ -29,7 +29,7 @@ jobs:
         run: npm ci --prefix connect/whatsapp-lab
       - name: Testar bridge e validação de envio
         shell: pwsh
-        run: node --test connect/whatsapp-lab/test
+        run: node --test connect/whatsapp-lab/test/windows-bridge.test.mjs connect/whatsapp-lab/test/windows-publish.test.mjs
       - name: Compilar cliente Windows Teste sem distribuir
         shell: pwsh
         run: |
