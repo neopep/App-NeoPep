@@ -465,3 +465,9 @@ O NeoPep Connect recebeu cliente WinForms x64 com cofre DPAPI, instalador e work
 A migração `20261121233733` foi aplicada no Supabase de staging. A transação com duas contas fictícias confirmou pausa, isolamento de grupo, escolha de reserva autorizada e conclusão simulada, mantendo a publicação manual pendente. O ensaio foi revertido. A versão 0.1.1 passou no runner Windows pela compilação, verificação de hash, instalação, atualização e remoção. O download do EXE pelo painel depende de upload e aprovação no bucket privado. [Guia de homologação](../conhecimento/NEOPEP-CONNECT.md)
 
 Build, checagem, prévia e 22 testes focados passaram. A suíte com 351 casos teve 289 aprovações e as mesmas 62 falhas herdadas. O ensaio no runner cobre instalação silenciosa. A conferência gráfica, o primeiro login em um desktop Windows, a execução em dois dispositivos físicos e o download assinado do objeto real seguem pendentes.
+
+## MEM-20261122-001
+
+A migração corretiva `20261122003342` restringiu a atualização de pausa do NeoPep Connect à linha `singleton = true`. Apenas o corpo dessa operação mudou. A revisão confirmou filtros nas demais atualizações e chaves explícitas nos upserts.
+
+O teste automatizado validou a cláusula e as duas transições. No Supabase de homologação, a mesma RPC acionada pelos botões foi testada como administrador autenticado em transação revertida. A fila foi comparada integralmente antes do rollback. Depois dele, o processamento permaneceu pausado, com um computador aprovado, uma sessão conectada, a conta fixture-principal, um vínculo de grupo, cinco registros de auditoria e uma única tarefa em fila, sem simulação.

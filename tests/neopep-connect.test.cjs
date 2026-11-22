@@ -35,6 +35,9 @@ test('Connect protege registros, seleciona reservas elegíveis e bloqueia reenvi
   await db.exec(fs.readFileSync('supabase/migrations/20261121233733_neopep_connect.sql','utf8'));
   await db.exec(`insert into neo_private.connect_releases(version,path,sha256,bytes)
    values('0.1.1','0.1.1/NeoPepConnectSetup.exe',repeat('c',64),39936)`);
+  const correction=fs.readFileSync('supabase/migrations/20261122003342_neopep_connect_pause_where.sql','utf8');
+  assert.match(correction,/update neo_private\.connect_config set paused = \(p_data->>'paused'\)::boolean where singleton = true;/i);
+  await db.exec(correction);
   const as=async(account,role='authenticated')=>{
    await db.exec('reset role');
    await db.query("select set_config('request.jwt.claim.sub',$1,false)",[account||'']);
@@ -71,6 +74,14 @@ test('Connect protege registros, seleciona reservas elegíveis e bloqueia reenvi
   await assert.rejects(device('heartbeat',first.id,first.key),{code:'42501'});
   await admin('queue',{id:publication(1),account:a.id,mode:'fallback'});
   assert.equal(await rpc(reserve,'claim'),null,'pausa inicial');
+  const originalQueue=(await admin('snapshot')).tasks;
+  await admin('pause',{paused:false});
+  assert.equal((await admin('snapshot')).paused,false);
+  await admin('pause',{paused:true});
+  const pausedSnapshot=await admin('snapshot');
+  assert.equal(pausedSnapshot.paused,true);
+  assert.deepEqual(pausedSnapshot.tasks,originalQueue);
+  assert.equal(await rpc(reserve,'claim'),null);
   await admin('pause',{paused:false});
   assert.equal(await rpc(reserve,'claim'),null,'convite não autoriza reserva');
   await admin('associate',{group,account:b.id,verified:true,may_publish:true});
