@@ -63,8 +63,8 @@ def render(lot, *, rollback=False):
     for table in plan["tables"]:
         post.append(
             f"if not (select relrowsecurity from pg_class where oid={quote(table)}::regclass) "
-            f"or has_table_privilege('anon',{quote(table)},'SELECT') "
-            f"or has_table_privilege('authenticated',{quote(table)},'SELECT') "
+            f"or has_table_privilege('anon',{quote(table)},'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') "
+            f"or has_table_privilege('authenticated',{quote(table)},'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') "
             f"then raise exception {quote('RLS/ACL incompatível: ' + table)}; end if;"
         )
     for routine in plan["routines"]:

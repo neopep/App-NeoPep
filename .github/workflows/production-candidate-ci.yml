@@ -30,7 +30,7 @@ jobs:
       - name: Invariantes de configuracao oficial
         run: node release/production/assert-candidate.cjs
       - name: Testes focalizados
-        run: node --test tests/{admin-ui,pwa,release-check,cloud,auth-persistence,photos,shop-payments-edge,shop-core,auth-settings,delete-account}.test.cjs
+        run: node --test tests/{admin-ui,pwa,release-check,cloud,auth-persistence,photos,shop-payments-edge,shop-core,shop,shop-shipping,auth-settings,delete-account}.test.cjs
       - name: Ensaio sintético dos lotes e catálogo
         run: |
           node --test tests/production-rehearsal.test.cjs

@@ -13,3 +13,5 @@
 - [ ] Publicação futura. Confirmar SHA, READY, DNS/HTTPS, fluxos funcionais e monitoramento.
 
 [Procedimento de execução e recuperação](../../release/production/README.md) · [Inventário de Supabase](INVENTARIO-SUPABASE-20261122.md)
+
+Na continuidade do PR #25 foram verificados o gate da CI, contratos financeiros sintéticos e os dois lotes de ensaio. Reembolso parcial e repetição de checkout continuam bloqueios financeiros. Catálogos reais, restauração verificada, conector e ativação operacional ainda estão pendentes. [Relatório de backend](BACKEND-PR25.md)
