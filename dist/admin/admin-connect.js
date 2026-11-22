@@ -82,7 +82,11 @@ function mountNeoConnect(root,cloud){
    <div data-connect-link></div>
    ${canManageUpdates?`<div data-connect-updates>
     <h4>Atualizações de Teste</h4>
-    ${releaseInfo?`<p>Use os dados do manifesto assinado do instalador enviado ao bucket de Teste.</p>
+    ${releaseInfo?`<form data-connect-form="update_import" class="space">
+     <label>Manifesto assinado<input name="manifest" type="file" accept=".json,application/json" required></label>
+     <button type="submit" class="secondary">Importar como rascunho</button>
+    </form>
+    <p>Cadastro manual</p>
     <form data-connect-form="update_register" class="space">
      <label>Versão<input name="version" required pattern="[0-9]{1,8}[.][0-9]{1,8}[.][0-9]{1,8}"></label>
      <label>Identificador do artefato<input name="artifact" required maxlength="120" pattern="[A-Za-z0-9._\\-]{1,120}"></label>
@@ -197,6 +201,30 @@ function mountNeoConnect(root,cloud){
   const data=Object.fromEntries(new FormData(form)),action=form.dataset.connectForm;
   if(action==='update_approve'){
    void changeDistribution('approve',form.dataset.version,form.querySelector('button[type="submit"]'),data.required==='on');
+   return;
+  }
+  if(action==='update_import'){
+   if(!canManageUpdates||!cloud.importConnectRelease||savingRelease)return;
+   const button=form.querySelector('button[type="submit"]');
+   savingRelease=true;button.disabled=true;
+   void (async()=>{
+    try{
+     const file=data.manifest;
+     if(!file?.size||file.size>16384)throw Error('Selecione um manifesto JSON de até 16 KiB.');
+     let manifest;
+     try{manifest=JSON.parse((await file.text()).replace(/^\uFEFF/,''));}catch{throw Error('O arquivo selecionado não contém JSON válido.');}
+     if(!manifest||typeof manifest.version!=='string'||!/^\d{1,8}(\.\d{1,8}){2}$/.test(manifest.version)||
+        manifest.profile!=='staging'||manifest.channel!=='stable'||! /^[a-f0-9]{64}$/.test(manifest.sha256))
+      throw Error('Confira a versão, o perfil Teste, o canal e o SHA-256.');
+     if(!confirm('Registrar como rascunho no Teste?\nArquivo: '+file.name+'\nVersão: '+manifest.version+'\nSHA-256: '+manifest.sha256))return;
+     note('Verificando assinatura e instalador no bucket privado…');
+     const result=await cloud.importConnectRelease(manifest);
+     form.reset();
+     try{await load();}catch{}
+     note('Rascunho '+result.version+' • '+result.path+' • SHA-256 '+result.sha256);
+    }catch(error){note(error.message||'Falha ao importar o manifesto.');}
+    finally{savingRelease=false;button.disabled=false;}
+   })();
    return;
   }
   if(action==='update_register'){
