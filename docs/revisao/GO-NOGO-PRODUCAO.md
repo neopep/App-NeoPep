@@ -1,10 +1,11 @@
 # Decisão de publicação oficial
 
-**NO-GO.** O proxy impediu acesso autenticado ao Supabase e à Vercel. O histórico de migrações e os deltas de produção permanecem abertos.
+**NO-GO.** A branch contém o resumo do catálogo autenticado e sete lotes executáveis para homologação isolada. A reconciliação do ledger, as diferenças de contrato e a recuperação de banco e Storage oficiais continuam pendentes.
 
 - [x] Comparar Git, confirmar os heads e excluir PRs #22 e #23.
 - [x] Verificar configuração oficial, marca, rotas legadas, isolamento das APIs de Teste e do canal Windows.
-- [ ] Confirmar o ponto de recuperação, restauração isolada, catálogo real e ledger.
+- [x] Incorporar o resumo autenticado ao desenho e executar os sete lotes em banco sintético.
+- [ ] Confirmar o catálogo integral e o ledger oficiais, o ponto de recuperação e a restauração de banco e Storage em destino autorizado.
 - [ ] Revisar definições das 124 rotinas divergentes, constraints, RLS e privilégios e ensaiar os deltas.
 - [ ] Conferir domínio, Vercel READY, Auth/CAPTCHA, CORS, SMTP, recuperação e rota legada com PWA instalada.
 - [ ] Homologar isolamento de duas contas, biblioteca, comunidade, loja, pagamentos, webhooks e exclusão de conta. Preservar cron e validar notificações com consentimento.
@@ -14,4 +15,6 @@
 
 [Procedimento de execução e recuperação](../../release/production/README.md) · [Inventário de Supabase](INVENTARIO-SUPABASE-20261122.md)
 
-Na continuidade do PR #25 foram verificados o gate da CI, contratos financeiros sintéticos e os dois lotes de ensaio. Reembolso parcial e repetição de checkout foram corrigidos na candidata e passaram nos testes isolados. Sandbox do Mercado Pago e restauração continuam critérios de liberação. Catálogos reais, restauração verificada, conector e ativação operacional ainda estão pendentes. [Relatório de backend](BACKEND-PR25.md)
+A cobertura dos lotes, seus gates, o pré-voo e a recuperação estão no [procedimento de execução](../../release/production/README.md). Os testes financeiros sintéticos verificam reembolso parcial e repetição de checkout. A API Orders em sandbox, os fingerprints da Loja oficial e a validação operacional de Auth e Edge seguem como critérios de liberação.
+
+O ensaio PostgreSQL 17 isolado cobriu backup e restauração lógicos sintéticos e os sete lotes com rollback e commit. Build, check e 93 testes focados passaram. A suíte completa teve 330 aprovações e 51 falhas também presentes na referência anterior. O comando `release:check` permanece bloqueado pelas evidências operacionais listadas acima. [Procedimento e evidência de restauração](../../release/production/RESTORE-REHEARSAL.md)

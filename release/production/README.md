@@ -9,19 +9,23 @@
 3. Executar `python3 release/production/compare-catalog.py prod-antes.jsonl teste.jsonl > delta.json`. Distinguir mudanças semânticas de formatação em sessão administrativa. Confirmar visibilidade do cron e do ledger antes de interpretar ausências.
 4. Pelo painel administrativo, inventariar Edge, verify_jwt, Auth, callbacks, CORS, SMTP, CAPTCHA, DNS, Vercel e recuperação. Registrar configurações públicas, presença e nomes das variáveis. O catálogo PostgreSQL não verifica esses serviços.
 
-## Ordem de preparação dos lotes
+## Ordem e cobertura dos lotes de homologação
 
-| Lote | Insumos do Git | Condição para produzir SQL executável |
+| Lote | Entrega SQL | Dependências e limites |
 |---|---|---|
-| Linha de base | Esquema oficial e catálogo real | Reconhecer objetos instalados com hashes, grants e dados preservados. Definir baseline de produção após revisão, sem importar ledger de Teste. |
-| Administração e métricas | 20261121170551, 20261121181510, 20261121183535, 20261121184939, 20261121190211, 20261121192900 | Identificar objetos ausentes, dependências e diferenças de permissões. Preservar opt-in. |
-| Campanhas App e editor | 20261121195231, 20261121200721 | Manter distribuição fechada. Reconciliar a criação de bucket com o lote Storage. |
-| Campanhas push e WhatsApp manual | 20261121195245, 20261121231451 | Adiar gatilhos que alimentem fila sem gate eficaz no backend. Preservar o default de community_preferences.push_enabled e o cron oficial. |
-| Multiagentes | 202611200001, 202611200002 | Fundação antes de runtime. Revisar RPCs renomeadas de suporte, claim e finish, filas e agente padrão antes de alterar a IA oficial. |
-| Connect inerte | 20261121233733, 20261122003342, 20261122152200 | Reconstruir dependências intermediárias de atualização, grupos e evidências. Manter serviço pausado, assinador e brokers suspensos. |
-| Storage | private-buckets.sql e políticas dos módulos | Lote separado. O SQL adiciona apenas buckets privados vazios, valida colisões e reverte em divergência. Remover sobreposição com INSERTs dos SQL de referência ao elaborar o delta aprovado. |
+| 01 Cadastros | 2 tabelas de rollout e leitura, mais RPC administrativa | Auth e administração da base oficial. |
+| 02 Audiência e engajamento | 2 tabelas e RPCs de audiência e engajamento | Perfis, atividade e administração. |
+| 03 Multiagentes | 3 tabelas e 9 colunas tipadas em `ai_attempts`, `ai_jobs` e `support_threads` | Catálogo administrativo. Ativação vedada via CHECK. Claim, finish, suporte e fila oficiais preservados. |
+| 04 Monitoramento e operações | 10 tabelas, RPCs, gatilhos de auditoria e atribuição de ambiente oficial | Requer o catálogo de agentes. Preserva `neo_message_events_own`. Configuração de observabilidade externa depende da liberação de Edge e da validação de permissões. |
+| 05 Campanhas, push e WhatsApp | 9 tabelas, bucket privado de imagens e 2 políticas Storage | Campanhas ativas, solicitação de push e lembretes WhatsApp bloqueados. Worker de campanhas sem EXECUTE. O agendamento e a preferência padrão de push oficial são preservados. Permanece em escopo apenas a base de campanhas já integrada ao staging. |
+| 06 Connect | 12 tabelas, bucket privado de releases e política de download | Canal pausado, distribuição limitada a rascunho e RPCs Connect sem EXECUTE para os roles do aplicativo e dos workers. Nenhum instalador ou registro do Teste é copiado. |
+| 07 Financeiro | Correção incremental de `neo_shop_v36` para retentativa do checkout | Exige fingerprint do corpo oficial aceito pelo SQL. A revisão de reembolsos parciais e a chave no provedor estão no código de Edge da candidata. A homologação funcional em sandbox e a publicação de Edge têm decisões próprias. |
 
-O histórico relatado de Teste inclui 20261122022149, 20261122040259, 20261122044929 e 20261122151856 sem arquivo do mesmo ID no snapshot de homologação. Comparar as definições instaladas, inclusive a predecessora de 20261122152200, antes de preparar SQL incremental. Usar fixtures de contratos somente em ambiente isolado. Ensaiar lotes em restauração sanitizada. Fixar hashes, ordem, pré-condições e limites de locks.
+Os lotes cobrem as 38 tabelas e as 9 colunas em tabelas existentes. O ensaio sintético mediu 70 índices, 13 gatilhos, 182 restrições, 42 rotinas e 3 políticas de Storage adicionadas. O número de restrições inclui gates de inatividade. Contagens isoladas de índices e gatilhos coincidem com as do relatório autenticado, mas identidade e definição ainda exigem comparação objeto a objeto. As 42 rotinas adicionadas não encerram as 56 encontradas no Teste. As diferenças de contrato compartilhadas também permanecem abertas.
+
+Os IDs de Teste 20261122022149, 20261122040259, 20261122044929 e 20261122151856 requerem reconciliação com as definições remotas. O lote 06 usa fixtures com hashes fixos para construir dependências do ensaio. Antes de aprovar o delta oficial, confirmar seus equivalentes instalados, a predecessora de 20261122152200 e a matriz de ACLs. A linha de base de Produção precisa ser registrada a partir do catálogo confirmado, sem importar ledger de Teste ou repetir migrações iniciais.
+
+O manifesto seleciona apenas as fontes expressamente listadas. Fora da exceção financeira validada pelo próprio SQL, o pós-voo transacional impede alteração das rotinas instaladas e seus grants. Também verifica ACL/RLS de relações instaladas, políticas preexistentes e o default de push. Os catálogos antes e depois são necessários para confirmar mudanças fora desses guards. Os PRs #22 e #23 ficam fora.
 
 ## Execução e recuperação futura
 
@@ -31,13 +35,13 @@ O histórico relatado de Teste inclui 20261122022149, 20261122040259, 2026112204
 - Em falha antes do commit, reverter a transação. Após commit, desligar ativações novas no servidor, restaurar código ou Edge anterior quando compatível e preparar migração compensatória. Preservar dados e auditoria. Reconciliar IDs de transação e webhooks antes de reversão financeira. Restauração na origem oficial exige avaliação de perda de gravações posteriores e autorização.
 - Publicar o frontend por último, após decisão Go. Confirmar no painel a supressão de deploy da branch de preparação. Após publicação autorizada, observar Vercel READY e testar a origem oficial.
 
-## Lotes incrementais de ensaio
+## Executar em homologação isolada
 
-Os dois primeiros lotes têm SQL renderizável com SHA-256 dos arquivos de origem fixado em batches/manifest.json. O lote 01 prepara avisos de novos cadastros. O lote 02 prepara audiência e engajamento numa única transação. O gerador rejeita banco com nome diferente de neopep_release_rehearsal, dependências incompatíveis e colisões. O pós-teste na transação confere RLS e EXECUTE/SELECT de cliente. Reaplicar um lote já instalado resulta em erro explícito, sem sobrescrita nem registro no ledger.
+O manifesto fixa o SHA-256 de cada fonte e descreve as adaptações intencionais. O renderer valida os hashes, rejeita colisões, exige o banco `neopep_release_rehearsal`, limita lock e duração de statements e faz pré e pós-verificações na mesma transação. Um lote já aplicado falha antes do DDL. Nenhum lote grava no ledger.
 
-- Gerar com `python3 release/production/batches/render.py 01-cadastros --rollback` e depois `02-audiencia-engajamento --rollback`, gravando cada saída em arquivo separado.
-- Executar com psql e ON_ERROR_STOP exclusivamente na cópia isolada, após confirmar endpoint e banco. Remover --rollback na geração apenas para a rodada persistente do ensaio isolado. Nenhum dos lotes é um SQL de aplicação oficial.
-- Comparar os hashes do ledger e as definições remotas antes de redigir a versão de produção. Campos de histórico que não estiverem presentes devem aparecer como desconhecidos. Nunca inferir que um objeto existe porque o ID de migração coincide.
-- Antes de levar esses lotes para a origem oficial, verificar especialmente a autorização de administrador de plataforma, exposição de dados de cadastro e dependências atuais de Auth. Demais lotes dependem do catálogo autenticado e ainda não têm SQL executável de produção.
+1. Confirmar no painel e no perfil local que o host e o banco são do ensaio isolado. Assegurar que o destino não tem dispatchers nem acesso aos provedores reais. Usar diretório de evidências privado, fora do Git.
+2. Seguir a ordem do manifesto. Para cada lote, começar com `PGSERVICE=neopep_isolado bash release/production/batches/rehearse.sh 01-cadastros /caminho/privado/01-rollback`. O script gera o SQL com rollback, guarda os catálogos e SHA-256 e exige que o catálogo inteiro seja igual no fim. O lote financeiro grava também o pré e o pós-voo de fingerprints e unicidade.
+3. Após revisar a evidência, repetir o mesmo lote com novo diretório e a opção `--apply-isolated`. Comparar `delta.json` com os objetos esperados antes de avançar. Se a captura posterior falhar depois do commit, interromper a sequência e confirmar o estado pelo catálogo antes de tentar novamente.
+4. Para inspecionar SQL sem conectar, usar `python3 release/production/batches/render.py 01-cadastros --rollback`. A transação pode ser descartada antes do commit. Para estado financeiro já persistido, há patch compensatório com fingerprint em `rollback/20261122190100_shop_checkout_retry.sql`, condicionado à reconciliação de pedidos e pagamentos. Após lotes aditivos já persistidos, manter os gates de inatividade e preparar compensação específica que preserve registros. Retestar a sequência completa em nova cópia restaurada.
 
 [Procedimento de restauração](RESTORE-REHEARSAL.md)

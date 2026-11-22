@@ -1,6 +1,6 @@
 # Ensaio de backup e restauração
 
-**Estado atual — pendente.** Os testes usam dados sintéticos em PGlite. Ainda não há evidência de restauração de banco ou Storage de produção.
+**Estado atual.** Ensaio sintético de migração em PGlite e de backup lógico em PostgreSQL 17. A comprovação de restauração de banco e Storage de produção está pendente.
 
 ## Preparar a origem e um destino isolado
 
@@ -25,3 +25,9 @@
 - Passos de recuperação testados, responsáveis e evidência de bloqueio de saídas. Uma leitura do manifesto ou um teste PGlite não substitui esse registro.
 
 Se um lote falhar antes do commit, usar rollback da transação. Depois do commit, preparar alteração compensatória revisada, preservando registros/auditoria. Para alterações financeiras, reconciliar pedidos e eventos do provedor antes de restaurar qualquer estado. A restauração sobre a origem oficial precisa de avaliação das gravações posteriores e aprovação separada.
+
+## Evidência sintética de PostgreSQL 17
+
+`bash tests/production-postgres.sh` cria um contêiner PostgreSQL 17 sem rede, usa exclusivamente migrações da referência local `origin/main` e dados sintéticos, produz um dump lógico e o restaura em outro banco do contêiner. Verifica um registro Auth sintético e compara o catálogo, aceitando apenas ACL padrão do proprietário e três CHECKs conhecidos cuja expressão o PostgreSQL reserializa com a mesma conjunção. Ensaios por lote comparam o catálogo integral antes e depois do rollback e verificam as invariantes após os sete commits. O script registra o SHA da base, o dump, catálogos e SHA-256 em diretório privado.
+
+O ensaio local cobre o procedimento lógico e os deltas em PostgreSQL real. O backup oficial, a consistência entre banco e arquivos, o tempo de recuperação de produção e a restauração de arquivos de Storage seguem pendentes.

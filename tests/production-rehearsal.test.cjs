@@ -49,20 +49,7 @@ test('aplica os sete lotes sobre uma instalação isolada da base oficial',async
  const db=new PGlite();
  const protectedTables=['neo_photos','neo_records','neo_consents','neo_profiles','neo_consent_events','neo_message_events','neo_migration_receipts'];
  try{
-  await db.exec(`create role anon; create role authenticated; create role service_role;
-   create schema auth; create schema storage; create schema vault; create schema cron;
-   create table vault.decrypted_secrets(name text,decrypted_secret text);
-   create table cron.job(jobid integer primary key,schedule text);
-   insert into cron.job values(1,'*/10 * * * *');
-   create table auth.users(id uuid primary key,email text,created_at timestamptz default now(),last_sign_in_at timestamptz,
-    deleted_at timestamptz,is_anonymous boolean,raw_app_meta_data jsonb,raw_user_meta_data jsonb default '{}');
-   create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
-   grant usage on schema auth,storage to authenticated;
-   create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
-   create table storage.objects(id uuid,name text,bucket_id text,metadata jsonb);
-   alter table storage.objects enable row level security;
-   grant select,insert,delete on storage.objects to authenticated;
-   create function storage.foldername(text) returns text[] language sql immutable as $$select string_to_array($1,'/')$$;`);
+  await db.exec(fs.readFileSync('tests/fixtures/production/base.sql','utf8'));
   async function apply(label,sql){
    try{await db.exec(sql);}catch(error){throw new Error(`${label}: ${error.message} ${error.where??''}`);}
   }
@@ -88,7 +75,7 @@ test('aplica os sete lotes sobre uma instalação isolada da base oficial',async
   }
   const afterCounts=await counts();
   const delta=Object.fromEntries(Object.keys(baseCounts).map(key=>[key,Number(afterCounts[key])-Number(baseCounts[key])]));
-  assert.equal(delta.storage_policies,3);
+  assert.deepEqual(delta,{routines:42,indexes:70,triggers:13,constraints:182,storage_policies:3});
   console.log('Delta isolado por classe',delta);
   assert.equal((await db.query("select has_function_privilege('service_role','public.neo_connect_admin(text,jsonb)','EXECUTE') as allowed")).rows[0].allowed,false);
   assert.equal((await db.query("select has_function_privilege('service_role','public.neo_campaign_push_claim()','EXECUTE') as allowed")).rows[0].allowed,false);
@@ -98,7 +85,7 @@ test('aplica os sete lotes sobre uma instalação isolada da base oficial',async
   assert.deepEqual((await tables()).filter(table=>!before.has(table)),expected);
   assert.equal(Object.values(manifest).flatMap(lot=>Object.keys(lot.new_columns??{})).length,9);
   assert.equal((await db.query("select column_default from information_schema.columns where table_schema='neo_private' and table_name='community_preferences' and column_name='push_enabled'")).rows[0].column_default,'true');
-  assert.deepEqual((await db.query('select * from cron.job')).rows,[{jobid:1,schedule:'*/10 * * * *'}]);
+  assert.deepEqual((await db.query('select * from cron.job')).rows,[{jobid:1,jobname:'neo-push-dispatch',schedule:'* * * * *',active:true,command:'select 1'}]);
   for(const table of protectedTables){
    const result=await db.query("select privilege_type from information_schema.table_privileges where table_schema='public' and table_name=$1 and grantee='service_role' order by 1",[table]);
    assert.deepEqual(result.rows.map(row=>row.privilege_type),['DELETE','INSERT','SELECT','UPDATE']);
