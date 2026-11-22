@@ -48,6 +48,10 @@ function showNeoWhatsappNavigation(root){
   b.className=selected?'primary':'secondary';b.setAttribute('aria-pressed',String(selected));
  });
  root.querySelectorAll('[data-neo-wa-panel]').forEach(function(p){p.hidden=p.dataset.neoWaPanel!==current;});
+ if(current==='groups'){
+  const group=root.querySelector('form[data-wa-group]')?.closest('details');
+  if(group&&!group.open)group.open=true;
+ }
  if(current==='connect'){
   const details=root.querySelector('[data-wa-connect]');
   if(details&&!details.open)details.open=true;
