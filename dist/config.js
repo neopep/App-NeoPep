@@ -6,12 +6,14 @@ window.NEO_CONFIG = Object.freeze({
   pushVapidPublicKey: 'BBv4hvbD7C4b99L90B8r1QiOqpEMSvL6DqcJd22QUq4hNMdiHcsS14PXT21lGUjS74QmASan09lAeJ_GWwFtXIE', // Chave pública VAPID; a privada permanece somente no Supabase.
   providers: { google: false, apple: false, email: true },
   privacyContact: 'neopeptideos@proton.me',
-  cloudValidated: false,
+  cloudValidated: false, // A publicação não equivale à homologação externa de Auth e pagamentos.
+  connectEnabled: true, // Produção: canal próprio, banco e credenciais independentes do Teste.
+  campaignActivationEnabled: true, // Administração e campanhas ficam disponíveis com as regras e consentimentos SQL.
   captchaRequired: true,
   captchaSiteKey: '0x4AAAAAAGAwsdQjxAWnkGLM',
   controllerName: 'NeoPeptídeos', // Empresa informada pelo responsável.
   controllerCnpj: '69.782.060/0001-00', // Dígitos conferidos; situação cadastral não consultada.
   legalVersion: '2026-11-v1',
-  publicRegistration: false,
-  previewRegistration: true
+  publicRegistration: true, // Intenção confirmada: cadastro aberto ao público, sujeito ao gate de publicação.
+  previewRegistration: false
 });

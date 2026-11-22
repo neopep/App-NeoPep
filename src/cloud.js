@@ -3,6 +3,10 @@ const C=window.NeoCore, config=window.NEO_CONFIG||{};
 let client=null,user=null,profileRevision=null,listener=null,consents=[],isAdmin=false,onboarded=false,identityVersion=0;
 // Mantém o callback já usado no Supabase ao abrir o aplicativo também na raiz.
 function authRedirect(){const current=new URL(location.href),target=new URL(config.authRedirectPath||'./',current);if(target.origin!==current.origin)throw Error('O retorno de autenticação deve permanecer neste site.');target.hash='';target.search='';return target;}
+const official=config.supabaseUrl==='https://cpslafpzjtbpmoxxysaa.supabase.co';
+const connectTestEnabled=config.connectTestEnabled===true&&!official;
+const connectEnabled=connectTestEnabled||(official&&config.connectEnabled===true);
+const campaignsEnabled=!official||config.campaignActivationEnabled===true;
 const configured=/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(config.supabaseUrl||'')&&C.isPublicSupabaseKey(config.supabasePublishableKey);
 const ok=r=>{if(r.error){const source=r.error,emailLimit=source.code==='over_email_send_rate_limit'||/email rate limit exceeded/i.test(source.message||'');const error=new Error(emailLimit?'O limite de envio de e-mails foi atingido. Aguarde antes de tentar novamente. Se o problema continuar, entre em contato com o responsável pelo aplicativo.':source.message||'Não foi possível acessar a nuvem.');error.code=source.code||null;error.status=source.status||null;throw error}return r.data};
 const needsHealth=()=>{need();if(!api.hasConsent('health')||!api.hasConsent('terms'))throw Error('Conclua o cadastro inicial e os consentimentos antes de gravar na conta.');};
@@ -23,7 +27,49 @@ const authStorage={
 };
 function chooseRemember(value){if(typeof value!=='boolean')return;const saved=rememberSession===value?null:AUTH_KEYS.map(key=>[key,authStorage.getItem(key)]);rememberSession=value;writeStore(browserStore('localStorage'),REMEMBER_KEY,String(value));if(saved){for(const [key] of saved)authStorage.removeItem(key);for(const [key,item] of saved)if(item!==null)authStorage.setItem(key,item)}}
 const clearAuthStorage=()=>AUTH_KEYS.forEach(key=>authStorage.removeItem(key));
-const api={configured,get remember(){return rememberSession},get persistenceLimited(){return persistenceLimited},
+const api={configured,connectTestEnabled:connectEnabled,
+ async campaignImageURL(path){
+  const result=ok(await need().storage.from('neo-campaign-images').createSignedUrl(path,120));
+  return result.signedUrl;
+ },
+ async uploadCampaignImage(file){
+  const sdk=need(),owner=user.id;
+  if(!file||file.size>5*1024*1024||!['image/jpeg','image/png','image/webp'].includes(file.type))throw Error('Escolha JPEG, PNG ou WebP de até 5 MB.');
+  const image=await createImageBitmap(file);
+  let blob;
+  try{
+   const canvas=document.createElement('canvas'),scale=Math.min(1,1600/Math.max(image.width,image.height));
+   canvas.width=Math.max(1,Math.round(image.width*scale));canvas.height=Math.max(1,Math.round(image.height*scale));
+   const context=canvas.getContext('2d');
+   context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(image,0,0,canvas.width,canvas.height);
+   blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.86));
+  }finally{image.close();}
+  if(!blob||blob.size>5*1024*1024||owner!==user?.id)throw Error('Não foi possível preparar a imagem.');
+  const path=owner+'/'+crypto.randomUUID()+'.jpg';
+  ok(await sdk.storage.from('neo-campaign-images').upload(path,blob,{contentType:'image/jpeg',cacheControl:'0',upsert:false}));
+  if(owner!==user?.id)throw Error('A sessão mudou.');
+  return path;
+ },
+ ...(connectTestEnabled ? {
+  async importConnectRelease(manifest){
+   const response=await need().functions.invoke(config.connectReleaseFunction,{body:manifest});
+   if(response.error){
+    let message='Não foi possível verificar o manifesto no servidor de Teste.';
+    try{const detail=await response.error.context.json();if(typeof detail.error==='string')message=detail.error;}catch{}
+    throw Error(message);
+   }
+   return response.data;
+  },
+ } : {}),
+ async connectUpdateAdmin(action,data={}){if(!connectEnabled)throw Error('Canal Windows indisponível.');return ok(await need().rpc('neo_connect_update_admin',{p_action:action,p_data:data}));},
+ async connectWaConnections(){if(!connectEnabled)throw Error('Canal Windows indisponível.');return ok(await need().rpc('neo_connect_wa_list_connections'));},
+ async connectWaGroups(connection,after=null){if(!connectEnabled)throw Error('Canal Windows indisponível.');return ok(await need().rpc('neo_connect_wa_list_groups',{p_connection:connection,p_after:after,p_limit:50}));},
+ async connectAdmin(action,data={}){if(!connectEnabled)throw Error('Canal Windows indisponível.');return ok(await need().rpc('neo_connect_admin',{p_action:action,p_data:data}));},
+ async connectReleaseURL(path){if(!connectEnabled)throw Error('Canal Windows indisponível.');return ok(await need().storage.from('neo-connect-releases').createSignedUrl(path,120,{download:'NeoPepConnectSetup.exe'})).signedUrl;},
+ async campaignWhatsApp(action,id=null,data={}){return ok(await need().rpc('neo_campaign_wa',{p_action:action,p_id:id,p_data:data}));},
+ async campaignAdmin(action,id=null,data={}){if(action==='activate'&&!campaignsEnabled)throw Error('Ativação de campanhas indisponível.');return ok(await need().rpc('neo_campaign_admin',{p_action:action,p_id:id,p_data:data}));},
+ async campaignPushPreference(enabled=null){if(!campaignsEnabled)return false;return ok(await need().rpc('neo_campaign_push_preference',{p_enabled:enabled}));},
+ async campaignVisit(action,impression=null){if(!campaignsEnabled)return null;return ok(await need().rpc('neo_campaign_visit',{p_action:action,p_impression:impression}));},get remember(){return rememberSession},get persistenceLimited(){return persistenceLimited},
  async pushDevice(action,subscription,timezone){need();return ok(await client.rpc("neo_push_device",{p_action:action,p_subscription:subscription,p_timezone:timezone||"UTC"}))},
  async shop(action,payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_shop',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou. Reabra a loja.');return data},
  async shopAddress(action,payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_shop_address',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou. Reabra o checkout.');return data},
@@ -51,6 +97,7 @@ const api={configured,get remember(){return rememberSession},get persistenceLimi
  async uploadCommunityPhoto(blob){need();if(blob.type!=='image/jpeg'||blob.size>5*1024*1024)throw Error('Foto inválida.');const account=user.id,version=identityVersion;const reserved=await api.communityChat('reserve_photo',{photo_share:'on'});if(version!==identityVersion)throw Error('A conta mudou.');ok(await client.storage.from('neo-community').upload(reserved.path,blob,{contentType:'image/jpeg',upsert:false}));if(version!==identityVersion||account!==user?.id)throw Error('A conta mudou. Reabra a comunidade.');return reserved.path},
  async cleanupCommunityPhotos(){need();const version=identityVersion,account=user.id;const keep=new Set(await api.communityChat('attachments'));for(let count=0;count<10;count++){const files=ok(await client.storage.from('neo-community').list(account,{limit:1000}));if(version!==identityVersion)throw Error('A conta mudou.');const unused=files.filter(f=>Date.parse(f.created_at)<Date.now()-3600000).map(f=>account+'/'+f.name).filter(p=>!keep.has(p));if(!unused.length)return;ok(await client.storage.from('neo-community').remove(unused));if(files.length<1000)return;}},
  async agent(action='read',payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_agent',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou.');return data},
+ async multiagent(action='list',payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_multiagent',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou.');return data},
  async agentIntegration(action,payload={}){need();const version=identityVersion;const result=await client.functions.invoke('agent-integrations',{body:{...payload,action}});if(version!==identityVersion)throw Error('A conta mudou.');if(result.error){let detail=null;try{detail=await result.error.context?.json();}catch{}const messages={encryption_configuration_pending:'Configure a chave de proteção no servidor antes de salvar credenciais.',key_pending:'Cadastre a chave desta integração.',key_required:'Cole a chave da API para carregar os modelos disponíveis.',provider_key_invalid:'A chave da API foi recusada. Confira a chave e o projeto da conta.',provider_model_not_found:'Esse modelo não existe ou não está liberado para esta chave. Atualize a lista e escolha outro.',provider_quota_exhausted:'A API está sem créditos ou atingiu o limite. Confira o faturamento do serviço.',model_list_unavailable:'O serviço não conseguiu fornecer a lista de modelos agora. Tente novamente.',configuration_changed:'A configuração mudou ou o limite de testes foi atingido. Atualize o painel e confira o limite diário.'};throw Error(messages[detail?.error]||'Não foi possível concluir. Confira a função agent-integrations, a chave, o modelo e a cota da API.');}return result.data},
  async platform(action='read',payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_platform',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou.');return data},
  async authSettings(action='status',payload={}){need();const version=identityVersion;const data=ok(await client.functions.invoke('auth-settings',{body:{...payload,action}}));if(version!==identityVersion)throw Error('A conta mudou.');return data},
@@ -94,10 +141,44 @@ const api={configured,get remember(){return rememberSession},get persistenceLimi
   onboarded=!!p&&!!s.profile.height&&!!s.profile.initialWeight&&!!s.profile.goal&&api.hasConsent('health')&&api.hasConsent('terms');return s;
  },
  async onboard(profile,settings,health,terms){need();if(health!==true||terms!==true)throw Error('Confirme os consentimentos específicos.');const p=C.profile(profile);if(!p.height||!p.initialWeight||!p.goal)throw Error('Informe altura, peso inicial e meta.');ok(await client.rpc('neo_complete_onboarding',{p_profile:p,p_settings:C.validateBackup({settings}).settings,p_health:health,p_terms:terms}))},
- async setConsent(purpose,granted){need();if(!['health','terms','photos'].includes(purpose)||typeof granted!=='boolean')throw Error('Consentimento inválido.');ok(await client.rpc('neo_set_consent',{p_purpose:purpose,p_granted:granted}));consents=consents.filter(c=>c.purpose!==purpose);consents.push({purpose,version:'2026-11-v1',granted});if(!granted&&['health','terms'].includes(purpose))onboarded=false},
+ async setConsent(purpose,granted){need();if(!['health','terms','photos'].includes(purpose)||typeof granted!=='boolean')throw Error('Consentimento inválido.');const sessionVersion=identityVersion;ok(await client.rpc('neo_set_consent',{p_purpose:purpose,p_granted:granted}));if(sessionVersion!==identityVersion)throw Error('A conta mudou. Confirme a autorização novamente.');consents=consents.filter(c=>c.purpose!==purpose);consents.push({purpose,version:'2026-11-v1',granted});if(!granted&&['health','terms'].includes(purpose))onboarded=false},
  async heartbeat(){need();ok(await client.rpc('neo_heartbeat'))},
  async reportError(code){if(!user||!['sync_failed','photo_failed','profile_failed','import_failed'].includes(code))return;try{await client.rpc('neo_report_error',{p_code:code})}catch{}},
+ observeWebVitals(callback){
+  return import('web-vitals').then(({onCLS,onINP,onLCP})=>{onCLS(callback);onINP(callback);onLCP(callback)}).catch(()=>{});
+ },
+ async geoControl(action){need();return ok(await client.rpc('neo_geo_control',{p_action:action}))},
+ async adminGeo(users){need();return ok(await client.rpc('neo_admin_geo',{p_users:users}))},
+ async captureGeo(){
+  if(official||!config.geoEndpoint)return;
+  need();const version=identityVersion,account=user.id;
+  const {session}=ok(await client.auth.getSession());
+  if(version!==identityVersion||session?.user?.id!==account||!session.access_token)return;
+  const result=await fetch(config.geoEndpoint+'?mode=geo',{method:'POST',headers:{Authorization:'Bearer '+session.access_token}});
+  if(version===identityVersion&&result.ok)return result.json();
+ },
+ async adminOperations(section,days=30,review=null){need();return ok(await client.rpc('neo_admin_operations',{p_section:section,p_days:days,p_review:review}))},
+ async qualityObserve(metric,duration=null,revision=''){need();return ok(await client.rpc('neo_quality_observe',{p_metric:metric,p_duration:duration,p_revision:revision}))},
+ async adminSystem(action='snapshot',payload={}){need();return ok(await client.rpc('neo_admin_system',{p_action:action,p_payload:payload}))},
+ async adminMonitor(provider){
+  if(official||!config.monitorEndpoint)throw Error('Fonte externa indisponível neste ambiente.');
+  need();
+  const version=identityVersion,account=user.id;
+  const {session}=ok(await client.auth.getSession());
+  if(version!==identityVersion||session?.user?.id!==account||!session.access_token)throw Error('Sessão indisponível.');
+  const response=await fetch(config.monitorEndpoint+'?provider='+encodeURIComponent(provider),{
+   headers:{Authorization:'Bearer '+session.access_token}
+  });
+  if(version!==identityVersion||!response.ok)throw Error('Fonte indisponível.');
+  return response.json();
+ },
  async adminSummary(){need();return ok(await client.rpc('neo_admin_summary'))},
+ async audience(action,device=null,campaign=null){need();return ok(await client.rpc('neo_audience_self',{p_action:action,p_device:device,p_campaign:campaign}))},
+ async engagement(action,events=[]){need();return ok(await client.rpc('neo_engagement',{p_action:action,p_events:events}))},
+ async adminEngagement(filters){need();return ok(await client.rpc('neo_admin_engagement',filters))},
+ async adminAudience(filters={}){need();return ok(await client.rpc('neo_admin_audience',filters))},
+ async adminSignupExport(filters={}){need();return ok(await client.rpc('neo_admin_signup_export',filters))},
+ async adminSignups(action,filters={}){need();return ok(await client.rpc('neo_admin_signups',{...filters,p_action:action}))},
  async exportMetadata(){need();const account=user.id,version=identityVersion,data=ok(await client.rpc('neo_export_account_metadata'));const support=await client.rpc('neo_support_export');if(support.error&&!['PGRST202','42883'].includes(support.error.code))ok(support);const purchases=await client.rpc('neo_shop_export');if(purchases.error&&!['PGRST202','42883'].includes(purchases.error.code))ok(purchases);if(version!==identityVersion||account!==user?.id)throw Error('A conta mudou durante a exportação.');return {user:{id:user.id,email:user.email,created_at:user.created_at},...data,...(!support.error?{private_conversations:support.data}:{} ),...(!purchases.error?{purchases:purchases.data}:{})}},
  async put(kind,record){needsHealth();const account=user.id,version=identityVersion,clean=C.validRecord(kind,record),base={user_id:account,kind,id:clean.id,data:clean};let r;
   if(record._revision!=null){r=await client.from('neo_records').update({data:clean}).eq('user_id',account).eq('kind',kind).eq('id',clean.id).eq('revision',record._revision).select('revision');if(!r.error&&!r.data.length)throw Error('Este registro mudou em outro aparelho. Atualize antes de editar.')}
@@ -118,9 +199,53 @@ const api={configured,get remember(){return rememberSession},get persistenceLimi
   if(version!==identityVersion||account!==user?.id||result?.verified!==rows.length||receipt?.records_requested!==rows.length||JSON.stringify(manifest)!==JSON.stringify(verified))throw Error('A confirmação da migração não pôde ser verificada. Mantenha o backup e a origem local; repita a conferência.');
   return {added:result.added,skipped:merged.skipped,verified:true,migrationId};
  },
- async photos(){need();const rows=await getRows(()=>client.from('neo_photos').select('*').eq('user_id',user.id).order('date')),resolved=await Promise.all(rows.map(async p=>{try{let d;if(p.role==='avatar')try{d=ok(await client.storage.from('neo-community-avatars').createSignedUrl(`${user.id}/avatar.jpg`,3600))}catch{}if(!d?.signedUrl)d=ok(await client.storage.from('neo-private').createSignedUrl(p.path,600));return {...p,url:d.signedUrl}}catch{return null}}));return resolved.filter(Boolean)},
- async uploadPhoto(blob,date,role='progress'){needsHealth();if(!api.hasConsent('photos'))throw Error('Autorize o armazenamento de fotografias antes do envio.');if(!C.validDate(date)||date>C.today()||blob.size>5*1024*1024||!['image/jpeg','image/png','image/webp'].includes(blob.type))throw Error('Foto inválida. Use JPEG, PNG ou WebP com até 5 MB.');const previous=role==='avatar'?ok(await client.from('neo_photos').select('id,path').eq('user_id',user.id).eq('role','avatar')):[],id=crypto.randomUUID(),path=`${user.id}/${id}.${blob.type==='image/png'?'png':blob.type==='image/webp'?'webp':'jpg'}`;ok(await client.storage.from('neo-private').upload(path,blob,{contentType:blob.type,upsert:false}));try{ok(await client.from('neo_photos').insert({id,user_id:user.id,path,date,role}))}catch(e){await client.storage.from('neo-private').remove([path]);throw e}const signed=ok(await client.storage.from('neo-private').createSignedUrl(path,600)).signedUrl,photo={id,user_id:user.id,path,date,role,created_at:new Date().toISOString(),url:signed};if(role==='avatar'){if(previous.length){await client.storage.from('neo-private').remove(previous.map(p=>p.path));await client.from('neo_photos').delete().eq('user_id',user.id).eq('role','avatar').neq('id',id)}try{const avatarPath=`${user.id}/avatar.jpg`;await client.storage.from('neo-community-avatars').remove([avatarPath]);ok(await client.storage.from('neo-community-avatars').upload(avatarPath,blob,{contentType:'image/jpeg',upsert:false}));ok(await client.rpc('neo_community_avatar',{p_path:avatarPath}));photo.url=ok(await client.storage.from('neo-community-avatars').createSignedUrl(avatarPath,3600)).signedUrl;photo.communitySynced=true}catch{photo.communitySynced=false}}return photo},
- async deletePhoto(p){need();ok(await client.storage.from('neo-private').remove([p.path]));ok(await client.from('neo_photos').delete().eq('user_id',user.id).eq('id',p.id))},
+ async photos(){
+  need();
+  const account=user.id,version=identityVersion;
+  const rows=await getRows(()=>client.from('neo_photos').select('id,user_id,path,date,role,created_at').eq('user_id',account).order('date').order('id'));
+  if(version!==identityVersion)throw Error('A conta mudou.');
+  return rows;
+ },
+ async photoURL(photo,variant='original'){
+  need();
+  const account=user.id,version=identityVersion;
+  if(!photo.path?.startsWith(account+'/'))throw Error('Foto indisponível nesta conta.');
+  const suffix=variant==='thumbnail'?'.thumb.jpg':variant==='preview'?'.preview.jpg':'';
+  const result=await client.storage.from('neo-private').createSignedUrl(photo.path+suffix,300);
+  if(version!==identityVersion)throw Error('A conta mudou.');
+  if(suffix&&result.error&&(/not found|does not exist/i.test(result.error.message||'')||String(result.error.statusCode)==='404'))return null;
+  return ok(result).signedUrl;
+ },
+ async uploadProgressPhoto(blob,thumbnail,date,id,preview){
+  needsHealth();
+  if(!api.hasConsent('photos'))throw Error('Autorize o armazenamento de fotografias antes do envio.');
+  if(!C.validDate(date)||date>C.today()||!/^[-a-f0-9]{36}$/i.test(id)||blob.type!=='image/jpeg'||!blob.size||blob.size>5242880||thumbnail.type!=='image/jpeg'||!thumbnail.size||thumbnail.size>262144)throw Error('Foto inválida.');
+  const account=user.id,version=identityVersion,path=account+'/'+id+'.jpg',bucket=client.storage.from('neo-private');
+  const current=()=>{if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou. Abra novamente o formulário.');};
+  const read=()=>client.from('neo_photos').select('id,path,date').eq('user_id',account).eq('id',id).maybeSingle();
+  const existing=ok(await read());current();
+  if(existing){
+   if(existing.path!==path||existing.date!==date)throw Error('Esta seleção já foi salva com outra data.');
+   return existing;
+  }
+  if(preview&&(preview.type!=='image/jpeg'||!preview.size||preview.size>524288))throw Error('Prévia inválida.');
+  const images=[[path+'.thumb.jpg',thumbnail],[path,blob]];
+  if(preview)images.splice(1,0,[path+'.preview.jpg',preview]);
+  for(const [key,data] of images){
+   current();
+   const result=await bucket.upload(key,data,{contentType:'image/jpeg',upsert:false});current();
+   if(result.error&&!(['409','Duplicate','ResourceAlreadyExists','KeyAlreadyExists'].includes(String(result.error.statusCode||result.error.code||result.error.error))||/already exists|duplicate/i.test(result.error.message||'')))ok(result);
+  }
+  const result=await client.from('neo_photos').insert({id,user_id:account,path,date,role:'progress'});current();
+  if(result.error){
+   // A response can be lost after the insert commits. Reconcile before retrying.
+   const row=ok(await read());current();
+   if(!row||row.path!==path||row.date!==date)ok(result);
+  }
+  return {id,path,date};
+ },
+ async uploadPhoto(blob,date,role='progress',thumbnail){needsHealth();const account=user.id,version=identityVersion;const current=()=>{if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou durante o envio.');};if(!api.hasConsent('photos'))throw Error('Autorize o armazenamento de fotografias antes do envio.');if(!C.validDate(date)||date>C.today()||blob.size>5*1024*1024||!['image/jpeg','image/png','image/webp'].includes(blob.type))throw Error('Foto inválida. Use JPEG, PNG ou WebP com até 5 MB.');const previous=role==='avatar'?ok(await client.from('neo_photos').select('id,path').eq('user_id',account).eq('role','avatar')):[],id=crypto.randomUUID(),path=`${account}/${id}.${blob.type==='image/png'?'png':blob.type==='image/webp'?'webp':'jpg'}`;current();ok(await client.storage.from('neo-private').upload(path,blob,{contentType:blob.type,upsert:false}));try{current();ok(await client.from('neo_photos').insert({id,user_id:account,path,date,role}))}catch(e){await client.storage.from('neo-private').remove([path]);throw e}current();if(thumbnail?.type==='image/jpeg'&&thumbnail.size<=262144)await client.storage.from('neo-private').upload(path+'.thumb.jpg',thumbnail,{contentType:'image/jpeg',upsert:false});const signed=ok(await client.storage.from('neo-private').createSignedUrl(path,600)).signedUrl,photo={id,user_id:account,path,date,role,created_at:new Date().toISOString(),url:signed};current();if(role==='avatar'){if(previous.length){await client.storage.from('neo-private').remove(previous.flatMap(p=>[p.path,p.path+'.thumb.jpg']));await client.from('neo_photos').delete().eq('user_id',account).eq('role','avatar').neq('id',id)}try{current();const avatarPath=`${account}/avatar.jpg`;await client.storage.from('neo-community-avatars').remove([avatarPath]);ok(await client.storage.from('neo-community-avatars').upload(avatarPath,blob,{contentType:'image/jpeg',upsert:false}));current();ok(await client.rpc('neo_community_avatar',{p_path:avatarPath}));photo.url=ok(await client.storage.from('neo-community-avatars').createSignedUrl(avatarPath,3600)).signedUrl;photo.communitySynced=true}catch{photo.communitySynced=false}}current();return photo},
+ async deletePhoto(p){need();ok(await client.storage.from('neo-private').remove([p.path,p.path+'.thumb.jpg',p.path+'.preview.jpg']));ok(await client.from('neo_photos').delete().eq('user_id',user.id).eq('id',p.id))},
  async photoBlob(p){need();return ok(await client.storage.from('neo-private').download(p.path))},
  async deleteAccount(password,captchaToken,expectedAccount){
   need();const account=user.id,version=identityVersion;if(expectedAccount&&expectedAccount!==account)throw Error('Sua conta mudou. Abra novamente a opção de exclusão.');

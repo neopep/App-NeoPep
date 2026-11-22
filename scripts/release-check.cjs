@@ -8,6 +8,7 @@ function assess(manifest,config){
  if(!config?.controllerName||!config?.controllerCnpj||!config?.privacyContact)failures.push('Identificação e contato da empresa incompletos.');
  if(!config?.captchaRequired||!config?.captchaSiteKey)failures.push('CAPTCHA obrigatório não configurado.');
  if(!config?.providers?.email)failures.push('Login por e-mail não habilitado.');
+ if(config?.publicRegistration!==true||config?.previewRegistration===true)failures.push('Cadastro público não preparado; exigir publicRegistration=true e previewRegistration=false.');
  if(config?.cloudValidated!==true)failures.push('cloudValidated: validação da integração real não registrada.');
  return failures;
 }

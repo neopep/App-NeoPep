@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),{PGlite}=require('@electric-sql/pglite'),fs=require('fs'),C=require('../dist/core.js');
-async function setup(apply=true){const db=new PGlite();await db.exec(`create role service_role;create role anon;create role authenticated;create schema auth;create table auth.users(id uuid primary key,created_at timestamptz default now(),raw_user_meta_data jsonb default '{}');create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;grant usage on schema auth to authenticated;grant execute on function auth.uid() to authenticated;create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);create table storage.objects(id uuid,name text,bucket_id text);alter table storage.objects enable row level security;grant usage on schema storage to authenticated;grant select,insert,delete on storage.objects to authenticated;create function storage.foldername(text) returns text[] language sql immutable as $$ select string_to_array($1,'/') $$;`);if(apply)for(const f of fs.readdirSync('supabase/migrations').sort()){try{await db.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'))}catch(e){delete e.query;throw e}}return db}
+async function setup(apply=true){const db=new PGlite();await db.exec(`create role service_role;create role anon;create role authenticated;create schema vault;create table vault.decrypted_secrets(name text,decrypted_secret text);create schema auth;create table auth.users(id uuid primary key,created_at timestamptz default now(),email text,raw_user_meta_data jsonb default '{}');create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;grant usage on schema auth to authenticated;grant execute on function auth.uid() to authenticated;create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);create table storage.objects(id uuid,name text,bucket_id text);alter table storage.objects enable row level security;grant usage on schema storage to authenticated;grant select,insert,delete on storage.objects to authenticated;create function storage.foldername(text) returns text[] language sql immutable as $$ select string_to_array($1,'/') $$;`);if(apply)for(const f of fs.readdirSync('supabase/migrations').sort()){try{await db.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'))}catch(e){delete e.query;throw e}}return db}
 const A='00000000-0000-4000-8000-000000000001',B='00000000-0000-4000-8000-000000000002';
 async function as(db,id){await db.exec('reset role');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[id]);await db.exec('set role authenticated')}
 const profile=()=>({...C.defaultProfile(),name:'Teste',height:174,initialWeight:80,goal:75,consent:true});
@@ -7,24 +7,59 @@ async function onboard(db){await db.query('select neo_complete_onboarding($1,$2,
 test('loja: autorização, preço no servidor, estoque, isolamento e confirmação financeira exclusiva',async()=>{const db=await setup();try{
  await db.query('insert into auth.users(id) values($1),($2)',[A,B]);await as(db,A);await onboard(db);await as(db,B);await onboard(db);
  const shop=async(action,payload={})=>(await db.query('select neo_shop($1,$2) as d',[action,JSON.stringify(payload)])).rows[0].d;
- await assert.rejects(shop('product',{name:'Produto',price_cents:1,stock:4}),/Autorização/);await assert.rejects(db.query('select * from neo_private.shop_orders'),/permission/);
+ await assert.rejects(shop('product',{name:'Produto',payment_name:'Item de teste',price_cents:1,stock:4}),/Autorização/);await assert.rejects(db.query('select * from neo_private.shop_orders'),/permission/);
  await db.exec('reset role');await db.query('insert into neo_private.admin_members(user_id) values($1)',[A]);await as(db,A);
- const {path}=await shop('reserve_photo');await db.query('insert into storage.objects(name,bucket_id) values($1,$2)',[path,'neo-shop-products']);const product=(await shop('product',{name:'Produto de teste',description:'Descrição',category:'Acessórios',price_cents:1990,stock:3,active:true,photo_path:path})).id;
+ const {path}=await shop('reserve_photo');await db.query('insert into storage.objects(name,bucket_id) values($1,$2)',[path,'neo-shop-products']);const product=(await shop('product',{name:'Produto de teste',payment_name:'Item de teste',description:'Descrição',category:'Acessórios',price_cents:1990,stock:3,active:true,photo_path:path})).id;
  await shop('settings',{seller_name:'Loja Teste',seller_document:'12345678901',business_address:'Rua Comercial, 100, Cidade',support_email:'loja@example.test',returns_policy:'Condições da loja em teste.',shipping_ready:true,shipping_cents:500,delivery_min:3,delivery_max:8,payments_ready:true});assert.equal((await shop('catalog')).settings.payments_ready,false);
  await as(db,B);await shop('cart',{items:[{product_id:product,quantity:2,price_cents:1}]});let quote=await shop('quote');assert.equal(quote.subtotal_cents,3980);assert.equal(quote.total_cents,4480);
- const address={name:'Comprador Teste',email:'buyer@example.test',phone:'11999999999',postal_code:'01001000',street:'Rua de Teste',number:'10',complement:'',district:'Centro',city:'São Paulo',state:'SP'},request_key='10000000-0000-4000-8000-000000000001';
+ const address={document_type:'CPF',document_number:'12345678909',name:'Comprador Teste',email:'buyer@example.test',phone:'11999999999',postal_code:'01001000',street:'Rua de Teste',number:'10',complement:'',district:'Centro',city:'São Paulo',state:'SP'},request_key='10000000-0000-4000-8000-000000000001';
  await assert.rejects(shop('order',{request_key,address,expected_total_cents:4480,accept_terms:true}),/configuração/);
  await db.exec('reset role');await db.exec("update neo_private.shop_settings set payments_ready=true,payment_environment='production'");await as(db,B);
  await assert.rejects(shop('order',{request_key,address,expected_total_cents:1,accept_terms:true}),/valores/);
- const order=await shop('order',{request_key,address,expected_total_cents:4480,accept_terms:true});const retry=await shop('order',{request_key,address,expected_total_cents:4480,accept_terms:true});assert.equal(order.id,retry.id);assert.equal((await shop('catalog')).products[0].stock,1);assert.equal((await shop('orders')).length,1);
+ const order=await shop('order',{request_key,address,expected_total_cents:4480,accept_terms:true});const checkout={request_key,address,expected_total_cents:4480,accept_terms:true};
+ const rollback=fs.readFileSync('release/production/rollback/20261122190100_shop_checkout_retry.sql','utf8');
+ const migration=fs.readFileSync('release/production/optional-finance/20261122190100_shop_checkout_retry.sql','utf8');
+ const preflight=fs.readFileSync('release/production/finance-preflight.sql','utf8');
+ async function assertPreflight(expected){
+  const result=await db.exec(preflight);
+  const rows=result.find(item=>item.rows.some(row=>row.signature)).rows;
+  const checkout=rows.find(row=>row.checkout_status);
+  assert.equal(checkout.checkout_status,expected);
+  assert.equal(checkout.authenticated_execute,false);
+  const event=rows.find(row=>row.signature.includes('payment_event_v2('));
+  assert.equal(event.authenticated_execute,false);
+  assert.equal(event.service_execute,true);
+  const keys=result.find(item=>item.rows.some(row=>Object.hasOwn(row,'unique_checkout_key'))).rows[0];
+  assert.deepEqual(keys,{unique_checkout_key:true,unique_order_payment:true,payment_event_key:true});
+ }
+ await db.exec('reset role');await db.exec(rollback);await assertPreflight('baseline_git');await as(db,B);
+ await assert.rejects(shop('order',checkout),/valores do frete/);
+ await db.exec('reset role');await db.exec(migration);await db.exec(migration);await assertPreflight('patched_git');await as(db,B);
+ const retry=await shop('order',checkout);assert.deepEqual(retry,order);
+ await assert.rejects(shop('order',{...checkout,address:{...address,street:'Outro endereço'}}),/outro endereço/);
+ await assert.rejects(shop('order',{...checkout,address:{...address,document_number:'12345678900'}}),/faturamento/);
+ await assert.rejects(shop('order',{...checkout,expected_total_cents:1}),/outro total/);
+ await assert.rejects(shop('order',{...checkout,request_key:'10000000-0000-4000-8000-000000000002'}),/valores do frete/);
+ await as(db,A);await assert.rejects(shop('order',checkout),/valores do frete/);await as(db,B);
+ assert.equal((await shop('catalog')).products[0].stock,1);assert.equal((await shop('orders')).length,1);
  await assert.rejects(db.query('select neo_shop_payment_event($1,$2,$3,$4,$5)',[order.id,'100','approved',4480,'production']),/permission/);await as(db,A);assert.equal((await shop('orders')).length,0);assert.equal((await shop('manage_orders')).length,1);
  await db.exec('reset role;set role service_role');await assert.rejects(db.query('select neo_shop_payment_event($1,$2,$3,$4,$5)',[order.id,'100','approved',1,'production']),/incompatível/);await db.query('select neo_shop_payment_event($1,$2,$3,$4,$5)',[order.id,'100','approved',4480,'production']);await db.query('select neo_shop_payment_event($1,$2,$3,$4,$5)',[order.id,'100','approved',4480,'production']);
  await as(db,B);assert.equal((await shop('orders'))[0].status,'paid');assert.equal((await shop('catalog')).products[0].stock,1);
+ await db.exec('reset role;begin;set role service_role');
+ for(let i=0;i<2;i++)await db.query('select neo_shop_payment_event_v2($1,$2,$3,$4,$5,$6)',
+  [order.id,'100','partially_refunded',4480,'production','pix']);
+ await as(db,B);assert.equal((await shop('orders'))[0].status,'paid_review');
+ assert.equal((await shop('catalog')).products[0].stock,1);
+ await db.exec('reset role');
+ assert.equal((await db.query('select count(*)::int as n from neo_private.shop_orders')).rows[0].n,1);
+ assert.deepEqual((await db.query('select status,amount_cents::int from neo_private.shop_payments')).rows,
+  [{status:'partially_refunded',amount_cents:4480}]);
+ await db.exec('rollback');
  await db.exec('reset role');await assert.rejects(db.query('delete from auth.users where id=$1',[B]),/pedidos/);await as(db,A);await shop('fulfill',{id:order.id,fulfillment:'delivered',tracking:'RASTREIO-TESTE'});await db.exec('reset role');await db.query('delete from auth.users where id=$1',[B]);const record=(await db.query('select user_id,address from neo_private.shop_orders where id=$1',[order.id])).rows[0];assert.equal(record.user_id,null);assert.deepEqual(record.address,{});
  }finally{await db.close()}});
 test('expiração libera estoque uma só vez e pagamento atrasado sem estoque exige conferência',async()=>{const db=await setup();try{
  await db.query('insert into auth.users(id) values($1),($2)',[A,B]);await as(db,A);await onboard(db);await as(db,B);await onboard(db);await db.exec('reset role');await db.query('insert into neo_private.admin_members(user_id) values($1)',[A]);await db.exec("update neo_private.shop_settings set seller_name='Teste',seller_document='12345678901',business_address='Endereço comercial de teste',support_email='s@example.test',returns_policy='Condições de teste',shipping_ready=true,shipping_cents=0,payments_ready=true,payment_environment='production'");const pid=(await db.query("insert into neo_private.shop_products(name,description,category,price_cents,stock,active) values('Produto de teste','','Teste',1000,1,true) returning id")).rows[0].id;
- const address={name:'Pessoa Teste',email:'a@example.test',phone:'11999999999',postal_code:'01001000',street:'Rua Teste',number:'10',complement:'',district:'Centro',city:'São Paulo',state:'SP'};
+ const address={document_type:'CPF',document_number:'12345678909',name:'Pessoa Teste',email:'a@example.test',phone:'11999999999',postal_code:'01001000',street:'Rua Teste',number:'10',complement:'',district:'Centro',city:'São Paulo',state:'SP'};
  const shop=async(action,payload={})=>(await db.query('select neo_shop($1,$2) as d',[action,JSON.stringify(payload)])).rows[0].d;
  await as(db,B);await shop('cart',{items:[{product_id:pid,quantity:1}]});const first=await shop('order',{request_key:'30000000-0000-4000-8000-000000000001',address,expected_total_cents:1000,accept_terms:true});await db.exec('reset role');await db.query("update neo_private.shop_orders set expires_at=now()-interval '1 minute' where id=$1",[first.id]);await as(db,B);assert.equal((await shop('orders'))[0].status,'expired');await shop('orders');assert.equal((await shop('catalog')).products[0].stock,1);
  await as(db,A);await shop('cart',{items:[{product_id:pid,quantity:1}]});await shop('order',{request_key:'30000000-0000-4000-8000-000000000002',address,expected_total_cents:1000,accept_terms:true});await db.exec('reset role;set role service_role');await db.query('select neo_shop_payment_event($1,$2,$3,$4,$5)',[first.id,'777','approved',1000,'production']);await as(db,B);assert.equal((await shop('orders'))[0].status,'paid_review');assert.equal((await shop('catalog')).products[0].stock,0);

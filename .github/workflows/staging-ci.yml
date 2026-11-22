@@ -1,0 +1,34 @@
+name: Staging CI
+
+on:
+  push:
+    branches: [staging/permanente]
+  pull_request:
+    branches: [staging/permanente]
+
+permissions:
+  contents: read
+
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run check
+      - name: Testes de homologação e privacidade
+        run: node --test tests/{admin-audit,admin-operations,admin-monitor,admin-signups,admin-ui,pwa,staging-pwa,ui,cloud,auth-persistence,photos}.test.cjs
+      - name: Auditoria das dependências de execução
+        if: always()
+        run: npm audit --omit=dev --audit-level=high
+      - name: Suíte completa
+        if: always()
+        run: npm test

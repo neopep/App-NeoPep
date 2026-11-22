@@ -4,12 +4,12 @@
     "public_url_https": {
       "status": "pending",
       "evidence": "",
-      "note": "Escolher URL de lançamento; domínio próprio ainda não conectado."
+      "note": "A captura mostra app-neopep-staging Ready em Production do projeto de Teste e app-neopep Preview Error em tentativas antigas da branch staging/permanente. Falta confirmar o deployment Production do projeto app-neopep, a branch main, domínio HTTPS e publicar a candidata mediante autorização."
     },
     "auth_email_delivery": {
       "status": "pending",
       "evidence": "",
-      "note": "Confirmar SMTP próprio, confirmação e recuperação para destinatários externos."
+      "note": "A versão oficial de Auth foi preservada. Falta comprovar em conta descartável habilitação de signup, entrega SMTP/OTP e recuperação de senha no domínio público."
     },
     "auth_redirects_captcha": {
       "status": "pending",
@@ -19,12 +19,12 @@
     "two_account_isolation": {
       "status": "pending",
       "evidence": "",
-      "note": "Validar leituras/escritas indevidas com duas contas de teste e RLS real."
+      "note": "ACL e RLS dos lotes de cadastro e engajamento foram exercitadas localmente. Falta evidência entre duas contas no ambiente isolado com configuração representativa."
     },
     "private_storage": {
       "status": "pending",
       "evidence": "",
-      "note": "Conferir buckets privados e tentativa de acesso de outra conta."
+      "note": "Configuração de buckets relatada no preflight do PR #25. Falta restaurar amostra e testar acesso entre contas e anônimo."
     },
     "delete_account": {
       "status": "pending",
@@ -44,7 +44,7 @@
     "catalog_release": {
       "status": "pending",
       "evidence": "",
-      "note": "Responsável informou revisão do catálogo e remoção da retatrutida. Falta conferir a versão final e validar integração de pagamento antes de operar vendas."
+      "note": "Banco oficial recebeu 7 migrações aditivas (lotes 01–06), confirmados 90 tabelas/177 funções, 8 contas/18 pedidos/34 objetos; Edge e Mercado Pago oficiais preservados. Lote 07 financeiro não aplicado. Faltam teste funcional de checkout e ativação controlada das integrações web/Edge; ver docs/revisao/APLICACAO-PRODUCAO-INCREMENTAL-20261122.md."
     },
     "iphone_android": {
       "status": "pending",
@@ -54,7 +54,7 @@
     "backup_monitoring": {
       "status": "pending",
       "evidence": "",
-      "note": "Definir backups de banco e arquivos, recuperação, alertas e responsável."
+      "note": "Backup lógico e Storage já exportados; restauração real ainda não ensaiada (risco aceito para avançar nas migrações aditivas, não considerado teste aprovado). Acompanhar comportamento do banco e cron após migrações; registrar restauração quando possível."
     },
     "notifications_scope": {
       "status": "pending",

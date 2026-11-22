@@ -1,0 +1,71 @@
+# Decisão de publicação oficial
+
+**NO-GO.** A branch contém o resumo do catálogo autenticado e sete lotes executáveis para homologação isolada. A reconciliação do ledger, as diferenças de contrato e a recuperação de banco e Storage oficiais continuam pendentes.
+
+- [x] Comparar Git, confirmar os heads e excluir PRs #22 e #23.
+- [x] Verificar configuração oficial, marca, rotas legadas, isolamento das APIs de Teste e do canal Windows.
+- [x] Incorporar o resumo autenticado ao desenho e executar os sete lotes em banco sintético.
+- [x] Comparar as **56 assinaturas ausentes** com as fontes dos sete lotes: **42 declaradas e 14 fora de ativação**. Examinar as **124 funções divergentes**: 116 com corpo compacto igual (equivalência semântica ainda não comprovada), 8 com alterações de corpo que exigem decisão de contrato; 72 com ACL textual divergente. [Matriz](MATRIZ-FUNCOES-56-124-20261122.md) · [Dependências e privilégios](DEPENDENCIAS-FUNCOES-20261122.md).
+- [x] Inventariar o **ledger** em ambos os projetos: 16 versões no Teste e nenhuma registrada na Produção; 4 versões do Teste sem arquivo de mesmo ID no Git. [Análise do histórico](LEDGER-FINGERPRINTS-20261122.md). A reconciliação operacional continua pendente.
+- [x] Acrescentar verificação **offline** de integridade dos arquivos Storage restaurados, com autoteste (tamanhos, hashes, cobertura e defesa contra path traversal). [Procedimento](../../release/production/RESTORE-REHEARSAL.md). Isto NÃO comprova que o backup oficial foi restaurado.
+- [x] Conferir as versões implantadas de Edge e os contratos de Mercado Pago Orders sem acessar segredos ou fazer transações. [Análise de Edge e sandbox pendente](EDGE-ORDERS-CONTRATOS-20261122.md).
+- [x] Confirmar via consulta autenticada o plano **Free** e o inventário da origem (banco ~23,6 MB; 34 objetos em 7 buckets, ~58,3 MB por metadados). Preparar [roteiro Windows de backup](../../release/production/BACKUP-FREE-WINDOWS.md); **exportação foi feita depois deste inventário; restauração real não realizada**, conforme [registro de backup](BACKUP-PRODUCAO-STATUS-20261122.md).
+- [x] Adaptar **somente na candidata** o lote financeiro e rollback para normalizar `CRLF/LF`, confirmar fingerprints canônicos originais idênticos em Produção/Teste e aprovar cenário de regressão PGlite. [Evidência](PREFLIGHT-BACKUP-FINANCE-20261122.md).
+- [x] **Exportação manual de banco e 34 arquivos Storage evidenciada** (leitura integral do dump, SHA-256 local e contagens de 7 buckets; chaves S3 revogadas): [registro operacional](BACKUP-PRODUCAO-STATUS-20261122.md). A decisão do proprietário foi **prosseguir sem reinicialização / Docker / ensaio de restauração nesta rodada**, com risco documentado.
+- [ ] Confirmar o catálogo integral e o ledger oficiais, o ponto de recuperação e a **restauração de banco e Storage em destino autorizado**. Esta última verificação foi dispensada operacionalmente nesta rodada, **não executada nem aprovada**; não modificar o gate de evidências por esse motivo.
+- [ ] Revisar definições das 124 rotinas divergentes, constraints, RLS e privilégios e ensaiar os deltas.
+- [ ] Conferir domínio, Vercel READY, Auth/CAPTCHA, CORS, SMTP, recuperação e rota legada com PWA instalada.
+- [ ] Homologar isolamento de duas contas, biblioteca, comunidade, loja, pagamentos, webhooks e exclusão de conta. Preservar cron e validar notificações com consentimento.
+- [ ] Verificar os Advisors e a disponibilidade da proteção contra senhas vazadas.
+- [ ] Aprovar lotes de DDL e Edge e, separadamente, o merge para main. Campanhas push, agentes adicionais, observabilidade externa e Windows exigem liberação própria.
+- [ ] Publicação futura. Confirmar SHA, READY, DNS/HTTPS, fluxos funcionais e monitoramento.
+
+[Procedimento de execução e recuperação](../../release/production/README.md) · [Inventário de Supabase](INVENTARIO-SUPABASE-20261122.md)
+
+A cobertura dos lotes, seus gates, o pré-voo e a recuperação estão no [procedimento de execução](../../release/production/README.md). Os testes financeiros sintéticos verificam reembolso parcial e repetição de checkout. A API Orders em sandbox, os fingerprints da Loja oficial e a validação operacional de Auth e Edge seguem como critérios de liberação.
+
+O ensaio PostgreSQL 17 isolado cobriu backup e restauração lógicos sintéticos e os sete lotes com rollback e commit. Build, check e 93 testes focados passaram. A suíte completa teve 330 aprovações e 51 falhas também presentes na referência anterior. O comando `release:check` permanece bloqueado pelas evidências operacionais listadas acima. [Procedimento e evidência de restauração](../../release/production/RESTORE-REHEARSAL.md)
+
+## Retomada assistida — verificação independente em 22/11/2026
+
+**Escopo:** checagem diretamente nas conexões GitHub e Supabase, apenas leitura de banco e metadados, sem migração, deploy, pagamentos, alteração de segredos ou merge. O proprietário decidiu seguir as verificações **sem reiniciar o Windows e sem ensaio local de restauração nesta rodada**. O ensaio continua faltante como evidência e **não libera publicação**.
+
+- GitHub PR #25: `DRAFT`, aberto, na branch `release/preparacao-paridade-producao-20261122`, ponto verificado antes desta nota: `09cb7ec7c141fd235ce830344c4d6366bbeed4ee`. `main` e Produção não modificadas nesta checagem.
+- Supabase Teste `qnuluspqfazdppciermw` e Produção `cpslafpzjtbpmoxxysaa`: ambos responderam. A listagem de migrações retornou **16** no Teste e **0** na Produção; ausência de registros não indica ausência de estrutura instalada.
+- Edge: **6** funções ativas no Teste e **9** na Produção. As diferenças de `verify_jwt` em `ai-reply`, `agent-integrations`, `platform-integrations` e `push-dispatch` persistem. Preservar as nove funções oficiais, especialmente Auth, exclusão de conta, Loja, Mercado Pago e push; não substituir nem mudar o gateway sem testes de autorização interna.
+- Leitura do catálogo (`pg_proc`): as oito rotinas de contrato listadas em [MATRIZ-FUNCOES-56-124-20261122.md](MATRIZ-FUNCOES-56-124-20261122.md) continuam presentes e apresentam MD5 do texto de definição diferentes entre ambientes. `neo_agent` e `neo_support` são `SECURITY DEFINER` com `EXECUTE` para `authenticated`; as outras seis não concedem EXECUTE efetivo a `authenticated` nem a `anon` na consulta. A divergência textual não prova, isoladamente, defeito; exigir revisão semântica e teste de isolamento.
+- Supabase Security Advisors: Teste **66** e Produção **41** alertas do tipo `authenticated_security_definer_function_executable` (WARN). Tabelas privadas com RLS sem policy: Teste **83**, Produção **45** (INFO; avaliar isolamento do schema antes de sugerir policies). Aviso `auth_leaked_password_protection` (WARN, **1** em cada ambiente). Referências: [rotinas privilegiadas](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable), [RLS sem policy](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy), [proteção de senhas](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).
+
+**Fila técnica para continuar:** (1) conferir autorização interna e testes cross-account das RPCs privilegiadas; (2) revisar semântica/ACL das oito funções de contrato e as 72 diferenças de ACL, conservando o comportamento oficial; (3) resolver as quatro versões de ledger do Teste sem correspondência 1:1; (4) homologar Orders/Webhooks do Mercado Pago em sandbox isolado; (5) conferir Vercel/Auth/cron/Edge e solicitar autorização específica para cada promoção. **Status: NO-GO.**
+
+## Gate de preservação reforçado — 22/11/2026
+
+- [x] Auditoria independente das **135 assinaturas compartilhadas**: **72** divergências de EXECUTE efetivo `service_role` (concedido na Produção e ausente no Teste), **1** diferença de `authenticated` na `public.neo_limit_writes()`; nenhuma em `anon`, `SECURITY DEFINER`, owner ou `proconfig`. As oito rotinas com diferença de corpo foram examinadas por definição instalada: preservar wake-up de push, comportamento oficial de IA/atendimento e defaults de consentimento. [Relatório e decisões](CONTRATOS-CRITICOS-PR25-20261122.md).
+- [x] Corrigido pós-voo `verify-invariants.py` para reprovar alteração/remoção de objetos instalados, inclusive ACL/grants, funções, RLS e cron, com exceção **apenas de corpo** da rotina financeira explicitamente autorizada. O catálogo inclui `service_role` efetivo. **10 cenários de regressão adicionados** ao CI.
+- [x] Execução `Production Candidate CI` [#45078658088](https://github.com/neopep/App-NeoPep/actions/runs/45078658088): job **Candidata sem deploy aprovado** (inclui testes novos); job **Gate de evidências falhou de propósito** pois o release continua **NO-GO**, aguardando homologação e autorizações.
+- [ ] Rodar pré e pós-catálogo e comparar invariantes em restauração real isolada autorizada; testar RPCs privilegiadas com duas contas. A decisão de adiar esse ensaio não significa teste aprovado.
+
+
+## Roteiro prioritário para disponibilizar a nova Produção
+
+A verificação do log de CI identificou exatamente **12 itens pending** em `release/web-readiness.json` e `cloudValidated: false`. O job de compilação passou e o de evidências bloqueou o merge de forma intencional. Foram separados gates prévios e verificações pós-deploy, com opção de liberação controlada e recursos de alto risco inertes, **sem relaxar automaticamente as proteções**. Consultar [plano de desbloqueio do PR #25](PLANO-DESBLOQUEIO-PRODUCAO-PR25.md) para prioridade, evidência faltante e decisões de autorização.
+
+## Mudança de escopo: publicar TODAS as melhorias consolidadas no Teste
+
+O responsável esclareceu a cronologia: a Produção existia antes da homologação, que foi criada em 20/11/2026 como ambiente separado de desenvolvimento. As novas funcionalidades do Teste devem ser promovidas **seletivamente**, preservando contas e Mercado Pago da Produção. A auditoria dos PRs confirmou que a candidata original do PR #25 usou `fa8429a` e **excluiu as melhorias de #22 e #23**, posteriormente integradas ao Teste por #26 em `8aa7ff5` (9 commits/33 arquivos). A versão atual do PR #25 **não é paridade total**. A matriz auditável e o plano de integração estão em [Origem do Staging e Promoção Integral](ORIGEM-STAGING-E-PROMOCAO-INTEGRAL-20261122.md). Não afirmar GO integral antes de integrar esses arquivos, conciliar os 14 SQLs fora dos lotes e as oito rotinas críticas, executar CI e testar dependências remotas. **Não copiar dados/segredos, configs de staging ou servidor de pagamentos.**
+
+## Atualização oficial — migrações incrementais JÁ aplicadas em 22/11/2026
+
+**Não executar novamente os lotes 01–06 na Produção.** O Supabase oficial agora tem 90 tabelas e 177 funções (`public` + `neo_private`), sete versões de migração próprias, dois buckets privados novos, mantendo 8 contas, 18 pedidos e 34 objetos Storage em contagem. Os agentes adicionais, campanhas automáticas e Connect estão inertes/pausados; o lote 07 financeiro não foi aplicado. A lista exata das sete versões e os guardas executados constam no [registro oficial de aplicação](APLICACAO-PRODUCAO-INCREMENTAL-20261122.md). A **publicação web e Edge** continua pendente, sem merge do PR #25. Não inferir GO da presença das novas tabelas.
+
+## Preview candidato autorizado — sem publicação da main
+
+Após a autorização do responsável para implementar as melhorias do Teste no ambiente oficial, a branch `release/preparacao-paridade-producao-20261122` recebeu `vercel.json` com `git.deploymentEnabled=true` **apenas para a própria branch**. O objetivo é gerar um **deployment Preview** com a configuração oficial, identificar o projeto Vercel correto e validar o shell real antes do merge. O Vercel deve manter a branch Production oficial `main` inalterada até aprovação do pacote web. O build de staging pode recusar essa branch, o que não constitui falha da candidata oficial. O CI preserva `release:check` e as 12 evidências pendentes; não marcar GO automaticamente.
+
+## Checagem posterior ao Preview — 22/11/2026
+
+- Deployment de prévia da branch candidata **confirmado pelos status checks GitHub/Vercel** no commit `053213a3906ca8ce68151f7019193ba2ab4b9019`: `Vercel – app-neopep` **success**, [deployment Vercel candidato](https://vercel.com/neo-pep/app-neopep/AGLJFZaw9JhNzK4AGM1H271ySK4Z). O outro projeto `app-neopep-staging` também retornou success para essa branch; **não representa nova publicação do Teste oficial**.
+- CI [run #45082373598](https://github.com/neopep/App-NeoPep/actions/runs/45082373598): job **Candidata sem deploy = success**; `Gate de evidencias (NO-GO ate liberacao) = failure` deliberada porque os 12 itens de readiness não foram verificados e `cloudValidated=false`.
+- **Não ocorreu merge para `main` nem deployment Production do projeto oficial**. Os checks Vercel indicam sucesso do deployment **Preview**, não equivalem a teste real de fluxo de Auth/cadastro, isolamento de dados, Mercado Pago, PWA ou retorno do domínio público.
+- Última auditoria de banco oficial: 8 usuários, 18 pedidos, 34 objetos de Storage, 177 funções; não houve inserção de campanhas nem tarefas de Connect; Connect permanece pausado e nenhum agente adicional ativo. Os 17 registros preexistentes em `ai_jobs` continuam presentes em contagem (não foi validado o estado de cada job).
+- **Status público: NO-GO**. Antes da publicação da main, registrar testes reais e decisão explícita para Auth/signup, CAPTCHA, e-mail, pagamento, privacidade entre duas contas, previews mobile e rollback.

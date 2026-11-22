@@ -15,3 +15,47 @@ Os prefixos dão a ordem do acervo versionado. A aplicação remota precisa de a
 1. Ao mudar esquema, crie migração nova. Revise grants, RLS, acesso a Storage, assinatura de RPC e compatibilidade com clientes antigos.
 2. Valide em banco descartável a instalação, a atualização de uma base representativa, a preservação de dados e a recuperação. Teste usuários distintos e ações privilegiadas.
 3. Para operação autorizada no projeto correto, compare migrações e objetos instalados, faça backup de banco e arquivos e prepare reversão ou correção progressiva. Aplique apenas mudanças pendentes que foram revisadas. [Exportação segura](../EXPORT.md)
+
+## Fundação multiagente
+
+| Objeto | Função na transição |
+| --- | --- |
+| `neo_private.agents` | Catálogo de UUIDs, agente padrão, identidade, estado, configuração, horários, revisão e referência à integração existente. |
+| `neo_private.agent_catalog_knowledge` | Conhecimento de agentes adicionais por UUID e conhecimento compartilhado com escopo nulo. Os itens legados ficam em `agent_knowledge`. |
+| `neo_private.agent_catalog` | Projeção privada. Para o padrão, lê ao vivo `agent_settings`. Seleciona metadados da integração sem retornar credenciais. |
+| `neo_private.support_threads` | UUID de agente efetivo e associação planejada separada. O worker legado permanece responsável pelas conversas. |
+| `neo_private.ai_jobs` e `neo_private.ai_attempts` | UUID efetivo do padrão durante a coexistência. Tentativas também reservam campos opcionais para tokens e custo em micros de dólar. |
+| `public.neo_multiagent(text,jsonb)` | RPC com autorização administrativa no servidor. Alterações de configuração usam revisão esperada. Permissões efetivas e funções do worker atual continuam sob os contratos existentes. |
+
+A [migração](../../supabase/migrations/202611200001_multiagent_foundation.sql) é transacional. Exige o workspace legado e falha se a linha singleton estiver ausente. O UUID padrão é estável. A reexecução mantém as definições e os itens novos, além de preservar leases, estados, tentativas e rascunhos. O índice único existente por mensagem e o controle de lease continuam impedindo respostas duplicadas. As novas FKs validam dados existentes. Meça tempo de bloqueio e volume em staging antes da aplicação autorizada.
+
+**Reversão.** Enquanto o worker legado for o único ativo, basta suspender o uso da RPC nova para voltar a operar apenas pelo fluxo legado. Preserve os dados do catálogo e as referências adicionadas. Uma remoção física futura exige um backup e uma migração compensatória revisada, em ordem de dependência. Nunca restaure automaticamente uma configuração antiga por cima de gravações mais recentes.
+
+O ambiente Cloud não tinha credencial de auditoria nem conector Supabase. O proxy negou a consulta de metadados REST e o esquema privado não foi confirmado remotamente. Antes de aplicar, obtenha uma sessão autorizada de leitura e compare somente metadados, por exemplo:
+
+```sql
+begin read only;
+select table_name, column_name, data_type, is_nullable, column_default
+from information_schema.columns
+where table_schema = 'neo_private'
+  and table_name in ('agent_settings','agent_knowledge','ai_integrations','support_threads','ai_jobs','ai_attempts')
+order by table_name, ordinal_position;
+select tablename, rowsecurity
+from pg_catalog.pg_tables
+where schemaname = 'neo_private'
+  and tablename in ('agent_settings','agent_knowledge','ai_integrations','support_threads','ai_jobs','ai_attempts');
+rollback;
+```
+
+Confira também as restrições e assinaturas das RPCs com [a auditoria existente](../../release/auditoria-supabase.sql).
+
+## Runtime multiagente e implantação
+
+A [MA-03](../../supabase/migrations/202611200002_multiagent_runtime.sql) acrescenta validação de modelo por agente, tentativas operacionais privadas, provedor do consentimento vigente e revisão de conhecimento no job. `neo_support` trata a seleção e autorização da conversa. `neo_ai_claim` e `neo_ai_finish` conservam as assinaturas e encaminham o padrão para suas funções anteriores. Novos fluxos verificam lease, perfil, integração, revisão da conversa e conhecimento. `neo_multiagent_test` e `neo_multiagent_tested` são RPCs exclusivas do servidor. As cotas dos agentes adicionais contam testes e retentativas por dia UTC, separadas do contador legado.
+
+1. Com autorização, audite os metadados remotos e ensaie as duas migrações em staging com backup representativo, cuidando para que a cópia use dados sintéticos ou anonimizados. Compare objetos de suporte, grants e fila antes e depois. Meça o tempo de bloqueio e repita a migração para verificar idempotência.
+2. Publique as versões coordenadas de `ai-reply`, `agent-integrations` e frontend no ambiente autorizado antes de ativar agentes adicionais. O worker atualizado é necessário para respeitar um modelo alternativo. Preserve segredos e conexões existentes.
+3. Teste primeiro com agente inativo e mensagem sintética. Em conversa descartável, confira consentimento ligado ao provedor, alteração de agente, sugestão revisável, encaminhamento humano, cotas e recusa de lease antigo. Só depois solicite aprovação para ativação real.
+4. Para reverter, desative os agentes adicionais e interrompa novas atribuições. Mantenha as conversas afetadas em manual, cancele jobs e descarte sugestões pendentes sem apagar dados. Verifique leases já emitidos antes de voltar às funções e ao frontend legados. Ao retornar conversas ao padrão em um rollback, mantenha essas conversas em manual até revisão do consentimento. Para retirar objetos, use uma migração compensatória revisada com backup e validação das dependências. [Fundação e auditoria](#fundação-multiagente)
+
+Para comparação autorizada em outra conta, execute a [auditoria do catálogo em modo somente leitura](../../release/auditoria-multiagentes.sql). O [plano de publicação](../processos/PUBLICACAO-MULTIAGENTE.md) detalha compatibilidade, dependências, backup e ordem de ativação. O roteiro de concorrência com PostgreSQL 17 está em [testes](../../tests/multiagent-postgres.py).
