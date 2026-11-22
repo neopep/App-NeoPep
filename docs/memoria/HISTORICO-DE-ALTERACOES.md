@@ -484,3 +484,7 @@ PR #16 prepara a importação local do manifesto, a validação RSA/SHA-256 pela
 Em 21/11/2026, o proprietário autorizou a publicação somente da identidade NeoPep. A branch publicacao/identidade-visual-neopep foi criada a partir da main d55b85c. O logotipo original e os derivados foram conferidos byte a byte contra staging 3565391. As alterações públicas cobrem marca, telas, estilos, manifesto, ícones e cache estático. O ID, a abertura e o escopo do PWA preservam os valores oficiais, assim como rotas, CSP, Supabase, pagamentos, autenticação, handlers e textos emitidos por notificações. Verificação estática e build passaram. A suíte focada teve 88/90 com as mesmas duas falhas de privacidade em push reproduzidas na main anterior.
 
 Multiagentes, migrações, funções Edge e demais mudanças de homologação seguem na fila de preparacao/promocao-completa, sem promoção neste release. [Auditoria da promoção completa em preparação](../processos/PUBLICACAO-MULTIAGENTE.md)
+
+## Issue #24 — candidata de paridade oficial
+
+Integração do snapshot de homologação fa8429a na candidata baseada na main f123749, com PRs #22 e #23 fora do lote. A build preserva configuração oficial, compatibilidade PWA e os arquivos das integrações exclusivas da produção. O inventário, os scripts de leitura e o plano de recuperação registram os pontos pendentes do backend. [Paridade funcional](../revisao/PARIDADE-FUNCIONAL-20261122.md) · [Go/No-go](../revisao/GO-NOGO-PRODUCAO.md)

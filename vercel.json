@@ -8,6 +8,10 @@
       "destination": "/"
     },
     {
+      "source": "/neo/sw.js",
+      "destination": "/sw.js"
+    },
+    {
       "source": "/neo/:path*",
       "destination": "/:path*"
     }
