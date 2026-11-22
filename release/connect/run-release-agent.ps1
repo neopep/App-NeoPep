@@ -3,6 +3,9 @@ $ErrorActionPreference='Stop'
 $agent = Import-Clixml -LiteralPath $ConfigPath
 $folder = Split-Path -Parent $ConfigPath
 $repo = 'neopep/NeoPep-Connect-Build-Privado'
+# Garante acesso ao GitHub CLI mesmo quando instalado depois da abertura do terminal.
+$ghDirectory=Join-Path $env:ProgramFiles 'GitHub CLI'
+if(Test-Path -LiteralPath (Join-Path $ghDirectory 'gh.exe')){ $env:Path=$ghDirectory+';'+$env:Path }
 $workflow = 'neopep-connect-release.yml'
 $records = Join-Path $folder 'receipts'
 New-Item -ItemType Directory -Force $records | Out-Null
@@ -27,10 +30,13 @@ catch { Write-Receipt (Join-Path $folder 'agent.json') 'AGUARDANDO_GITHUB'; exit
 $waiting=$false
 $prepared=$false
 foreach ($run in $runs) {
-    if ([DateTime]$run.created_at -lt [DateTime]$agent.notBefore) { continue }
     if ($run.display_title -cnotmatch '\AConnect Teste ((?:0|[1-9][0-9]{0,7})(?:\.(?:0|[1-9][0-9]{0,7})){2}) ([a-f0-9]{40})\z') { continue }
     $version=$Matches[1]
     $sha=$Matches[2]
+    $allowedBootstrap = ([string]$agent.bootstrapRunId -ceq [string]$run.id -and
+                         [string]$agent.bootstrapSourceSha -ceq $sha -and
+                         [string]$agent.bootstrapVersion -ceq $version)
+    if ([DateTime]$run.created_at -lt [DateTime]$agent.notBefore -and !$allowedBootstrap) { continue }
     if ([string]$run.id -notmatch '\A[1-9][0-9]{0,19}\z' -or [string]$run.run_attempt -notmatch '\A[1-9][0-9]{0,8}\z') { continue }
     $path=Join-Path $records ("$($run.id)-$($run.run_attempt).json")
     if ($run.status -ne 'completed') { $waiting=$true; continue }
