@@ -99,8 +99,8 @@ sealed partial class WhatsApp {
         var group=targetGroup.SelectedItem as GroupChoice;
         phoneGroup.Text=group==null?"Grupo de destino":group.Name;
         string text=CampaignText();previewText.Text=text.Length==0?"Sua mensagem aparecerá aqui.":text;
-        mediaStatus.Text=campaignImage!=null?"Imagem salva na prévia. Remova a imagem para enviar texto por este canal.":
-            text.Length>2000?"Reduza o conteúdo total para 2.000 caracteres.":"Envio disponível para texto. A imagem fica no rascunho.";
+        mediaStatus.Text=text.Length>2000?"Reduza o conteúdo total para 2.000 caracteres.":
+            campaignImage!=null?"Imagem JPEG anexada. A publicação precisa da sua confirmação.":"Adicione uma imagem se desejar.";
     }
     void ChooseCampaignImage(){
         using(var picker=new OpenFileDialog{Filter="Imagens (*.jpg;*.jpeg;*.png)|*.jpg;*.jpeg;*.png",CheckFileExists=true}){
@@ -141,7 +141,7 @@ sealed partial class WhatsApp {
         dueShown=false;ShowSchedule();
     }
     void ScheduleCampaign(){
-        if(!(targetGroup.SelectedItem is GroupChoice)||String.IsNullOrWhiteSpace(CampaignText())){
+        if(!(targetGroup.SelectedItem is GroupChoice)||(campaignImage==null&&String.IsNullOrWhiteSpace(CampaignText()))){
             scheduleStatus.Text="Escolha o grupo e informe o conteúdo antes de agendar.";return;
         }
         var local=DateTime.SpecifyKind(scheduleDate.Value,DateTimeKind.Unspecified);

@@ -7,7 +7,7 @@ test('campanhas usam prévia e texto do mesmo editor, e mídia não é descartad
  assert.match(panel,/previewText\.Text=text\.Length==0/);
  assert.match(panel,/campaignTitle\.Text,messageText\.Text,campaignCta\.Text/);
  assert.match(wa,/string text=CampaignText\(\)/);
- assert.match(wa,/if\(choice==null\|\|campaignImage!=null/);
+ assert.match(wa,/action="send_image"[\s\S]*image=Convert.ToBase64String\(campaignImage\)/);
  assert.match(wa,/MessageBoxDefaultButton\.Button2/);
  assert.match(wa,/action="send_text"/);
  assert.match(panel,/ImageFormat\.Jpeg/);

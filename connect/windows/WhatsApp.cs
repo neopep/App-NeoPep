@@ -170,7 +170,7 @@ sealed partial class WhatsApp : Form {
         UpdatePhone();
         targetGroup.Enabled=ready&&!sendingText&&targetGroup.Items.Count>0;
         sendTextButton.Enabled=ready&&!sendingText&&canPublish!=null&&canPublish()&&groupReadAt.HasValue&&
-            targetGroup.SelectedItem is GroupChoice&&campaignImage==null&&!String.IsNullOrWhiteSpace(CampaignText())&&CampaignText().Length<=2000;
+            targetGroup.SelectedItem is GroupChoice&&(campaignImage!=null||!String.IsNullOrWhiteSpace(CampaignText()))&&CampaignText().Length<=2000;
     }
     void SaveDraft(){SaveCampaignDraft();}
     bool SaveCampaignDraft(){
@@ -210,9 +210,9 @@ sealed partial class WhatsApp : Form {
         if(!ready||sendingText||!groupReadAt.HasValue||pendingSend!=Guid.Empty||canPublish==null||!canPublish())return;
         var choice=targetGroup.SelectedItem as GroupChoice;
         string text=CampaignText();
-        if(choice==null||campaignImage!=null||!selected.Contains(choice.Id)||String.IsNullOrEmpty(text)||text.Length>2000)return;
+        if(choice==null||!selected.Contains(choice.Id)||(campaignImage==null&&String.IsNullOrEmpty(text))||text.Length>2000)return;
         string question="Enviar uma mensagem real para o grupo '"+choice.Name+"'?"+
-            Environment.NewLine+Environment.NewLine+text+
+            Environment.NewLine+Environment.NewLine+(campaignImage==null?"":"Imagem JPEG anexada."+Environment.NewLine)+text+
             Environment.NewLine+Environment.NewLine+"A ação não pode ser desfeita. Não haverá repetição automática.";
         if(MessageBox.Show(question,"Confirmar publicação real",
             MessageBoxButtons.YesNo,MessageBoxIcon.Warning,MessageBoxDefaultButton.Button2)!=DialogResult.Yes)return;
@@ -221,8 +221,10 @@ sealed partial class WhatsApp : Form {
         sendingText=true;UpdateComposer();
         sendStatus.Text="Enviando ao WhatsApp. Não feche esta janela nem repita a operação.";
         try{
-            pipe.WriteLine(json.Serialize(new {action="send_text",request_id=pendingSend.ToString(),
+            if(campaignImage==null)pipe.WriteLine(json.Serialize(new {action="send_text",request_id=pendingSend.ToString(),
                 group_jid=choice.Id,text=text}));
+            else pipe.WriteLine(json.Serialize(new {action="send_image",request_id=pendingSend.ToString(),
+                group_jid=choice.Id,text=text,image=Convert.ToBase64String(campaignImage)}));
         }catch{
             AuditSend("uncertain");
             pendingSend=Guid.Empty;sendingText=false;UpdateComposer();

@@ -62,6 +62,17 @@ export async function createBaileysProvider(
    },code===DisconnectReason.restartRequired?250:Math.min(15000,1000*2**(retries-1)));
   });
  }
+ async function sendToParticipatingGroup(groupJid,payload){
+  const current=socket;
+  if(!connected||!current)throw Error('WhatsApp desconectado.');
+  if(typeof groupJid!=='string'||!/^[0-9-]{1,64}@g\.us$/.test(groupJid))throw Error('Grupo inválido.');
+  const groups=await current.groupFetchAllParticipating();
+  if(!connected||socket!==current)throw Error('A sessão mudou.');
+  if(!Object.values(groups).some(group=>group?.id===groupJid))throw Error('A conta não participa deste grupo.');
+  const receipt=await current.sendMessage(groupJid,payload);
+  if(!receipt?.key?.id)throw Error('Não foi possível confirmar o aceite do envio.');
+  return {messageId:String(receipt.key.id).slice(0,160)};
+ }
  return {
   start,
   account(){
@@ -81,16 +92,13 @@ export async function createBaileysProvider(
   // Envio manual, não automático: confirma participação antes de enviar.
   // Um timeout/erro após a chamada não autoriza nova tentativa automática.
   async sendText(groupJid,text){
-   const current=socket;
-   if(!connected||!current)throw Error('WhatsApp desconectado.');
-   if(!/^[0-9-]{1,64}@g\.us$/.test(groupJid))throw Error('Grupo inválido.');
    if(typeof text!=='string'||!text.trim()||text.length>2000)throw Error('Mensagem inválida.');
-   const groups=await current.groupFetchAllParticipating();
-   if(!connected||socket!==current)throw Error('A sessão mudou.');
-   if(!Object.values(groups).some(group=>group?.id===groupJid))throw Error('A conta não participa deste grupo.');
-   const receipt=await current.sendMessage(groupJid,{text:text.trim()});
-   if(!receipt?.key?.id)throw Error('Não foi possível confirmar o aceite do envio.');
-   return {messageId:String(receipt.key.id).slice(0,160)};
+   return sendToParticipatingGroup(groupJid,{text:text.trim()});
+  },
+  async sendImage(groupJid,caption,image){
+   if(typeof caption!=='string'||caption.length>2000||!Buffer.isBuffer(image)||image.length<4||image.length>1024*1024)
+    throw Error('Imagem ou legenda inválida.');
+   return sendToParticipatingGroup(groupJid,{image,caption:caption.trim(),mimetype:'image/jpeg'});
   },
   async forget(){
    closed=true;connected=false;cancel(reconnectTimer);
