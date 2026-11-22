@@ -28,7 +28,13 @@ sealed class WhatsApp : Form {
     readonly Func<Guid,string,Task> reportStatus;
     Guid connectionId;
     long selectionRevision;
-    Button sync;
+    Button sync,sendTextButton;
+    readonly ComboBox targetGroup=new ComboBox();
+    readonly TextBox messageText=new TextBox();
+    readonly Label sendStatus=new Label(),previewText=new Label();
+    Guid pendingSend=Guid.Empty;
+    bool sendingText;
+    readonly HashSet<string> sentRequests=new HashSet<string>(StringComparer.Ordinal);
     Dictionary<string,object> localVault;
     readonly JavaScriptSerializer json=new JavaScriptSerializer { MaxJsonLength=16*1024*1024 };
     Process process;
@@ -63,7 +69,7 @@ sealed class WhatsApp : Form {
             if(drawingGroups||!ready)return;
             string id=(string)args.Item.Tag;
             if(args.Item.Checked)selected.Add(id);else selected.Remove(id);
-            ShowGroupStatus();
+            ShowGroupStatus();RefreshComposerGroups();
         };
         var refresh=Action("Atualizar grupos",RefreshGroups);
         search.AccessibleName="Buscar grupos por nome";search.Width=180;
@@ -75,6 +81,28 @@ sealed class WhatsApp : Form {
         groupTools.Controls.Add(sync);
         Format(groupStatus);groupStatus.Text="Conecte o WhatsApp para consultar grupos.";groupStatus.Dock=DockStyle.Bottom;
         listing.Controls.Add(groups);listing.Controls.Add(groupTools);listing.Controls.Add(groupStatus);
+        var compose=Page("Publicar");
+        compose.Controls.Add(LabelOf("PUBLICAÇÃO MANUAL • apenas grupos da própria conta"));
+        compose.Controls.Add(LabelOf("Grupo de destino"));
+        targetGroup.DropDownStyle=ComboBoxStyle.DropDownList;
+        targetGroup.Width=480;targetGroup.Enabled=false;
+        compose.Controls.Add(targetGroup);
+        compose.Controls.Add(LabelOf("Mensagem de texto"));
+        messageText.Multiline=true;messageText.Width=480;messageText.Height=155;
+        messageText.MaxLength=2000;messageText.ScrollBars=ScrollBars.Vertical;
+        compose.Controls.Add(messageText);
+        compose.Controls.Add(LabelOf("Prévia"));
+        Format(previewText);previewText.MaximumSize=new Size(470,0);
+        previewText.Text="Sua mensagem aparecerá aqui.";compose.Controls.Add(previewText);
+        messageText.TextChanged+=delegate{previewText.Text=String.IsNullOrWhiteSpace(messageText.Text)?
+            "Sua mensagem aparecerá aqui.":messageText.Text;UpdateComposer();};
+        targetGroup.SelectedIndexChanged+=delegate{UpdateComposer();};
+        sendTextButton=Action("Revisar e publicar agora",delegate{void PublishManualText();});
+        sendTextButton.Enabled=false;compose.Controls.Add(sendTextButton);
+        Format(sendStatus);sendStatus.MaximumSize=new Size(470,0);
+        sendStatus.Text="Conecte o WhatsApp e consulte os grupos para publicar.";
+        compose.Controls.Add(sendStatus);
+        compose.Controls.Add(LabelOf("Sem agendamento, sem envio em massa e sem repetição automática. Mensagens aceitas pelo servidor não garantem entrega ou leitura."));
         var diagnostics=Page("Diagnóstico");Format(diagnostic);
         diagnostic.Text="A conexão e o QR Code ficam neste computador. Os diagnósticos mostram apenas estados e erros genéricos.";diagnostics.Controls.Add(diagnostic);
         var back=Action("Voltar",Close);back.Dock=DockStyle.Bottom;
@@ -105,6 +133,7 @@ sealed class WhatsApp : Form {
     }
     void ShowGroupStatus(){
         sync.Enabled=ready&&!syncing&&groupReadAt.HasValue&&saveSelection!=null;
+        UpdateComposer();
         groupStatus.Text=groupRows.Count+" grupos • "+selected.Count+" selecionados localmente"
             +(groupReadAt.HasValue?" • consulta "+groupReadAt.Value.ToString("g"):"");
     }
@@ -122,11 +151,60 @@ sealed class WhatsApp : Form {
             }
         }finally{groups.EndUpdate();drawingGroups=false;}
     }
+    sealed class GroupChoice {
+        internal string Id,Name;
+        public override string ToString(){return Name;}
+    }
+    void RefreshComposerGroups(){
+        string previous=(targetGroup.SelectedItem as GroupChoice)?.Id;
+        targetGroup.Items.Clear();
+        foreach(var row in groupRows){
+            string id=TextValue(row,"id");
+            if(!selected.Contains(id))continue;
+            targetGroup.Items.Add(new GroupChoice{Id=id,Name=TextValue(row,"name")});
+        }
+        if(targetGroup.Items.Count>0){
+            int index=-1;
+            for(int i=0;i<targetGroup.Items.Count;i++)
+                if(((GroupChoice)targetGroup.Items[i]).Id==previous){index=i;break;}
+            targetGroup.SelectedIndex=index>=0?index:0;
+        }
+        UpdateComposer();
+    }
+    void UpdateComposer(){
+        if(sendTextButton==null)return;
+        targetGroup.Enabled=ready&&!sendingText&&targetGroup.Items.Count>0;
+        sendTextButton.Enabled=ready&&!sendingText&&groupReadAt.HasValue&&
+            targetGroup.SelectedItem is GroupChoice&&!String.IsNullOrWhiteSpace(messageText.Text);
+    }
+    async Task PublishManualText(){
+        if(!ready||sendingText||!groupReadAt.HasValue||pendingSend!=Guid.Empty)return;
+        var choice=targetGroup.SelectedItem as GroupChoice;
+        string text=messageText.Text.Trim();
+        if(choice==null||!selected.Contains(choice.Id)||String.IsNullOrEmpty(text)||text.Length>2000)return;
+        string question="Enviar uma mensagem real para o grupo '"+choice.Name+"'?"+
+            Environment.NewLine+Environment.NewLine+text+
+            Environment.NewLine+Environment.NewLine+"A ação não pode ser desfeita. Não haverá repetição automática.";
+        if(MessageBox.Show(question,"Confirmar publicação real",
+            MessageBoxButtons.YesNo,MessageBoxIcon.Warning,MessageBoxDefaultButton.Button2)!=DialogResult.Yes)return;
+        if(!ready||process==null)return;
+        pendingSend=Guid.NewGuid();
+        sendingText=true;UpdateComposer();
+        sendStatus.Text="Enviando ao WhatsApp. Não feche esta janela nem repita a operação.";
+        try{
+            pipe.WriteLine(json.Serialize(new {action="send_text",request_id=pendingSend.ToString(),
+                group_jid=choice.Id,text=text}));
+        }catch{
+            pendingSend=Guid.Empty;sendingText=false;UpdateComposer();
+            sendStatus.Text="Conexão interrompida. Resultado incerto: confira o grupo antes de reenviar.";
+        }
+    }
     void ClearGroups(){
         sync.Enabled=false;
         groupRows.Clear();selected.Clear();groupReadAt=null;RenderGroups();
         groupStatus.Text="Conecte o WhatsApp para consultar grupos.";
         accountStatus.Text="";
+        RefreshComposerGroups();
     }
     async Task SyncSelection(){
         if(!ready||syncing||!groupReadAt.HasValue||saveSelection==null||localVault==null)return;
@@ -267,7 +345,22 @@ sealed class WhatsApp : Form {
                 var rows=message["value"] as IEnumerable;
                 if(rows!=null)foreach(Dictionary<string,object> item in rows)groupRows.Add(item);
                 selected.IntersectWith(groupRows.ConvertAll(item=>TextValue(item,"id")));
-                groupReadAt=DateTime.Now;RenderGroups();ShowGroupStatus();
+                groupReadAt=DateTime.Now;RenderGroups();ShowGroupStatus();RefreshComposerGroups();
+            }else if(type=="send_result"){
+                var result=message["value"] as Dictionary<string,object>;
+                if(result!=null&&pendingSend!=Guid.Empty&&TextValue(result,"request_id")==pendingSend.ToString()){
+                    var status=TextValue(result,"status");
+                    if(status=="accepted"){
+                        sendStatus.Text="Mensagem aceita pelo WhatsApp. Confirme entrega e leitura no telefone.";
+                        messageText.Clear();
+                    }else if(status=="rejected"){
+                        sendStatus.Text="Envio recusado: "+TextValue(result,"reason");
+                    }else{
+                        sendStatus.Text="Resultado incerto. Confira no WhatsApp antes de tentar novamente. Não será reenviado automaticamente.";
+                    }
+                    sentRequests.Add(pendingSend.ToString());
+                    pendingSend=Guid.Empty;sendingText=false;UpdateComposer();
+                }
             }else if(type=="error"&&value=="grupos_indisponiveis"){
                 groupStatus.Text="Não foi possível consultar grupos. Use Atualizar grupos para tentar novamente.";
             }
@@ -275,6 +368,11 @@ sealed class WhatsApp : Form {
     }
     void StopBridge(){
         ++generation;ready=false;forgetting=false;
+        if(pendingSend!=Guid.Empty){
+            sendStatus.Text="Conexão encerrada durante envio: resultado incerto. Consulte o grupo antes de tentar novamente.";
+            pendingSend=Guid.Empty;sendingText=false;
+        }
+        UpdateComposer();
         if(pipe!=null){try{pipe.Dispose();}catch{}pipe=null;}
         var child=process;process=null;
         if(child!=null){
