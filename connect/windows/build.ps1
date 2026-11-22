@@ -60,7 +60,7 @@ internal static class ConnectVersion {
         if ($LASTEXITCODE) { throw 'Falha ao compilar auxiliar de atualizacao' }
         $runtimeResources = @("/resource:$archive,whatsapp-runtime.zip", "/resource:$helper,NeoPepUpdate.exe")
     }
-    & $csc /nologo /target:winexe /platform:x64 /codepage:65001 $define "/out:$client" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Security.dll /r:System.Web.Extensions.dll @trustResource $versionSource "$PSScriptRoot\ConnectProfile.cs" "$PSScriptRoot\Connect.cs" "$PSScriptRoot\WhatsApp.cs" "$PSScriptRoot\UpdateTrust.cs" "$PSScriptRoot\UpdateUi.cs"
+    & $csc /nologo /target:winexe /platform:x64 /codepage:65001 $define "/out:$client" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Security.dll /r:System.Web.Extensions.dll @trustResource $versionSource "$PSScriptRoot\ConnectProfile.cs" "$PSScriptRoot\Connect.cs" "$PSScriptRoot\ConnectTheme.cs" "$PSScriptRoot\WhatsApp.cs" "$PSScriptRoot\UpdateTrust.cs" "$PSScriptRoot\UpdateUi.cs"
     if ($LASTEXITCODE) { throw 'Falha ao compilar o cliente' }
     & $csc /nologo /target:winexe /platform:x64 /codepage:65001 $define "/out:$setup" /r:System.Windows.Forms.dll /r:System.IO.Compression.FileSystem.dll "/resource:$client,NeoPepConnect.exe" @runtimeResources $versionSource "$PSScriptRoot\ConnectProfile.cs" "$PSScriptRoot\Installer.cs"
     if ($LASTEXITCODE) { throw 'Falha ao compilar o instalador' }
