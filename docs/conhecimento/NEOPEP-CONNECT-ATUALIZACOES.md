@@ -80,7 +80,7 @@ A CI Windows do commit `295e484` gerou e conferiu os dois manifestos com uma cha
 
 ## Caminho seguro de 0.2.3 para 0.2.4
 
-A chave descartável do ensaio automatizado foi excluída pelo runner. Se o EXE instalado tiver o SHA-256 do EXE 0.2.3 daquele ensaio, ele confia nessa chave descartável. Um 0.2.3 compilado no repositório privado pode conter outra chave. Compare a identidade do binário e verifique a chave da instalação no Windows antes de tomar uma decisão de publicação.
+A chave descartável do ensaio automatizado foi excluída pelo runner. Se o instalador 0.2.3 utilizado tiver o SHA-256 do instalador daquele ensaio, o cliente resultante confia nessa chave descartável. Esse hash é do instalador, não do executável instalado. Um 0.2.3 compilado no repositório privado pode conter outra chave. Compare a identidade do binário e verifique a chave da instalação no Windows antes de tomar uma decisão de publicação.
 
 Execute `.\connect\windows\verify-update-key.ps1` na instalação 0.2.3 para conferir a chave pública efetiva no cliente e no auxiliar. Se houver um certificado candidato no repositório pessoal de certificados do Windows, acrescente `-SigningThumbprint <impressão-do-certificado>`. O script verifica um desafio aleatório localmente e retorna apenas a impressão SHA-256 da chave pública e o resultado. Para um HSM ou cofre remoto, solicite ao custodiante que assine um desafio local e valide-o com a chave incorporada. A existência de um certificado público por si só não confirma acesso à chave privada.
 
