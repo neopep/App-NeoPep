@@ -2,6 +2,8 @@ import {createHash,timingSafeEqual} from 'node:crypto';
 import {createClient} from 'npm:@supabase/supabase-js@2.80.0';
 import {bucket,fileName,parseManifest,precedes,sameRelease,staging,verifyManifest,verifyObject} from './manifest.mjs';
 
+// A chave PUBLICA abaixo e derivada do artifact privado de build validado em 22/11/2026 (SHA-256 do XML: b854219e828499ecd832e258860095fd56220dca47f0da577e13ac5f8d039fca). Nao contem material privado de assinatura.
+const pinnedReleasePublicJwk={"kty":"RSA","n":"5YcUyNxdDzKRNB6vK7PqXfeu3mc7MhM_IueOV7PNsNvxG_tYQzbCNxfrckvBBLx4Y8Q7suF6FupL4FlU_SZ1tV_W8PfcOkCJY9uKrmSE7mJNh4hYf2lWHrdBs0onebyldXyjXJnZ2WiprjzgNpY05sPmzcYwPr2ynOWjvh0fG8rR9ayO3DDNRx_VRauuFN6VauUB7JTGzPsFs6-21wigXuQiZhwwipp1p9s43mH6cmVuq6sTPXIdeuW3MYKB4CkLD3oTqK1LULYXJr5JbHB83SSzQuVSCDlmyZD63hwZaaFb39PsT0eRuNZ3EIBie3OKzJMACuILr8t0g9WokGAgqsRxsZK5Uh9tB0p4ibrfDIpFOZFt4rW8J99sTiT-bTEGJu2oZ0viUMUgUWSJA02rvvKtApgQSutKypyZScQl13vAlorJGTnRvXPkoE0rUpZntMf3rmTC2k-3KPyoU5ZPQ3YmQNp70DhlAiI99QUnh8K0zk3BfzHZqOGLRLbwHOt1","e":"AQAB"};
 const origin='https://teste.app.neopep.com.br';
 Deno.serve(async request=>{
  const headers={'Content-Type':'application/json','Cache-Control':'no-store','Vary':'Origin',
@@ -24,7 +26,7 @@ Deno.serve(async request=>{
  if(!machine&&!/^Bearer [A-Za-z0-9_.-]{20,4096}$/.test(auth))return reply(401,{error:'Entre com uma conta administrativa.'});
  const anon=Deno.env.get('SUPABASE_ANON_KEY'),service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
  const publicKey=Deno.env.get('NEO_CONNECT_RELEASE_PUBLIC_JWK');
- if(!anon||!service||!publicKey)return reply(503,{error:'Verificação de releases ainda não configurada.'});
+ if(!anon||!service)return reply(503,{error:'Verificação de releases ainda não configurada.'});
  const backend=()=>createClient(staging,service,{auth:{persistSession:false,autoRefreshToken:false}});
  try{
   let actor=null,listing;
@@ -66,7 +68,13 @@ Deno.serve(async request=>{
     evidence={commit:'75f5b441beb2d0a6472d5544e639f53f9184c069',run_id:'45032627045',attempt:null};
    }
   }catch(error){return reply(400,{error:error instanceof SyntaxError?'JSON inválido.':String((error as Error).message)});}
-  if(!await verifyManifest(manifest,JSON.parse(publicKey)))return reply(422,{error:'A assinatura não corresponde à chave pública de Teste.'});
+  // A chave opcional de ambiente pode ser usada apenas se coincidir exatamente com a chave publica fixada no cliente 0.2.4. Impede aceitar outra chave por erro de configuracao.
+  if(publicKey){
+   const candidate=JSON.parse(publicKey);
+   if(candidate.kty!==pinnedReleasePublicJwk.kty||candidate.n!==pinnedReleasePublicJwk.n||candidate.e!==pinnedReleasePublicJwk.e)
+    return reply(503,{error:'Chave publica de release diferente da chave incorporada no cliente de Teste.'});
+  }
+  if(!await verifyManifest(manifest,pinnedReleasePublicJwk))return reply(422,{error:'A assinatura não corresponde à chave pública de Teste.'});
   const releases=listing.data?.releases??[];
   const existing=releases.find((r:{version:string})=>r.version===manifest.version);
   if(existing&&(!sameRelease(existing,manifest)||existing.distribution_state!=='draft'))
