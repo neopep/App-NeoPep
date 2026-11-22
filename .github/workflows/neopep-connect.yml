@@ -34,6 +34,11 @@ jobs:
         with:
           node-version: '24.22.1'
           architecture: x64
+      - name: Validar broker Connect de Produção (somente código, sem deploy)
+        shell: powershell
+        run: |
+          node --test connect/windows/production-update-contract.test.cjs
+          if ($LASTEXITCODE) { throw 'Contrato do broker de Produção inválido' }
       - name: Instalar e auditar dependências de runtime
         working-directory: connect/whatsapp-lab
         shell: powershell
