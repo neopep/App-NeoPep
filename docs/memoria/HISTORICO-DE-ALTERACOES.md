@@ -479,3 +479,7 @@ Integração seletiva do PR #10 a partir de `60016a9` para o painel de homologa�
 ## Issue #15 — Importação de manifesto e publicador do Connect Teste
 
 PR #16 prepara a importação local do manifesto, a validação RSA/SHA-256 pela Edge com o instalador no bucket privado e o rascunho por sessão administrativa. O workflow privado, o assinador CNG local e a proposta SQL de exclusão mútua estão disponíveis para homologação. O Supabase Teste mostrava o objeto 0.2.5 com 50.102.784 bytes e sem cadastro. O fluxo real aguarda a chave pública, o manifesto sob custódia do proprietário e acesso ao repositório privado. [Guia](../conhecimento/NEOPEP-CONNECT-RELEASE-AUTOMACAO.md)
+
+## Issue #20 — Central de Campanhas e prévia do WhatsApp
+
+A branch `desenvolvimento/admin-campaigns-navigation-v2` separa as listas, os detalhes e a criação guiada dos canais App e WhatsApp. A prévia em smartphone usa a composição do compartilhamento manual do painel e representa a legenda junto à imagem no modo Connect. Os testes locais utilizaram dados fictícios. A conferência em aparelhos físicos e em um painel autenticado de homologação consta no checklist. [Guia e evidências](../conhecimento/CAMPANHAS-NAVEGACAO-V2.md)
