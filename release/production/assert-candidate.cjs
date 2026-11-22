@@ -12,7 +12,7 @@ assert.notEqual(config.window.NEO_CONFIG.campaignActivationEnabled, true);
 const vercel = JSON.parse(read('vercel.json'));
 assert.equal(vercel.buildCommand, 'npm run build');
 assert.equal(vercel.outputDirectory, 'dist');
-assert.equal(vercel.git.deploymentEnabled['release/preparacao-paridade-producao-20261122'], false);
+assert.equal(vercel.git.deploymentEnabled['release/preparacao-paridade-producao-20261122'], true); // Preview candidate, never main production.
 assert.ok(vercel.rewrites.some(route => route.source === '/neo/:path*'));
 assert.doesNotMatch(JSON.stringify(vercel.headers), /noindex/i);
 assert.ok(!fs.existsSync(path.join(root, 'api/admin-monitor.js')));
