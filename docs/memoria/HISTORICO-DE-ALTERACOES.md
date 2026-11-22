@@ -475,3 +475,7 @@ O teste automatizado validou a cláusula e as duas transições. No Supabase de 
 ## MEM-20261122-001
 
 Integração seletiva do PR #10 a partir de `60016a9` para o painel de homologação. A aba **Atualizações** usa a RPC administrativa existente para listar versões e registrar rascunhos com auditoria. O build web, a verificação estática e os testes direcionados passaram. Um ensaio local com PGlite confirmou o registro como `draft`, a negativa para usuário comum e o registro do autor na auditoria. A validação autenticada no painel publicado segue pendente. O revert deste commit retira a interface e preserva os registros do banco.
+
+## Issue #15 — Importação de manifesto e publicador do Connect Teste
+
+PR #16 prepara a importação local do manifesto, a validação RSA/SHA-256 pela Edge com o instalador no bucket privado e o rascunho por sessão administrativa. O workflow privado, o assinador CNG local e a proposta SQL de exclusão mútua estão disponíveis para homologação. O Supabase Teste mostrava o objeto 0.2.5 com 50.102.784 bytes e sem cadastro. O fluxo real aguarda a chave pública, o manifesto sob custódia do proprietário e acesso ao repositório privado. [Guia](../conhecimento/NEOPEP-CONNECT-RELEASE-AUTOMACAO.md)

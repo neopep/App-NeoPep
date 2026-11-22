@@ -74,6 +74,8 @@ Deno.serve(async request=>{
    if(saved.error.code==='23505')return reply(409,{error:'A versão foi cadastrada em paralelo. Confira a lista antes de tentar novamente.'});
    return reply(502,{error:'Não foi possível cadastrar o rascunho.'});
   }
-  return reply(201,{version:manifest.version,path,sha256:manifest.sha256,state:'draft'});
+  if(saved.data?.code==='release_version')return reply(409,{error:'A versão é inferior a uma já cadastrada.'});
+  if(saved.data?.ok!==true)return reply(502,{error:'O servidor não confirmou o cadastro.'});
+  return reply(saved.data.reused?200:201,{version:manifest.version,path,sha256:manifest.sha256,state:'draft'});
  }catch{return reply(503,{error:'Não foi possível verificar o arquivo privado agora. Tente novamente.'});}
 });
