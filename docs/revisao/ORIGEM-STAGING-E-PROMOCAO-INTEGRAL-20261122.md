@@ -100,3 +100,7 @@ As leituras Git dos blobs de `staging/permanente` e do PR #25 mostram diferença
 - GitHub CI da candidata aprovou compilação/testes focalizados na execução verificada; `release:check` bloqueia por ausência de 12 evidências e `cloudValidated=false`.
 - Vercel staging Ready `8aa7ff5` conforme captura do proprietário; para `app-neopep`, ainda faltam logs de erro específicos e confirmação da implantação oficial.
 - **Fato novo e determinante:** o lançamento que o proprietário agora pede é o das melhorias **realmente consolidadas no Teste mais recente**, não o pacote parcial definido no PR #25 inicialmente. Mudar essa intenção em código exige integrar PRs #22/#23 e revalidar todo o candidato antes de merge/deploy.
+
+## Atualização oficial — migrações incrementais JÁ aplicadas em 22/11/2026
+
+**Não executar novamente os lotes 01–06 na Produção.** O Supabase oficial agora tem 90 tabelas e 177 funções (`public` + `neo_private`), sete versões de migração próprias, dois buckets privados novos, mantendo 8 contas, 18 pedidos e 34 objetos Storage em contagem. Os agentes adicionais, campanhas automáticas e Connect estão inertes/pausados; o lote 07 financeiro não foi aplicado. A lista exata das sete versões e os guardas executados constam no [registro oficial de aplicação](APLICACAO-PRODUCAO-INCREMENTAL-20261122.md). A **publicação web e Edge** continua pendente, sem merge do PR #25. Não inferir GO da presença das novas tabelas.
