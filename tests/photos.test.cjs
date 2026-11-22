@@ -418,8 +418,8 @@ test('composição exporta só os dois originais selecionados, preserva proporç
  assert.deepEqual(blocks.at(-1),[0,1282,1080,638]);
  assert.ok(points[8][0]<points[9][0]&&points[8][1]<points[9][1]);
  assert.ok(!text.some(label=>/Evolução do Peso|Variação/.test(label)));
- assert.ok(text.includes('−2,0 kg'));
- const weightLabel=styles.find(style=>style.value==='−2,0 kg');
+ assert.ok(text.includes('−2,00 kg'));
+ const weightLabel=styles.find(style=>style.value==='−2,00 kg');
  assert.equal(weightLabel.x,540);
  assert.equal(weightLabel.maxWidth,960);
  assert.equal(weightLabel.y,draws[2][1]-12);
@@ -509,15 +509,15 @@ test('variação usa dias exatos, última pesagem, unidade e histórico quando f
   {date:a.date,value:82},
   {date:c.date,value:80}
  ];`);
- assert.equal(result('comparisonWeight([a,b])').display,'−2,0 kg');
- assert.equal(result('comparisonWeight([b,a])').display,'+2,0 kg');
- assert.equal(result('comparisonWeight([b,c])').display,'0,0 kg');
+ assert.equal(result('comparisonWeight([a,b])').display,'−2,00 kg');
+ assert.equal(result('comparisonWeight([b,a])').display,'+2,00 kg');
+ assert.equal(result('comparisonWeight([b,c])').display,'0,00 kg');
  assert.equal(result('comparisonWeight([null,c])').type,'none');
  assert.equal(result('comparisonWeight([a,d])').type,'total');
  assert.equal(result("comparisonWeight([d,{date:'2026-01-05'}])").rows.length,3);
  run("state.profile.units='imperial';state.profile.initialWeight=84");
  const total=result('comparisonWeight([d,c])');
- assert.equal(total.display,'−8,8 lb');
+ assert.equal(total.display,'−8,82 lb');
  assert.equal(total.reference,84);
  assert.equal(total.references[0].origin,'profile');
  run('state.weights=[]');
@@ -540,12 +540,12 @@ test('indicador atualiza ao mudar datas e o modal preserva a variação enquanto
   paintComparison(before,'2026-01-02',0);
   showComparisonExport(document.querySelector('[data-comparison-export]'));
  `);
- assert.match(doc.querySelector('[data-comparison-weight]').textContent,/−1,0 kg/);
+ assert.match(doc.querySelector('[data-comparison-weight]').textContent,/−1,00 kg/);
  run("paintComparison(before,'2026-01-01',0);state.weights=[]");
  finish(new Blob(['square']));
  await request;
  assert.deepEqual(requests,['b','c']);
- assert.ok(text.includes('−1,0 kg'));
+ assert.ok(text.includes('−1,00 kg'));
  assert.ok(text.includes('02/01/2026')&&text.includes('03/01/2026'));
 });
 
@@ -569,4 +569,41 @@ test('exportação reduzida preserva um valor longo e alinha fotos quadradas de 
  assert.equal(draws[2][1]+draws[2][3]/2,742);
  assert.equal(styles.find(style=>style.value==='NeoPep').y,742);
  assert.equal(label.y,draws[2][1]-12);
+});
+
+test('peso preserva duas casas no gráfico, tooltip e data civil local',()=>{
+ const run=app();
+ const chart=run("chart([{date:'2026-11-12',value:111.1},{date:'2026-11-13',value:110}])");
+ assert.equal((chart.match(/quinta-feira, 12\/11\/2026 · 111,10 kg/g)||[]).length,3);
+ assert.match(chart,/sexta-feira, 13\/11\/2026 · 110,00 kg/);
+ assert.equal(run("state.profile.units='imperial';weight(0)"),'0,00');
+ assert.equal(run('weight(null)'),'—');
+});
+
+test('formulário de fotos usa consentimento específico da conta atual e exige nova confirmação após revogação',async()=>{
+ let granted=true,changed=0;
+ const cloud={configured:false,init:async()=>null,user:{id:'a'},hasConsent:purpose=>purpose==='photos'&&granted,
+  setConsent:async purpose=>{assert.equal(purpose,'photos');changed++;}};
+ const run=app(cloud);
+ run.document.querySelector('#dialog').showModal=()=>{};
+ run("mode='cloud';openRecord('avatar')");
+ const field=()=>run.document.querySelector('[name=photoConsent]');
+ assert.ok(field().hasAttribute('checked'));
+ granted=false;
+ const consent=field();consent.checked=true;
+ const form={dataset:{photoOwner:'a'},elements:{namedItem:()=>consent}};
+ const authorize=run('authorizePhotoUpload');
+ await assert.rejects(authorize(form),/mudou/);
+ assert.equal(consent.checked,false);
+ assert.equal(changed,0);
+ consent.checked=true;
+ await authorize(form);
+ assert.equal(changed,1);
+ cloud.user={id:'b'};
+ await assert.rejects(authorize(form),/conta mudou/);
+ run("openRecord('avatar')");
+ assert.equal(field().hasAttribute('checked'),false);
+ cloud.user=null;granted=true;
+ run("openRecord('avatar')");
+ assert.equal(field().hasAttribute('checked'),false);
 });

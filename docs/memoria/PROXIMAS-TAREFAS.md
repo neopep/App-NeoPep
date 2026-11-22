@@ -18,3 +18,5 @@
 - Central de Campanhas: conferir balões na borda e na abertura de campos condicionais no Safari do iPhone e no PWA. Ensaiar escolha manual de destinatário, compartilhamento de arquivo e o aviso de agenda com contas fictícias. Publicar o manual WhatsApp quando houver PDF aprovado.
 
 - NeoPep Connect: validar a aba **Atualizações** no painel autenticado de Teste e cadastrar o rascunho 0.2.3 com os dados do manifesto correspondente ao EXE já enviado. [Procedimento](../conhecimento/NEOPEP-CONNECT.md#cadastro-de-rascunho-de-atualização)
+
+- Issue #21: homologar o leitor PDF com pinça e VoiceOver no Safari e PWA de um iPhone físico e verificar a Biblioteca com sessões autorizada e comum no ambiente de Teste.
