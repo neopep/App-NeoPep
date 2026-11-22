@@ -74,6 +74,15 @@ sealed partial class Connect : Form {
         overview.Controls.Add(title);
         overview.Controls.Add(new Label{Text=ConnectProfile.EnvironmentName+" • versão "+Version+" • configuração automática",AutoSize=true});
         overview.Controls.Add(new Label{Text=ConnectProfile.ConnectEnabled?"Conexão NeoPep • provedor simulado":"Produção preparada • Connect ainda não habilitado no servidor",AutoSize=true});
+        var metrics=new FlowLayoutPanel{AutoSize=true,Dock=DockStyle.Top,WrapContents=true,Padding=new Padding(4,14,4,14)};
+        var deviceMetric=new Label();
+        metrics.Controls.Add(Metric("COMPUTADOR",deviceMetric,"Verificação pendente"));
+        metrics.Controls.Add(Metric("WHATSAPP",new Label{Text="Gerenciar conexão"},"Conexão local"));
+        metrics.Controls.Add(Metric("PUBLICAÇÕES",new Label{Text="Envio manual"},"Teste • confirmação obrigatória"));
+        overview.Controls.Add(metrics);
+        state.TextChanged+=delegate{
+            deviceMetric.Text=deviceApproved?"Autorizado":!ConnectProfile.ConnectEnabled?"Indisponível":"Aguardando";
+        };
         AddField(credentials,"E-mail administrativo",email);
         password.UseSystemPasswordChar=true; AddField(credentials,"Senha",password);
         AddField(computer,"Sessão fictícia deste computador",accounts);accounts.DropDownStyle=ComboBoxStyle.DropDownList;
@@ -165,6 +174,19 @@ sealed partial class Connect : Form {
         await Post("/rest/v1/rpc/neo_connect_wa_set_status",new {
             p_device=Value(local,"device"),p_secret=Value(local,"secret"),p_connection=connection,p_status=status
         },true);
+    }
+
+    static Panel Metric(string heading,Label figure,string detail){
+        var panel=new Panel{Width=194,Height=116,BackColor=ConnectTheme.Surface,
+            Padding=new Padding(14),Margin=new Padding(8)};
+        var caption=new Label{Text=heading,Dock=DockStyle.Top,Height=25,
+            ForeColor=ConnectTheme.Muted,Font=new Font("Segoe UI",9,FontStyle.Bold)};
+        figure.Dock=DockStyle.Top;figure.Height=36;figure.ForeColor=ConnectTheme.Accent;
+        figure.Font=new Font("Segoe UI Semibold",14,FontStyle.Bold);
+        var sub=new Label{Text=detail,Dock=DockStyle.Bottom,Height=24,
+            ForeColor=ConnectTheme.Muted,Font=new Font("Segoe UI",8)};
+        panel.Controls.Add(sub);panel.Controls.Add(figure);panel.Controls.Add(caption);
+        return panel;
     }
 
     static TableLayoutPanel Page(TabControl tabs,string title) {
