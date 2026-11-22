@@ -18,7 +18,7 @@ test('loja: autorização, preço no servidor, estoque, isolamento e confirmaç�
  await assert.rejects(shop('order',{request_key,address,expected_total_cents:1,accept_terms:true}),/valores/);
  const order=await shop('order',{request_key,address,expected_total_cents:4480,accept_terms:true});const checkout={request_key,address,expected_total_cents:4480,accept_terms:true};
  const rollback=fs.readFileSync('release/production/rollback/20261122190100_shop_checkout_retry.sql','utf8');
- const migration=fs.readFileSync('supabase/migrations/20261122190100_shop_checkout_retry.sql','utf8');
+ const migration=fs.readFileSync('release/production/optional-finance/20261122190100_shop_checkout_retry.sql','utf8');
  const preflight=fs.readFileSync('release/production/finance-preflight.sql','utf8');
  async function assertPreflight(expected){
   const result=await db.exec(preflight);
