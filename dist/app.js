@@ -65,15 +65,158 @@ function journal(){const js=C.periodRows(state.journal,period),mean=k=>{const a=
 function applications(){return head('Seu diário de aplicações.','Registre o que foi aplicado conforme sua prescrição.',addBtn('dose','Registrar aplicação'))+`<div class="notice">Este diário não define doses, frequência ou adequação de produtos. Não há sugestões automáticas de administração.</div><section class="card"><div class="card-head"><h2>Histórico de aplicações</h2><button class="text-btn" data-go="protocolos">Ver protocolos</button></div><label class="space">Protocolo<select id="protocolFilter"><option value="">Todos os protocolos</option>${state.protocols.map(p=>`<option value="${esc(p.id)}" ${selectedProtocol===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label>${historyTable('doses',selectedProtocol?state.doses.filter(r=>r.protocolId===selectedProtocol):state.doses)}</section>`}
 function protocolCards(){return state.protocols.map(p=>{const applications=C.sorted(state.doses.filter(d=>d.protocolId===p.id)),last=applications.at(-1);return `<article class="card protocol-card"><div class="between"><h3>${esc(p.name)}</h3><span class="tag">${p.status==='active'?'Em acompanhamento':'Encerrado'}</span></div><p class="sub">Desde ${date(p.date)}${p.end?' · até '+date(p.end):''}</p><div class="protocol-count"><strong>${applications.length}</strong><span>aplicações registradas</span></div><p class="sub">${last?'Último registro: '+date(last.date):'Ainda sem aplicação vinculada.'}</p>${p.note?`<p class="sub protocol-note">${esc(p.note)}</p>`:''}<button class="text-btn" data-protocol-apps="${esc(p.id)}">Ver aplicações ${icon('arrow')}</button></article>`}).join('')}
 function protocols(){return head('Seu histórico de protocolos.','Organize datas e informações cadastradas por você.',addBtn('protocol','Novo protocolo'))+`<div class="notice">Este espaço organiza registros pessoais. Não cria esquemas de administração nem recomenda mudanças de dose.</div>${state.protocols.length?`<div class="two-cols">${protocolCards()}</div>`:''}<section class="card space"><h2>Protocolos registrados</h2>${historyTable('protocols')}</section>`}
-const calcValues={mass:[5,10,20,40,60],volume:[1,2,3,5],mg:[.25,.5,1,2,2.5,5],mcg:[50,100,250,500,1000]};
-function calcOptions(kind,unit){return '<option value="">Selecionar quantidade…</option>'+calcValues[kind].map(n=>`<option value="${n}">${fmt(n,2)} ${unit}</option>`).join('')+'<option value="custom">Digitar outro valor</option>'}
-function calcField(id,label,kind,unit,placeholder){return `<div class="calc-field"><label for="${id}">${label}</label><select data-calc-preset="${id}" aria-label="Valores rápidos: ${label}">${calcOptions(kind,unit)}</select><input name="${id}" id="${id}" type="number" min="0.000001" step="any" inputmode="decimal" required placeholder="${placeholder}" aria-label="${label} · digitar quantidade"></div>`}
-function syringeScale(capacity=1,units=null){const max=capacity*100,tickStep=max<=50?5:10,position=units===null?0:Math.min(100,units/max*100),outside=units!==null&&units>max;return `<div class="syringe syringe-scale ${outside?'scale-overflow':''}" role="img" aria-label="Escala de 0 a ${fmt(max,0)} UI U-100${units!==null?', resultado '+fmt(units,4)+' UI'+(outside?', acima da capacidade':''):''}"><i style="width:${position}%"></i>${units!==null?`<b class="syringe-reading" style="left:${Math.max(12,Math.min(88,position))}%">${fmt(units,4)} UI${outside?' · fora da escala':''}</b>`:''}<div class="syringe-ticks">${Array.from({length:max/tickStep+1},(_,i)=>`<span style="left:${i*tickStep/max*100}%"><em>${fmt(i*tickStep,0)}</em></span>`).join('')}</div></div>`}
-function calcEmpty(capacity=+($('#capacity')?.value||1)){return `<div class="eyebrow">CONVERSÃO MATEMÁTICA</div><h2 class="space">Clareza antes de tudo.</h2><p class="space">Selecione ou digite os dados confirmados para ver concentração, volume e UI na escala U-100.</p>${syringeScale(capacity)}<p>Na escala U-100, 100 UI = 1 mL. Essa graduação não representa mg nem a atividade do produto.</p>`}
-function updateCalc(showErrors=false){const mass=+$('#mass').value,volume=+$('#volume').value,dose=+$('#dose').value,unit=$('#doseUnit').value,capacity=+$('#capacity').value;if(!showErrors&&(!mass||!volume||!dose)){$('#result').innerHTML=calcEmpty();return}try{const r=C.convertDose(mass,volume,dose,unit,capacity);if(showErrors)engagementTrack('calculator_completed','calculadora');$('#result').innerHTML=`<div class="eyebrow">CONVERSÃO MATEMÁTICA</div><div class="big">${fmt(r.ml,6)} <small>mL</small></div><h2>${fmt(r.units,4)} UI na seringa U-100</h2>${syringeScale(capacity,r.units)}${r.warning?`<p class="error">${esc(r.warning)}</p>`:''}<hr><div class="result-line"><span>Concentração</span><b>${fmt(r.concentration,6)} mg/mL</b></div><div class="result-line"><span>Doses matemáticas no frasco</span><b>${fmt(r.doses,2)}</b></div><p>Massa ÷ volume = concentração<br>Dose em mg ÷ concentração = volume<br>Volume × 100 = graduação U-100 (UI na escala)</p><p>UI aqui identifica a graduação da seringa U-100, não a atividade do produto. Valores arredondados para exibição; não arredonde a aplicação sem orientação profissional.</p>`}catch(err){if(showErrors)engagementTrack('calculator_validation_error','calculadora');$('#result').innerHTML='<h2>Confira os valores.</h2><p class="error">'+esc(err.message)+'</p>'}}
-function calculator(){return head('Precisão em cada número.','Conversão de dados confirmados, com a mesma fórmula validada.','')+`<div class="two-cols"><section class="card"><h2>Calculadora de volume</h2><p class="sub">Selecione uma quantidade ou digite. Use somente dados confirmados do produto e da sua prescrição.</p><form id="calcForm" class="space">${calcField('mass','1. Massa total do frasco (mg)','mass','mg','Ex.: 10')}${calcField('volume','2. Volume final da solução (mL)','volume','mL','Ex.: 2')}<div class="form-grid">${calcField('dose','3. Dose prescrita','mg','mg','Dose da prescrição')}<label>Unidade<select name="doseUnit" id="doseUnit"><option value="mg">mg</option><option value="mcg">mcg</option></select></label></div><label>4. Capacidade da seringa U-100<select name="capacity" id="capacity"><option value="1">1 mL · 100 UI</option><option value="0.5">0,5 mL · 50 UI</option><option value="0.3">0,3 mL · 30 UI</option></select></label><button class="primary full" type="submit">${icon('calc')} Calcular volume</button></form></section><section><div class="card result" id="result" aria-live="polite">${calcEmpty(1)}</div><div class="notice">Os valores rápidos são atalhos de preenchimento, sem recomendação de dose. Use a concentração confirmada por um profissional. O volume final pode diferir do diluente adicionado. Confirme o resultado e a precisão da seringa com seu médico ou farmacêutico antes da aplicação.</div></section></div>`}
-document.addEventListener('change',event=>{const input=event.target;if(input.dataset.calcPreset){const field=$('#'+input.dataset.calcPreset);if(input.value==='custom'){field.focus();return}if(input.value)field.value=input.value;formDirty=true;updateCalc();return}if(input.id==='doseUnit'){const selector=document.querySelector('[data-calc-preset=dose]');selector.innerHTML=calcOptions(input.value,input.value);updateCalc()}if(input.id==='capacity')updateCalc()});
-document.addEventListener('input',event=>{if(!event.target.matches('#mass,#volume,#dose'))return;if(!engagementCalcStarted){engagementCalcStarted=true;engagementTrack('calculator_started','calculadora');}const selector=document.querySelector('[data-calc-preset='+event.target.id+']');const selected=Array.from(selector.options).some(o=>o.value===event.target.value)?event.target.value:'custom';for(const option of selector.options)option.selected=option.value===selected;updateCalc()});
+const calcFields={
+ mass:{label:'Massa total do frasco',unit:'mg',max:60,step:.01,choices:[5,10,20,40,60]},
+ volume:{label:'Volume final da solução',unit:'mL',max:5,step:.01,choices:[1,2,3,5]},
+ dose:{label:'Dose da prescrição',unit:'mg',max:1,step:.01}
+};
+const calcMinimum=.000001;
+function calcNumber(value,digits=6){
+ return value!==0&&(Math.abs(value)<10**-digits||Math.abs(value)>=1e9)?value.toExponential(2).replace('.',','):fmt(value,digits);
+}
+function calcVial(id){
+ return `<svg class="calc-vial" viewBox="0 0 84 100" aria-hidden="true"><rect class="calc-hardware" x="23" y="9" width="38" height="13" rx="4"/><path class="calc-glass" d="M28 23h28v14l10 10v33a8 8 0 0 1-8 8H26a8 8 0 0 1-8-8V47l10-10z"/><rect data-calc-fill="${id}" class="calc-liquid" x="21" y="85" width="42" height="0" rx="2"/><path class="calc-mark" d="M46 52h12m-7 10h7m-12 10h12"/></svg>`;
+}
+function syringeSymbol(capacity,units=null){
+ const fill=units==null?0:Math.min(1,units/(capacity*100))*112;
+ return `<svg class="calc-syringe" viewBox="0 0 182 50" aria-hidden="true"><path class="calc-mark" d="M4 16v18m0-9h25m124 0h25"/><rect class="calc-glass" x="29" y="9" width="124" height="32" rx="6"/><rect class="calc-liquid" x="35" y="15" width="${fill}" height="20" rx="2"/><path class="calc-mark" d="M47 10v12m15-12v7m15-7v12m15-12v7m15-7v12m15-12v7m15-7v12"/></svg>`;
+}
+function calcField(id){
+ const {label,unit,max,step,choices}=calcFields[id];
+ const quick=choices?`<div class="calc-chips" role="group" aria-label="Valores rápidos de ${label}">${choices.map(value=>`<button type="button" class="secondary" data-calc-chip="${id}" data-value="${value}" aria-pressed="false">${fmt(value,2)} ${unit}</button>`).join('')}</div>`:
+  `<fieldset class="calc-precision"><legend>Passo do controle deslizante</legend><div class="calc-chips">${[.001,.01,.1].map(value=>`<button type="button" class="secondary" data-calc-step="${value}" aria-pressed="${value===step}">${fmt(value,3)} mg</button>`).join('')}</div></fieldset>`;
+ return `<section class="card calc-card calc-card-${id}">
+  <div class="calc-card-heading"><h2>${label}</h2>${choices?calcVial(id):''}</div>
+  ${id==='volume'?'<p class="sub">Informe o volume final confirmado, que pode diferir do diluente adicionado.</p>':''}
+  ${id==='dose'?'<div class="calc-number-group">':'<div>'}
+   <label for="${id}">Outro valor <span data-calc-unit="${id}">(${unit})</span><input name="${id}" id="${id}" type="number" min="${calcMinimum}" step="any" inputmode="decimal" required></label>
+   ${id==='dose'?'<label>Unidade<select name="doseUnit" id="doseUnit" data-unit="mg"><option value="mg" selected>mg</option><option value="mcg">mcg</option></select></label>':''}
+  </div>
+  <label for="calc-range-${id}" class="calc-range-label">Ajustar ${label.toLocaleLowerCase('pt-BR')}</label>
+  <input id="calc-range-${id}" data-calc-range="${id}" type="range" min="0" max="${max}" step="${step}" value="0" aria-label="Ajustar ${label}" aria-valuetext="Não informado">
+  <div class="calc-limits" aria-hidden="true"><span>0</span><span data-calc-max="${id}">${fmt(max)} ${unit}</span></div>
+  ${quick}
+ </section>`;
+}
+function calcCapacity(){
+ return `<fieldset class="card calc-card calc-capacity"><legend>Capacidade da seringa U-100</legend><div class="calc-capacities">${[.3,.5,1].map(value=>`<label data-calc-capacity="${value}"><input type="radio" name="capacity" value="${value}" ${value===1?'checked':''}><span>${syringeSymbol(value)}<b>${fmt(value)} mL</b><small>${value*100} UI</small></span></label>`).join('')}</div></fieldset>`;
+}
+function syringeScale(capacity,units=null){
+ const max=capacity*100,outside=units!==null&&units>max;
+ return `<figure class="calc-scale ${outside?'scale-overflow':''}" aria-label="Escala de 0 a ${max} UI">
+  ${syringeSymbol(capacity,units)}
+  <figcaption><span>0 UI</span>${units===null?'':`<strong class="syringe-reading">${calcNumber(units,4)} UI${outside?' · fora da escala':''}</strong>`}<span>${max} UI</span></figcaption>
+ </figure>`;
+}
+function calcEmpty(capacity=1){
+ return `${syringeScale(capacity)}<p class="sub">Preencha os dados confirmados para calcular o volume e a graduação U-100.</p>`;
+}
+function updateCalc(showErrors=false){
+ const fields=['mass','volume','dose'].map(id=>$('#'+id));
+ const [mass,volume,dose]=fields.map(field=>Number(field.value));
+ const unit=$('#doseUnit').value;
+ const capacity=Number($('#calcForm input[name=capacity]:checked')?.value||1);
+ const result=$('#result');
+ const invalid=fields.some(field=>field.validity?.badInput||field.value!==''&&(!Number.isFinite(Number(field.value))||Number(field.value)<calcMinimum));
+ if(!showErrors&&!invalid&&fields.some(field=>field.value==='')){
+  result.innerHTML=calcEmpty(capacity);return;
+ }
+ try{
+  const r=C.convertDose(mass,volume,dose,unit,capacity);
+  if(invalid)throw Error('Informe valores positivos e finitos, a partir de 0,000001.');
+  if(showErrors)engagementTrack('calculator_completed','calculadora');
+  result.innerHTML=`<div class="calc-result-values"><div class="big">${calcNumber(r.ml)} <small>mL</small></div><strong>${calcNumber(r.units,4)} UI na escala U-100</strong></div>
+  ${syringeScale(capacity,r.units)}
+  ${r.warning?`<p class="error">${esc(r.warning)}</p>`:''}
+  <dl class="calc-result-details"><div><dt>Concentração</dt><dd>${calcNumber(r.concentration)} mg/mL</dd></div><div><dt>Razão massa ÷ dose</dt><dd>${calcNumber(r.doses,2)}</dd></div></dl>
+  <p class="sub">Valores arredondados para exibição.</p>`;
+ }catch(err){
+  if(showErrors)engagementTrack('calculator_validation_error','calculadora');
+  result.innerHTML=`${syringeScale(capacity)}<p class="error">${esc(err.message)}</p>`;
+ }
+}
+function calculator(){
+ return head('Calculadora de volume','Conversão matemática de dados confirmados do frasco e da prescrição.')+
+ `<div class="calc-layout"><form id="calcForm" class="calc-inputs">
+ ${calcField('mass')}${calcField('volume')}${calcCapacity()}${calcField('dose')}
+ <button class="secondary calc-submit" type="submit">Calcular volume</button></form>
+ <section class="card calc-result"><h2>Resultado</h2><div id="result" role="status" aria-live="polite">${calcEmpty()}</div>
+ <p class="sub calc-context">U-100 expressa uma graduação volumétrica: 100 UI correspondem a 1 mL. O cálculo não prescreve doses nem orienta preparo ou aplicação.</p></section>
+ <section class="card calc-formula"><h2>Como o cálculo funciona</h2><ol>
+ <li><strong>Concentração</strong><span>Massa total ÷ volume final</span></li>
+ <li><strong>Volume</strong><span>Dose informada em mg ÷ concentração</span></li>
+ <li><strong>Graduação U-100</strong><span>Volume em mL × 100</span></li>
+ </ol></section></div>`;
+}
+function calcSliderConfig(id){
+ if(id!=='dose')return calcFields[id];
+ const multiplier=$('#doseUnit').value==='mcg'?1000:1;
+ const selected=$('[data-calc-step][aria-pressed=true]');
+ const step=Number(selected?.dataset.calcStep||.01)*multiplier;
+ return {step,max:step*100,unit:$('#doseUnit').value};
+}
+function syncCalcField(id,preserveRange){
+ const field=$('#'+id),range=$('#calc-range-'+id),{max,step,unit}=calcSliderConfig(id);
+ const number=Number(field.value),valid=field.value!==''&&Number.isFinite(number)&&number>=calcMinimum;
+ const rangeMax=Math.max(max,preserveRange?Number(range.max):0,valid?Math.ceil(Math.min(number,1e9)/step)*step:0);
+ range.max=String(rangeMax);
+ range.step=String(step);
+ range.value=String(valid?Math.min(number,rangeMax):0);
+ field.setAttribute('aria-invalid',String(!!field.validity?.badInput||field.value!==''&&!valid));
+ range.setAttribute('aria-valuetext',valid?calcNumber(number)+' '+unit:'Não informado');
+ $('[data-calc-max='+id+']').textContent=calcNumber(rangeMax)+' '+unit;
+ $('[data-calc-unit='+id+']').textContent='('+unit+')';
+ for(const chip of document.querySelectorAll('[data-calc-chip='+id+']')){
+  chip.setAttribute('aria-pressed',String(valid&&number===Number(chip.dataset.value)));
+ }
+ const fill=$('[data-calc-fill='+id+']');
+ if(fill){
+  const height=valid?Math.min(39,39*number/rangeMax):0;
+  fill.setAttribute('y',85-height);fill.setAttribute('height',height);
+ }
+}
+function calcInputChanged(id,preserveRange=false){
+ if(!engagementCalcStarted){engagementCalcStarted=true;engagementTrack('calculator_started','calculadora');}
+ formDirty=true;
+ if(id)syncCalcField(id,preserveRange);
+ updateCalc();
+}
+document.addEventListener('click',event=>{
+ const control=event.target.closest('[data-calc-chip],[data-calc-step]');
+ if(!control)return;
+ const id=control.dataset.calcChip;
+ if(id){$('#'+id).value=control.dataset.value;calcInputChanged(id);return;}
+ for(const option of document.querySelectorAll('[data-calc-step]'))option.setAttribute('aria-pressed',String(option===control));
+ calcInputChanged('dose');
+});
+document.addEventListener('change',event=>{
+ const input=event.target;
+ if(input.name==='capacity'&&input.closest('#calcForm'))calcInputChanged();
+ if(input.id!=='doseUnit')return;
+ const field=$('#dose'),targetUnit=input.value;
+ if(field.value!==''&&input.dataset.unit!==targetUnit){
+  const [mantissa,exponent]=Number(field.value).toExponential().split('e');
+  const converted=Number(mantissa+'e'+(Number(exponent)+(targetUnit==='mcg'?3:-3)));
+  if(Number.isFinite(converted))field.value=String(converted);
+  else {
+   input.value=input.dataset.unit;
+   $('#result').textContent='Valor fora do limite para a unidade selecionada.';
+   return;
+  }
+ }
+ input.dataset.unit=targetUnit;
+ const multiplier=targetUnit==='mcg'?1000:1;
+ for(const option of document.querySelectorAll('[data-calc-step]'))option.textContent=fmt(Number(option.dataset.calcStep)*multiplier,3)+' '+targetUnit;
+ calcInputChanged('dose');
+});
+document.addEventListener('input',event=>{
+ const input=event.target;
+ if(input.dataset.calcRange){
+  const id=input.dataset.calcRange;
+  $('#'+id).value=input.value;
+  calcInputChanged(id,true);
+ }else if(input.matches('#mass,#volume,#dose'))calcInputChanged(input.id);
+});
 
 function reports(){const rows=C.periodRows(state.weights,period),m=C.metrics(state);return head('Sua jornada, em perspectiva.','Relatórios descritivos para acompanhar e compartilhar.',`<button class="primary" id="csvPeriod">${icon('download')}<span>CSV do período</span></button>`)+stats(true)+`<div class="report-print-heading"><h2>NeoPep · Relatório pessoal</h2><p>${esc(state.profile.name)} · Emitido em ${date(C.today())}</p></div><div class="grid"><section class="card"><div class="card-head"><h2>Relatório de evolução</h2><button class="text-btn" id="print">PDF / Imprimir</button></div>${periods()}${chart(rows)}<p class="sub">${rows.length?'Período: '+date(rows[0].date)+' a '+date(rows.at(-1).date)+'. Variação: '+weight(rows.at(-1).value-rows[0].value)+' '+unit()+'.':'Nenhum peso no período selecionado.'}</p></section><section class="card"><h2>Comparação entre períodos</h2>${comparison()}<p class="sub space">Meta: ${weight(m.goal)} ${unit()} · Progresso: ${fmt(m.progress,0)}%.</p><p class="sub space">Os dados não estabelecem causa entre mudanças corporais e aplicações. IMC é um indicador descritivo, limitado e não diagnóstico.</p></section></div><section class="card space"><h2>Pesos no período</h2>${historyTable('weights',rows)}</section><section class="card space"><h2>Diário no período</h2>${historyTable('journal',C.periodRows(state.journal,period))}</section><section class="card space"><h2>Medidas no período</h2>${historyTable('measures',C.periodRows(state.measures,period))}</section><section class="card space"><h2>Aplicações no período</h2>${historyTable('doses',C.periodRows(state.doses,period))}</section><div class="notice">O CSV desta tela respeita o período escolhido e inclui os registros e o diário. Para exportar todo o histórico, use o CSV ou backup no Perfil. Filtros de texto afetam a visualização, não o CSV do período. Para PDF, use “PDF / Imprimir” e a opção de salvar ou compartilhar PDF do sistema. O CSV usa kg e cm; aplicações mantêm a unidade informada. Fotos são exportadas individualmente para preservar sua privacidade.</div>`}
 function eventsFor(d){const result=[];for(const [k,title,i] of [['weights','Peso','weight'],['measures','Medidas','measure'],['doses','Aplicação','drop'],['journal','Diário','journal'],['protocols','Início de protocolo','layers']])for(const r of state[k].filter(r=>r.date===d))result.push({kind:k,id:r.id,title,detail:k==='weights'?weight(r.value)+' '+unit():r.product||r.name||r.note||'Registro pessoal',icon:i});if(state.profile.tracking?.weight!==false)result.push({title:'Lembrete de peso',detail:state.settings.weightTime,icon:'bell'});if(state.profile.tracking?.measures!==false&&new Date(d+'T12:00').getDay()===+state.settings.measureDay)result.push({title:'Lembrete de medidas',detail:state.settings.measureTime,icon:'bell'});for(const r of state.reminders.filter(r=>r.enabled&&r.date<=d&&(r.repeat==='daily'||r.repeat==='once'&&r.date===d||r.repeat==='weekly'&&new Date(d+'T12:00').getDay()===r.weekday)))result.push({kind:'reminders',id:r.id,title:r.title,detail:r.time,icon:'bell'});return result}

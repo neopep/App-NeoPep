@@ -479,3 +479,7 @@ Integração seletiva do PR #10 a partir de `60016a9` para o painel de homologa�
 ## Issue #15 — Importação de manifesto e publicador do Connect Teste
 
 PR #16 prepara a importação local do manifesto, a validação RSA/SHA-256 pela Edge com o instalador no bucket privado e o rascunho por sessão administrativa. O workflow privado, o assinador CNG local e a proposta SQL de exclusão mútua estão disponíveis para homologação. O Supabase Teste mostrava o objeto 0.2.5 com 50.102.784 bytes e sem cadastro. O fluxo real aguarda a chave pública, o manifesto sob custódia do proprietário e acesso ao repositório privado. [Guia](../conhecimento/NEOPEP-CONNECT-RELEASE-AUTOMACAO.md)
+
+## Issue #21 — visual, Biblioteca e calculadora
+
+O leitor PDF contínuo agora atende a Biblioteca e o manual administrativo. A pinça redimensiona a visualização antes da nova rasterização. Pesos exibidos usam duas casas no histórico, gráfico, resumos, Antes/Depois e CSV. O gráfico anuncia a data civil, e o avatar mantém o enquadramento da foto. A autorização de fotos é específica da conta e da finalidade. Na Biblioteca, o leitor interno permanece disponível e o compartilhamento aponta para a publicação. A nova calculadora reaproveita a conversão do núcleo e oferece entrada livre, controles deslizantes, opções de seringa e resultado automático com os dados preenchidos pelo usuário.
