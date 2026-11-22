@@ -12,6 +12,7 @@ using System.Threading;
 internal static class UpdateHelper {
     static int Main(string[] args){
         if(!ConnectProfile.ConnectEnabled||args.Length!=1||!Regex.IsMatch(args[0],"^[a-f0-9]{32}$"))return 2;
+        ServicePointManager.SecurityProtocol=SecurityProtocolType.Tls12;
         string folder=ConnectProfile.LocalFolder,work=Path.Combine(UpdateTrust.Cache(),args[0]);
         string application=Path.Combine(folder,"NeoPepConnect.exe"),setup=Path.Combine(work,UpdateTrust.FileName);
         string backup=Path.Combine(work,"previous.exe"),installPath=Path.Combine(folder,UpdateTrust.FileName),previousSetup=Path.Combine(work,"previous-setup.exe");
@@ -40,7 +41,9 @@ internal static class UpdateHelper {
                 backupReady=true;
                 using(var installer=Process.Start(new ProcessStartInfo(setup,"--quiet"){UseShellExecute=false,CreateNoWindow=true})){
                     if(installer==null)throw new IOException();
-                    installer.WaitForExit();
+                    if(!installer.WaitForExit(120000)){
+                        installer.Kill();installer.WaitForExit();throw new IOException();
+                    }
                     if(installer.ExitCode!=0)throw new IOException();
                 }
             }
