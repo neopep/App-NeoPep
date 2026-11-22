@@ -12,14 +12,18 @@ A sessão atual não renovou a leitura autenticada. A API Supabase retornou 403 
 | Auth/RLS | Testes locais exercitam endpoints, persistência, recusa de sessão sem autorização e acesso das tabelas dos lotes. | Homologar duas contas, SMTP, CAPTCHA, redirects, isolamento real e exclusão de conta em ambiente representativo. |
 | Edge, cron e Storage | Fontes oficiais de Auth, exclusão, Loja e Mercado Pago preservadas. O inventário registra as diferenças conhecidas de JWT e os scripts permitem comparar objetos e cron sem copiá-los. | Comparar versões implantadas, verify_jwt, CORS, privilégios e dependências. Manter o cron oficial e validar backups de objetos, RLS e restore isolado. |
 | Mercado Pago | Fixtures atualizadas para Orders, assinatura, validação de vendedor e moeda, cálculo em centavos, origem permitida e falha do provedor. | Autenticar checkout sandbox e entrega de webhook. Confirmar seleção da forma de pagamento em Orders e consistência de reembolsos. |
-| Reembolso parcial | O caso sintético de uma ordem processada com reembolso parcial registra approved. O teste mantém a expectativa de distinguir o caso como partially_refunded. | Confirmar payload oficial em sandbox, revisar o mapeamento e ensaiar correção e reconciliação. |
-| Repetição de checkout | Após criar o pedido, a mesma chave pode ser recusada por nova cotação do carrinho vazio antes da recuperação idempotente. | Homologar retentativa e propor correção após comparar a função implantada. Diferenciar o retry de criação da repetição de evento de pagamento. |
+| Reembolso parcial | Correção no webhook e teste local do encaminhamento a paid_review, incluindo evento repetido. | Confirmar payload e comportamento de Orders em sandbox e reconciliar Edge e RPC implantadas. |
+| Repetição de checkout | Migração candidata recupera por usuário e chave antes da cotação; testes confirmam estoque, isolamento, bloqueios e rollback. | Comparar fingerprints reais, ensaiar em restauração isolada e validar retentativa de pagamento no sandbox. |
 | Backup | Procedimento de banco, objetos, isolamento, critérios RPO/RTO e reversão preparado. | Falta ponto verificado e execução comprovada de restore. |
 
 O PR #25 segue em rascunho e os gates de liberação permanecem pendentes. Os PRs #22 e #23 seguem fora deste lote. Nenhuma alteração foi executada no banco, cron, Auth, Edge, Storage ou Vercel.
 
 [PR #25](https://github.com/neopep/App-NeoPep/pull/25) · [CI inicial](https://github.com/neopep/App-NeoPep/actions/runs/45055909655) · [Ensaio de recuperação](../../release/production/RESTORE-REHEARSAL.md) · [Script dos lotes](../../release/production/batches/render.py)
 
-## Verificação local desta rodada
+## Verificação local anterior às correções financeiras
 
 Build, check, invariantes da candidata, auditoria de dependências e teste de catálogo passaram. A seleção de regressões teve 89 aprovações e dois casos pendentes explícitos. A suíte de loja confirmou autorização, preços do servidor, estoque, descarte de autorização indevida, repetição do evento financeiro, expiração e separação dos ambientes de pagamento. O gate release:check continua bloqueado pelos 12 critérios pendentes e cloudValidated falso.
+
+[Correções e plano financeiro](FINANCEIRO-PR25.md)
+
+Na rodada das correções, os 25 testes focados passaram sem TODO. A suíte completa teve 329 aprovações e 51 falhas herdadas, sem falhas novas. O pré-voo financeiro também foi conferido no banco isolado com os fingerprints anterior e corrigido, as chaves únicas e os privilégios da RPC.

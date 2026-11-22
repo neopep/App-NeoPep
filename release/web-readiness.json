@@ -44,7 +44,7 @@
     "catalog_release": {
       "status": "pending",
       "evidence": "",
-      "note": "Testes sintéticos do contrato Orders, webhook e Auth foram executados. O caso de reembolso parcial permanece pendente. Falta validação financeira autenticada em sandbox."
+      "note": "Reembolso parcial e repetição idempotente passaram em testes isolados. Falta conciliar a origem oficial, comprovar restauração e validar Orders e webhook em sandbox."
     },
     "iphone_android": {
       "status": "pending",

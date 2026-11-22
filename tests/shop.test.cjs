@@ -19,9 +19,22 @@ test('loja: autorização, preço no servidor, estoque, isolamento e confirmaç�
  const order=await shop('order',{request_key,address,expected_total_cents:4480,accept_terms:true});const checkout={request_key,address,expected_total_cents:4480,accept_terms:true};
  const rollback=fs.readFileSync('release/production/rollback/20261122190100_shop_checkout_retry.sql','utf8');
  const migration=fs.readFileSync('supabase/migrations/20261122190100_shop_checkout_retry.sql','utf8');
- await db.exec('reset role');await db.exec(rollback);await as(db,B);
+ const preflight=fs.readFileSync('release/production/finance-preflight.sql','utf8');
+ async function assertPreflight(expected){
+  const result=await db.exec(preflight);
+  const rows=result.find(item=>item.rows.some(row=>row.signature)).rows;
+  const checkout=rows.find(row=>row.checkout_status);
+  assert.equal(checkout.checkout_status,expected);
+  assert.equal(checkout.authenticated_execute,false);
+  const event=rows.find(row=>row.signature.includes('payment_event_v2('));
+  assert.equal(event.authenticated_execute,false);
+  assert.equal(event.service_execute,true);
+  const keys=result.find(item=>item.rows.some(row=>Object.hasOwn(row,'unique_checkout_key'))).rows[0];
+  assert.deepEqual(keys,{unique_checkout_key:true,unique_order_payment:true,payment_event_key:true});
+ }
+ await db.exec('reset role');await db.exec(rollback);await assertPreflight('baseline_git');await as(db,B);
  await assert.rejects(shop('order',checkout),/valores do frete/);
- await db.exec('reset role');await db.exec(migration);await db.exec(migration);await as(db,B);
+ await db.exec('reset role');await db.exec(migration);await db.exec(migration);await assertPreflight('patched_git');await as(db,B);
  const retry=await shop('order',checkout);assert.deepEqual(retry,order);
  await assert.rejects(shop('order',{...checkout,address:{...address,street:'Outro endereço'}}),/outro endereço/);
  await assert.rejects(shop('order',{...checkout,address:{...address,document_number:'12345678900'}}),/faturamento/);
