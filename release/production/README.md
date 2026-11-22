@@ -2,6 +2,12 @@
 
 **NO-GO para produção.** A aplicação depende de catálogo remoto autenticado, histórico reconciliado, evidência de restauração e aprovação específica. O diretório supabase/migrations contém históricos de instalação e de Teste. Preserve-os como referência e evite replay.
 
+## Gate de preservação do catálogo
+
+O pós-voo `release/production/verify-invariants.py` agora **reprova a remoção ou alteração de qualquer objeto instalado** no catálogo, inclusive funções, atributos, ACL/RLS, grants efetivos de `service_role`, triggers, policies, índices, constraints e configurações Auth/cron/Storage. Objetos novos somente podem pertencer a classes aditivas previstas; buckets novos precisam permanecer privados e pertencer à lista aprovada. Isto complementa, mas **não substitui**, o manifesto, os guards transacionais e a revisão de diferenças por objeto.
+
+A única exceção é a alteração de `body_hash` de `public.neo_shop_v36(p_action text, p_payload jsonb)` no lote financeiro 07, habilitada explicitamente por `--allow-finance-routine-change` **somente durante a revisão aprovada do lote 07 ou do ensaio acumulado que o contenha**. Sem essa opção, a função é imutável. Mesmo com a opção, ACL, `service_role`, `authenticated`, proprietário e demais atributos continuam protegidos. O guard não autoriza transação real, Edge, DDL na Produção ou merge.
+
 ## Auditoria somente leitura
 
 1. Usar conexões autenticadas separadas, em perfis PostgreSQL locais fora do Git. Confirmar no painel o destino de cada perfil, produção cpslafpzjtbpmoxxysaa e Teste qnuluspqfazdppciermw. Conferir TLS e o projeto no host ou usuário do pooler, sem credenciais em argumentos ou logs.
