@@ -144,8 +144,24 @@ sealed partial class Connect : Form {
 
     void OpenWhatsApp(bool groups){
         whatsappOpen=true;
-        try{using(var window=new WhatsApp(Folder,groups))window.ShowDialog(this);}
+        try{using(var window=new WhatsApp(Folder,groups,SyncWhatsAppGroups,SetWhatsAppStatus))window.ShowDialog(this);}
         finally{whatsappOpen=false;}
+    }
+
+    async Task<long> SyncWhatsAppGroups(Guid connection,long revision,object[] groups){
+        if(!SessionReady())throw new InvalidOperationException();
+        var result=await Post("/rest/v1/rpc/neo_connect_wa_replace_selection",new {
+            p_device=Value(local,"device"),p_secret=Value(local,"secret"),p_connection=connection,
+            p_expected_revision=revision,p_label="WhatsApp",p_groups=groups
+        },true);
+        return Convert.ToInt64(result["revision"]);
+    }
+
+    async Task SetWhatsAppStatus(Guid connection,string status){
+        if(!SessionReady())return;
+        await Post("/rest/v1/rpc/neo_connect_wa_set_status",new {
+            p_device=Value(local,"device"),p_secret=Value(local,"secret"),p_connection=connection,p_status=status
+        },true);
     }
 
     static TableLayoutPanel Page(TabControl tabs,string title) {

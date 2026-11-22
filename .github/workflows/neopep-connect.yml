@@ -2,10 +2,10 @@ name: NeoPep Connect Windows
 
 on:
   push:
-    branches: [desenvolvimento/connect-windows-02]
+    branches: [desenvolvimento/connect-windows-02, desenvolvimento/connect-whatsapp-grupos]
     paths: ['connect/windows/**', 'connect/whatsapp-lab/**', '.github/workflows/neopep-connect.yml']
   pull_request:
-    branches: [staging/permanente]
+    branches: [staging/permanente, desenvolvimento/connect-windows-02]
     paths: ['connect/windows/**', 'connect/whatsapp-lab/**', '.github/workflows/neopep-connect.yml']
   workflow_dispatch:
     inputs:
@@ -19,7 +19,9 @@ permissions:
 
 jobs:
   windows:
-    if: github.ref_name == 'desenvolvimento/connect-windows-02' || github.event.pull_request.head.ref == 'desenvolvimento/connect-windows-02'
+    if: contains(fromJSON('["desenvolvimento/connect-windows-02","desenvolvimento/connect-whatsapp-grupos"]'), github.event.pull_request.head.ref || github.ref_name)
+    env:
+      CONNECT_TEST_VERSION: ${{ (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/connect-whatsapp-grupos' && '0.2.4' || '0.2.2' }}
     runs-on: windows-2022
     timeout-minutes: 15
     steps:
@@ -54,9 +56,10 @@ jobs:
           if ($LASTEXITCODE) { throw 'Falha na verificacao de autenticidade' }
       - name: Compilar aplicativo e instalador x64
         shell: powershell
-        run: ./connect/windows/build.ps1 -Perfil Teste -Output "$env:RUNNER_TEMP\connect"
+        run: ./connect/windows/build.ps1 -Perfil Teste -Version $env:CONNECT_TEST_VERSION -Output "$env:RUNNER_TEMP\connect"
       - name: Compilar perfil produção (apenas validação, sem publicação)
         shell: powershell
+        if: env.CONNECT_TEST_VERSION != '0.2.4'
         run: ./connect/windows/build.ps1 -Perfil Producao -Output "$env:RUNNER_TEMP\connect-prod"
       - name: Verificar checksum, instalação, atualização de 0.1.1 e 0.1.2, perfis e remoção
         shell: powershell
@@ -67,19 +70,21 @@ jobs:
           $manifest = Get-Content (Join-Path $output 'manifest.json') -Raw | ConvertFrom-Json
           if ((Get-FileHash $setup).Hash.ToLowerInvariant() -ne $manifest.sha256) { throw 'Checksum incorreto' }
           if ((Get-Item $setup).Length -ne $manifest.bytes) { throw 'Tamanho incorreto' }
-          if ($manifest.profile -ne 'staging' -or !$manifest.connect_enabled -or $manifest.commit -ne (git rev-parse HEAD) -or $manifest.run_id -ne $env:GITHUB_RUN_ID -or $manifest.run_attempt -ne $env:GITHUB_RUN_ATTEMPT) { throw 'Identidade incorreta do candidato' }
-          $productionOutput = Join-Path $env:RUNNER_TEMP 'connect-prod'
-          $productionSetup = Join-Path $productionOutput 'NeoPepConnectSetup.exe'
-          $production = Get-Content (Join-Path $productionOutput 'manifest.json') -Raw | ConvertFrom-Json
-          if ($production.profile -ne 'production' -or $production.connect_enabled) { throw 'Perfil producao ativo' }
-          if ($production.commit -ne $manifest.commit -or $production.run_id -ne $manifest.run_id -or $production.run_attempt -ne $manifest.run_attempt -or $production.sha256 -eq $manifest.sha256) { throw 'Artefatos sem isolamento' }
-          if ((Get-FileHash $productionSetup).Hash.ToLowerInvariant() -ne $production.sha256 -or (Get-Item $productionSetup).Length -ne $production.bytes) { throw 'Integridade do perfil producao' }
+          if ($manifest.version -ne $env:CONNECT_TEST_VERSION -or $manifest.profile -ne 'staging' -or !$manifest.connect_enabled -or $manifest.commit -ne (git rev-parse HEAD) -or $manifest.run_id -ne $env:GITHUB_RUN_ID -or $manifest.run_attempt -ne $env:GITHUB_RUN_ATTEMPT) { throw 'Identidade incorreta do candidato' }
           Write-Host ("EXE SHA-256 " + $manifest.sha256)
           Write-Host ("EXE bytes " + $manifest.bytes)
           Write-Host ("EXE commit " + $manifest.commit)
           Write-Host ("EXE run " + $manifest.run_id + "/" + $manifest.run_attempt)
-          Write-Host ("Internal production SHA-256 " + $production.sha256)
-          Write-Host ("Internal production bytes " + $production.bytes)
+          if ($env:CONNECT_TEST_VERSION -ne '0.2.4') {
+            $productionOutput = Join-Path $env:RUNNER_TEMP 'connect-prod'
+            $productionSetup = Join-Path $productionOutput 'NeoPepConnectSetup.exe'
+            $production = Get-Content (Join-Path $productionOutput 'manifest.json') -Raw | ConvertFrom-Json
+            if ($production.profile -ne 'production' -or $production.connect_enabled) { throw 'Perfil producao ativo' }
+            if ($production.commit -ne $manifest.commit -or $production.run_id -ne $manifest.run_id -or $production.run_attempt -ne $manifest.run_attempt -or $production.sha256 -eq $manifest.sha256) { throw 'Artefatos sem isolamento' }
+            if ((Get-FileHash $productionSetup).Hash.ToLowerInvariant() -ne $production.sha256 -or (Get-Item $productionSetup).Length -ne $production.bytes) { throw 'Integridade do perfil producao' }
+            Write-Host ("Internal production SHA-256 " + $production.sha256)
+            Write-Host ("Internal production bytes " + $production.bytes)
+          }
           function Invoke-Setup([string]$binary,[string]$arguments) {
             $execution = Start-Process $binary -ArgumentList $arguments -Wait -PassThru
             if ($execution.ExitCode -ne 0) { throw "Falha no instalador: $($execution.ExitCode)" }
@@ -108,14 +113,16 @@ jobs:
             if ((Get-FileHash $vault).Hash -ne $previousHash) { throw "A atualizacao alterou o cofre $($baseline.version)" }
             Write-Host ("Cofre preservado apos atualizar " + $baseline.version)
           }
-          Invoke-Setup $productionSetup '--quiet'
-          if (!(Test-Path (Join-Path $productionFolder 'NeoPepConnect.exe')) -or (Test-Path (Join-Path $productionFolder 'whatsapp-runtime-0.2.2')) -or (Test-Path (Join-Path $productionFolder 'session.dat'))) { throw 'Perfil producao compartilha dados ou runtime' }
-          if ((Get-FileHash $vault).Hash -ne $previousHash) { throw 'Perfil producao alterou cofre de Teste' }
-          Invoke-Setup $productionSetup '--quiet --uninstall'
-          if (!(Test-Path $installed) -or !(Test-Path $vault)) { throw 'Remocao de outro perfil afetou Teste' }
-          if (!(Test-Path (Join-Path $folder 'NeoPepUpdate-0.2.2.exe'))) { throw 'Auxiliar ausente' }
+          if ($env:CONNECT_TEST_VERSION -ne '0.2.4') {
+            Invoke-Setup $productionSetup '--quiet'
+            if (!(Test-Path (Join-Path $productionFolder 'NeoPepConnect.exe')) -or (Test-Path (Join-Path $productionFolder 'whatsapp-runtime-*')) -or (Test-Path (Join-Path $productionFolder 'session.dat'))) { throw 'Perfil producao compartilha dados ou runtime' }
+            if ((Get-FileHash $vault).Hash -ne $previousHash) { throw 'Perfil producao alterou cofre de Teste' }
+            Invoke-Setup $productionSetup '--quiet --uninstall'
+            if (!(Test-Path $installed) -or !(Test-Path $vault)) { throw 'Remocao de outro perfil afetou Teste' }
+          }
+          if (!(Test-Path (Join-Path $folder ("NeoPepUpdate-"+$env:CONNECT_TEST_VERSION+".exe")))) { throw 'Auxiliar ausente' }
           if ($manifest.updater_trust_configured) { throw 'A CI nao deve incorporar chaves de teste' }
-          $runtime = Join-Path $folder 'whatsapp-runtime-0.2.2'
+          $runtime = Join-Path $folder ('whatsapp-runtime-'+$env:CONNECT_TEST_VERSION)
           & (Join-Path $runtime 'node.exe') --check (Join-Path $runtime 'bridge/windows-bridge.mjs')
           if ($LASTEXITCODE) { throw 'Bridge empacotado inválido' }
           Push-Location (Join-Path $runtime 'bridge')
@@ -132,6 +139,7 @@ jobs:
           Invoke-Setup $setup '--quiet --uninstall'
           if ((Test-Path $installed) -or (Test-Path $runtime) -or (Test-Path $vault)) { throw 'Arquivos ativos permanecem instalados' }
       - name: Construir e verificar o par assinado com chave descartável
+        if: env.CONNECT_TEST_VERSION != '0.2.4'
         shell: powershell
         run: |
           $cert = New-SelfSignedCertificate -Subject 'CN=NeoPep Connect Teste Update Signing' -CertStoreLocation 'Cert:\CurrentUser\My' -Provider 'Microsoft Software Key Storage Provider' -KeyAlgorithm RSA -KeyLength 3072 -KeyExportPolicy NonExportable -KeyUsage DigitalSignature -Type Custom -NotAfter (Get-Date).AddDays(1)
@@ -141,10 +149,10 @@ jobs:
             Remove-Item -LiteralPath ("Cert:\CurrentUser\My\"+$cert.Thumbprint) -DeleteKey -ErrorAction Stop
             Remove-Item "$env:RUNNER_TEMP\connect-signed-trial" -Recurse -Force -ErrorAction SilentlyContinue
           }
-      - if: github.event_name == 'workflow_dispatch' && inputs.upload_candidate
+      - if: github.event.repository.private && (github.event_name == 'workflow_dispatch' && inputs.upload_candidate || github.event_name == 'push' && env.CONNECT_TEST_VERSION == '0.2.4')
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: NeoPep-Connect-0.2.2-Teste-Windows-x64-candidato
+          name: NeoPep-Connect-${{ env.CONNECT_TEST_VERSION }}-Teste-Windows-x64-candidato
           path: |
             ${{ runner.temp }}/connect/NeoPepConnectSetup.exe
             ${{ runner.temp }}/connect/manifest.json

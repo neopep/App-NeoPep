@@ -6,6 +6,7 @@ using System.Drawing;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
@@ -18,13 +19,29 @@ sealed class WhatsApp : Form {
     readonly PictureBox qr=new PictureBox();
     Button pair,disconnect;
     readonly ListView groups=new ListView();
+    readonly TextBox search=new TextBox();
+    readonly Label groupStatus=new Label(),accountStatus=new Label();
+    readonly List<Dictionary<string,object>> groupRows=new List<Dictionary<string,object>>();
+    readonly HashSet<string> selected=new HashSet<string>(StringComparer.Ordinal);
+    bool drawingGroups,syncing;
+    readonly Func<Guid,long,object[],Task<long>> saveSelection;
+    readonly Func<Guid,string,Task> reportStatus;
+    Guid connectionId;
+    long selectionRevision;
+    Button sync;
+    Dictionary<string,object> localVault;
     readonly JavaScriptSerializer json=new JavaScriptSerializer { MaxJsonLength=16*1024*1024 };
     Process process;
     StreamWriter pipe;
     bool closing,forgetting,ready;
     int generation;
 
-    public WhatsApp(string profile,bool showGroups=false) {
+    public WhatsApp(string profile,bool showGroups=false,Func<Guid,long,object[],Task<long>> saveSelection=null,Func<Guid,string,Task> reportStatus=null) {
+        this.saveSelection=saveSelection;this.reportStatus=reportStatus;
+        var waHeartbeat=new Timer{Interval=60000};
+        waHeartbeat.Tick+=async delegate{if(ready)await ReportStatus("connected");};
+        waHeartbeat.Start();
+        FormClosed+=delegate{waHeartbeat.Dispose();};
         vault=Path.Combine(profile,"whatsapp-session.dat");
         runtime=Path.Combine(profile,ConnectVersion.Runtime);
         Text="NeoPep Connect • WhatsApp experimental"; Size=new Size(620,600); MinimumSize=new Size(460,510); AutoScaleMode=AutoScaleMode.Dpi;
@@ -36,18 +53,34 @@ sealed class WhatsApp : Form {
         pair=Action("Conectar WhatsApp",ConnectSession);
         disconnect=Action("Desconectar WhatsApp",Disconnect);
         var actions=new FlowLayoutPanel{AutoSize=true,Dock=DockStyle.Top};actions.Controls.Add(pair);actions.Controls.Add(disconnect);
-        pairing.Controls.Add(actions);Format(connection);connection.Text="Desconectado.";pairing.Controls.Add(connection);
+        pairing.Controls.Add(actions);Format(connection);connection.Text="Desconectado.";pairing.Controls.Add(connection);Format(accountStatus);pairing.Controls.Add(accountStatus);
         qr.Size=new Size(270,270);qr.SizeMode=PictureBoxSizeMode.Zoom;qr.AccessibleName="QR Code temporário do WhatsApp";pairing.Controls.Add(qr);
         var listing=new TabPage("Grupos"){BackColor=Color.FromArgb(23,22,19),ForeColor=Color.Gainsboro};tabs.TabPages.Add(listing);
         groups.Dock=DockStyle.Fill;groups.BackColor=Color.FromArgb(36,33,27);groups.ForeColor=Color.Gainsboro;groups.View=View.Details;groups.FullRowSelect=true;
-        groups.Columns.Add("Grupo",300);groups.Columns.Add("Participantes",110);
-        var refresh=Action("Atualizar grupos",delegate{if(ready)Send("groups",null);else Notify("Conecte o WhatsApp para consultar grupos.");});
-        refresh.Dock=DockStyle.Top;listing.Controls.Add(groups);listing.Controls.Add(refresh);
+        groups.CheckBoxes=true;
+        groups.Columns.Add("Grupo",215);groups.Columns.Add("Participantes",96);groups.Columns.Add("Identificador",235);
+        groups.ItemChecked+=delegate(object sender,ItemCheckedEventArgs args){
+            if(drawingGroups||!ready)return;
+            string id=(string)args.Item.Tag;
+            if(args.Item.Checked)selected.Add(id);else selected.Remove(id);
+            ShowGroupStatus();
+        };
+        var refresh=Action("Atualizar grupos",RefreshGroups);
+        search.AccessibleName="Buscar grupos por nome";search.Width=180;
+        search.TextChanged+=delegate{RenderGroups();};
+        var groupTools=new FlowLayoutPanel{AutoSize=true,Dock=DockStyle.Top};
+        groupTools.Controls.Add(LabelOf("Buscar grupo"));groupTools.Controls.Add(search);groupTools.Controls.Add(refresh);
+        sync=new Button{Text="Sincronizar selecionados",AutoSize=true,Enabled=false};
+        sync.Click+=async delegate{await SyncSelection();};
+        groupTools.Controls.Add(sync);
+        Format(groupStatus);groupStatus.Text="Conecte o WhatsApp para consultar grupos.";groupStatus.Dock=DockStyle.Bottom;
+        listing.Controls.Add(groups);listing.Controls.Add(groupTools);listing.Controls.Add(groupStatus);
         var diagnostics=Page("Diagnóstico");Format(diagnostic);
         diagnostic.Text="A conexão e o QR Code ficam neste computador. Os diagnósticos mostram apenas estados e erros genéricos.";diagnostics.Controls.Add(diagnostic);
         var back=Action("Voltar",Close);back.Dock=DockStyle.Bottom;
         Controls.Add(tabs);Controls.Add(back);if(showGroups)tabs.SelectedTab=listing;
-        FormClosing+=delegate{closing=true;StopBridge();ClearQr();};
+        Shown+=delegate{if(File.Exists(vault))ConnectSession();};
+        FormClosing+=delegate{if(ready)ReportStatus("disconnected");closing=true;StopBridge();ClearQr();};
     }
     FlowLayoutPanel Page(string name) {
         var page=new TabPage(name){BackColor=Color.FromArgb(23,22,19),ForeColor=Color.Gainsboro};tabs.TabPages.Add(page);
@@ -65,14 +98,85 @@ sealed class WhatsApp : Form {
         pair.Enabled=ConnectProfile.ConnectEnabled&&process==null&&!forgetting;
         disconnect.Enabled=ConnectProfile.ConnectEnabled&&!forgetting;
     }
+    DateTime? groupReadAt;
+    void RefreshGroups(){
+        if(ready&&!syncing){groupReadAt=null;sync.Enabled=false;Send("groups",null);}
+        else groupStatus.Text="Conecte o WhatsApp para consultar grupos.";
+    }
+    void ShowGroupStatus(){
+        sync.Enabled=ready&&!syncing&&groupReadAt.HasValue&&saveSelection!=null;
+        groupStatus.Text=groupRows.Count+" grupos • "+selected.Count+" selecionados localmente"
+            +(groupReadAt.HasValue?" • consulta "+groupReadAt.Value.ToString("g"):"");
+    }
+    void RenderGroups(){
+        drawingGroups=true;
+        groups.BeginUpdate();
+        try{
+            groups.Items.Clear();
+            foreach(var item in groupRows){
+                string name=TextValue(item,"name"),id=TextValue(item,"id");
+                if(name.IndexOf(search.Text.Trim(),StringComparison.CurrentCultureIgnoreCase)<0)continue;
+                var row=new ListViewItem(name){Tag=id,Checked=selected.Contains(id)};
+                string members=TextValue(item,"members");
+                row.SubItems.Add(members.Length==0?"—":members);row.SubItems.Add(id);groups.Items.Add(row);
+            }
+        }finally{groups.EndUpdate();drawingGroups=false;}
+    }
+    void ClearGroups(){
+        sync.Enabled=false;
+        groupRows.Clear();selected.Clear();groupReadAt=null;RenderGroups();
+        groupStatus.Text="Conecte o WhatsApp para consultar grupos.";
+        accountStatus.Text="";
+    }
+    async Task SyncSelection(){
+        if(!ready||syncing||!groupReadAt.HasValue||saveSelection==null||localVault==null)return;
+        if(MessageBox.Show("Enviar esta seleção completa? Grupos desmarcados serão removidos da lista web desta conexão.",
+            "Sincronizar grupos",MessageBoxButtons.YesNo,MessageBoxIcon.Question)!=DialogResult.Yes)return;
+        var rows=new List<object>();
+        foreach(var row in groupRows){
+            string id=TextValue(row,"id");
+            if(selected.Contains(id))rows.Add(new {group_jid=id,display_name=TextValue(row,"name"),participant_count=row["members"]});
+        }
+        syncing=true;sync.Enabled=false;groups.Enabled=false;var idAtStart=connectionId;
+        try{
+            var next=await saveSelection(idAtStart,selectionRevision,rows.ToArray());
+            if(closing||idAtStart!=connectionId||localVault==null)return;
+            selectionRevision=next;SaveVault();
+            groupStatus.Text="Seleção sincronizada com o NeoPep.";
+        }catch{
+            if(!closing)groupStatus.Text="Não foi possível confirmar a sincronização. Confira a autorização, a rede e a disponibilidade do serviço.";
+        }finally{
+            syncing=false;
+            if(!closing){groups.Enabled=true;sync.Enabled=ready&&groupReadAt.HasValue&&saveSelection!=null;}
+        }
+    }
+    async Task ReportStatus(string status){
+        if(selectionRevision==0||reportStatus==null||connectionId==Guid.Empty)return;
+        try{await reportStatus(connectionId,status);}catch{}
+    }
     void ClearQr(){var previous=qr.Image;qr.Image=null;if(previous!=null)previous.Dispose();}
     string OpenVault(){
         if(!File.Exists(vault))return null;
-        return Utf8.GetString(ProtectedData.Unprotect(File.ReadAllBytes(vault),null,DataProtectionScope.CurrentUser));
+        var text=Utf8.GetString(ProtectedData.Unprotect(File.ReadAllBytes(vault),null,DataProtectionScope.CurrentUser));
+        localVault=json.Deserialize<Dictionary<string,object>>(text);
+        if(!Guid.TryParse(TextValue(localVault,"neo_connection"),out connectionId))connectionId=Guid.NewGuid();
+        if(!Int64.TryParse(TextValue(localVault,"neo_revision"),out selectionRevision))selectionRevision=0;
+        var saved=localVault.ContainsKey("neo_selected")?localVault["neo_selected"] as IEnumerable:null;
+        selected.Clear();
+        if(saved!=null)foreach(object id in saved)if(id is string)selected.Add((string)id);
+        return text;
     }
     void WriteVault(string value){
-        if(value==null){File.Delete(vault);File.Delete(vault+".new");return;}
-        File.WriteAllBytes(vault+".new",ProtectedData.Protect(Utf8.GetBytes(value),null,DataProtectionScope.CurrentUser));
+        if(value==null){localVault=null;connectionId=Guid.Empty;selectionRevision=0;File.Delete(vault);File.Delete(vault+".new");return;}
+        localVault=json.Deserialize<Dictionary<string,object>>(value);
+        if(connectionId==Guid.Empty)connectionId=Guid.NewGuid();
+        SaveVault();
+    }
+    void SaveVault(){
+        localVault["neo_connection"]=connectionId.ToString();
+        localVault["neo_revision"]=selectionRevision;
+        localVault["neo_selected"]=new List<string>(selected).ToArray();
+        File.WriteAllBytes(vault+".new",ProtectedData.Protect(Utf8.GetBytes(json.Serialize(localVault)),null,DataProtectionScope.CurrentUser));
         if(File.Exists(vault))File.Replace(vault+".new",vault,null);else File.Move(vault+".new",vault);
     }
     void ConnectSession(){
@@ -111,7 +215,8 @@ sealed class WhatsApp : Form {
     }
     void Disconnect(){
         if(!ConnectProfile.ConnectEnabled||forgetting)return;
-        forgetting=true;ready=false;ClearQr();groups.Items.Clear();
+        ReportStatus("revoked");
+        forgetting=true;ready=false;ClearQr();ClearGroups();
         try{
             WriteVault(null);
             if(process==null){forgetting=false;Notify("Sessão local removida. Se houver vínculo remoto, remova-o em Dispositivos conectados no telefone.");return;}
@@ -125,16 +230,19 @@ sealed class WhatsApp : Form {
             var message=json.Deserialize<Dictionary<string,object>>(line);
             string type=TextValue(message,"type"),value=TextValue(message,"value");
             if(type=="vault"){
-                if(message["value"]==null)WriteVault(null);
+                if(message["value"]==null){if(!forgetting)ReportStatus("revoked");WriteVault(null);}
                 else if(!forgetting)WriteVault(value);
             }else if(type=="state"){
                 ready=value=="conectado";
                 if(value!="aguardando_qr")ClearQr();
-                if(!ready)groups.Items.Clear();
+                if(!ready){
+                    if(value=="conectando"||value=="reconectando"){sync.Enabled=false;groupReadAt=null;groups.Items.Clear();}
+                    else ClearGroups();
+                }
                 switch(value){
                     case "conectando": Notify("Conectando…");break;
                     case "aguardando_qr": Notify("Escaneie o QR Code no telefone de teste.");break;
-                    case "conectado": Notify("WhatsApp conectado. Consulte os grupos na aba Grupos.");break;
+                    case "conectado": Notify("WhatsApp conectado. Consulte os grupos na aba Grupos.");RefreshGroups();ReportStatus("connected");break;
                     case "reconectando": Notify("Rede interrompida. Reconectando…");break;
                     case "desconectando": break;
                     case "desconectado": StopBridge();Notify("Sessão desconectada e removida.");break;
@@ -146,13 +254,23 @@ sealed class WhatsApp : Form {
             }else if(type=="qr"&&!forgetting&&!ready&&value.Length<500000){
                 using(var data=new MemoryStream(Convert.FromBase64String(value)))
                 using(var image=Image.FromStream(data)){ClearQr();qr.Image=new Bitmap(image);}
-            }else if(type=="groups"&&ready&&!forgetting){
-                groups.Items.Clear();
-                var rows=message["value"] as IEnumerable;
-                if(rows!=null)foreach(Dictionary<string,object> item in rows){
-                    var row=new ListViewItem(TextValue(item,"name"));row.SubItems.Add(TextValue(item,"members"));groups.Items.Add(row);
+            }else if(type=="account"&&ready&&!forgetting){
+                var account=message["value"] as Dictionary<string,object>;
+                if(account!=null){
+                    string name=TextValue(account,"name"),number=TextValue(account,"number");
+                    accountStatus.Text=(name+(number.Length==0?"":" +"+number)).Trim();
                 }
-            }else if(type=="error"&&value=="grupos_indisponiveis")Notify("Não foi possível consultar grupos. Tente novamente.");
+            }else if(type=="groups_loading"&&ready){
+                groupStatus.Text="Consultando grupos…";
+            }else if(type=="groups"&&ready&&!forgetting){
+                groupRows.Clear();
+                var rows=message["value"] as IEnumerable;
+                if(rows!=null)foreach(Dictionary<string,object> item in rows)groupRows.Add(item);
+                selected.IntersectWith(groupRows.ConvertAll(item=>TextValue(item,"id")));
+                groupReadAt=DateTime.Now;RenderGroups();ShowGroupStatus();
+            }else if(type=="error"&&value=="grupos_indisponiveis"){
+                groupStatus.Text="Não foi possível consultar grupos. Use Atualizar grupos para tentar novamente.";
+            }
         }catch{StopBridge();Notify("Não foi possível processar a sessão local protegida.");}
     }
     void StopBridge(){
@@ -163,6 +281,6 @@ sealed class WhatsApp : Form {
             try{if(!child.WaitForExit(200))child.Kill();}catch(InvalidOperationException){}
             child.Dispose();
         }
-        ClearQr();groups.Items.Clear();
+        ClearQr();ClearGroups();
     }
 }

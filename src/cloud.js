@@ -46,6 +46,8 @@ const api={configured,
   if(owner!==user?.id)throw Error('A sessão mudou.');
   return path;
  },
+ async connectWaConnections(){return ok(await need().rpc('neo_connect_wa_list_connections'));},
+ async connectWaGroups(connection,after=null){return ok(await need().rpc('neo_connect_wa_list_groups',{p_connection:connection,p_after:after,p_limit:50}));},
  async connectUpdateAdmin(action,data={}){return ok(await need().rpc('neo_connect_update_admin',{p_action:action,p_data:data}));},
  async connectAdmin(action,data={}){return ok(await need().rpc('neo_connect_admin',{p_action:action,p_data:data}));},
  async connectReleaseURL(path){return ok(await need().storage.from('neo-connect-releases').createSignedUrl(path,120,{download:'NeoPepConnectSetup.exe'})).signedUrl;},
