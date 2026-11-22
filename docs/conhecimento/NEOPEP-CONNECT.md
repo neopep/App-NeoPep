@@ -1,0 +1,27 @@
+# NeoPep Connect em homologação
+
+O NeoPep Connect é um cliente Windows 10/11 x64 para ensaiar a coordenação sem conexão real ao WhatsApp. O aplicativo usa WinForms e o .NET Framework do Windows. O instalador por usuário não requer Node.js. A janela pode ser fechada para manter o agente na bandeja. Use **Sair** para interromper a execução. A inicialização automática é opcional. Para atualizar, encerre o cliente e execute outro instalador aprovado. A remoção está disponível nos aplicativos instalados do Windows e elimina os dados locais. Ela pode deixar uma cópia do próprio instalador. Revogue o computador no painel para encerrar a autorização do servidor.
+
+Abra **Administração → Campanhas → WhatsApp → NeoPep Connect**. O cliente pede a chave **publicável** do Supabase de homologação e a conta administrativa existente. A origem Supabase é fixa em `qnuluspqfazdppciermw`. Os tokens de atualização, a identidade do computador e seu segredo aleatório ficam no cofre local DPAPI do usuário Windows. A senha não é persistida. O backend guarda o hash do segredo. Cada computador tem seu próprio registro. Os diagnósticos registram códigos de estado, sem credenciais ou conteúdo de campanhas.
+
+## Ensaio de coordenação
+
+1. Crie contas com identificadores fictícios no painel e aprove os computadores registrados. Vincule a identidade fictícia no cliente de cada computador. Para testar dois computadores na mesma conta, escolha separadamente a mesma identidade no cliente de cada máquina. Para testar identidades diferentes, use contas administrativas fictícias distintas se quiser ensaiar também separação por responsável.
+2. Associe cada identidade aos grupos fictícios elegíveis. Marque participação e permissão como verificadas apenas para o cenário de teste. Convites não concedem autorização.
+3. Enfileire uma ocorrência de divulgação em simulação. Escolha número fixo, conta preferencial com reservas elegíveis por grupo ou rodízio entre dispositivos da mesma conta. A configuração é por ocorrência. Para a próxima data da recorrência manual, enfileire uma nova simulação.
+4. Retome o processamento somente enquanto testa. O servidor considera atividade recente, conexão e permissões. Uma reserva com lease vencido pode ser retomada sob nova autorização. Uma tentativa iniciada que perdeu retorno fica incerta e exige revisão. O histórico manual é separado e continua exigindo confirmação humana.
+5. O cliente aprovado consulta avisos manuais e apresenta um lembrete genérico na bandeja mesmo com o painel fechado. A leitura é deduplicada entre cliente e painel por administrador e ocorrência. O ensaio não usa cron, push ou notificações de WhatsApp.
+
+## Instalador, verificação e aprovação
+
+O workflow Windows compila em x64, verifica SHA-256, instala, atualiza, remove e publica um artefato temporário de CI. Artefatos de CI são candidatos à homologação. Para distribuir pelo painel, uma conta com acesso ao Storage de staging deve copiar o EXE validado para o bucket privado `neo-connect-releases` no caminho `0.1.1/NeoPepConnectSetup.exe`. Registre a versão, caminho, tamanho e SHA-256 em `neo_private.connect_releases` por um canal administrativo autorizado, após conferir que os bytes do objeto correspondem ao instalador. O painel só oferece objetos aprovados, por link assinado de dois minutos. Versão 0.1.1, 39.936 bytes, SHA-256 `2f164cf9bb596a4221b51fefedf84fcb1db7cd83bb46ed19ee109da39e4262bd`. [Workflow Windows](https://github.com/neopep/App-NeoPep/actions/runs/44962712199)
+
+O instalador de teste não tem assinatura Authenticode. Distribuição ampla exige revisão de assinatura e confiança do Windows. O simulador só aceita identificadores fictícios. Uma integração futura deve confirmar capacidades atuais da API oficial para grupos, elegibilidade por conta, modelos e condições de uso. Sessões não oficiais podem expor credenciais e sofrer restrições. Uma implementação real exige homologação e autorização separadas.
+
+### Cadastro de rascunho de atualização
+
+No [painel de Teste](https://teste.app.neopep.com.br/neo/admin/), abra **Campanhas → WhatsApp → NeoPep Connect → Atualizações** com uma sessão administrativa. Para o instalador 0.2.3, informe a versão, o identificador do artefato, o tamanho em bytes, o SHA-256 e a assinatura Base64 do `release-manifest.json` correspondente ao EXE no bucket privado. Inclua as notas da atualização e selecione **Cadastrar rascunho**.
+
+A RPC `neo_connect_update_admin` verifica a permissão no banco, grava a versão como `draft` e registra `update_register` com o autor da ação. O rascunho aparece em **Atualizações**. A distribuição permanece sujeita a uma aprovação administrativa separada.
+
+Na aba **Atualizações**, **Aprovar versão** fica no cartão do rascunho. A opção de torná-la obrigatória começa desmarcada. **Bloquear versão** aparece no cartão depois da aprovação. As duas operações exigem confirmação e ficam disponíveis após a instalação da migração administrativa no servidor de Teste. Em **Histórico de ações**, confira a operação, o horário e os dados de auditoria disponíveis. Antes de aprovar, confira o SHA-256 do executável e a assinatura do manifesto com a chave pública do ensaio.

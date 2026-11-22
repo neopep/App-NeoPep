@@ -12,3 +12,85 @@ Execute todo `supabase/setup/unified-administrators.sql` no SQL Editor do mesmo 
 Depois recarregue o aplicativo; sair e entrar novamente atualiza imediatamente as permissões carregadas na sessão. Não execute scripts antigos de funções administrativas depois desse instalador; se necessário, reaplique este arquivo por último. O SQL pode ser repetido sem conceder novamente um acesso já removido.
 
 Prévia publicada não significa que o SQL foi aplicado no seu banco. Testes automatizados locais cobrem igualdade entre as duas fontes existentes, concessão por administrador, recusa a usuário comum, bloqueio da remoção do próprio acesso, revogação completa, repetição do instalador e preservação da privacidade de saúde e atendimentos. A validação das contas reais depende da aplicação do SQL.
+
+## Avisos de cadastro no NeoPep Teste
+
+O atalho da administração consulta a contagem ao voltar para o app e a cada 30 segundos enquanto a página está visível. Na visão geral, o servidor confirma a leitura do administrador e devolve um resumo temporário com até cinco nomes. O histórico fica na mesma página com busca por nome ou e-mail, filtros de novos e por período, detalhes expansíveis e páginas de 20 resultados. O filtro Novos inclui os vistos nesta visita e os ainda pendentes.
+
+A criação da conta no Supabase Auth é a fonte do evento. Contas anteriores à migração aparecem no histórico sem aviso retroativo. Os recibos guardam somente os identificadores do administrador e da conta e o horário da leitura. A remoção de uma conta exclui seus recibos. O RPC exige sessão e vínculo em `neo_private.admin_members`. A localização é apresentada como indisponível. O último acesso usa o horário mais recente entre login no Auth e atividade autenticada do app. A interface apresenta o fuso local.
+
+A migração `20261121170551_admin_signup_notices.sql` é aditiva. Em caso de reversão do frontend, é possível publicar novamente o commit anterior de homologação preservando os recibos existentes. O servidor continua protegendo a consulta por vínculo de administrador.
+
+### Aviso flutuante e estatísticas de público
+
+A confirmação de leitura continua no servidor. O aviso flutuante mostra até cinco nomes, tem barra de progresso e pode ser fechado. Os nove segundos contam enquanto o aviso está visível. A lista fica entre os indicadores gerais e Estatísticas de público.
+
+O dashboard usa Auth e atividade autenticada para contar cadastros e contas cujo último acesso registrado cai no período. Os períodos são em UTC. Os grupos de dispositivos e campanhas consideram contas cadastradas no intervalo e que autorizaram observações. Segmentos com menos de cinco contas são omitidos. Percentuais representam os grupos exibidos. Uma referência ausente permanece desconhecida.
+
+A coleta técnica é opcional no Perfil. As contas podem exportar ou apagar suas próprias observações. O servidor guarda apenas a primeira e a última observação permitida de dispositivo e campanha, com expiração de 90 dias. Registros expirados deixam de ser servidos e são removidos em lotes durante novas observações autorizadas. Em um ambiente ocioso, a exclusão física desses lotes depende de manutenção periódica. A conta excluída perde imediatamente as observações pela chave estrangeira.
+
+A origem geográfica exige um caminho autenticado entre uma fonte confiável de localização aproximada no servidor e o Supabase. A hospedagem atual ainda não integra essa atribuição. A interface apresenta Localização não disponível. Conversão de visitantes, frequência, retenção por coorte e conversão Premium aguardam dados próprios. Nenhuma fonte externa ou permissão do navegador foi ativada.
+
+A migração de staging `20261121181510_admin_audience.sql` é aditiva. A reversão do frontend para o commit anterior interrompe a coleta enquanto as tabelas privadas e a autorização do servidor permanecem válidas.
+
+A Vercel documenta cabeçalhos de país, região e cidade para suas funções. A configuração pendente é uma função no domínio de staging que valide a sessão em qnuluspqfazdppciermw, confirme a preferência de coleta e encaminhe somente os campos aproximados por um canal autenticado de servidor para servidor. A confiança desses cabeçalhos deve ser verificada no deployment protegido antes da ativação. [Cabeçalhos da Vercel](https://vercel.com/docs/headers/request-headers)
+
+### Engajamento por funcionalidade
+
+A medição de produto exige autorização explícita em Perfil → Medição de uso, além da preferência de estatísticas opcionais. Uma autorização anterior de dispositivo ou campanha não autoriza eventos de uso. Desativar medição apaga os eventos. Apagar as estatísticas opcionais também apaga os eventos por vínculo no banco. Os relatórios consultam até 90 dias. Registros vencidos deixam de aparecer e são limpos em lotes durante novas coletas. A exclusão física sem tráfego depende de manutenção periódica.
+
+O coletor usa a conta autenticada com identificador interno, uma sessão aleatória em memória e IDs de evento para deduplicação. Recarregar cria outra sessão. A sessão também é renovada após 30 minutos de inatividade. A coleta de tempo usa amostras de até 15 segundos, visibilidade da página e 60 segundos de tolerância desde a última interação. Aberturas são emitidas por mudança de área. Os lotes em memória levam apenas evento, área, sequência, horário, segundos e IDs técnicos. O descarte do buffer ao trocar de conta ou exceder limites é intencional.
+
+O inventário abaixo registra os pontos de emissão ativos. Os nomes `*_view` da área principal são declarados em `engagementViews` e Atendimento usa a aba Conversa. O caminho comum do JPEG emite um único evento de exportação com a área de origem. Esse evento registra que o navegador recebeu a solicitação de download de um arquivo gerado. O compartilhamento registra resolução da API nativa. A impressão registra a solicitação.
+
+| Área | Eventos além da abertura de área |
+| --- | --- |
+| Início | `home_quick_action`, `home_journey_expand`, `home_library_open` |
+| Evolução e registros | `weight_record_started`, `weight_record_created`, `measurement_record_created`, `journal_record_created`, `application_record_created`, `protocol_record_created`, `weight_chart_interaction`, `comparison_period_changed` |
+| Fotos e comparação | `photo_upload_success`, `photo_history_open`, `photo_selected`, `photo_comparison_started`, `before_after_open`, `photo_comparison_export_success`, `before_after_share_success` |
+| Calculadora e relatórios | `calculator_started`, `calculator_completed`, `calculator_validation_error`, `reports_period_changed`, `reports_csv_export`, `reports_print_requested` |
+| Calendário e lembretes | `calendar_period_changed`, `calendar_event_open`, `reminder_created`, `reminder_settings_saved` |
+| Comunidade e Biblioteca | `community_feed_view`, `community_chat_open`, `community_members_view`, `community_library_view`, `community_post_created`, `community_message_sent`, `community_post_interaction`, `community_material_open` |
+| Loja | `product_list_view`, `product_detail_view`, `cart_add`, `checkout_started`, `checkout_step_completed`, `order_created` |
+| Atendimento, perfil e onboarding | `support_message_sent`, `support_attachment_used`, `profile_updated`, `onboarding_completed` |
+| Sessão | `active_time` |
+
+O dashboard calcula totais de usuários e sessões em UTC, tempo médio e mediano por sessão, retorno dentro do intervalo e uso por área. O ranking compara períodos de duração equivalente. O detalhamento permite comparar duas áreas, com séries diárias e segmentos autorizados de dispositivo, modo, navegador e aquisição. As dimensões de dispositivo refletem a última observação autorizada da conta. Os funis observam sequências na mesma sessão e ocultam resultados com menos de cinco contas distintas. Os funis atuais cobrem pesagem, seleção e exportação de fotos e loja até a criação do pedido.
+
+A medição de visitantes anônimos, confirmação de pagamento, criação inédita de conversa de suporte, geografia e integrações de agentes permanecem pendentes. A criação de pedido é uma etapa distinta do pagamento confirmado. O onboarding pode ser medido apenas se houver autorização de medição na sessão. Os relatórios mostram a data do primeiro evento disponível. A migração `20261121183535_product_engagement.sql` é aditiva. A publicação do frontend anterior interrompe o coletor sem apagar o histórico.
+
+### Saúde e capacidade do sistema
+
+A Visão Geral mostra cinco cadastros recentes e atalhos para os relatórios. As abas Cadastros, Estatísticas de público, Engajamento, Saúde do sistema e Configurações montam apenas a seção selecionada. A leitura de cadastros é confirmada na entrada autorizada no painel. A prévia, a paginação e a exportação usam consultas de leitura. O CSV UTF-8 com BOM protege células de texto contra abertura como fórmula e percorre até 5.000 registros sob os filtros aplicados. Os relatórios de público e saúde exportam somente as agregações retornadas e as fontes consultadas. XLSX não está disponível.
+
+As amostras de saúde usam PostgreSQL e metadados do Storage. São consultadas sob demanda, com cache de 15 minutos e até uma amostra por dia UTC. A retenção diária de 180 dias é aplicada na atualização. Projeções de 30, 60 e 90 dias são lineares, calculadas a partir da primeira e da última amostra. Exigem ao menos três amostras ao longo de sete dias. A fonte não mede transferência de dados, operações faturáveis ou disponibilidade da plataforma inteira. Capacidade de Storage exige cobertura completa de tamanhos. Alertas internos de capacidade são deduplicados por dia, recurso e severidade.
+
+O monitor GitHub consulta os endpoints REST do repositório público sob demanda, com cache de dez minutos em cada instância e autorização administrativa no Supabase. Se a API pública não for suficiente, configure `NEO_MONITOR_GITHUB_TOKEN` somente no backend, com leitura de conteúdo, Issues, Pull requests e Actions conforme o recurso liberado. O histórico de Vercel exige `NEO_MONITOR_VERCEL_TOKEN`, `NEO_MONITOR_VERCEL_PROJECT_ID` e, em equipe, `NEO_MONITOR_VERCEL_TEAM_ID` no projeto de teste. O endpoint valida que o projeto consultado é `app-neopep-staging`. Consumo e faturamento oficiais exigem integrações próprias. [GitHub REST](https://docs.github.com/en/rest) · [Vercel REST](https://vercel.com/docs/rest-api)
+
+O adaptador de atendimento registra tentativas reais apenas no staging. Observações incluem identificador técnico, provedor, modelo, status, duração e tokens disponíveis. Não incluem prompts, respostas ou identificadores da conversa. O cálculo OpenAI utiliza somente preços manuais versionados e cobertura de tokens adequada. Tokens de cache ou raciocínio podem ser subconjuntos de totais. Os relatórios mostram USD e BRL separadamente, sem conversão implícita. Projeção mensal de IA exige estimativa completa e sete dias observados. Orçamentos são informativos, com alertas e sem bloqueio. Os controles de agente no painel são apenas mensagens informativas. Chamadas administrativas de teste de IA ficaram fora dessa contabilização.
+
+A migração 20261121184939 é aditiva e foi aplicada apenas a qnuluspqfazdppciermw. Para reversão de código, restaure o deployment anterior de staging e a versão anterior de `ai-reply` desse projeto, preservando as tabelas de observações e as restrições de acesso.
+
+### Inteligência operacional
+
+A aba de Inteligência operacional monta relatórios sob demanda. O resumo executivo exporta CSV com fonte, período e data da amostra. Ele reutiliza os indicadores do Auth, o engajamento consentido, a última amostra de saúde, os alertas e as estimativas de IA disponíveis.
+
+Jornadas usam eventos existentes e incluem contas com primeira atividade observada no dia UTC do cadastro. Os marcos são independentes. Checkout após visita exige a visita observada primeiro. Sem marco observado significa lacuna de evidência, sem inferir abandono. Os funis existentes são reutilizados para as sequências na mesma sessão. Retenção D1, D7 e D30 usa o dia exato. As janelas semanal e mensal usam dias 7–13 e 30–59. Coortes semanais incompletas e segmentos com menos de cinco contas ficam sem taxa. Reativação requer intervalo observado de pelo menos 30 dias, e a ausência de acesso anterior observado tem categoria própria.
+
+A medição de qualidade requer consentimento vigente de medição de uso. Observa Navigation Timing, duração de sincronização e categorias fixas de falhas de sincronização, upload, JavaScript e service worker. Não grava mensagens de erro ou URLs. O servidor deduplica por minuto, conta, métrica e versão. A interface tem média e P75 e só exibe grupos de cinco contas ou mais. A revogação da medição apaga as amostras. Consultas ignoram dados vencidos, que são limpos em novas observações. LCP, CLS, INP, cobertura geral de requisições e falhas anteriores ao consentimento não são medidos.
+
+A auditoria registra operações confirmadas em tabelas físicas de configurações, administradores, IA, integrações, comércio, limites e preços. O relatório mostra o identificador interno do administrador, a tabela e a operação, sem valores alterados. Operações externas, exclusões de conta e ações falhas não têm integração nesta etapa. O histórico consultável cobre até 90 dias e descarta registros de mais de 180 dias em lotes sob novas ações.
+
+O simulador usa cinco cenários editáveis de usuários, de 1.000 a 100.000. Os custos de IA usam a tabela vigente configurada, sem desconto presumido de cache. Transferência, APIs e custo fixo usam valores hipotéticos e mesma moeda. Custos com dados faltantes ficam indisponíveis. A Central usa regras de aumento de Storage e de relatos de erro, com evidência mínima e estado persistido. O ícone de planejamento apenas apresenta uma mensagem. O relatório de eficiência mantém observações de uso e estimativas diretas de IA com suas próprias janelas e denominadores.
+
+Rotinas consultam o pg_cron quando disponível, sem retornar comandos ou mensagens internas. Exemplos no repositório são identificados como exemplos. A ausência de cron no staging deixa o histórico de execução indisponível. Para intervalos conhecidos, atrasos são sinalizados somente se houver execução bem-sucedida registrada. Nenhum agendamento foi criado.
+
+A migração 20261121190211 é aditiva e restrita ao projeto qnuluspqfazdppciermw. Para reverter a interface, publique o frontend anterior. As tabelas e gatilhos mantêm o histórico observado, com acesso administrativo.
+
+### Origem aproximada e amostras em homologação
+
+No projeto Vercel `app-neopep-staging`, configure `NEO_STAGING_SERVER_SUPABASE_KEY` somente no backend com a chave service_role do projeto `qnuluspqfazdppciermw`. Para disponibilizar o opt-in de origem, configure também `NEO_STAGING_GEO_ENABLED=1` e execute novo build. O cadastro exige sessão autenticada e consentimento explícito. As requisições usam cidade, região e país informados pela Vercel. [Cabeçalhos da Vercel](https://vercel.com/docs/headers/request-headers)
+
+A rota `/api/staging-observe?kind=snapshot` requer também `CRON_SECRET` com pelo menos 32 caracteres. Verifique uma execução autenticada e o registro no Centro de Saúde antes de ativar uma tarefa diária. O horário sugerido é `0 4 * * *` em UTC, condicionado ao plano do projeto. Nenhum agendamento é criado por esta configuração. [Limites de cron](https://vercel.com/docs/cron-jobs/usage-and-pricing)
+
+As cotas Free são referência do plano. Os valores medidos internamente e limites manuais aparecem separadamente. [Faturamento Supabase](https://supabase.com/docs/guides/platform/billing-on-supabase) · [Egress](https://supabase.com/docs/guides/platform/manage-your-usage/egress) · [Realtime](https://supabase.com/docs/guides/realtime/pricing)

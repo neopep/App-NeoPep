@@ -3,3 +3,19 @@ test('manifesto, ícones e áreas seguras do iPhone',()=>{const m=JSON.parse(fs.
 test('service worker intercepta somente shell: APIs, sessões e fotos ficam fora do cache',()=>{const events={},ctx={URL,Response,Request,Set,console,self:{location:{origin:'https://app.test'},registration:{scope:'https://app.test/neo/'},addEventListener:(k,fn)=>events[k]=fn},caches:{}};vm.createContext(ctx);vm.runInContext(fs.readFileSync('dist/sw.js','utf8'),ctx);for(const url of ['https://project.supabase.co/auth/v1/token','https://project.supabase.co/storage/v1/object/private','https://app.test/api/data','https://app.test/neo/?code=private','https://app.test/signin-with-chatgpt','https://app.test/neo/photo.jpg']){let called=false;events.fetch({request:new Request(url),respondWith(){called=true}});assert.equal(called,false,url)}let intercepted=false;ctx.fetch=async()=>new Response('shell');ctx.caches={open:async()=>({put:async()=>{}})};events.fetch({request:new Request('https://app.test/neo/style.css'),respondWith(p){intercepted=true;p.catch(()=>{})}});assert.equal(intercepted,true)});
 test('push usa mensagem discreta e clique abre somente a área do app',async()=>{const handlers={},shown=[],opened=[];const ctx={URL,self:{registration:{scope:'https://app.test/neo/',showNotification:async(...args)=>shown.push(args)},addEventListener:(name,fn)=>handlers[name]=fn,clients:{matchAll:async()=>[{url:'https://other.test/neo/',focus:async()=>{throw Error('wrong origin')}}],openWindow:async url=>opened.push(url)}}};vm.createContext(ctx);vm.runInContext(fs.readFileSync('dist/sw.js','utf8'),ctx);let pending;handlers.push({data:{json:()=>({tag:'00000000-0000-4000-8000-000000000001',body:'PRIVATE WEIGHT',url:'https://evil.test'})},waitUntil:p=>pending=p});await pending;assert.equal(shown.length,1);assert.ok(!JSON.stringify(shown).includes('PRIVATE WEIGHT'));handlers.notificationclick({notification:{close(){}},waitUntil:p=>pending=p});await pending;assert.deepEqual(opened,['https://app.test/neo/#lembretes'])});
 test('notificação comunitária não repete conteúdo e abre a conversa',async()=>{const handlers={},shown=[],opened=[];const ctx={URL,self:{registration:{scope:'https://app.test/neo/',showNotification:async(...args)=>shown.push(args)},addEventListener:(n,f)=>handlers[n]=f,clients:{matchAll:async()=>[],openWindow:async url=>opened.push(url)}}};vm.createContext(ctx);vm.runInContext(fs.readFileSync('dist/sw.js','utf8'),ctx);let pending;handlers.push({data:{json:()=>({kind:'community',body:'DADO PRIVADO',tag:'00000000-0000-4000-8000-000000000001'})},waitUntil:p=>pending=p});await pending;assert.match(shown[0][1].body,/nova postagem/);assert.ok(!JSON.stringify(shown).includes('DADO PRIVADO'));handlers.notificationclick({notification:{data:shown[0][1].data,close(){}},waitUntil:p=>pending=p});await pending;assert.deepEqual(opened,['https://app.test/neo/#comunidade'])});
+
+test('push de campanha usa texto local e abre somente o Início',async()=>{
+ const handlers={},shown=[],opened=[];
+ const ctx={URL,self:{registration:{scope:'https://app.test/neo/',showNotification:async(...args)=>shown.push(args)},
+  addEventListener:(name,handler)=>handlers[name]=handler,clients:{matchAll:async()=>[],openWindow:async url=>opened.push(url)}}};
+ vm.createContext(ctx);
+ vm.runInContext(fs.readFileSync('dist/sw.js','utf8'),ctx);
+ let pending;
+ handlers.push({data:{json:()=>({kind:'campaign',title:'TEXTO INTERNO',url:'https://externo.invalid'})},waitUntil:p=>pending=p});
+ await pending;
+ assert.equal(shown[0][1].body,'Confira as novidades no NeoPep.');
+ assert.ok(!JSON.stringify(shown).includes('TEXTO INTERNO'));
+ handlers.notificationclick({notification:{data:shown[0][1].data,close(){}},waitUntil:p=>pending=p});
+ await pending;
+ assert.deepEqual(opened,['https://app.test/neo/#inicio']);
+});

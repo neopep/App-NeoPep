@@ -11,6 +11,10 @@ for(const name of ['config.js','core.js','cloud.js','captcha.js','push.js','comm
  let code=read(name);
  if(name==='app.js')code=code.replace("if('serviceWorker'in navigator&&['https:','http:'].includes(location.protocol))",'if(false)');
  code=code.replaceAll('assets/brands/mercadopago.svg',inlineSvg('assets/brands/mercadopago.svg'));
+ if(name==='app.js'){
+  const examples=[1,2].map(i=>inlinePng('assets/photo-example-'+i+'.png'));
+  code=code.replace('assets/photo-example-${i+1}.png','${'+JSON.stringify(examples)+'[i]}');
+ }
  code=code.replaceAll('assets/logo-neopep.png',inlinePng('assets/logo-neopep.png')).replace(/assets\/icon.svg/g,inlineSvg('assets/icon.svg')).replace(/<\/script/gi,'<\\/script');
  html=html.replace(`<script src="${name}"></script>`,()=>'<script>'+code+'</script>');
 }

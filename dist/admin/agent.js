@@ -3,24 +3,156 @@ window.NeoAgent=(()=>{
  'use strict';
  const esc=window.NeoCore.escape,providers={openai:'ChatGPT · OpenAI',gemini:'Gemini · Google',claude:'Claude · Anthropic'},recommended={openai:['gpt-4.1-mini','gpt-4.1','gpt-4o-mini','gpt-4o','o3-mini'],gemini:['gemini-2.5-flash','gemini-2.5-pro','gemini-2.0-flash'],claude:['claude-sonnet-4-5','claude-haiku-4-5','claude-opus-4-1']},categories={company:'Empresa',product:'Produtos e serviços',policy:'Políticas',faq:'Perguntas e respostas',instruction:'Instruções',file:'Texto de arquivo',link:'Links de referência'};
  let root=null,data=null,tab='agent',busy=false,version=0,status='',editing=null,knowledgeID=null,dirty=false,preview='',filter='',modelLists={};
+ let catalog=null,selectedAgent=null,catalogStatus='',catalogPreview='',catalogItem=null,catalogBusy=false;
  const cloud=()=>window.NeoCloud,field=(name,label,value='',extra='')=>`<label>${label}<input name="${name}" value="${esc(value??'')}" ${extra}></label>`,area=(name,label,value='',max=4000)=>`<label>${label}<textarea name="${name}" rows="4" maxlength="${max}">${esc(value||'')}</textarea></label>`;
  const current=()=>data?.integrations?.find(i=>i.id===data.config.integration_id),valid=i=>!!i?.validated_at&&i.validated_revision===i.revision;
  const row=(title,sub,body,open=false)=>`<details class="agent-section" ${open?'open':''}><summary><span><strong>${title}</strong><small>${sub}</small></span><span aria-hidden="true">⌄</span></summary><div class="agent-section-body">${body}</div></details>`;
  const modelSelect=(provider,current='')=>{const list=[...new Set([...(modelLists[provider]||recommended[provider]||[]),...(current?[current]:[])])];return `<label>Modelo habilitado na sua conta<select name="model" required>${list.map(v=>`<option value="${esc(v)}" ${v===current?'selected':''}>${esc(v)}</option>`).join('')}</select></label><div class="inline-actions"><button class="secondary" type="button" data-agent="integration_models">Atualizar modelos disponíveis</button></div><p class="form-help">A lista recomendada funciona sem consulta. “Atualizar” usa a chave informada neste formulário ou a chave já salva para mostrar os modelos liberados nessa conta.</p>`;};
- function reset(){version++;root=null;data=null;editing=null;knowledgeID=null;status='';preview='';dirty=false;busy=false;modelLists={};}
+ function reset(){tab='agent';catalog=null;selectedAgent=null;catalogStatus='';catalogPreview='';catalogItem=null;catalogBusy=false;version++;root=null;data=null;editing=null;knowledgeID=null;status='';preview='';dirty=false;busy=false;modelLists={};}
  async function mount(target){reset();root=target;if(!root)return;root.innerHTML='<section class="card space"><h2>Seu agente</h2><p class="sub">Carregando comportamento e integrações…</p></section>';await load();}
  async function load(){const gen=version;try{const result=await cloud().agent();if(gen!==version||!root?.isConnected)return;data=result;draw();}catch{if(gen!==version||!root?.isConnected)return;root.innerHTML='<section class="card space"><h2>Seu agente de atendimento</h2><p>Comportamento, conhecimento, sugestões e integrações com OpenAI, Gemini e Claude.</p><p class="notice">A nova estrutura precisa ser ativada no Supabase. As configurações anteriores permanecem preservadas. Após aplicar a atualização, volte aqui para cadastrar suas integrações.</p><button type="button" class="secondary" data-agent="reload">Conferir ativação</button></section>';}}
- function draw(){if(!root||!data)return;root.innerHTML=`<section class="card space agent-workspace"><div class="card-head"><div><p class="eyebrow">ATENDIMENTO PRIVADO</p><h2>Seu agente</h2></div><span class="tag">${data.config.enabled?'Habilitado':'Desabilitado'}</span></div><nav class="agent-tabs" aria-label="Configuração do agente"><button type="button" data-agent="tab" data-tab="agent" class="${tab==='agent'?'primary':'secondary'}">Comportamento</button><button type="button" data-agent="tab" data-tab="integrations" class="${tab==='integrations'?'primary':'secondary'}">Integrações</button></nav><p class="agent-status" role="status">${esc(status)}</p>${tab==='agent'?agentView():integrationsView()}</section>`;}
+ function draw(){if(!root||!data)return;root.innerHTML=`<section class="card space agent-workspace"><div class="card-head"><div><p class="eyebrow">ATENDIMENTO PRIVADO</p><h2>Seu agente</h2></div><span class="tag">${data.config.enabled?'Habilitado':'Desabilitado'}</span></div><nav class="agent-tabs" aria-label="Configuração do agente"><button type="button" data-agent="tab" data-tab="agent" class="${tab==='agent'?'primary':'secondary'}">Comportamento</button><button type="button" data-agent="tab" data-tab="catalog" class="${tab==='catalog'?'primary':'secondary'}">Agentes</button><button type="button" data-agent="tab" data-tab="integrations" class="${tab==='integrations'?'primary':'secondary'}">Integrações</button></nav><p class="agent-status" role="status">${esc(status)}</p>${tab==='agent'?agentView():tab==='catalog'?catalogView():integrationsView()}</section>`;}
  function agentView(){const c=data.config,i=current();return `<form data-agent-form="settings"><div class="agent-toggle"><div><strong>Habilitar agente</strong><p class="sub">Você controla o modo geral e pode mudar cada conversa.</p></div><label class="agent-switch"><input type="checkbox" name="enabled" role="switch" aria-label="Habilitar agente" ${c.enabled?'checked':''} ${valid(i)?'':'disabled'}><span aria-hidden="true"></span></label></div><label>Integração usada pelo agente<select name="integration_id" required>${data.integrations.map(x=>`<option value="${esc(x.id)}" ${x.id===c.integration_id?'selected':''}>${esc(x.name)} · ${valid(x)?'validada':'teste pendente'}</option>`).join('')}</select></label><p class="sub">${valid(i)?'Integração validada.':'Cadastre a chave e teste a integração na aba Integrações antes de habilitar.'}</p><h3 class="space">Conhecimento do seu atendimento</h3>${row('Informações da empresa','Apresentação, contato e funcionamento',field('name','Nome do atendimento',c.name,'required maxlength="80"')+area('company','Sobre a empresa',c.company),true)}${row('Políticas da empresa','Entrega, trocas e condições de atendimento',area('policies','Políticas e condições',c.policies))}${row('Como e onde comprar','Orientações comerciais que o agente pode explicar',area('sales','Como comprar',c.sales)+'<p class="form-help">O agente orienta com as informações cadastradas. Estoque, pagamentos e agendamentos não são executados por esta integração.</p>')}${row('Pedir informações do cliente','Defina quando perguntar e quais informações pedir',`<label>Quando pedir<select name="collect_when">${[['never','Não pedir'],['start','No início da conversa'],['when_needed','Quando precisar para ajudar'],['purchase','Quando houver interesse de compra']].map(([v,t])=>`<option value="${v}" ${c.collect_when===v?'selected':''}>${t}</option>`).join('')}</select></label>${area('collect_fields','Informações a solicitar',c.collect_fields,500)}<p class="form-help">Peça somente o necessário. O agente não deve solicitar senhas, códigos de acesso ou dados de pagamento.</p>`)}<h3 class="space">Formas de controlar seu agente</h3>${row('Configurações de resposta','Minha resposta, sugestões ou respostas automáticas',`<label>Modo padrão<select name="mode">${[['manual','Minha resposta · sem geração'],['suggest','Sugestões · você revisa e envia'],['auto','Agente automático · responde na conversa']].map(([v,t])=>`<option value="${v}" ${c.mode===v?'selected':''}>${t}</option>`).join('')}</select></label>${field('daily_limit','Máximo de tentativas por dia',c.daily_limit,'required type="number" min="1" max="500"')}<p class="form-help">Inclui testes e retentativas. Não é um teto garantido em reais. Tentativas hoje: ${Number(data.attempts_today)||0}.</p><label class="check"><input type="checkbox" name="always_on" ${c.always_on?'checked':''}> Atender em qualquer horário</label><p class="sub">Se desmarcar, use os dias e horários abaixo.</p><div class="agent-weekdays">${[[1,'Seg'],[2,'Ter'],[3,'Qua'],[4,'Qui'],[5,'Sex'],[6,'Sáb'],[7,'Dom']].map(([v,t])=>`<label><input type="checkbox" name="weekdays" value="${v}" ${c.weekdays.includes(v)?'checked':''}>${t}</label>`).join('')}</div><div class="form-grid">${field('start_time','Início',String(c.start_time).slice(0,5),'type="time" required')}${field('end_time','Fim',String(c.end_time).slice(0,5),'type="time" required')}</div>${field('timezone','Fuso horário',c.timezone,'required maxlength="100"')}<p class="form-help">Períodos dentro do mesmo dia. Fora do horário, a conversa fica para a equipe. Em cada conversa, “Minha resposta” também funciona como exceção.</p>`)}${row('Personalidade e instruções','Tom de voz e regras para todas as integrações',field('tone','Como deve se comunicar',c.tone,'maxlength="300"')+area('instructions','Instruções do agente',c.instructions,6000))}<button type="submit" class="primary full space" ${busy?'disabled':''}>Salvar comportamento</button><p class="form-help">Salvar alterações descarta sugestões e respostas em geração que usavam a configuração anterior.</p></form><h3 class="space">Conhecimento</h3><p class="sub">Informações aprovadas por você, usadas junto com as instruções em qualquer integração.</p>${knowledgeView()}${row('Apps e ações conectadas','Capacidades disponíveis neste atendimento','<p>Disponível: responder textos, usar o conhecimento cadastrado e encaminhar para a equipe.</p><p class="sub">Consultar estoque em tempo real, criar agendamentos, enviar cobranças e sincronizar Google Drive exigem conectores próprios. Não estão ativos.</p>')}${testView()}`;}
  function knowledgeView(){const k=data.knowledge.find(x=>x.id===knowledgeID),items=data.knowledge.filter(x=>(x.title+' '+x.content).toLowerCase().includes(filter.toLowerCase()));return `<div class="agent-knowledge"><div class="inline-actions"><button type="button" class="secondary" data-agent="knowledge_new">＋ Adicionar conhecimento</button><label class="secondary agent-file-label">Importar PDF ou TXT<input type="file" data-agent-file accept="application/pdf,text/plain,.pdf,.txt" hidden></label></div><p class="form-help">Importa texto para você revisar antes de salvar. Links servem como referência; páginas e Google Drive não são sincronizados automaticamente.</p><label>Pesquisar conhecimento<input type="search" data-agent-search value="${esc(filter)}" placeholder="Título ou conteúdo"></label><div class="agent-knowledge-list">${items.map(x=>`<button type="button" class="agent-list-row" data-agent="knowledge_edit" data-id="${esc(x.id)}"><span><strong>${esc(x.title)}</strong><small>${categories[x.category]} · ${x.enabled?'Em uso':'Desativado'}</small></span><span aria-hidden="true">›</span></button>`).join('')||'<p class="sub">Nenhum item encontrado.</p>'}</div>${knowledgeID!==null?`<form data-agent-form="knowledge" class="agent-editor"><h4>${k?'Editar':'Adicionar'} conhecimento</h4>${field('title','Título',k?.title,'required maxlength="120"')}<label>Tipo<select name="category">${Object.entries(categories).map(([v,t])=>`<option value="${v}" ${k?.category===v?'selected':''}>${t}</option>`).join('')}</select></label>${area('content','Conteúdo revisado',k?.content,6000)}<label class="check"><input type="checkbox" name="enabled" ${k?.enabled!==false?'checked':''}> Usar nas respostas</label><p class="form-help">Até 40 itens e 24 mil caracteres de conhecimento ativo.</p><div class="inline-actions"><button class="primary" type="submit" ${busy?'disabled':''}>Salvar item</button><button class="secondary" type="button" data-agent="knowledge_cancel">Cancelar</button>${k?`<button type="button" class="text-btn delete" data-agent="knowledge_delete" data-id="${esc(k.id)}">Excluir item</button>`:''}</div></form>`:''}</div>`;}
  function integrationsView(){const i=data.integrations.find(x=>x.id===editing),provider=i?.provider||'openai';return `<p class="sub">Salve cada conexão uma vez e escolha qual o agente usará. Comportamento e conhecimento continuam os mesmos.</p><button type="button" class="primary" data-agent="integration_new">＋ Adicionar integração</button><div class="agent-integration-list space">${data.integrations.map(x=>`<article class="agent-integration"><div><strong>${esc(x.name)}</strong><small>${providers[x.provider]} · ${esc(x.model||'Modelo não informado')}</small><span class="tag">${x.id===data.config.integration_id?'Selecionada · ':''}${valid(x)?'Conexão validada':x.key_present?'Teste pendente':'Chave pendente'}</span></div><div class="inline-actions"><button class="secondary" type="button" data-agent="integration_edit" data-id="${esc(x.id)}">Configurar</button><button class="secondary" type="button" data-agent="integration_test" data-id="${esc(x.id)}" ${!x.key_present||busy?'disabled':''}>Testar conexão</button>${x.id!==data.config.integration_id?`<button class="text-btn" type="button" data-agent="integration_select" data-id="${esc(x.id)}" ${!valid(x)||busy?'disabled':''}>Usar no agente</button><button class="text-btn delete" type="button" data-agent="integration_delete" data-id="${esc(x.id)}">Excluir</button>`:''}</div></article>`).join('')}</div>${editing!==null?`<form data-agent-form="integration" class="agent-editor" autocomplete="off"><h3>${i?'Configurar':'Adicionar'} integração</h3>${field('name','Nome desta integração',i?.name||'','required maxlength="80" placeholder="Ex.: OpenAI principal"')}<label>Serviço<select name="provider">${Object.entries(providers).map(([v,t])=>`<option value="${v}" ${provider===v?'selected':''}>${t}</option>`).join('')}</select></label><div data-model-picker>${modelSelect(provider,i?.model||recommended[provider][0])}</div>${field('workspace','Workspace da Anthropic (se exigido)',i?.workspace||'','maxlength="120" placeholder="wrkspc_… · deixe vazio nos demais serviços"')}<label>Chave da API<input type="password" name="api_key" autocomplete="new-password" maxlength="4000" ${i?.key_present?'':'required'} placeholder="${i?.key_present?'Deixe vazio para manter a chave atual':'Cole a chave deste serviço'}"></label><p class="form-help">A chave é enviada ao servidor, criptografada e nunca retorna ao painel. Ela não é salva no armazenamento do navegador. Alterar esta integração exige testar novamente e pausa o agente se ela estiver selecionada.</p><div class="inline-actions"><button class="primary" type="submit" ${busy?'disabled':''}>Salvar integração</button><button class="secondary" type="button" data-agent="integration_cancel">Cancelar</button></div></form>`:''}<details class="agent-section space"><summary>Preparação do servidor</summary><p class="sub">Para cadastrar chaves por aqui, a função agent-integrations e a chave de proteção NEO_AI_ENCRYPTION_KEY precisam estar configuradas no Supabase. O serviço de respostas usa ai-reply. As APIs são cobradas separadamente das assinaturas de chat.</p></details>`;}
  function testView(){return `<section class="agent-test"><h3>Testar seu agente</h3><p class="sub">Usa a integração selecionada e o comportamento salvo. Não envia mensagens a participantes.</p><form data-agent-form="preview">${area('message','Mensagem de teste','',2000)}<button class="secondary" type="submit" ${!valid(current())||busy?'disabled':''}>Testar resposta</button></form>${preview?`<div class="notice agent-preview"><strong>Resposta de teste</strong><p>${esc(preview)}</p></div>`:''}<p class="form-help">O teste consome a API e conta no limite diário.</p></section>`;}
+
+ const states={inactive:'Inativo',active:'Ativo',archived:'Arquivado'};
+ const modes={manual:'Minha resposta',suggest:'Sugestões',auto:'Automático'};
+ const select=(name,label,values,value)=>`<label>${label}<select name="${name}">${Object.entries(values).map(([id,title])=>`<option value="${esc(id)}" ${id===value?'selected':''}>${esc(title)}</option>`).join('')}</select></label>`;
+ function catalogView(){
+   const selected=selectedAgent?.agent,c=selected?.settings,k=selectedAgent?.knowledge||[];
+   const disabled=catalogBusy?'disabled':'';
+   if(!catalog)return `<p class="sub">${esc(catalogStatus||'Carregando agentes…')}</p><button type="button" class="secondary" data-catalog="reload" ${disabled}>Tentar novamente</button>`;
+   const form=(kind,body,label)=>`<form class="agent-editor" data-catalog-form="${kind}">${body}<button type="submit" class="primary" ${disabled}>${label}</button></form>`;
+   const definitions=catalog.map(a=>`<button type="button" class="agent-list-row" data-catalog="open" data-id="${esc(a.id)}" aria-pressed="${a.id===selected?.id}" ${disabled}><span><strong>${esc(a.admin_name)}</strong><small>${esc(a.public_name)} · ${states[a.status]}${a.is_default?' · Padrão':''}</small></span></button>`).join('');
+   const integrations={'':'Escolher integração'};
+   for(const i of data.integrations)integrations[i.id]=`${i.name} · ${providers[i.provider]||i.provider} · ${i.model||'sem modelo'}${valid(i)?'':' · teste pendente'}`;
+   const canEdit=selected&&!selected.is_default;
+   const config=canEdit?form('save',
+     field('public_name','Nome público',selected.public_name,'required maxlength="80"')+
+     field('admin_name','Nome administrativo',selected.admin_name,'required maxlength="80"')+
+     area('description','Descrição',selected.description,1000)+area('purpose','Finalidade',selected.purpose,1000)+
+     area('instructions','Instruções',c.instructions,6000)+area('personality','Personalidade',c.personality,1000)+
+     field('tone','Tom de voz',c.tone,'maxlength="300"')+
+     select('integration_id','Integração, provedor e modelo',integrations,selected.integration_id||'')+
+     field('model_override','Modelo alternativo (opcional)',selected.model&&selected.model!==data.integrations.find(i=>i.id===selected.integration_id)?.model?selected.model:'','maxlength="100"')+
+     select('status','Estado',states,selected.status)+select('mode','Modo padrão',modes,c.mode)+
+     field('daily_limit','Tentativas diárias (inclui testes)',c.daily_limit,'type="number" required min="1" max="500"')+
+     `<label class="check"><input type="checkbox" name="always_on" ${c.always_on?'checked':''}> Atender em qualquer horário</label>
+     <div class="agent-weekdays">${['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map((label,index)=>`<label><input type="checkbox" name="weekdays" value="${index+1}" ${c.weekdays.includes(index+1)?'checked':''}> ${label}</label>`).join('')}</div>
+     <div class="form-grid">${field('start_time','Início',String(c.start_time).slice(0,5),'type="time" required')}${field('end_time','Fim',String(c.end_time).slice(0,5),'type="time" required')}</div>`+
+     field('timezone','Fuso horário',c.timezone,'required maxlength="100"'),'Salvar agente')
+     :selected?'<p class="sub">Use Comportamento para editar e testar o agente padrão.</p>':'';
+   const item=k.find(x=>x.id===catalogItem);
+   const know=selected?`<h3 class="space">Conhecimento</h3>
+     <div class="agent-knowledge-list">${k.map(x=>`<button type="button" class="agent-list-row" data-catalog="knowledge" data-id="${esc(x.id)}" ${(selected.is_default&&!x.shared)||disabled?'disabled':''}><span><strong>${esc(x.title)}</strong><small>${x.shared?'Compartilhado':'Individual'} · ${x.enabled?'Em uso':'Desativado'}</small></span></button>`).join('')}</div>
+     <button type="button" class="secondary" data-catalog="knowledge" ${disabled}>Adicionar conhecimento</button>
+     ${catalogItem!==null?form('knowledge',
+       field('title','Título',item?.title,'required maxlength="120"')+select('category','Tipo',categories,item?.category||'faq')+
+       area('content','Conteúdo revisado',item?.content,6000)+
+       `<label class="check"><input type="checkbox" name="shared" ${item?.shared||selected.is_default?'checked':''} ${item||selected.is_default?'disabled':''}> Compartilhar entre agentes</label>
+       <label class="check"><input type="checkbox" name="enabled" ${item?.enabled!==false?'checked':''}> Usar nas respostas</label>
+       ${item?`<button type="button" class="text-btn delete" data-catalog="remove-knowledge" ${disabled}>Excluir item</button>`:''}`,'Salvar conhecimento'):''}`:'';
+   const previewForm=canEdit&&selected.status!=='archived'?`<h3 class="space">Ambiente de teste</h3><p class="sub">Use uma mensagem sintética, sem dados pessoais. O teste usa a configuração salva e conta no limite diário.</p>${form('preview',area('message','Mensagem sintética','',2000),'Testar agente')}${catalogPreview?`<p class="notice">${esc(catalogPreview)}</p>`:''}`:'';
+   return `<p class="agent-catalog-status" role="status">${esc(catalogStatus)}</p>
+     <div class="agent-knowledge-list">${definitions}</div>
+     ${row('Cadastrar agente','Novos agentes começam inativos',form('create',
+       field('public_name','Nome público','','required maxlength="80"')+field('admin_name','Nome administrativo','','required maxlength="80"'),'Criar agente'))}
+     ${selected?`<h3 class="space">${esc(selected.admin_name)}</h3>`:''}${config}${know}${previewForm}`;
+ }
+ async function reloadCatalog(id){
+   const list=await cloud().multiagent();
+   const entry=id?await cloud().multiagent('read',{agent_id:id}):null;
+   return ()=>{catalog=list;selectedAgent=entry;};
+ }
+ async function catalogTask(work){
+   if(catalogBusy)return;
+   const gen=version;
+   catalogBusy=true;
+   const controls=[...root.querySelectorAll('[data-catalog], [data-catalog-form] button[type="submit"]')];
+   const active=controls.filter(button=>!button.disabled);
+   active.forEach(button=>button.disabled=true);
+   try{
+     const apply=await work();
+     if(gen!==version||!root?.isConnected)return;
+     apply?.();
+     catalogBusy=false;
+     if(tab==='catalog')draw();
+   }catch(error){
+     if(gen!==version||!root?.isConnected)return;
+     catalogStatus=error.message;
+     const message=root.querySelector('.agent-catalog-status');
+     if(message)message.textContent=catalogStatus;
+     else if(tab==='catalog'){catalogBusy=false;draw();}
+   }finally{
+     if(gen===version){catalogBusy=false;active.forEach(button=>button.disabled=false);}
+   }
+ }
+ document.addEventListener('click',event=>{
+   const button=event.target.closest('[data-catalog]');
+   if(!button||!root?.contains(button)||catalogBusy)return;
+   const action=button.dataset.catalog;
+   if(action==='reload'){catalogTask(()=>reloadCatalog());return;}
+   if(action==='open'){
+     if(dirty&&!confirm('Sair sem salvar a configuração do agente?'))return;
+     catalogTask(async()=>{
+       const apply=await reloadCatalog(button.dataset.id);
+       return ()=>{apply();catalogItem=null;catalogPreview='';catalogStatus='';dirty=false;};
+     });
+   }else if(action==='knowledge'){
+     if(dirty){root.querySelector('.agent-catalog-status').textContent='Salve a configuração antes de editar o conhecimento.';return;}
+     catalogItem=button.dataset.id||'';draw();
+   }else if(action==='remove-knowledge'&&confirm('Excluir este item de conhecimento?')){
+     const item=selectedAgent.knowledge.find(row=>row.id===catalogItem);
+     catalogTask(async()=>{
+       const result=await cloud().multiagent('knowledge_delete',{agent_id:selectedAgent.agent.id,item_id:item.id,shared:item.shared});
+       return ()=>{selectedAgent=result;catalogItem=null;catalogPreview='';catalogStatus='Conhecimento excluído.';};
+     });
+   }
+ });
+ document.addEventListener('input',event=>{
+   if(event.target.closest('[data-catalog-form=save]')&&root?.contains(event.target))dirty=true;
+ });
+ document.addEventListener('submit',event=>{
+   const form=event.target;
+   if(!form.matches('[data-catalog-form]')||!root?.contains(form))return;
+   event.preventDefault();
+   if(catalogBusy||!form.reportValidity())return;
+   const kind=form.dataset.catalogForm,fields=new FormData(form),values=Object.fromEntries(fields);
+   const agent=selectedAgent?.agent;
+   catalogTask(async()=>{
+     if(kind==='create'){
+       if(dirty)throw Error('Salve o agente em edição antes de continuar.');
+       const result=await cloud().multiagent('create',values);
+       const apply=await reloadCatalog(result.agent.id);
+       return ()=>{apply();catalogItem=null;catalogPreview='';catalogStatus='Agente criado inativo.';};
+     }
+     if(kind==='save'){
+       const settings={...values,integration_id:values.integration_id||null,model_override:values.model_override.trim()||null,
+         daily_limit:Number(values.daily_limit),always_on:fields.has('always_on'),weekdays:fields.getAll('weekdays').map(Number)};
+       await cloud().multiagent('save',{agent_id:agent.id,expected_revision:agent.settings.revision,settings});
+       const apply=await reloadCatalog(agent.id);
+       return ()=>{apply();dirty=false;catalogPreview='';catalogStatus='Agente salvo.';};
+     }
+     if(dirty)throw Error('Salve a configuração antes de continuar.');
+     if(kind==='knowledge'){
+       const item=selectedAgent.knowledge.find(row=>row.id===catalogItem);
+       const result=await cloud().multiagent('knowledge_save',{...values,
+         agent_id:agent.id,item_id:item?.id,enabled:fields.has('enabled'),
+         shared:item?.shared??(agent.is_default||fields.has('shared'))});
+       return ()=>{selectedAgent=result;catalogItem=null;catalogPreview='';catalogStatus='Conhecimento salvo.';};
+     }
+     const result=await cloud().agentIntegration('preview_agent',{agent_id:agent.id,message:values.message});
+     return ()=>{catalogPreview=result.reply;catalogStatus='Teste concluído. Nenhuma mensagem foi enviada à conversa.';};
+   });
+ });
  async function task(fn){if(busy)return;busy=true;const gen=version;root?.querySelectorAll('button[type=submit]').forEach(x=>x.disabled=true);try{await fn(gen);}catch(e){if(gen===version){status=e.message;const el=root?.querySelector('.agent-status');if(el)el.textContent=status;}}finally{if(gen===version){busy=false;root?.querySelectorAll('button[type=submit]').forEach(x=>x.disabled=x.closest('[data-agent-form=preview]')?!valid(current()):false);root?.querySelectorAll('[data-agent=integration_test]').forEach(x=>{const i=data?.integrations?.find(v=>v.id===x.dataset.id);x.disabled=!i?.key_present;});root?.querySelectorAll('[data-agent=integration_select]').forEach(x=>{const i=data?.integrations?.find(v=>v.id===x.dataset.id);x.disabled=!valid(i);});}}}
  async function saved(gen,message){if(gen!==version)return;status=message;dirty=false;await load();}
  document.addEventListener('input',e=>{if(e.target.closest('[data-agent-form=settings]'))dirty=true;if(e.target.matches('[data-agent-search]')){filter=e.target.value;const list=root.querySelector('.agent-knowledge-list');if(list){const holder=document.createElement('div');holder.innerHTML=knowledgeView();list.innerHTML=holder.querySelector('.agent-knowledge-list').innerHTML;}}});
  document.addEventListener('change',e=>{if(e.target.closest('[data-agent-form=settings]')){dirty=true;const f=e.target.closest('form');if(e.target.name==='integration_id'){const i=data.integrations.find(x=>x.id===e.target.value),box=f.elements.enabled;box.checked=false;box.disabled=!valid(i);}}if(e.target.name==='provider'&&e.target.closest('[data-agent-form=integration]')){const picker=e.target.closest('form').querySelector('[data-model-picker]');picker.innerHTML=modelSelect(e.target.value,recommended[e.target.value][0]);}});
  document.addEventListener('click',e=>{const b=e.target.closest('[data-agent]');if(!b||!root?.contains(b)||busy)return;const a=b.dataset.agent,id=b.dataset.id;
- if(a==='reload'){load();return;}if(a==='tab'){if(dirty&&!confirm('Sair sem salvar as alterações de comportamento?'))return;dirty=false;tab=b.dataset.tab;editing=null;draw();return;}
+ if(a==='reload'){load();return;}if(a==='tab'){if(dirty&&!confirm('Sair sem salvar as alterações de comportamento?'))return;dirty=false;tab=b.dataset.tab;editing=null;draw();if(tab==='catalog')catalogTask(()=>reloadCatalog(selectedAgent?.agent.id));return;}
  if(a==='integration_new'||a==='integration_edit'){editing=id||'';draw();root.querySelector('[data-agent-form=integration]')?.scrollIntoView({block:'center',behavior:'smooth'});return;}
  if(a==='integration_cancel'){editing=null;draw();return;}if(a==='knowledge_new'||a==='knowledge_edit'){if(dirty){status='Salve o comportamento antes de editar o conhecimento.';root.querySelector('.agent-status').textContent=status;return;}knowledgeID=id||'';draw();return;}if(a==='knowledge_cancel'){knowledgeID=null;draw();return;}
  task(async gen=>{if(a==='integration_models'){const form=b.closest('form'),provider=form.querySelector('[name=provider]').value,key=form.querySelector('[name=api_key]').value,existing=data.integrations.find(x=>x.id===editing);status='Consultando os modelos liberados nesta conta…';root.querySelector('.agent-status').textContent=status;const result=await cloud().agentIntegration('models',{provider,...(existing?{id:existing.id}:{}),...(key?{api_key:key}:{}),workspace:form.querySelector('[name=workspace]').value});if(gen!==version)return;if(!result.models?.length)throw Error('A API não informou modelos de conversa disponíveis para esta chave.');modelLists[provider]=result.models;const selected=form.querySelector('[name=model]').value;form.querySelector('[data-model-picker]').innerHTML=modelSelect(provider,result.models.includes(selected)?selected:result.models[0]);status=`${result.models.length} modelos disponíveis. Escolha um e salve a integração.`;root.querySelector('.agent-status').textContent=status;}else if(a==='integration_test'){status='Testando conexão…';root.querySelector('.agent-status').textContent=status;await cloud().agentIntegration('test',{id});await saved(gen,'Conexão validada. Você pode selecionar esta integração e habilitar o agente.');}else if(a==='integration_select'){await cloud().agent('save',{integration_id:id,enabled:false});await saved(gen,'Integração selecionada. Confira o comportamento e habilite o agente quando quiser.');}else if(a==='integration_delete'){if(!confirm('Excluir esta integração e a chave protegida dela?'))return;await cloud().agentIntegration('delete',{id});await saved(gen,'Integração excluída.');}else if(a==='knowledge_delete'){if(!confirm('Excluir este conhecimento?'))return;await cloud().agent('knowledge_delete',{id});if(gen===version)knowledgeID=null;await saved(gen,'Item excluído.');}});

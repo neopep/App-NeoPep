@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),{parseHTML}=require('linkedom'),fs=require('fs'),vm=require('vm'),C=require('../dist/core.js');
-function setup(seed={},options={}){const {document,Event}=parseHTML(fs.readFileSync('dist/index.html','utf8'));const data=new Map(Object.entries(seed)),writes=[];let counter=0;const ctx={document,console,Event,localStorage:{getItem:k=>data.get(k)??null,setItem:(k,v)=>{if(options.quota)throw Error('quota');data.set(k,v);writes.push(k)},removeItem:k=>data.delete(k)},location:{hash:'',href:options.url||'https://example.test/',protocol:'https:'},history:{replaceState(a,b,hash){ctx.location.hash=hash}},navigator:{onLine:true},matchMedia:()=>({matches:false,addEventListener(){}}),setInterval(){},setTimeout(){},clearTimeout(){},addEventListener(){},scrollTo(){},confirm:()=>true,prompt:()=>null,URL,Blob,Date,Number,String,JSON,FormData:class{},crypto:{randomUUID:()=>String(++counter)},NeoCore:C,NeoCloud:{configured:false,init:async()=>null,...options.cloud},NEO_CONFIG:{providers:{google:false,apple:false,email:false}},indexedDB:null};ctx.window=ctx;document.querySelector('#dialog').showModal=function(){this.setAttribute('open','')};document.querySelector('#dialog').close=function(){this.removeAttribute('open');this.dispatchEvent(new Event('close'))};vm.createContext(ctx);vm.runInContext(fs.readFileSync('dist/app.js','utf8'),ctx);return {ctx,document,data,writes,run:code=>vm.runInContext(code,ctx)}}
+function setup(seed={},options={}){const {document,Event}=parseHTML(fs.readFileSync('dist/index.html','utf8'));const data=new Map(Object.entries(seed)),writes=[];let counter=0;const ctx={document,console,Event,localStorage:{getItem:k=>data.get(k)??null,setItem:(k,v)=>{if(options.quota)throw Error('quota');data.set(k,v);writes.push(k)},removeItem:k=>data.delete(k)},location:{hash:'',href:options.url||'https://example.test/',protocol:'https:'},history:{replaceState(a,b,hash){ctx.location.hash=hash}},navigator:{onLine:true},matchMedia:()=>({matches:false,addEventListener(){}}),setInterval(){},setTimeout(){},clearTimeout(){},addEventListener(){},scrollTo(){},confirm:()=>true,prompt:()=>null,URL,Blob,Date:options.date||Date,Number,String,JSON,FormData:class{},crypto:{randomUUID:()=>String(++counter)},NeoCore:C,NeoCloud:{configured:false,init:async()=>null,...options.cloud},NEO_CONFIG:{providers:{google:false,apple:false,email:false}},indexedDB:null};ctx.window=ctx;document.querySelector('#dialog').showModal=function(){this.setAttribute('open','')};document.querySelector('#dialog').close=function(){this.removeAttribute('open');this.dispatchEvent(new Event('close'))};vm.createContext(ctx);vm.runInContext(fs.readFileSync('dist/app.js','utf8'),ctx);return {ctx,document,data,writes,run:code=>vm.runInContext(code,ctx)}}
 test('todos os módulos renderizam em DOM e branding não contém Elo fora da migração',async()=>{const a=setup();for(const route of ['inicio','evolucao','registros','diario','aplicacoes','protocolos','calculadora','relatorios','calendario','lembretes','perfil','bemvindo','privacidade','fotos','onboarding','termos']){await a.run(`go('${route}',false)`);assert.ok(a.document.querySelector('#content').textContent.length>50,route)}assert.match(a.document.title,/NeoPep/);assert.equal(a.document.querySelectorAll('#nav button').length,5);assert.equal(a.writes.length,0)});
 test('prévia não migra nem grava elo-v1 automaticamente',()=>{const original=JSON.stringify({weights:[{id:1,date:C.today(),value:81}],measures:[],doses:[],settings:{}});const a=setup({'elo-v1':original});assert.equal(a.data.get('elo-v1'),original);assert.equal(a.writes.length,0);assert.equal(a.run('state.weights.length'),0)});
 test('CRUD local persiste e volta após nova abertura sem sobrescrever Elo',async()=>{const original='original',a=setup({'elo-v1':original});await a.run(`putRecord('weights',{id:'x',date:C.today(),value:80,note:''})`);assert.equal(a.writes.at(-1),'neo-v2');assert.equal(a.data.get('elo-v1'),original);assert.equal(a.run('state.weights.length'),1);const b=setup(Object.fromEntries(a.data));assert.equal(b.run('state.weights[0].value'),80);await a.run(`putRecord('weights',{id:'y',date:C.today(),value:79,note:''})`);assert.equal(a.run('state.weights.length'),1);assert.equal(a.run('state.weights[0].id'),'x');assert.equal(a.run('state.weights[0].value'),79)});
@@ -20,7 +20,7 @@ test('protocolo mostra apenas suas aplicações ao abrir o filtro e lembretes po
 test('falha após gravação remota não anuncia perda e tentativa mantém o mesmo ID do formulário',async()=>{const a=setup();let fail=true,ids=[];a.ctx.FormData=class{constructor(){this.data=new Map(Object.entries({date:C.today(),waist:'88',note:''}))}[Symbol.iterator](){return this.data[Symbol.iterator]()}get(k){return this.data.get(k)}has(k){return this.data.has(k)}};Object.assign(a.ctx.NeoCloud,{user:{id:'user'},onboardingComplete:true,put:async(type,row)=>{ids.push(row.id);if(fail)throw Error('Falha de conexão');return {...row,_revision:1}},load:async()=>{throw Error('Leitura indisponível')},reportError(){}});await a.run("mode='cloud';state.profile.consent=true;openRecord('measure')");const form=a.document.querySelector('#recordForm');form.dispatchEvent(new a.ctx.Event('submit',{bubbles:true,cancelable:true}));await new Promise(setImmediate);assert.equal(a.run('state.measures.length'),0);assert.match(a.document.querySelector('#formError').textContent,/Falha de conexão/);fail=false;form.dispatchEvent(new a.ctx.Event('submit',{bubbles:true,cancelable:true}));await new Promise(setImmediate);assert.equal(ids.length,2);assert.equal(ids[0],ids[1]);assert.equal(a.run('state.measures.length'),1);assert.equal(a.run('state.measures[0]._revision'),1);assert.match(a.document.querySelector('#banner').textContent,/alteração foi salva/)});
 test('novo diário vazio é recusado sem impedir leitura de backups antigos',async()=>{const a=setup();await assert.rejects(a.run("putRecord('journal',{id:'j1',date:C.today()})"),/ao menos um campo/);assert.equal(a.run('state.journal.length'),0);const old=C.validateBackup({...C.blank(),journal:[{id:'old',date:C.today()}]});assert.equal(old.journal.length,1)});
 test('calendário mantém a data selecionada no período navegado',async()=>{const a=setup();await a.run("go('calendario',false);calendarDate=new Date(2026,10,1);calendarView='month';render()");a.document.querySelector('#nextMonth').dispatchEvent(new a.ctx.Event('click',{bubbles:true}));assert.equal(a.run('selectedDate'),'2026-12-01');assert.equal(a.run('calendarDate.getMonth()'),11)});
-test('fotos de perfil podem ser exportadas e excluídas sem entrar na comparação corporal',()=>{const a=setup();a.run("photoList=[{id:'body',date:C.today(),role:'progress',url:'data:image/png;base64,a'},{id:'avatar',date:C.today(),role:'avatar',url:'data:image/png;base64,b'}];document.querySelector('#content').innerHTML=photosPage()");assert.equal(a.document.querySelectorAll('.photo-card').length,2);assert.ok(a.document.querySelector('[data-photo-delete=avatar]'));assert.ok(a.document.querySelector('[data-photo-export=avatar]'));assert.equal(a.document.querySelector('#comparisonPhotos'),null)});
+test('histórico de perfil fica separado da comparação e abre o visualizador',()=>{const a=setup();a.run("photoList=[{id:'body',date:C.today(),role:'progress',url:'data:image/png;base64,a'},{id:'avatar',date:C.today(),role:'avatar',url:'data:image/png;base64,b'}];document.querySelector('#content').innerHTML=photosPage()");assert.equal(a.document.querySelectorAll('.photo-card').length,2);assert.ok(a.document.querySelector('[data-photo-section=avatar] [data-photo-open=avatar]'));assert.equal(a.document.querySelector('.photo-card [data-photo-export]'),null);assert.equal(a.document.querySelectorAll('#comparisonPhotos [data-photo-side]').length,1);assert.equal(a.document.querySelectorAll('#comparisonPhotos .comparison-example').length,1)});
 test('evento repetido da mesma sessão não apaga perfil em edição nem filtros',async()=>{const a=setup();a.ctx.NeoCloud.user={id:'same'};a.ctx.NeoCloud.hasConsent=()=>true;a.ctx.NeoCloud.onboardingComplete=true;await a.run("mode='cloud';signedInAccountId='same';historyPrefs.weights={query:'Minha busca'};state.profile.name='Rafael';document.querySelector('#content').innerHTML=profilePage();formDirty=true");const field=a.document.querySelector('input[name=name]');field.value='Nome em edição';await a.run("authChanged('SIGNED_IN',{id:'same'})");assert.equal(a.document.querySelector('input[name=name]'),field);assert.equal(field.value,'Nome em edição');assert.equal(a.run('historyPrefs.weights.query'),'Minha busca');assert.equal(a.run('formDirty'),true)});
 test('falha ao atualizar galeria não apaga da tela o histórico já carregado',async()=>{const a=setup();a.ctx.NeoCloud.photos=async()=>{throw Error('Sem conexão')};await a.run("mode='cloud';photoList=[{id:'photo1',date:C.today(),role:'progress',url:'https://example.invalid/photo.jpg'}]");await assert.rejects(a.run('loadPhotos()'),/Sem conexão/);assert.equal(a.run('photoList.length'),1);assert.equal(a.run('photoList[0].id'),'photo1')});
 test('navegação destaca comunidade ao centro, calendário no topo e atendimento abre Conversa',async()=>{const a=setup();let direct;a.ctx.NeoCommunity={beginVisit:value=>direct=value,view:()=>'<p>Comunidade</p>',load:()=>{}};await a.run("go('inicio',false)");assert.deepEqual(Array.from(a.document.querySelectorAll('#nav button')).map(b=>b.dataset.go),['inicio','evolucao','comunidade','registros','loja']);assert.ok(a.document.querySelector('#nav .nav-community'));assert.equal(a.document.querySelector('#nav [data-go=calendario]'),null);assert.ok(a.document.querySelector('#calendarShortcut[data-go=calendario]'));a.document.querySelector('#communityIcon').click();await new Promise(setImmediate);assert.equal(direct,true)});
@@ -33,11 +33,11 @@ test('sessão restaurada abre painel automaticamente e conta confirmada nova vai
 test('link aberto sem sessão orienta entrar, sem declarar e-mail confirmado nem mostrar erro técnico',async()=>{const a=setup({}, {url:'https://example.test/?code=test-callback',cloud:{configured:true,init:async()=>null}});await new Promise(setImmediate);assert.equal(a.run('page'),'bemvindo');assert.match(a.document.querySelector('#authMessage').textContent,/Se já confirmou seu e-mail, entre/);assert.ok(!a.document.querySelector('#authMessage').textContent.includes('test-callback'));assert.equal(a.run('mode'),'local')});
 test('cadastro com sessão real retornada pelo SDK segue direto ao cadastro inicial',async()=>{const state=C.blank(),user={id:'created'};state.profile.name='Nova Pessoa';const a=setup({}, {cloud:{configured:true,onboardingComplete:false,load:async()=>state}});a.ctx.NeoCloud.email=async()=>{a.ctx.NeoCloud.user=user;return {session:{user},user}};a.ctx.NEO_CONFIG.providers.email=true;a.ctx.NEO_CONFIG.previewRegistration=true;authFormData(a);await a.run("authMode='signup';go('bemvindo',false)");const form=a.document.querySelector('#authForm');form.querySelector('[name=email]').value='new@example.test';form.querySelector('[name=password]').value='test-password123';form.querySelector('[name=consent]').setAttribute('checked','');form.dispatchEvent(new a.ctx.Event('submit',{bubbles:true,cancelable:true}));await new Promise(setImmediate);assert.equal(a.run('page'),'preparar');assert.equal(a.document.querySelector('#authForm'),null);a.document.querySelector('[data-start-profile]').click();assert.equal(a.run('page'),'onboarding');assert.match(a.document.querySelector('#onboardingForm').textContent,/Nome completo/)});
 
-test('login omite avisos de preparação e chamada antiga, preservando feedback de autenticação',()=>{const a=setup({}, {cloud:{configured:true}});a.run("window.NEO_CONFIG.previewRegistration=true; window.NEO_CONFIG.cloudValidated=false; authMessage='Confira seu e-mail para confirmar o cadastro.'; go('bemvindo',false)");const content=a.document.querySelector('#content');assert.doesNotMatch(content.textContent,/prévia privada|Supabase vinculado|Cadastros públicos aguardam|conheça seu novo espaço/i);assert.match(content.querySelector('#authMessage').textContent,/Confira seu e-mail/);assert.ok(content.querySelector('#authError[role=alert]'));assert.equal(content.querySelector('#localMode'),null);assert.equal(content.querySelector('#demo'),null)});
+test('login omite avisos de preparação e chamada antiga, preservando feedback de autenticação',async()=>{const a=setup({}, {cloud:{configured:true}});await new Promise(setImmediate);a.run("window.NEO_CONFIG.previewRegistration=true; window.NEO_CONFIG.cloudValidated=false; authMessage='Confira seu e-mail para confirmar o cadastro.'; go('bemvindo',false)");const content=a.document.querySelector('#content');assert.doesNotMatch(content.textContent,/prévia privada|Supabase vinculado|Cadastros públicos aguardam|conheça seu novo espaço/i);assert.match(content.querySelector('#authMessage').textContent,/Confira seu e-mail/);assert.ok(content.querySelector('#authError[role=alert]'));assert.equal(content.querySelector('#localMode'),null);assert.equal(content.querySelector('#demo'),null)});
 
 test('preferência de fotos controla atalho sem consentir em nome do usuário',()=>{const a=setup();assert.match(a.run('dailyTasks(false)'),/Suas fotos de evolução/);a.run('state.profile.tracking.photos=false');assert.doesNotMatch(a.run('dailyTasks(false)'),/Suas fotos de evolução/);const {document}=parseHTML(a.run('onboarding()'));for(const name of ['health','terms']){const input=document.querySelector(`input[name=${name}]`);assert.ok(input.required||input.hasAttribute('required'));assert.equal(input.hasAttribute('checked'),false)}assert.match(a.run('profilePage()'),/Privacidade e autorizações/)});
 
-test('atalho administrativo fica ao lado do calendário e acompanha a autorização da sessão',()=>{const a=setup({}, {cloud:{configured:true,user:{id:'A'},admin:true,hasConsent:()=>true}});a.run("mode='cloud';page='inicio';render()");const link=a.document.querySelector('#adminShortcut');assert.equal(link.hidden,false);assert.equal(link.getAttribute('href'),'admin/');assert.equal(link.nextElementSibling.id,'calendarShortcut');assert.doesNotMatch(a.run('profilePage()'),/id="migrateLocal"|href="admin\/"/);a.ctx.NeoCloud.admin=false;a.run('render()');assert.equal(link.hidden,true);a.ctx.NeoCloud.admin=true;a.run("page='bemvindo';render()");assert.equal(link.hidden,true);a.run("page='inicio';demo=true;render()");assert.equal(link.hidden,true)});
+test('atalho administrativo fica ao lado do calendário e acompanha a autorização da sessão',async()=>{const a=setup({}, {cloud:{configured:true,user:{id:'A'},admin:true,hasConsent:()=>true}});await new Promise(setImmediate);a.run("mode='cloud';page='inicio';render()");const link=a.document.querySelector('#adminShortcut');assert.equal(link.hidden,false);assert.equal(link.getAttribute('href'),'admin/');assert.equal(link.nextElementSibling.id,'calendarShortcut');assert.doesNotMatch(a.run('profilePage()'),/id="migrateLocal"|href="admin\/"/);a.ctx.NeoCloud.admin=false;a.run('render()');assert.equal(link.hidden,true);a.ctx.NeoCloud.admin=true;a.run("page='bemvindo';render()");assert.equal(link.hidden,true);a.run("page='inicio';demo=true;render()");assert.equal(link.hidden,true)});
 
 test('entrada da biblioteca no início navega diretamente para a aba e material escolhidos',async()=>{const a=setup(),visits=[];a.ctx.NeoLibrary={session(){},home:()=>'<button data-go="comunidade" data-community-section="library" data-material="one">Ler material</button>'};a.ctx.NeoCommunity={beginVisit:(...args)=>visits.push(args),view:()=>'<h1>Comunidade</h1>',load(){}};await a.run('enterDemo()');a.document.querySelector('[data-community-section=library]').click();assert.equal(a.run('page'),'comunidade');assert.deepEqual(visits[0],[false,'library','one']);});
 
@@ -148,7 +148,7 @@ test('orientação inicial abre configuração pelo mesmo destino do sininho',as
 });
 
 test('recuperação consome CAPTCHA, explica expiração e impede reenvio logo após sucesso',async()=>{
- const calls=[],a=setup({}, {cloud:{configured:true,email:async(...args)=>{calls.push(args);if(calls.length===1)throw Object.assign(Error('captcha protection: timeout-or-duplicate'),{code:'captcha_failed'});return {}}}});
+ const calls=[],a=setup({}, {cloud:{configured:true,email:async(...args)=>{calls.push(args);if(calls.length===1)throw Object.assign(Error('captcha protection: timeout-or-duplicate'),{code:'captcha_failed'});return {}}}});await new Promise(setImmediate);
  a.ctx.NEO_CONFIG.providers.email=true;authFormData(a);let token='first',resets=0;
  a.ctx.NeoCaptcha={mount(){},remove(){},take(){const value=token;token='';return value},reset(){token='fresh-'+(++resets)}};
  a.run("authMode='reset';go('bemvindo',false)");let form=a.document.querySelector('#authForm');form.querySelector('[name=email]').value='person@example.test';
@@ -163,7 +163,7 @@ test('recuperação consome CAPTCHA, explica expiração e impede reenvio logo a
 });
 
 test('recuperação por código segue até nova senha no app e rejeita código inválido e senhas diferentes',async()=>{
- const calls=[],a=setup({}, {cloud:{configured:true}});a.ctx.NEO_CONFIG.providers.email=true;authFormData(a);
+ const calls=[],a=setup({}, {cloud:{configured:true}});await new Promise(setImmediate);a.ctx.NEO_CONFIG.providers.email=true;authFormData(a);
  const saved=new Map();a.ctx.sessionStorage={getItem:k=>saved.get(k)||null,setItem:(k,v)=>saved.set(k,v),removeItem:k=>saved.delete(k)};
  const user={id:'otp-user',email:'person@example.test'};a.ctx.NeoCloud.email=async(mode,email,password,name,options)=>{calls.push({mode,email,password,options});if(mode==='verifycode'){if(options.code!=='00001234')throw Object.assign(Error('Token invalid'),{code:'otp_expired'});a.ctx.NeoCloud.user=user;await a.run("authChanged('SIGNED_IN',Cloud.user)");return {session:{user},user}}return {user}};
  a.ctx.NeoCloud.onboardingComplete=true;a.ctx.NeoCloud.load=async()=>({...C.blank(),profile:{...C.defaultProfile(),name:'Pessoa',consent:true}});
@@ -188,7 +188,7 @@ test('tela de código pode ser restaurada sem guardar código ou senha',()=>{
 });
 
 test('senha salva continua sendo confirmada se a atualização dos dados da conta falhar',async()=>{
- const a=setup({}, {cloud:{configured:true,email:async()=>({}),load:async()=>{throw Error('Sem conexão')}}});a.ctx.NEO_CONFIG.providers.email=true;authFormData(a);a.ctx.NeoCloud.user={id:'recovery-save'};
+ const a=setup({}, {cloud:{configured:true,email:async()=>({}),load:async()=>{throw Error('Sem conexão')}}});await new Promise(setImmediate);a.ctx.NEO_CONFIG.providers.email=true;authFormData(a);a.ctx.NeoCloud.user={id:'recovery-save'};
  a.run("mode='cloud';recoveryFlow=true;authMode='newpassword';go('bemvindo',false)");const form=a.document.querySelector('#authForm');form.querySelector('[name=password]').value='NewPass123';form.querySelector('[name=confirmPassword]').value='NewPass123';form.dispatchEvent(new a.ctx.Event('submit',{bubbles:true,cancelable:true}));await new Promise(setImmediate);
  assert.match(a.document.querySelector('#authMessage').textContent,/Sua senha foi atualizada/);assert.equal(a.run('authMode'),'login');assert.equal(a.document.querySelector('[name=password]').value,'');
 });
@@ -222,8 +222,8 @@ test('senha recusada mantém a conta e permite nova tentativa sem guardar senha'
  assert.equal(a.run('mode'),'cloud');assert.ok(a.document.querySelector('.deletion-choice'));assert.equal(form.querySelector('button[type=submit]').disabled,false);assert.match(form.querySelector('[role=alert]').textContent,/Senha incorreta/);assert.equal(form.querySelector('[name=deletionPassword]').value,'');
 });
 
-test('mostrar e ocultar senha preserva valor, não envia formulário e cada campo é independente',()=>{
- let submitted=0;const a=setup({}, {cloud:{configured:true,email:async()=>{submitted++;return {}}}});
+test('mostrar e ocultar senha preserva valor, não envia formulário e cada campo é independente',async()=>{
+ let submitted=0;const a=setup({}, {cloud:{configured:true,email:async()=>{submitted++;return {}}}});await new Promise(setImmediate);
  for(const mode of ['login','signup','newpassword']){
   a.run(`authMode='${mode}';go('bemvindo',false)`);
   const form=a.document.querySelector('#authForm'),field=form.querySelector('[name=password]'),toggle=form.querySelector('[data-password-toggle=auth-password]');field.value='Example123';
@@ -239,12 +239,111 @@ test('acompanhamento inicia oculto abaixo da jornada, abre no botão e recolhe a
  const a=setup();await a.run("go('inicio',false)");
  let panel=a.document.querySelector('#homeJourneyDetails'),button=a.document.querySelector('[data-home-details]');
  assert.equal(panel.hidden,true);assert.equal(button.getAttribute('aria-expanded'),'false');assert.ok(button.closest('.home-journey'));assert.equal(a.document.querySelector('.home-journey').nextElementSibling.id,'homeJourneyDetails');
- assert.deepEqual([...panel.querySelectorAll('h2')].map(h=>h.textContent),['Seu resumo','Seu cuidado de hoje','Seus últimos passos']);
+ assert.deepEqual([...panel.querySelectorAll('h2')].map(h=>h.textContent),['Seu resumo','Minha evolução — Antes e Depois','Seu cuidado de hoje','Seus últimos passos']);
  button.click();assert.equal(panel.hidden,false);assert.equal(button.getAttribute('aria-expanded'),'true');assert.match(button.textContent,/Ocultar acompanhamento/);
  a.run('render()');assert.equal(a.document.querySelector('#homeJourneyDetails').hidden,false);
  a.document.querySelector('[data-home-details]').click();assert.equal(a.document.querySelector('#homeJourneyDetails').hidden,true);
- a.document.querySelector('[data-home-details]').click();await a.run("go('registros',false);go('inicio',false)");
+ a.document.querySelector('[data-home-details]').click();
+ a.document.querySelector('#homeJourneyDetails [data-go=fotos]').click();assert.equal(a.run('page'),'fotos');
+ await a.run("go('inicio',false)");
  assert.equal(a.document.querySelector('#homeJourneyDetails').hidden,true);assert.equal(a.document.querySelector('[data-home-details]').getAttribute('aria-expanded'),'false');
 });
 
 test('login shows only account access and places circular provider icons between submit and signup',()=>{const a=setup();const content=a.document.querySelector('#content');assert.equal(content.querySelector('#localMode'),null);assert.equal(content.querySelector('#demo'),null);const social=content.querySelector('.auth-social-buttons');assert.equal(social.previousElementSibling.id,'authForm');assert.ok(social.nextElementSibling.classList.contains('auth-tabs'));for(const provider of ['apple','google']){const b=social.querySelector('[data-oauth="'+provider+'"]');assert.ok(b.querySelector('svg'));assert.equal(b.textContent,'');assert.equal(b.getAttribute('aria-label'),'Continuar com '+(provider==='apple'?'Apple':'Google'));assert.equal(b.getAttribute('type'),'button')}});
+
+test('contador administrativo atualiza sem recarregar e some após leitura confirmada',async()=>{
+ let count=0,calls=0;
+ const a=setup({}, {cloud:{configured:true,user:{id:'A'},admin:true,hasConsent:()=>true,
+  adminSignups:async action=>{assert.equal(action,'count');calls++;return {count}}
+ }});
+ await new Promise(setImmediate);
+ a.run("mode='cloud';page='inicio';render()");
+ await new Promise(setImmediate);
+ const link=a.document.querySelector('#adminShortcut');
+ assert.equal(link.querySelector('.admin-signup-badge'),null);
+ count=3;
+ await a.run('refreshSignupBadge()');
+ assert.equal(link.querySelector('.admin-signup-badge').textContent,'3');
+ assert.match(link.getAttribute('aria-label'),/3 novos cadastros/);
+ count=0;
+ await a.run('refreshSignupBadge()');
+ assert.equal(link.querySelector('.admin-signup-badge'),null);
+ const before=calls;
+ a.run("Cloud.admin=false;render()");
+ await a.run('refreshSignupBadge()');
+ assert.equal(calls,before);
+ assert.equal(link.hidden,true);
+});
+
+test('engajamento deduplica renderizações e descarta tempo de segundo plano',async()=>{
+ let now=1000000,visibility='visible';
+ const clock=class extends Date{static now(){return now}};
+ const sent=[];
+ const a=setup({}, {date:clock,cloud:{configured:true,user:{id:'A'},hasConsent:()=>true,
+  engagement:async(action,batch)=>{if(action==='record')sent.push(...batch);return {allowed:true}}
+ }});
+ Object.defineProperty(a.document,'visibilityState',{get:()=>visibility});
+ await new Promise(setImmediate);
+ a.run("mode='cloud';page='inicio';render()");
+ await new Promise(setImmediate);
+ a.run('render();engagementView()');
+ now+=15000;
+ a.run('sampleEngagement()');
+ visibility='hidden';
+ a.document.dispatchEvent(new a.document.defaultView.Event('visibilitychange'));
+ await new Promise(setImmediate);
+ now+=60000;
+ a.run('sampleEngagement()');
+ visibility='visible';
+ a.document.dispatchEvent(new a.document.defaultView.Event('visibilitychange'));
+ a.run("page='evolucao';engagementView();engagementView()");
+ await a.run('flushEngagement()');
+ assert.deepEqual(sent.map(row=>[row.area,row.event,row.seconds]),
+  [['inicio','home_view',0],['inicio','active_time',15],['evolucao','evolution_view',0]]);
+ assert.equal(new Set(sent.map(row=>row.session_id)).size,1);
+ assert.deepEqual(Object.keys(sent[0]).sort(),['area','event','id','occurred_at','seconds','sequence','session_id']);
+});
+
+test('qualidade mede apenas com consentimento e limita a frequência das amostras',async()=>{
+ const calls=[];
+ const a=setup({}, {cloud:{configured:true,user:{id:'A'},hasConsent:()=>true,
+  engagement:async()=>({allowed:false}),qualityObserve:async(...values)=>calls.push(values)
+ }});
+ await new Promise(setImmediate);
+ a.run("mode='cloud';page='inicio';render()");
+ await new Promise(setImmediate);
+ a.run("observeQuality('javascript_error')");
+ await new Promise(setImmediate);
+ assert.deepEqual(calls,[]);
+ a.run("engagementAllowed=true;observeQuality('sync_response',350);observeQuality('sync_response',351)");
+ await new Promise(setImmediate);
+ assert.deepEqual(calls,[['sync_response',350,'']]);
+});
+
+test('campanha espera sessão pronta, abre uma vez e fecha ao trocar de conta',async()=>{
+ const calls=[];
+ const a=setup({}, {cloud:{user:{id:'ficticia'},onboardingComplete:true,campaignVisit:async(action,id)=>{
+  calls.push([action,id]);
+  if(action==='next')return {impression:'receipt',title:'<campanha>',body:'Oferta fictícia'};
+  return true;
+ }}});
+ await new Promise(setImmediate);
+ a.ctx.HTMLDialogElement=class {};
+ const originalCreate=a.document.createElement.bind(a.document);
+ a.document.createElement=tag=>{
+  const node=originalCreate(tag);
+  if(tag==='dialog'){
+   node.showModal=()=>node.setAttribute('open','');
+   node.close=()=>{node.removeAttribute('open');node.dispatchEvent(new a.ctx.Event('close'))};
+  }
+  return node;
+ };
+ a.run("mode='cloud'; page='inicio'; sessionLoading=true; arrivalReady=true; syncCampaign()");
+ assert.equal(calls.length,0);
+ a.run("sessionLoading=false; syncCampaign(); syncCampaign()");
+ await new Promise(setImmediate);
+ assert.deepEqual(calls,[['next',undefined],['displayed','receipt']]);
+ assert.equal(a.document.querySelector('.neo-campaign-dialog h2').textContent,'<campanha>');
+ a.run("mode='local'; syncCampaign()");
+ assert.equal(a.document.querySelector('.neo-campaign-dialog'),null);
+});

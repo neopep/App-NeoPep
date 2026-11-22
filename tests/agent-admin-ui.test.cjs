@@ -1,8 +1,48 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),{parseHTML}=require('linkedom'),C=require('../dist/core.js');
 const I='00000000-0000-4000-8000-000000000026';
-function setup({standby=false}={}){const {document,window}=parseHTML('<main><div id="agent"></div></main>');const calls=[],config={integration_id:I,name:'Atendimento',enabled:false,mode:'auto',tone:'Claro',instructions:'Ajude no app',weekdays:[1,2,3,4,5],start_time:'08:00',end_time:'18:00',timezone:'America/Sao_Paulo',always_on:true,daily_limit:50,collect_when:'when_needed',collect_fields:'Nome'},integrations=[{id:I,name:'OpenAI principal',provider:'openai',model:'test-model',revision:1,validated_revision:1,validated_at:'2026-11-14',key_present:true}];window.NeoCore=C;window.NeoCloud={agent:async(a='read',p)=>{calls.push([a,p]);if(standby)throw Error();return {config,integrations,knowledge:[],attempts_today:0}},agentIntegration:async(a,p)=>{calls.push([a,{...p}]);return a==='models'?{models:['gpt-4.1-mini','gpt-4.1']}:{saved:true}}};class FormData{constructor(form){this.rows=[...form.querySelectorAll('input,textarea,select')].filter(e=>e.name&&(e.type!=='checkbox'||e.checked)).map(e=>[e.name,e.value]);}*[Symbol.iterator](){yield* this.rows;}getAll(n){return this.rows.filter(r=>r[0]===n).map(r=>r[1]);}}const ctx={window,document,FormData,confirm:()=>true,URL,location:{href:'https://app.test/admin/'}};vm.createContext(ctx);vm.runInContext(fs.readFileSync('dist/admin/agent.js','utf8'),ctx);return {document,window,calls,config,ctx,mount:()=>window.NeoAgent.mount(document.querySelector('#agent'))};}
+function setup({standby=false}={}){const {document,window}=parseHTML('<main><div id="agent"></div></main>');const calls=[],config={integration_id:I,name:'Atendimento',enabled:false,mode:'auto',tone:'Claro',instructions:'Ajude no app',weekdays:[1,2,3,4,5],start_time:'08:00',end_time:'18:00',timezone:'America/Sao_Paulo',always_on:true,daily_limit:50,collect_when:'when_needed',collect_fields:'Nome'},integrations=[{id:I,name:'OpenAI principal',provider:'openai',model:'test-model',revision:1,validated_revision:1,validated_at:'2026-11-14',key_present:true}];window.NeoCore=C;window.NeoCloud={agent:async(a='read',p)=>{calls.push([a,p]);if(standby)throw Error();return {config,integrations,knowledge:[],attempts_today:0}},agentIntegration:async(a,p)=>{calls.push([a,{...p}]);return a==='models'?{models:['gpt-4.1-mini','gpt-4.1']}:{saved:true}}};class FormData{constructor(form){this.rows=[...form.querySelectorAll('input,textarea,select')].filter(e=>e.name&&(e.type!=='checkbox'||e.checked)).map(e=>[e.name,e.value]);}*[Symbol.iterator](){yield* this.rows;}has(n){return this.rows.some(r=>r[0]===n);}getAll(n){return this.rows.filter(r=>r[0]===n).map(r=>r[1]);}}const ctx={window,document,FormData,confirm:()=>true,URL,location:{href:'https://app.test/admin/'}};vm.createContext(ctx);vm.runInContext(fs.readFileSync('dist/admin/agent.js','utf8'),ctx);return {document,window,calls,config,ctx,mount:()=>window.NeoAgent.mount(document.querySelector('#agent'))};}
 test('workspace has behavior controls, knowledge and connection selector with no participant conversation controls',async()=>{const a=setup();await a.mount();assert.ok(a.document.querySelector('[name=integration_id]'));assert.ok(a.document.querySelector('[name=enabled][role=switch]'));assert.equal(a.document.querySelectorAll('[name=mode] option').length,3);assert.ok(a.document.querySelector('[data-agent-file]'));assert.ok(a.document.querySelector('[data-agent-form=preview]'));assert.equal(a.document.querySelector('[name=api_key]'),null);assert.match(a.document.querySelector('#agent').textContent,/Google Drive.*exigem conectores/)});
 test('API key form is only in integration editor, never prefilled and clears transient input on save',async()=>{const a=setup();await a.mount();a.document.querySelector('[data-tab=integrations]').click();a.document.querySelector('[data-agent=integration_edit]').scrollIntoView=()=>{};const proto=a.document.defaultView.HTMLElement.prototype;proto.scrollIntoView=()=>{};a.document.querySelector('[data-agent=integration_edit]').click();const f=a.document.querySelector('[data-agent-form=integration]');assert.equal(f.querySelector('[name=api_key]').value,'');assert.equal(f.querySelector('[name=api_key]').hasAttribute('required'),false);f.reportValidity=()=>true;f.querySelector('[name=api_key]').value='private-api-key-not-persisted';f.dispatchEvent(new a.window.Event('submit',{bubbles:true,cancelable:true}));assert.equal(f.querySelector('[name=api_key]').value,'');await new Promise(setImmediate);const sent=a.calls.find(c=>c[0]==='save'&&c[1]?.api_key);assert.equal(sent[1].id,I);assert.equal(sent[1].expected_revision,1);assert.equal(sent[1].api_key,'private-api-key-not-persisted');assert.ok(!a.document.querySelector('#agent').textContent.includes('private-api-key-not-persisted'));});
 test('test connection button is enabled immediately after an integration task finishes',async()=>{const a=setup();await a.mount();a.document.querySelector('[data-tab=integrations]').click();a.document.defaultView.HTMLElement.prototype.scrollIntoView=()=>{};a.document.querySelector('[data-agent=integration_edit]').click();const f=a.document.querySelector('[data-agent-form=integration]');f.reportValidity=()=>true;f.dispatchEvent(new a.window.Event('submit',{bubbles:true,cancelable:true}));await new Promise(setImmediate);assert.equal(a.document.querySelector('[data-agent=integration_test]').disabled,false)});
 test('missing backend shows activation state and does not accept API keys',async()=>{const a=setup({standby:true});await a.mount();assert.match(a.document.querySelector('#agent').textContent,/precisa ser ativada/);assert.equal(a.document.querySelector('[name=api_key]'),null)});
 test('integration editor uses a model selector and can load account models without exposing the key',async()=>{const a=setup();await a.mount();a.document.querySelector('[data-tab=integrations]').click();a.document.defaultView.HTMLElement.prototype.scrollIntoView=()=>{};a.document.querySelector('[data-agent=integration_edit]').click();const f=a.document.querySelector('[data-agent-form=integration]');assert.equal(f.querySelector('[name=model]').tagName,'SELECT');f.querySelector('[name=api_key]').value='temporary-key-not-stored';f.querySelector('[data-agent=integration_models]').click();await new Promise(setImmediate);assert.equal(f.querySelector('[name=api_key]').value,'temporary-key-not-stored');assert.ok([...f.querySelectorAll('[name=model] option')].some(x=>x.value==='gpt-4.1'));const call=a.calls.find(x=>x[0]==='models');assert.equal(call[1].provider,'openai');assert.equal(call[1].api_key,'temporary-key-not-stored');assert.ok(!a.document.querySelector('#agent').textContent.includes('temporary-key-not-stored'))});
+
+test('multiagent catalog surfaces only the selected configuration and keeps synthetic tests separate', async () => {
+  const a=setup();
+  const configuration={...a.config,revision:3,instructions:'Primeiro contexto'};
+  const agent={id:'first',status:'inactive',public_name:'Primeiro',admin_name:'Operação A',
+    integration_id:I,model:'test-model',settings:configuration};
+  const other={...agent,id:'second',public_name:'Segundo',admin_name:'Operação B',
+    settings:{...configuration,instructions:'Segundo contexto'}};
+  const calls=[];
+  a.window.NeoCloud.multiagent=async(action='list',payload={})=>{
+    calls.push([action,payload]);
+    if(action==='list')return [agent,other];
+    return {agent:payload.agent_id==='second'?other:agent,knowledge:[]};
+  };
+  a.window.NeoCloud.agentIntegration=async(action,payload)=>{
+    calls.push([action,payload]);
+    return {reply:'Resposta sintética'};
+  };
+  const settle=()=>new Promise(setImmediate);
+  await a.mount();
+  a.document.querySelector('[data-tab=catalog]').click();
+  await settle();
+  assert.ok(a.document.querySelector('[data-id=second]'));
+  a.document.querySelector('[data-id=first]').click();
+  await settle();
+  assert.equal(a.document.querySelector('[name=instructions]').value,'Primeiro contexto');
+  assert.doesNotMatch(a.document.querySelector('#agent').textContent,/Segundo contexto/);
+  assert.equal(a.document.querySelector('[name=api_key]'),null);
+  const preview=a.document.querySelector('[data-catalog-form=preview]');
+  preview.reportValidity=()=>true;
+  preview.querySelector('[name=message]').value='Mensagem sintética';
+  preview.dispatchEvent(new a.window.Event('submit',{bubbles:true,cancelable:true}));
+  await settle();
+  assert.equal(calls.find(([action])=>action==='preview_agent')[1].agent_id,agent.id);
+  assert.match(a.document.querySelector('#agent').textContent,/Resposta sintética/);
+  a.document.querySelector('[data-id=second]').click();
+  await settle();
+  assert.equal(a.document.querySelector('[name=instructions]').value,'Segundo contexto');
+  assert.doesNotMatch(a.document.querySelector('#agent').textContent,/Resposta sintética/);
+});
