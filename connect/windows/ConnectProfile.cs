@@ -44,7 +44,8 @@ internal static class ConnectProfile {
 
     public static bool IsValid {
         get {
-            return Uri.TryCreate(SupabaseUrl,UriKind.Absolute,out var url)
+            Uri url;
+            return Uri.TryCreate(SupabaseUrl,UriKind.Absolute,out url)
                 && url.Scheme == Uri.UriSchemeHttps
                 && url.Host.EndsWith(".supabase.co",StringComparison.OrdinalIgnoreCase)
                 && PublishableKey.StartsWith("sb_publishable_",StringComparison.Ordinal)
