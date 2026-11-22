@@ -95,7 +95,7 @@ test('aplica os sete lotes sobre uma instalação isolada da base oficial',async
   // CRLF fingerprint de produção: a função é semanticamente a mesma quando os
   // finais de linha são convertidos, mas o SHA bruto é diferente.
   const currentHash=async()=> (await db.query("select encode(sha256(convert_to(prosrc,'UTF8')),'hex') as sha from pg_proc where oid=to_regprocedure('public.neo_shop_v36(text,jsonb)')")).rows[0].sha;
-  const sourcePatch=fs.readFileSync('supabase/migrations/20261122190100_shop_checkout_retry.sql','utf8');
+  const sourcePatch=fs.readFileSync('release/production/optional-finance/20261122190100_shop_checkout_retry.sql','utf8');
   const sourceRollback=fs.readFileSync('release/production/rollback/20261122190100_shop_checkout_retry.sql','utf8');
   const oldSha='2ce19e73bcb43f0d86793b99155143ef841c9559d665129278dd6749cbb222c9';
   const prodCrLfSha='fc8d0d088eee0df77db4718b0a398585ee3f17fd7d36f198914c23d978723080';
