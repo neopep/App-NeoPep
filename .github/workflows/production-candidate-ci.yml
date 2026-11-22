@@ -35,6 +35,8 @@ jobs:
         run: |
           node --test tests/production-rehearsal.test.cjs
           node release/production/test-catalog.cjs
+      - name: Autoteste offline de integridade do Storage restaurado
+        run: python3 release/production/verify-storage-restore.py --self-test
       - name: Auditoria de dependencias
         run: npm audit --omit=dev --audit-level=high
 
