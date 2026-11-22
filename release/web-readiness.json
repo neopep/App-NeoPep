@@ -4,12 +4,12 @@
     "public_url_https": {
       "status": "pending",
       "evidence": "",
-      "note": "Domínio oficial documentado. Falta confirmar projeto Vercel, HTTPS e publicação READY da candidata após autorização."
+      "note": "A captura mostra app-neopep-staging Ready em Production do projeto de Teste e app-neopep Preview Error em tentativas antigas da branch staging/permanente. Falta confirmar o deployment Production do projeto app-neopep, a branch main, domínio HTTPS e publicar a candidata mediante autorização."
     },
     "auth_email_delivery": {
       "status": "pending",
       "evidence": "",
-      "note": "Confirmar SMTP próprio, confirmação e recuperação para destinatários externos."
+      "note": "A versão oficial de Auth foi preservada. Falta comprovar em conta descartável habilitação de signup, entrega SMTP/OTP e recuperação de senha no domínio público."
     },
     "auth_redirects_captcha": {
       "status": "pending",
@@ -44,7 +44,7 @@
     "catalog_release": {
       "status": "pending",
       "evidence": "",
-      "note": "Reembolso parcial e repetição idempotente passaram em testes isolados. Falta conciliar a origem oficial, comprovar restauração e validar Orders e webhook em sandbox."
+      "note": "Mercado Pago em Produção é a fonte de verdade: Edge mercadopago-create e mercadopago-webhook restauradas aos blobs oficiais da main; nenhuma Edge financeira nem lote SQL 07 integra esta publicação. Falta confirmar um checkout controlado, retorno, webhook e estado de pedido na configuração oficial sem gerar cobrança real não autorizada."
     },
     "iphone_android": {
       "status": "pending",
