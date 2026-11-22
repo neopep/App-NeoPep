@@ -78,6 +78,20 @@ export async function createBaileysProvider(
     id:row.id,name:row.subject,members:Number.isSafeInteger(row.size)?row.size:Array.isArray(row.participants)?row.participants.length:null
    }));
   },
+  // Envio manual, não automático: confirma participação antes de enviar.
+  // Um timeout/erro após a chamada não autoriza nova tentativa automática.
+  async sendText(groupJid,text){
+   const current=socket;
+   if(!connected||!current)throw Error('WhatsApp desconectado.');
+   if(!/^[0-9-]{1,64}@g\\.us$/.test(groupJid))throw Error('Grupo inválido.');
+   if(typeof text!=='string'||!text.trim()||text.length>2000)throw Error('Mensagem inválida.');
+   const groups=await current.groupFetchAllParticipating();
+   if(!connected||socket!==current)throw Error('A sessão mudou.');
+   if(!Object.prototype.hasOwnProperty.call(groups,groupJid))throw Error('A conta não participa deste grupo.');
+   const receipt=await current.sendMessage(groupJid,{text:text.trim()});
+   if(!receipt?.key?.id)throw Error('Não foi possível confirmar o aceite do envio.');
+   return {messageId:String(receipt.key.id).slice(0,160)};
+  },
   async forget(){
    closed=true;connected=false;cancel(reconnectTimer);
    const current=socket;socket=null;keys.clear();onCredentials(null);
