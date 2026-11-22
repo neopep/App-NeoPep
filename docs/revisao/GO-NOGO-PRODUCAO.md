@@ -5,6 +5,10 @@
 - [x] Comparar Git, confirmar os heads e excluir PRs #22 e #23.
 - [x] Verificar configuração oficial, marca, rotas legadas, isolamento das APIs de Teste e do canal Windows.
 - [x] Incorporar o resumo autenticado ao desenho e executar os sete lotes em banco sintético.
+- [x] Comparar as **56 assinaturas ausentes** com as fontes dos sete lotes: **42 declaradas e 14 fora de ativação**. Examinar as **124 funções divergentes**: 116 com corpo compacto igual (equivalência semântica ainda não comprovada), 8 com alterações de corpo que exigem decisão de contrato; 72 com ACL textual divergente. [Matriz](MATRIZ-FUNCOES-56-124-20261122.md) · [Dependências e privilégios](DEPENDENCIAS-FUNCOES-20261122.md).
+- [x] Inventariar o **ledger** em ambos os projetos: 16 versões no Teste e nenhuma registrada na Produção; 4 versões do Teste sem arquivo de mesmo ID no Git. [Análise do histórico](LEDGER-FINGERPRINTS-20261122.md). A reconciliação operacional continua pendente.
+- [x] Acrescentar verificação **offline** de integridade dos arquivos Storage restaurados, com autoteste (tamanhos, hashes, cobertura e defesa contra path traversal). [Procedimento](../../release/production/RESTORE-REHEARSAL.md). Isto NÃO comprova que o backup oficial foi restaurado.
+- [x] Conferir as versões implantadas de Edge e os contratos de Mercado Pago Orders sem acessar segredos ou fazer transações. [Análise de Edge e sandbox pendente](EDGE-ORDERS-CONTRATOS-20261122.md).
 - [ ] Confirmar o catálogo integral e o ledger oficiais, o ponto de recuperação e a restauração de banco e Storage em destino autorizado.
 - [ ] Revisar definições das 124 rotinas divergentes, constraints, RLS e privilégios e ensaiar os deltas.
 - [ ] Conferir domínio, Vercel READY, Auth/CAPTCHA, CORS, SMTP, recuperação e rota legada com PWA instalada.
