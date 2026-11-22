@@ -30,7 +30,7 @@ sealed class SimulatedProvider : ICampaignProvider {
 }
 
 sealed class Connect : Form {
-    const string Version = "0.1.1";
+    const string Version = "0.2.0";
     const string Origin = "https://qnuluspqfazdppciermw.supabase.co";
     const string StagingPanel = "https://teste.app.neopep.com.br/admin/";
     static readonly string Folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NeoPep Connect");
@@ -83,7 +83,9 @@ sealed class Connect : Form {
         login.Click+=async delegate {await Login();};
         diagnose.Click+=delegate {MessageBox.Show(File.Exists(log)?File.ReadAllText(log):"Sem eventos registrados.",Text);};
         open.Click+=delegate {Process.Start(StagingPanel);};
-        actions.Controls.AddRange(new Control[]{login,diagnose,open});layout.Controls.Add(actions);
+        var whatsapp=Button("WhatsApp experimental");
+        whatsapp.Click+=delegate {using(var pairing=new WhatsApp(Folder))pairing.ShowDialog(this);};
+        actions.Controls.AddRange(new Control[]{login,whatsapp,diagnose,open});layout.Controls.Add(actions);
         startup.Text="Iniciar com o Windows";startup.AutoSize=true;
         using(var run=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")){
             startup.Checked=run.GetValue("NeoPepConnectStaging")!=null;
