@@ -83,6 +83,58 @@ internal static class ConnectTheme {
         }
     }
 
+    // Casca desktop: navegação fixa à esquerda, conteúdo original preservado à direita.
+    internal static Control BuildShell(TabControl tabs,string title){
+        tabs.Appearance=TabAppearance.FlatButtons;
+        tabs.DrawMode=TabDrawMode.Normal;
+        tabs.SizeMode=TabSizeMode.Fixed;
+        tabs.ItemSize=new Size(0,1);
+        tabs.Dock=DockStyle.Fill;
+
+        var shell=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=1,
+            BackColor=Background,Margin=new Padding(0),Padding=new Padding(0)};
+        shell.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,218));
+        shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        shell.RowStyles.Add(new RowStyle(SizeType.Percent,100));
+
+        var sidebar=new Panel{Dock=DockStyle.Fill,BackColor=Surface,
+            Padding=new Padding(13,18,10,12),Margin=new Padding(0,0,10,0)};
+        var brand=new Label{Text=title,Font=new Font("Segoe UI Semibold",17,FontStyle.Bold),
+            ForeColor=Accent,Height=54,Dock=DockStyle.Top,TextAlign=ContentAlignment.MiddleLeft};
+        var navigation=new FlowLayoutPanel{Dock=DockStyle.Fill,
+            AutoScroll=true,FlowDirection=FlowDirection.TopDown,WrapContents=false,
+            BackColor=Surface,Padding=new Padding(0,18,0,4)};
+        var buttons=new System.Collections.Generic.Dictionary<TabPage,Button>();
+        foreach(TabPage page in tabs.TabPages){
+            var target=page;
+            var button=new Button{Text=target.Text,Width=186,Height=45,
+                TextAlign=ContentAlignment.MiddleLeft,FlatStyle=FlatStyle.Flat,
+                BackColor=Surface,ForeColor=Muted,
+                Font=new Font("Segoe UI",10,FontStyle.Regular),
+                Margin=new Padding(0,0,0,7),Padding=new Padding(12,0,0,0),
+                Cursor=Cursors.Hand};
+            button.FlatAppearance.BorderSize=0;
+            button.Click+=(sender,args)=>tabs.SelectedTab=target;
+            buttons.Add(target,button);
+            navigation.Controls.Add(button);
+        }
+        System.Action refresh=()=>{
+            foreach(var pair in buttons){
+                bool active=tabs.SelectedTab==pair.Key;
+                pair.Value.BackColor=active?Raised:Surface;
+                pair.Value.ForeColor=active?Accent:Muted;
+                pair.Value.Font=new Font("Segoe UI",10,active?FontStyle.Bold:FontStyle.Regular);
+            }
+        };
+        tabs.SelectedIndexChanged+=(sender,args)=>refresh();
+        sidebar.Controls.Add(navigation);
+        sidebar.Controls.Add(brand);
+        shell.Controls.Add(sidebar,0,0);
+        shell.Controls.Add(tabs,1,0);
+        refresh();
+        return shell;
+    }
+
     internal static void Primary(Button button){
         button.BackColor=Accent;
         button.ForeColor=Background;
