@@ -1,4 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),{assess,REQUIRED}=require('../scripts/release-check.cjs');
-const config={controllerName:'Empresa teste',controllerCnpj:'informado',privacyContact:'test@example.test',captchaRequired:true,captchaSiteKey:'public',providers:{email:true},cloudValidated:true};
+const config={controllerName:'Empresa teste',controllerCnpj:'informado',privacyContact:'test@example.test',captchaRequired:true,captchaSiteKey:'public',providers:{email:true},publicRegistration:true,previewRegistration:false,cloudValidated:true};
 const complete=()=>({target:'web-mobile',checks:Object.fromEntries(REQUIRED.map(id=>[id,{status:'verified',evidence:'Resultado de teste registrado em ambiente de homologação'}]))});
 test('liberação exige evidência para todos os requisitos e integração validada',()=>{assert.deepEqual(assess(complete(),config),[]);for(const id of REQUIRED){const missing=complete();delete missing.checks[id];assert.ok(assess(missing,config).some(v=>v.startsWith(id+':')));const empty=complete();empty.checks[id].evidence=' ';assert.ok(assess(empty,config).length);}assert.ok(assess(complete(),{...config,cloudValidated:false}).length);assert.ok(assess({},config).length)});
+
+test('GO público exige flag pública, não modo de preview',()=>{const checks=complete();assert.deepEqual(assess(checks,config),[]);assert.ok(assess(checks,{...config,publicRegistration:false}).some(v=>v.includes('Cadastro público')));assert.ok(assess(checks,{...config,previewRegistration:true}).some(v=>v.includes('Cadastro público')));});
