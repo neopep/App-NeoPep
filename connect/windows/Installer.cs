@@ -54,6 +54,7 @@ static class Installer {
             if(!String.Equals(sourcePath,installed,StringComparison.OrdinalIgnoreCase))File.Copy(sourcePath,installed,true);
             using(var item=Registry.CurrentUser.CreateSubKey(Uninstall)){
                 item.SetValue("DisplayName",Name);item.SetValue("DisplayVersion",ConnectVersion.Number);item.SetValue("Publisher","NeoPep");
+                item.SetValue("DisplayIcon",binary+",0");
                 item.SetValue("UninstallString","\""+installed+"\" --uninstall");
             }
             Type shell=Type.GetTypeFromProgID("WScript.Shell");
@@ -61,6 +62,7 @@ static class Installer {
                 object instance=Activator.CreateInstance(shell);
                 object shortcut=shell.InvokeMember("CreateShortcut",BindingFlags.InvokeMethod,null,instance,new object[]{Shortcut()});
                 shortcut.GetType().InvokeMember("TargetPath",BindingFlags.SetProperty,null,shortcut,new object[]{binary});
+                shortcut.GetType().InvokeMember("IconLocation",BindingFlags.SetProperty,null,shortcut,new object[]{binary+",0"});
                 shortcut.GetType().InvokeMember("Save",BindingFlags.InvokeMethod,null,shortcut,new object[0]);
             }
             if(!quiet)Process.Start(binary);

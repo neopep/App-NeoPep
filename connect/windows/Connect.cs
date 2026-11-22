@@ -157,7 +157,7 @@ sealed partial class Connect : Form {
         Controls.Add(ConnectTheme.BuildShell(tabs,"NEOPEP"));
         ConnectTheme.Restyle(this);
         ConnectTheme.Primary(login);
-        tray.Icon=SystemIcons.Application;tray.Text=ConnectProfile.AppName;tray.Visible=true;
+        tray.Icon=Icon;tray.Text=ConnectProfile.AppName;tray.Visible=true;
         var menu=new ContextMenuStrip();
         menu.Items.Add("Abrir",null,delegate {Show();Activate();});menu.Items.Add("Sair",null,delegate {exiting=true;Close();});
         tray.ContextMenuStrip=menu;tray.DoubleClick+=delegate {Show();Activate();};
@@ -199,7 +199,7 @@ sealed partial class Connect : Form {
 
     void OpenWhatsApp(bool groups,bool composer=false){
         whatsappOpen=true;
-        try{using(var window=new WhatsApp(Folder,groups,SyncWhatsAppGroups,SetWhatsAppStatus,()=>SessionReady()&&deviceApproved,LoadCampaignSources,composer))window.ShowDialog(this);}
+        try{using(var window=new WhatsApp(Folder,groups,SyncWhatsAppGroups,SetWhatsAppStatus,()=>SessionReady()&&deviceApproved,LoadCampaignSources,composer,LoadCampaignImage))window.ShowDialog(this);}
         finally{whatsappOpen=false;}
     }
 
@@ -288,9 +288,43 @@ sealed partial class Connect : Form {
     }
     async Task<Dictionary<string,object>[]> LoadCampaignSources(string kind,string search){
         if(!SessionReady()||!deviceApproved)throw new InvalidOperationException();
+        if(kind=="product"){
+            var catalog=await Post("/rest/v1/rpc/neo_shop",new {p_action="catalog"},true);
+            var rows=new List<Dictionary<string,object>>();
+            object products;
+            if(catalog.TryGetValue("products",out products)&&products is System.Collections.IEnumerable)
+                foreach(var item in (System.Collections.IEnumerable)products){
+                    var row=item as Dictionary<string,object>;
+                    if(row!=null&&String.Equals(Value(row,"active"),"True",StringComparison.Ordinal)&&
+                       Value(row,"name").IndexOf(search.Trim(),StringComparison.CurrentCultureIgnoreCase)>=0)rows.Add(row);
+                    if(rows.Count==50)break;
+                }
+            return rows.ToArray();
+        }
         var body=kind=="templates"?new {p_action="list",p_data=(object)new {offset=0}}:
             new {p_action="catalog",p_data=(object)new {kind=kind,search=search}};
         return await PostJson<Dictionary<string,object>[]>("/rest/v1/rpc/neo_campaign_admin",body,true);
+    }
+    async Task<byte[]> LoadCampaignImage(string bucket,string path){
+        if(!SessionReady()||!deviceApproved||(bucket!="neo-shop-products"&&bucket!="neo-campaign-images")||
+           !System.Text.RegularExpressions.Regex.IsMatch(path,@"\A[a-f0-9-]{36}/[a-f0-9-]{36}\.(jpg|jpeg|png)\z"))
+            throw new InvalidOperationException();
+        var request=(HttpWebRequest)WebRequest.Create(Origin+"/storage/v1/object/authenticated/"+bucket+"/"+path);
+        request.AllowAutoRedirect=false;request.Headers["Authorization"]="Bearer "+access;request.Headers["apikey"]=ConnectProfile.PublishableKey;
+        using(var deadline=new System.Threading.Timer(_=>request.Abort(),null,TimeSpan.FromSeconds(15),System.Threading.Timeout.InfiniteTimeSpan))
+        using(var response=(HttpWebResponse)await request.GetResponseAsync())
+        using(var input=response.GetResponseStream())
+        using(var content=new MemoryStream()){
+            const int limit=5*1024*1024;
+            if(response.StatusCode!=HttpStatusCode.OK||response.ContentLength>limit)throw new IOException();
+            var buffer=new byte[16384];
+            int read;
+            while((read=await input.ReadAsync(buffer,0,buffer.Length))!=0){
+                if(content.Length+read>limit)throw new IOException();
+                content.Write(buffer,0,read);
+            }
+            return content.ToArray();
+        }
     }
     async Task Tokens(string grant,object credentials,bool persist=true) {
         var result=await Post("/auth/v1/token?grant_type="+grant,credentials,false);

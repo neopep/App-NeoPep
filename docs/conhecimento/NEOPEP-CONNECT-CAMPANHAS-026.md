@@ -21,3 +21,11 @@ Base do candidato: `75f5b441beb2d0a6472d5544e639f53f9184c069`, versão 0.2.5. O 
 ## Evidência automatizada
 
 O [runner Windows x64](https://github.com/neopep/App-NeoPep/actions/runs/45040796499) compilou o commit `77e04e0` e validou autenticação dos pacotes, tema e marca, atualização da prévia WinForms, reabertura de rascunho DPAPI, instalação, inicialização, remoção e preservação do cofre ao atualizar das linhas de base 0.1.1 e 0.1.2. O EXE de CI tinha 50.157.568 bytes e SHA-256 `462040f886eb66f442de738b1d3a40619d14a50d64f01fddb413652497443ba8`. Os 13 testes focados do Connect e os 7 testes do bridge passaram. O teste do bridge usa WhatsApp fictício. A conferência interativa sobre uma instalação 0.2.5 com sessão real continua pendente. O repositório privado retornou 404 para a integração desta sessão, então não houve artefato de instalação compartilhado nem aprovação do candidato.
+
+## Ajustes da auditoria no PR #18
+
+A prévia ganhou moldura de smartphone desenhada com escala da interface, câmera, cabeçalho do chat, conversa rolável e indicador inferior. O instalador e o executável incorporam um ICO em sete tamanhos gerado a partir de `dist/assets/logo-neopep.png`. A janela, o atalho e a bandeja usam o mesmo ícone.
+
+O catálogo reaproveita apenas produtos ativos e aplica descrição, preço informado pelo catálogo e foto autorizada. Campanhas reaproveitam título, corpo, CTA com URL HTTPS configurada e imagem cadastrada no Storage. A origem fica identificada no rascunho. Fotos passam pela sessão Teste e pela RLS do Storage, com limite e sem redirecionamento. Ofertas reaproveitam o rótulo público disponível na RPC de catálogo. Não há URL individual de produto no contrato atual. Imagens externas ou sem formato suportado podem ser adicionadas manualmente em JPEG/PNG.
+
+A programação local é sempre identificada como **lembrete de revisão**. Publicação programada automática continua indisponível até existir autorização explícita por destino, fila auditável e testes independentes. O envio imediato de texto e imagem preserva a confirmação existente.

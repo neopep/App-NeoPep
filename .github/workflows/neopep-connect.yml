@@ -72,7 +72,7 @@ jobs:
           $type = $binary.GetType('WhatsApp',$true)
           $profile = Join-Path $env:RUNNER_TEMP 'connect-composer-fixture'
           New-Item -ItemType Directory -Path $profile | Out-Null
-          $ctorArgs = New-Object object[] 7
+          $ctorArgs = New-Object object[] 8
           $ctorArgs.SetValue($profile.PSObject.BaseObject,0)
           $ctorArgs.SetValue($false,1)
           $ctorArgs.SetValue($true,6)

@@ -46,8 +46,8 @@ sealed partial class WhatsApp : Form {
     bool closing,forgetting,ready;
     int generation;
 
-    public WhatsApp(string profile,bool showGroups=false,Func<Guid,long,object[],Task<long>> saveSelection=null,Func<Guid,string,Task> reportStatus=null,Func<bool> canPublish=null,Func<string,string,Task<Dictionary<string,object>[]>> loadSources=null,bool showComposer=false) {
-        this.saveSelection=saveSelection;this.reportStatus=reportStatus;this.canPublish=canPublish;this.loadSources=loadSources;
+    public WhatsApp(string profile,bool showGroups=false,Func<Guid,long,object[],Task<long>> saveSelection=null,Func<Guid,string,Task> reportStatus=null,Func<bool> canPublish=null,Func<string,string,Task<Dictionary<string,object>[]>> loadSources=null,bool showComposer=false,Func<string,string,Task<byte[]>> loadImage=null) {
+        this.saveSelection=saveSelection;this.reportStatus=reportStatus;this.canPublish=canPublish;this.loadSources=loadSources;this.loadImage=loadImage;
         var waHeartbeat=new Timer{Interval=60000};
         waHeartbeat.Tick+=async delegate{if(ready)await ReportStatus("connected");};
         waHeartbeat.Start();
@@ -177,7 +177,7 @@ sealed partial class WhatsApp : Form {
         try{
             var choice=targetGroup.SelectedItem as GroupChoice;
             var payload=json.Serialize(new {text=messageText.Text,group=choice==null?draftGroupId:choice.Id,title=campaignTitle.Text,cta=campaignCta.Text,
-                image=campaignImage==null?null:Convert.ToBase64String(campaignImage),due=scheduledUtc.HasValue?scheduledUtc.Value.ToString("o"):null});
+                image=campaignImage==null?null:Convert.ToBase64String(campaignImage),origin=campaignOrigin.Text,due=scheduledUtc.HasValue?scheduledUtc.Value.ToString("o"):null});
             byte[] bytes=ProtectedData.Protect(Utf8.GetBytes(payload),null,DataProtectionScope.CurrentUser);
             string temporary=draftPath+".new";
             File.WriteAllBytes(temporary,bytes);
@@ -193,6 +193,7 @@ sealed partial class WhatsApp : Form {
             var draft=json.Deserialize<Dictionary<string,object>>(Utf8.GetString(data));
             draftGroupId=TextValue(draft,"group");
             messageText.Text=TextValue(draft,"text");
+            campaignOrigin.Text=TextValue(draft,"origin");
             campaignTitle.Text=TextValue(draft,"title");campaignCta.Text=TextValue(draft,"cta");
             RestoreCampaignMedia(TextValue(draft,"image"),TextValue(draft,"due"));
             RefreshComposerGroups();

@@ -60,10 +60,11 @@ internal static class ConnectVersion {
         if ($LASTEXITCODE) { throw 'Falha ao compilar auxiliar de atualizacao' }
         $runtimeResources = @("/resource:$archive,whatsapp-runtime.zip", "/resource:$helper,NeoPepUpdate.exe")
     }
+    $icon = Join-Path $PSScriptRoot 'neopep.ico'
     $brand = Join-Path (Split-Path (Split-Path $PSScriptRoot)) 'dist/assets/icon-192.png'
-    & $csc /nologo /target:winexe /platform:x64 /codepage:65001 $define "/resource:$brand,NeoPepBrand" "/out:$client" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Security.dll /r:System.Web.Extensions.dll @trustResource $versionSource "$PSScriptRoot\ConnectProfile.cs" "$PSScriptRoot\Connect.cs" "$PSScriptRoot\ConnectTheme.cs" "$PSScriptRoot\WhatsApp.cs" "$PSScriptRoot\CampaignComposer.cs" "$PSScriptRoot\UpdateTrust.cs" "$PSScriptRoot\UpdateUi.cs"
+    & $csc /nologo /target:winexe /platform:x64 /codepage:65001 $define "/win32icon:$icon" "/resource:$brand,NeoPepBrand" "/out:$client" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Security.dll /r:System.Web.Extensions.dll @trustResource $versionSource "$PSScriptRoot\ConnectProfile.cs" "$PSScriptRoot\Connect.cs" "$PSScriptRoot\ConnectTheme.cs" "$PSScriptRoot\WhatsApp.cs" "$PSScriptRoot\CampaignComposer.cs" "$PSScriptRoot\UpdateTrust.cs" "$PSScriptRoot\UpdateUi.cs"
     if ($LASTEXITCODE) { throw 'Falha ao compilar o cliente' }
-    & $csc /nologo /target:winexe /platform:x64 /codepage:65001 $define "/out:$setup" /r:System.Windows.Forms.dll /r:System.IO.Compression.FileSystem.dll "/resource:$client,NeoPepConnect.exe" @runtimeResources $versionSource "$PSScriptRoot\ConnectProfile.cs" "$PSScriptRoot\Installer.cs"
+    & $csc /nologo /target:winexe /platform:x64 /codepage:65001 $define "/win32icon:$icon" "/out:$setup" /r:System.Windows.Forms.dll /r:System.IO.Compression.FileSystem.dll "/resource:$client,NeoPepConnect.exe" @runtimeResources $versionSource "$PSScriptRoot\ConnectProfile.cs" "$PSScriptRoot\Installer.cs"
     if ($LASTEXITCODE) { throw 'Falha ao compilar o instalador' }
     $hash = (Get-FileHash -Algorithm SHA256 $setup).Hash.ToLowerInvariant()
     [ordered]@{

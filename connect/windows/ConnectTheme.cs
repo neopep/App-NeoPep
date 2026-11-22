@@ -43,6 +43,8 @@ internal static class ConnectTheme {
         ApplyContent(window);window.Invalidate(true);
     }
     internal static void Apply(Form window,TabControl tabs){
+        var icon=Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        if(icon!=null){window.Icon=icon;window.Disposed+=delegate{icon.Dispose();};}
         window.BackColor=Background;
         window.ForeColor=Text;
         window.Font=new Font("Segoe UI Variable Text",10f);

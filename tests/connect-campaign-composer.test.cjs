@@ -29,3 +29,22 @@ test('tema permanece no cofre e catálogo reaproveita RPC administrativa de Test
  assert.match(theme,/GetManifestResourceStream\("NeoPepBrand"\)/);
  assert.match(app,/LoadCampaignSources[\s\S]*if\(!SessionReady\(\)\|\|!deviceApproved\)[\s\S]*neo_campaign_admin/);
 });
+
+test('prévia usa moldura própria e a marca está no aplicativo, instalador e atalho',()=>{
+ const panel=read('CampaignComposer.cs'),build=read('build.ps1'),installer=read('Installer.cs'),app=read('Connect.cs');
+ assert.match(panel,/class SmartphoneFrame/);
+ assert.match(panel,/FillPath/);
+ assert.match(panel,/Prévia • sem envio/);
+ assert.equal((build.match(/win32icon:\$icon/g)||[]).length,2);
+ assert.match(installer,/IconLocation/);
+ assert.match(app,/tray\.Icon=Icon/);
+});
+test('preço e imagens vêm de campos autorizados e lembrete não programa postagem',()=>{
+ const panel=read('CampaignComposer.cs'),app=read('Connect.cs');
+ assert.match(panel,/price_cents/);
+ assert.match(panel,/link_url/);
+ assert.match(app,/api[\s\S]*neo_shop/);
+ assert.match(app,/storage\/v1\/object\/authenticated/);
+ assert.match(app,/AllowAutoRedirect=false/);
+ assert.match(panel,/Publicação programada automática indisponível/);
+});
