@@ -25,37 +25,28 @@
 
 **Não é possível afirmar que há backup restaurável apenas porque o banco é pequeno ou os objetos estão no Storage.** É obrigatório produzir exportação independente e verificar os dois tipos de dados.
 
-## Bloqueio financeiro adicional: fingerprint REAL não aceito pelo lote 07
+## Fingerprint da Loja: divergência CRLF/LF explicada e corrigida somente na candidata
 
-A consulta de `encode(sha256(convert_to(prosrc,'UTF8')),'hex')` na rotina **instalada em produção**, `public.neo_shop_v36(text,jsonb)`, retornou:
+Consulta READ-ONLY aos dois ambientes confirmou:
 
-```
-fc8d0d088eee0df77db4718b0a398585ee3f17fd7d36f198914c23d978723080
-```
+| Projeto | SHA-256 bruto `neo_shop_v36` | SHA-256 após normalizar `CRLF→LF` |
+|---|---|---|
+| Produção | `fc8d0d088eee0df77db4718b0a398585ee3f17fd7d36f198914c23d978723080` | `2ce19e73bcb43f0d86793b99155143ef841c9559d665129278dd6749cbb222c9` |
+| Teste | `2ce19e73bcb43f0d86793b99155143ef841c9559d665129278dd6749cbb222c9` | `2ce19e73bcb43f0d86793b99155143ef841c9559d665129278dd6749cbb222c9` |
 
-A migração `supabase/migrations/20261122190100_shop_checkout_retry.sql` aceita somente o fingerprint **anterior esperado**:
+O corpo SQL **é idêntico byte a byte depois de converter `CRLF` para `LF`**; isto não é uma normalização que simplesmente remove todo espaço, e o trecho de substituição foi localizado exatamente **uma vez** nos dois bancos. Assim, a incompatibilidade de *fingerprint bruto* era exclusivamente o estilo de quebra de linha.
 
-```
-2ce19e73bcb43f0d86793b99155143ef841c9559d665129278dd6749cbb222c9
-```
+**Commit da correção apenas no PR:** `b2927ef9b8c2c08c43fdf5e38e7ae78246c344d9`.
 
-ou o fingerprint já corrigido:
+- A migração `20261122190100_shop_checkout_retry.sql` verifica **apenas** os hashes canônicos originais `2ce19...` e corrigidos `cba1...`, normalizando `CRLF→LF` antes de conferir e executar o patch.
+- A reversão simétrica faz a mesma normalização e mantém o fingerprint pós-operação.
+- `release/production/finance-preflight.sql` mantém os hashes **bruto e canônico** disponíveis para revisão e classifica corretamente a versão oficial atual como `baseline_git`.
+- O manifesto SHA-256 do lote 07 foi recalculado. O ensaio automatizado verifica também rollback, adaptação da versão CRLF e reaplicação idempotente em PGlite.
+- [GitHub Actions 45063524997](https://github.com/neopep/App-NeoPep/actions/runs/45063524997): job **Candidata sem deploy APROVADO**. O gate final continua **NO-GO**, como esperado.
 
-```
-cba1a27d4d54e0cb050877b3434003440a3ba9493cd27dad43b4a4ebd1038521
-```
+Os sete contratos RPC financeiros consultados estavam presentes, com os privilégios efetivos atuais preservados. As restrições `UNIQUE(user_id, request_key)`, `UNIQUE(payment_id)` e a chave primária `shop_payments(payment_id)` estavam presentes.
 
-**Resultado:** o lote 07 **deve falhar fechado** se tentarmos aplicá-lo diretamente ao corpo oficial atual, ainda que a candidata tenha passado no ensaio **sintético**. Não acrescentar `fc8d...` à allowlist sem provar que o corpo e os contratos oficiais equivalem à referência usada para gerar o patch, incluindo endereço, frete, totais, cancelamento e concorrência.
-
-Os sete contratos de RPC financeiros consultados estavam presentes, com os privilégios efetivos atuais preservados. As restrições `UNIQUE(user_id, request_key)`, `UNIQUE(payment_id)` e a chave primária `shop_payments(payment_id)` estavam presentes. Essas condições **não eliminam** o risco de recotação e idempotência.
-
-### Resolução segura do fingerprint
-
-1. Capturar a definição DDL oficial e o fingerprint num **clone isolado/restaurado**. Não editar função da produção durante análise.
-2. Comparar corpo lexical e comportamento com o SQL histórico exato `neo_shop_v36` que gerou o fingerprint previsto, sem presumir equivalência por remoção de espaços.
-3. Ensaiar SQL idempotente específico no clone com todos os estados de pedido: mesma chave/carrinho vazio, endereço e faturamento diferentes, estoque, preço/frete, concorrência, dois usuários e retomada de pagamento.
-4. Só após equivalência comprovada, gerar patch/guard adaptado e hashes para a versão oficial, além de rollback compensatório testado. Não copiar wrapper de Teste por cima do oficial sem essa comparação.
-5. Revisar `mercadopago-webhook` v11 ativa: não trata explicitamente `partially_refunded`. A correção na candidata ainda exige testes em sandbox e decisão independente de deploy.
+**Limite:** A correção passou nos testes sintéticos e é compatível lexicalmente com o corpo oficial após normalização. **Nenhuma migração foi aplicada ao Supabase oficial ou a uma cópia real restaurada.** Ainda é obrigatório validar a função dentro do clone autorizado e homologar os cenários de idempotência/pagamento externo em sandbox, antes da liberação.
 
 ## Estratégia de backup no plano Free
 

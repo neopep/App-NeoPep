@@ -9,6 +9,8 @@
 - [x] Inventariar o **ledger** em ambos os projetos: 16 versões no Teste e nenhuma registrada na Produção; 4 versões do Teste sem arquivo de mesmo ID no Git. [Análise do histórico](LEDGER-FINGERPRINTS-20261122.md). A reconciliação operacional continua pendente.
 - [x] Acrescentar verificação **offline** de integridade dos arquivos Storage restaurados, com autoteste (tamanhos, hashes, cobertura e defesa contra path traversal). [Procedimento](../../release/production/RESTORE-REHEARSAL.md). Isto NÃO comprova que o backup oficial foi restaurado.
 - [x] Conferir as versões implantadas de Edge e os contratos de Mercado Pago Orders sem acessar segredos ou fazer transações. [Análise de Edge e sandbox pendente](EDGE-ORDERS-CONTRATOS-20261122.md).
+- [x] Confirmar via consulta autenticada o plano **Free** e o inventário da origem (banco ~23,6 MB; 34 objetos em 7 buckets, ~58,3 MB por metadados). Preparar [roteiro Windows de backup](../../release/production/BACKUP-FREE-WINDOWS.md); **exportação e restauração reais ainda não realizadas**.
+- [x] Adaptar **somente na candidata** o lote financeiro e rollback para normalizar `CRLF/LF`, confirmar fingerprints canônicos originais idênticos em Produção/Teste e aprovar cenário de regressão PGlite. [Evidência](PREFLIGHT-BACKUP-FINANCE-20261122.md).
 - [ ] Confirmar o catálogo integral e o ledger oficiais, o ponto de recuperação e a restauração de banco e Storage em destino autorizado.
 - [ ] Revisar definições das 124 rotinas divergentes, constraints, RLS e privilégios e ensaiar os deltas.
 - [ ] Conferir domínio, Vercel READY, Auth/CAPTCHA, CORS, SMTP, recuperação e rota legada com PWA instalada.

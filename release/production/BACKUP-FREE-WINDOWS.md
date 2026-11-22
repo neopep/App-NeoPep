@@ -69,7 +69,7 @@ supabase storage cp --recursive --remote --experimental "ss:///$bucket" "$destin
 if ($LASTEXITCODE -ne 0) { throw "Erro ao baixar $bucket" }
 ```
 
-Repetir para os **sete buckets com objetos** (inclusive os antes vazios se receberem itens) e comparar contagens e somas de tamanho com um inventário remoto contemporâneo. Armazenar hashes SHA-256 em manifestos **privados**, jamais no repositório ou em publicações. Se a CLI experimental não estiver habilitada ou falhar, usar cliente S3 autenticado (rclone/Cyberduck) como documentado oficialmente, sem compartilhar as credenciais.
+Conferir os **sete buckets**, baixando todos os que tiverem objetos (inclusive os antes vazios se receberem itens) e comparar contagens e somas de tamanho com um inventário remoto contemporâneo. Armazenar hashes SHA-256 em manifestos **privados**, jamais no repositório ou em publicações. Se a CLI experimental não estiver habilitada ou falhar, usar cliente S3 autenticado (rclone/Cyberduck) como documentado oficialmente, sem compartilhar as credenciais.
 
 A base PostgreSQL armazena os metadados `storage.objects`, mas o `dump` não faz backup do corpo dos arquivos. Uma cópia contendo apenas registros do banco NÃO recupera PDF, fotos, documentos e imagens.
 
@@ -81,7 +81,7 @@ O clone de restauração deve **não ter acesso** a Mercado Pago, WhatsApp, SMTP
 2. Conferir a existência e permissões dos schemas `auth`, `public`, `neo_private` e `storage`; verificar dados e contagens agregadas, sem extrair conteúdo individual.
 3. Conferir todos os arquivos (nomes, tamanhos, SHA-256) contra **manifesto oriundo dos arquivos efetivamente recebidos da origem**, sem inventar hashes.
 4. Executar `python3 release/production/verify-storage-restore.py --manifest ... --expected-counts ... --root ...` no clone e verificar todos os buckets.
-5. Aplicar o ensaio dos sete lotes com a identidade `neopep_release_rehearsal` e comprovar RLS, grants, SQL financeiro e rollback. **O lote financeiro atualmente NÃO aceita o fingerprint real da função `neo_shop_v36` e exige revisão antes de aprovação.**
+5. Aplicar o ensaio dos sete lotes com a identidade `neopep_release_rehearsal` e comprovar RLS, grants, SQL financeiro e rollback. **O lote financeiro foi adaptado no PR para o fingerprint canônico da função `neo_shop_v36` (CRLF/LF), mas a aplicação precisa ser comprovada sobre cópia real restaurada antes da aprovação.**
 6. Capturar tempo de restauração, SHA de dumps, contagens por tabela, diferença de ACLs/Edge e relatório de sucesso antes de considerar o backup efetivamente validado.
 
 ## Limites do trabalho automatizado pelo assistente
