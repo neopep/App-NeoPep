@@ -1,0 +1,149 @@
+name: NeoPep Connect - Par assinado de homologacao (temporario)
+
+on:
+  push:
+    branches:
+      - desenvolvimento/connect-cloud-trial-ci
+    paths:
+      - .github/workflows/neopep-connect-trial-pair.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neopep-connect-trial-pair-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  trial:
+    name: Compilar e conferir 0.2.2 + 0.2.3 sem publicar
+    if: github.ref == 'refs/heads/desenvolvimento/connect-cloud-trial-ci'
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - name: Obter commit exato sem credenciais persistentes
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Preparar Node.js x64 com versao fixa
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.22.1'
+          architecture: x64
+
+      - name: Instalar, auditar e testar dependencias do bridge
+        shell: powershell
+        working-directory: connect/whatsapp-lab
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm ci --omit=dev --ignore-scripts
+          if ($LASTEXITCODE) { throw 'npm ci falhou' }
+          npm audit --omit=dev --audit-level=high
+          if ($LASTEXITCODE) { throw 'npm audit identificou erro' }
+          npm test
+          if ($LASTEXITCODE) { throw 'Testes do bridge falharam' }
+
+      - name: Gerar chave RSA efemera e validar os dois pacotes assinados
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $destination = Join-Path $env:RUNNER_TEMP 'neopep-update-trial'
+          $cert = $null
+          try {
+            $cert = New-SelfSignedCertificate -Subject 'CN=NeoPep Connect Teste Update Signing' `
+              -CertStoreLocation 'Cert:\CurrentUser\My' `
+              -Provider 'Microsoft Software Key Storage Provider' `
+              -KeyAlgorithm RSA -KeyLength 3072 -KeyExportPolicy NonExportable `
+              -KeyUsage DigitalSignature -Type Custom -NotAfter (Get-Date).AddDays(1)
+            if (!$cert -or !$cert.HasPrivateKey) { throw 'Chave temporaria nao foi criada' }
+            ./connect/windows/prepare-update-trial.ps1 -Output $destination -SigningThumbprint $cert.Thumbprint
+            if ($LASTEXITCODE) { throw 'Preparacao dos instaladores falhou' }
+            $publicXml = Join-Path $destination 'publisher-public.xml'
+            $publicHash = (Get-FileHash -LiteralPath $publicXml -Algorithm SHA256).Hash.ToLowerInvariant()
+            $rsa = New-Object System.Security.Cryptography.RSACryptoServiceProvider
+            try {
+              $rsa.PersistKeyInCsp = $false
+              $rsa.FromXmlString((Get-Content -LiteralPath $publicXml -Raw))
+              if (!$rsa.PublicOnly -or $rsa.KeySize -lt 3072) { throw 'Chave publica inesperada' }
+              $commit = (& git rev-parse HEAD).Trim()
+              $summary = @(
+                '### Teste criptografico local: sem publicacao nem upload ao Supabase',
+                '',
+                '| Versao | SHA-256 do instalador | Tamanho |',
+                '|---|---|---:|'
+              )
+              foreach ($version in @('0.2.2','0.2.3')) {
+                $folder = Join-Path $destination $version
+                $exe = Join-Path $folder 'NeoPepConnectSetup.exe'
+                $compiled = Get-Content -LiteralPath (Join-Path $folder 'manifest.json') -Raw | ConvertFrom-Json
+                $signed = Get-Content -LiteralPath (Join-Path $folder 'release-manifest.json') -Raw | ConvertFrom-Json
+                $sha = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+                $bytes = (Get-Item -LiteralPath $exe).Length
+                if ($compiled.version -ne $version -or $signed.version -ne $version -or
+                    $compiled.profile -ne 'staging' -or $signed.profile -ne 'staging' -or
+                    $compiled.commit -ne $commit -or !$compiled.updater_trust_configured -or
+                    $signed.channel -ne 'stable' -or
+                    $compiled.bytes -ne $bytes -or $signed.bytes -ne $bytes -or
+                    $compiled.sha256 -ne $sha -or $signed.sha256 -ne $sha -or
+                    $bytes -gt 52428800 -or
+                    $signed.artifact -ne ('ensaio-'+$version+'-'+$commit.Substring(0,12))) {
+                      throw ('Manifestos incorretos: '+$version)
+                }
+                $canonical = [Text.Encoding]::UTF8.GetBytes((@('neopep-connect/v1',$version,'staging','stable',
+                  $bytes.ToString([Globalization.CultureInfo]::InvariantCulture),$sha,$signed.artifact) -join "`n"))
+                $signature = [Convert]::FromBase64String($signed.signature)
+                $shaOid = [System.Security.Cryptography.CryptoConfig]::MapNameToOID('SHA256')
+                if (!$rsa.VerifyData($canonical,$shaOid,$signature)) { throw ('Assinatura invalida: '+$version) }
+                $summary += ('| '+$version+' | `'+$sha+'` | '+$bytes+' |')
+              }
+              $summary += @('', 'Impressao SHA-256 da chave publica temporaria: `'+$publicHash+'`',
+                '', '**O certificado privado foi descartado no runner.**',
+                'O instalador e apenas candidato experimental. A assinatura cobre o manifesto, nao equivale a Authenticode.',
+                'Chaves temporarias nao servem para atualizacoes posteriores.')
+              $summary | Out-File -LiteralPath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            } finally { $rsa.Dispose() }
+          } finally {
+            if ($cert) {
+              Remove-Item -LiteralPath ('Cert:\CurrentUser\My\'+$cert.Thumbprint) -DeleteKey -ErrorAction Stop
+            }
+          }
+
+      # Repositorios publicos nao fornecem artefatos privados de Actions.
+      # Nunca expor os executaveis antes de escolher um armazenamento privado.
+      - name: Informar bloqueio de download em repositorio publico
+        if: ${{ !github.event.repository.private }}
+        shell: powershell
+        run: |
+          Write-Host 'Repositorio PUBLICO: os instaladores de teste NAO serao anexados.'
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value @(
+            '',
+            '> **Download bloqueado:** o repositorio e publico; os artefatos do GitHub Actions',
+            '> seriam acessiveis a quem consegue ler o repositorio. Para fornecer',
+            '> os instaladores em canal privado, mover o ensaio a um repositorio',
+            '> privado ou usar armazenamento privado com acesso autorizado.'
+          )
+
+      - name: Anexar candidatos somente se o repositorio for privado
+        if: ${{ github.event.repository.private }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: NeoPep-Connect-0.2.2-0.2.3-Teste-PAR-ASSINADO
+          path: |
+            ${{ runner.temp }}/neopep-update-trial/0.2.2/NeoPepConnectSetup.exe
+            ${{ runner.temp }}/neopep-update-trial/0.2.2/manifest.json
+            ${{ runner.temp }}/neopep-update-trial/0.2.2/release-manifest.json
+            ${{ runner.temp }}/neopep-update-trial/0.2.3/NeoPepConnectSetup.exe
+            ${{ runner.temp }}/neopep-update-trial/0.2.3/manifest.json
+            ${{ runner.temp }}/neopep-update-trial/0.2.3/release-manifest.json
+            ${{ runner.temp }}/neopep-update-trial/publisher-public.xml
+          retention-days: 3
+          if-no-files-found: error
+
+      - name: Remover pacotes temporarios do runner
+        if: ${{ always() }}
+        shell: powershell
+        run: |
+          Remove-Item (Join-Path $env:RUNNER_TEMP 'neopep-update-trial') -Recurse -Force -ErrorAction SilentlyContinue
