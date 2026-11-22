@@ -45,7 +45,7 @@ internal static class UpdateTrust {
             ||m.Bytes<1||m.Bytes>MaxBytes||!Regex.IsMatch(m.Sha256??"","^[0-9a-f]{64}$")
             ||!Regex.IsMatch(m.Artifact??"","^[A-Za-z0-9._-]{1,120}$"))return false;
         try{
-            using(var rsa=new RSACryptoServiceProvider()){
+            using(var rsa=new RSACryptoServiceProvider(new CspParameters(24))){
                 rsa.PersistKeyInCsp=false;rsa.FromXmlString(publicKey);
                 if(!rsa.PublicOnly||rsa.KeySize<2048)return false;
                 return rsa.VerifyData(Encoding.UTF8.GetBytes(m.Canonical()),CryptoConfig.MapNameToOID("SHA256"),Convert.FromBase64String(m.Signature));

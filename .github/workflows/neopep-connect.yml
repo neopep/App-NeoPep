@@ -42,7 +42,8 @@ jobs:
         run: |
           $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
           $test = Join-Path $env:RUNNER_TEMP 'UpdateTrustTest.exe'
-          & $compiler /nologo /platform:x64 "/out:$test" /r:System.Web.Extensions.dll connect/windows/ConnectProfile.cs connect/windows/UpdateTrust.cs connect/windows/UpdateTrustTest.cs
+          $source = (Resolve-Path 'connect/windows').Path
+          & $compiler /nologo /platform:x64 "/out:$test" /r:System.Web.Extensions.dll "$source\ConnectProfile.cs" "$source\UpdateTrust.cs" "$source\UpdateTrustTest.cs"
           if ($LASTEXITCODE) { throw 'Falha ao compilar teste do atualizador' }
           & $test
           if ($LASTEXITCODE) { throw 'Falha na verificacao de autenticidade' }

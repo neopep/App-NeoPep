@@ -5,7 +5,7 @@ using System.Text;
 internal static class UpdateTrustTest {
     static void Require(bool ok){if(!ok)throw new InvalidOperationException("Regressão na atualização");}
     static int Main(){
-        using(var rsa=new RSACryptoServiceProvider(2048)){
+        using(var rsa=new RSACryptoServiceProvider(2048,new CspParameters(24))){
             rsa.PersistKeyInCsp=false;
             string key=rsa.ToXmlString(false);
             var m=new UpdateManifest{Version="0.2.3",Profile="staging",Channel="stable",Bytes=3,
