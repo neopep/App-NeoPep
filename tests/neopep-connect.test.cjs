@@ -24,7 +24,7 @@ test('Connect protege registros, seleciona reservas elegíveis e bloqueia reenvi
    create table neo_private.campaign_wa_publications(id uuid primary key,campaign_id uuid,group_id uuid,status text,scheduled_at timestamptz);
    create function public.neo_campaign_wa(text) returns jsonb language sql as $$select '[]'::jsonb$$;
    create table storage.buckets(id text,name text,public boolean,file_size_limit int,allowed_mime_types text[]);
-   create table storage.objects(bucket_id text,name text);alter table storage.objects enable row level security;
+   create table storage.objects(bucket_id text,name text,metadata jsonb);alter table storage.objects enable row level security;
    insert into neo_private.campaigns values ('${campaign}','active',true);
    insert into neo_private.campaign_wa_groups values ('${group}',true);
    insert into neo_private.campaign_wa_publications values
@@ -38,6 +38,7 @@ test('Connect protege registros, seleciona reservas elegíveis e bloqueia reenvi
   const correction=fs.readFileSync('supabase/migrations/20261122003342_neopep_connect_pause_where.sql','utf8');
   assert.match(correction,/update neo_private\.connect_config set paused = \(p_data->>'paused'\)::boolean where singleton = true;/i);
   await db.exec(correction);
+  await db.exec(fs.readFileSync('supabase/migrations/20261122022149_neopep_connect_updates.sql','utf8'));
   const as=async(account,role='authenticated')=>{
    await db.exec('reset role');
    await db.query("select set_config('request.jwt.claim.sub',$1,false)",[account||'']);
@@ -50,6 +51,9 @@ test('Connect protege registros, seleciona reservas elegíveis e bloqueia reenvi
   const rpc=(computer,action,data)=>device(action,computer.id,computer.key,data);
   const register=async i=>({...await device('register',null,secret(i),{label:'Computador '+i}),key:secret(i)});
   const attempt=task=>({task:task.id,fence:task.fence});
+  const update=(action,computer,version=null,outcome=null)=>query(
+   'select public.neo_connect_update($1,$2,$3,$4,$5) value',[action,computer.id,computer.key,version,outcome]);
+  const release=(action,data={})=>query('select public.neo_connect_update_admin($1,$2) value',[action,JSON.stringify(data)]);
   await as(null,'anon');await assert.rejects(admin('snapshot'),{code:'42501'});
   const allowed=path=>query('select public.neo_connect_release_allowed($1) value',[path]);
   await assert.rejects(allowed('0.1.1/NeoPepConnectSetup.exe'),{code:'42501'});
@@ -65,6 +69,64 @@ test('Connect protege registros, seleciona reservas elegíveis e bloqueia reenvi
   for(const pc of [first,same])await admin('approve',{id:pc.id});
   await admin('priority',{id:first.id,priority:100});
   await admin('associate',{group,account:a.id,verified:true,may_publish:true});
+  assert.equal(await update('check',first),null,'legacy manual release stays outside the automatic channel');
+  const prepared={version:'0.2.3',artifact:'runner-fixture',sha256:'a'.repeat(64),bytes:42,signature:'A'.repeat(512),notes:'Rascunho de teste'};
+  await release('register',prepared);
+  const old=(await release('list')).releases.find(r=>r.version===prepared.version);
+  assert.ok(old.approved_at);
+  const history=(await admin('snapshot')).audit;
+  const migration=fs.readFileSync('supabase/migrations/20261122130000_neopep_connect_release_admin.sql','utf8');
+  await db.exec('reset role');
+  await db.exec(migration);
+  await db.exec(migration);
+  await as(member);await assert.rejects(release('approve',{version:prepared.version}),{code:'42501'});
+  await as(main);
+  let list=await release('list');
+  assert.equal(list.approval_policy,1);
+  const corrected=list.releases.find(r=>r.version===prepared.version);
+  assert.deepEqual(corrected,{...old,approved_at:null,created_at:old.approved_at});
+  assert.deepEqual((await admin('snapshot')).audit.map(({release_version,release_result,...entry})=>entry),history);
+  await assert.rejects(release('register',{...prepared,artifact:'outra-versao'}),{code:'23505'});
+  assert.deepEqual((await release('list')).releases.find(r=>r.version===prepared.version),corrected);
+  assert.ok(list.releases.find(r=>r.version==='0.1.1').approved_at);
+  const newVersion={...prepared,version:'0.2.4'};
+  assert.deepEqual(await release('register',newVersion),{ok:true});
+  const fresh=(await release('list')).releases.find(r=>r.version===newVersion.version);
+  assert.ok(fresh.created_at);
+  assert.equal(fresh.approved_at,null);
+  const invalidSignature={...prepared,version:'0.2.5',signature:'A'.repeat(345)};
+  await release('register',invalidSignature);
+  assert.equal((await release('approve',{version:invalidSignature.version})).code,'release_manifest');
+  assert.equal((await release('approve',{version:prepared.version})).code,'release_storage');
+  await db.exec(`reset role;insert into storage.objects values
+   ('neo-connect-releases','0.2.3/NeoPepConnectSetup.exe','{"size":43}');`);
+  await as(main);
+  assert.equal((await release('approve',{version:prepared.version})).code,'release_storage');
+  await db.exec(`reset role;update storage.objects set metadata='{"size":42}';
+   update storage.buckets set public=true where id='neo-connect-releases';`);
+  await as(main);
+  assert.equal((await release('approve',{version:prepared.version})).code,'release_storage');
+  await db.exec("reset role;update storage.buckets set public=false where id='neo-connect-releases'");
+  await as(main);
+  assert.deepEqual(await release('approve',{version:prepared.version}),{ok:true});
+  const approved=(await release('list')).releases.find(r=>r.version===prepared.version);
+  assert.ok(approved.approved_at);
+  assert.equal(approved.required,false);
+  assert.equal((await release('approve',{version:prepared.version})).code,'release_state');
+  assert.equal((await update('download',first,prepared.version)).version,prepared.version);
+  assert.ok(await update('authorize',first,prepared.version));
+  assert.deepEqual(await release('block',{version:prepared.version}),{ok:true});
+  assert.equal((await release('block',{version:prepared.version})).code,'release_state');
+  assert.equal(await update('check',first),null);
+  assert.equal(await update('authorize',first,prepared.version),null);
+  assert.equal(await allowed(corrected.path),false);
+  list=await release('list');
+  assert.equal(list.releases.find(r=>r.version===prepared.version).approved_at,approved.approved_at);
+  assert.deepEqual(list.audit.slice(0,3).map(a=>[a.event,a.release_result,a.release_version,a.actor_id]),[
+   ['update_block','rejected',prepared.version,main],['update_block','ok',prepared.version,main],
+   ['update_approve','rejected',prepared.version,main]
+  ]);
+  assert.ok(list.audit.every(a=>a.created_at));
   await heartbeat(first,a.id);await heartbeat(same,a.id);
   assert.deepEqual((await rpc(first,'reminders')).items,[]);
   await as(backup);
