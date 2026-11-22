@@ -29,6 +29,7 @@ sealed class WhatsApp : Form {
     bool drawingGroups,syncing;
     readonly Func<Guid,long,object[],Task<long>> saveSelection;
     readonly Func<Guid,string,Task> reportStatus;
+    readonly Func<bool> canPublish;
     Guid connectionId;
     long selectionRevision;
     Button sync,sendTextButton;
@@ -45,8 +46,8 @@ sealed class WhatsApp : Form {
     bool closing,forgetting,ready;
     int generation;
 
-    public WhatsApp(string profile,bool showGroups=false,Func<Guid,long,object[],Task<long>> saveSelection=null,Func<Guid,string,Task> reportStatus=null) {
-        this.saveSelection=saveSelection;this.reportStatus=reportStatus;
+    public WhatsApp(string profile,bool showGroups=false,Func<Guid,long,object[],Task<long>> saveSelection=null,Func<Guid,string,Task> reportStatus=null,Func<bool> canPublish=null) {
+        this.saveSelection=saveSelection;this.reportStatus=reportStatus;this.canPublish=canPublish;
         var waHeartbeat=new Timer{Interval=60000};
         waHeartbeat.Tick+=async delegate{if(ready)await ReportStatus("connected");};
         waHeartbeat.Start();
@@ -194,7 +195,7 @@ sealed class WhatsApp : Form {
     void UpdateComposer(){
         if(sendTextButton==null)return;
         targetGroup.Enabled=ready&&!sendingText&&targetGroup.Items.Count>0;
-        sendTextButton.Enabled=ready&&!sendingText&&groupReadAt.HasValue&&
+        sendTextButton.Enabled=ready&&!sendingText&&canPublish!=null&&canPublish()&&groupReadAt.HasValue&&
             targetGroup.SelectedItem is GroupChoice&&!String.IsNullOrWhiteSpace(messageText.Text);
     }
     void SaveDraft(){
@@ -228,7 +229,7 @@ sealed class WhatsApp : Form {
         }catch{}
     }
     async Task PublishManualText(){
-        if(!ready||sendingText||!groupReadAt.HasValue||pendingSend!=Guid.Empty)return;
+        if(!ready||sendingText||!groupReadAt.HasValue||pendingSend!=Guid.Empty||canPublish==null||!canPublish())return;
         var choice=targetGroup.SelectedItem as GroupChoice;
         string text=messageText.Text.Trim();
         if(choice==null||!selected.Contains(choice.Id)||String.IsNullOrEmpty(text)||text.Length>2000)return;
@@ -237,7 +238,7 @@ sealed class WhatsApp : Form {
             Environment.NewLine+Environment.NewLine+"A ação não pode ser desfeita. Não haverá repetição automática.";
         if(MessageBox.Show(question,"Confirmar publicação real",
             MessageBoxButtons.YesNo,MessageBoxIcon.Warning,MessageBoxDefaultButton.Button2)!=DialogResult.Yes)return;
-        if(!ready||process==null)return;
+        if(!ready||process==null||!canPublish())return;
         pendingSend=Guid.NewGuid();
         sendingText=true;UpdateComposer();
         sendStatus.Text="Enviando ao WhatsApp. Não feche esta janela nem repita a operação.";
