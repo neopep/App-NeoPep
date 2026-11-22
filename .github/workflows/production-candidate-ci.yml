@@ -1,0 +1,51 @@
+name: Production Candidate CI
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  candidate:
+    name: Candidata sem deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run check
+      - name: Invariantes de configuracao oficial
+        run: node release/production/assert-candidate.cjs
+      - name: Testes focalizados
+        run: node --test tests/{admin-ui,pwa,release-check,cloud,auth-persistence,photos}.test.cjs
+      - name: Auditoria de dependencias
+        run: npm audit --omit=dev --audit-level=high
+
+  release-gate:
+    name: Gate de evidencias (NO-GO ate liberacao)
+    needs: [candidate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Exigir release-readiness verificado
+        run: npm run release:check
