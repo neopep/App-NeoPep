@@ -6,9 +6,9 @@ using System.Windows.Forms;
 using Microsoft.Win32;
 
 static class Installer {
-    const string Name="NeoPep Connect (Teste)";
-    static readonly string Folder=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"NeoPep Connect");
-    static readonly string Uninstall=@"Software\Microsoft\Windows\CurrentVersion\Uninstall\NeoPepConnectStaging";
+    static readonly string Name=ConnectProfile.InstallerName;
+    static readonly string Folder=ConnectProfile.LocalFolder;
+    static readonly string Uninstall=ConnectProfile.UninstallRegistryPath;
 
     [STAThread] static int Main(string[] args) {
         bool uninstall=Array.IndexOf(args,"--uninstall")>=0,quiet=Array.IndexOf(args,"--quiet")>=0;
@@ -17,7 +17,7 @@ static class Installer {
                 Name,MessageBoxButtons.OKCancel,MessageBoxIcon.Question)!=DialogResult.OK)return 1;
             if(uninstall) {
                 using(var run=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run",true))
-                    if(run!=null)run.DeleteValue("NeoPepConnectStaging",false);
+                    if(run!=null)run.DeleteValue(ConnectProfile.StartupRegistryName,false);
                 foreach(string file in new[]{"NeoPepConnect.exe","session.dat","diagnostico.log","session.dat.new"})
                     File.Delete(Path.Combine(Folder,file));
                 Registry.CurrentUser.DeleteSubKeyTree(Uninstall,false);
@@ -33,7 +33,7 @@ static class Installer {
             string sourcePath=Assembly.GetExecutingAssembly().Location;
             if(!String.Equals(sourcePath,installed,StringComparison.OrdinalIgnoreCase))File.Copy(sourcePath,installed,true);
             using(var item=Registry.CurrentUser.CreateSubKey(Uninstall)){
-                item.SetValue("DisplayName",Name);item.SetValue("DisplayVersion","0.1.1");item.SetValue("Publisher","NeoPep");
+                item.SetValue("DisplayName",Name);item.SetValue("DisplayVersion","0.1.2");item.SetValue("Publisher","NeoPep");
                 item.SetValue("UninstallString","\""+installed+"\" --uninstall");
             }
             Type shell=Type.GetTypeFromProgID("WScript.Shell");
@@ -50,5 +50,5 @@ static class Installer {
             return 2;
         }
     }
-    static string Shortcut(){return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs),"NeoPep Connect Teste.lnk");}
+    static string Shortcut(){return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs),ConnectProfile.ShortcutName);}
 }

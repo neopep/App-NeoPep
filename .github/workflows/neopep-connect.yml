@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   windows:
-    if: github.ref_name == 'staging/permanente' || github.ref_name == 'desenvolvimento/neopep-connect' || github.event.pull_request.head.ref == 'desenvolvimento/neopep-connect'
+    if: github.ref_name == 'staging/permanente' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: windows-2022
     timeout-minutes: 10
     steps:
@@ -24,6 +24,16 @@ jobs:
       - name: Compilar aplicativo e instalador x64
         shell: powershell
         run: ./connect/windows/build.ps1 -Output "$env:RUNNER_TEMP\connect"
+      - name: Compilar perfil produção (apenas validação, sem publicação)
+        shell: powershell
+        run: |
+          ./connect/windows/build.ps1 -Perfil Producao -Output "$env:RUNNER_TEMP\connect-prod"
+          $production = Get-Content (Join-Path $env:RUNNER_TEMP 'connect-prod\manifest.json') -Raw | ConvertFrom-Json
+          if ($production.profile -ne 'production' -or $production.connect_enabled) { throw 'Perfil produção não está bloqueado' }
+          if ($production.version -ne '0.1.2') { throw 'Versão produção incorreta' }
+          $test = Get-Content (Join-Path $env:RUNNER_TEMP 'connect\manifest.json') -Raw | ConvertFrom-Json
+          if ($test.profile -ne 'staging' -or !$test.connect_enabled) { throw 'Perfil de homologação inválido' }
+          if ($test.sha256 -eq $production.sha256) { throw 'Os executáveis de teste e produção devem ser diferentes' }
       - name: Verificar checksum, instalação, atualização e remoção
         shell: powershell
         run: |
@@ -33,6 +43,7 @@ jobs:
           $manifest = Get-Content (Join-Path $output 'manifest.json') -Raw | ConvertFrom-Json
           if ((Get-FileHash $setup).Hash.ToLowerInvariant() -ne $manifest.sha256) { throw 'Checksum incorreto' }
           if ((Get-Item $setup).Length -ne $manifest.bytes) { throw 'Tamanho incorreto' }
+          if ($manifest.version -ne '0.1.2' -or $manifest.profile -ne 'staging') { throw 'Perfil ou versão inesperados' }
           function Invoke-Setup([string]$arguments) {
             $execution = Start-Process $setup -ArgumentList $arguments -Wait -PassThru
             if ($execution.ExitCode -ne 0) { throw "Falha no instalador: $($execution.ExitCode)" }
