@@ -1,12 +1,14 @@
 param(
     [string]$Output = "$PSScriptRoot\output",
     [ValidateSet('Teste','Producao')][string]$Perfil = 'Teste',
-    [string]$PublisherPublicKey = ''
+    [string]$PublisherPublicKey = '',
+    [ValidatePattern('^(0|[1-9][0-9]{0,4})(\.(0|[1-9][0-9]{0,4})){2}$')][string]$Version = '0.2.2'
 )
 $ErrorActionPreference = 'Stop'
 $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if (!(Test-Path $csc)) { throw 'Compilador .NET Framework x64 indisponivel' }
 $staging = $Perfil -eq 'Teste'
+if (($Version.Split('.') | Where-Object { [int]$_ -gt 65534 }) -or (!$staging -and $Version -ne '0.2.2')) { throw 'Versao incompativel com o perfil' }
 $define = if ($staging) { '/define:NEOPEP_STAGING' } else { '/define:NEOPEP_PRODUCTION' }
 $profile = if ($staging) { 'staging' } else { 'production' }
 $commit = (& git -C $PSScriptRoot rev-parse HEAD).Trim()
@@ -27,7 +29,15 @@ if ($staging -and $PublisherPublicKey) {
     }
     $trustResource = @("/resource:$key,NeoPepUpdatePublisher")
 }
+$versionSource = Join-Path $env:TEMP ('neopep-version-' + [Guid]::NewGuid().ToString('N') + '.cs')
 try {
+    @"
+[assembly: System.Reflection.AssemblyFileVersion("$Version.0")]
+internal static class ConnectVersion {
+    internal const string Number = "$Version";
+    internal const string Runtime = "whatsapp-runtime-$Version";
+}
+"@ | Set-Content -Encoding UTF8 $versionSource
     if ($staging) {
         $node = (Get-Command node.exe -ErrorAction Stop).Source
         $nodeVersion = & $node -p '[process.platform,process.arch,process.versions.node].join()'
@@ -50,19 +60,20 @@ try {
         if ($LASTEXITCODE) { throw 'Falha ao compilar auxiliar de atualizacao' }
         $runtimeResources = @("/resource:$archive,whatsapp-runtime.zip", "/resource:$helper,NeoPepUpdate.exe")
     }
-    & $csc /nologo /target:winexe /platform:x64 /codepage:65001 $define "/out:$client" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Security.dll /r:System.Web.Extensions.dll @trustResource "$PSScriptRoot\ConnectProfile.cs" "$PSScriptRoot\Connect.cs" "$PSScriptRoot\WhatsApp.cs" "$PSScriptRoot\UpdateTrust.cs" "$PSScriptRoot\UpdateUi.cs"
+    & $csc /nologo /target:winexe /platform:x64 /codepage:65001 $define "/out:$client" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Security.dll /r:System.Web.Extensions.dll @trustResource $versionSource "$PSScriptRoot\ConnectProfile.cs" "$PSScriptRoot\Connect.cs" "$PSScriptRoot\WhatsApp.cs" "$PSScriptRoot\UpdateTrust.cs" "$PSScriptRoot\UpdateUi.cs"
     if ($LASTEXITCODE) { throw 'Falha ao compilar o cliente' }
-    & $csc /nologo /target:winexe /platform:x64 /codepage:65001 $define "/out:$setup" /r:System.Windows.Forms.dll /r:System.IO.Compression.FileSystem.dll "/resource:$client,NeoPepConnect.exe" @runtimeResources "$PSScriptRoot\ConnectProfile.cs" "$PSScriptRoot\Installer.cs"
+    & $csc /nologo /target:winexe /platform:x64 /codepage:65001 $define "/out:$setup" /r:System.Windows.Forms.dll /r:System.IO.Compression.FileSystem.dll "/resource:$client,NeoPepConnect.exe" @runtimeResources $versionSource "$PSScriptRoot\ConnectProfile.cs" "$PSScriptRoot\Installer.cs"
     if ($LASTEXITCODE) { throw 'Falha ao compilar o instalador' }
     $hash = (Get-FileHash -Algorithm SHA256 $setup).Hash.ToLowerInvariant()
     [ordered]@{
-        version='0.2.2'; profile=$profile; connect_enabled=$staging; commit=$commit
+        version=$Version; profile=$profile; connect_enabled=$staging; commit=$commit
         updater_trust_configured=($trustResource.Count -gt 0)
         run_id=$env:GITHUB_RUN_ID; run_attempt=$env:GITHUB_RUN_ATTEMPT; file='NeoPepConnectSetup.exe'
         bytes=(Get-Item $setup).Length; sha256=$hash; platform='win-x64'; built_at=(Get-Date).ToUniversalTime().ToString('o')
         node=if ($staging) { '24.22.1' } else { $null }
     } | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $Output 'manifest.json')
 } finally {
+    Remove-Item $versionSource -Force -ErrorAction SilentlyContinue
     Remove-Item $bundle -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item $archive -Force -ErrorAction SilentlyContinue
 }

@@ -26,7 +26,7 @@ sealed class WhatsApp : Form {
 
     public WhatsApp(string profile,bool showGroups=false) {
         vault=Path.Combine(profile,"whatsapp-session.dat");
-        runtime=Path.Combine(profile,"whatsapp-runtime-0.2.2");
+        runtime=Path.Combine(profile,ConnectVersion.Runtime);
         Text="NeoPep Connect • WhatsApp experimental"; Size=new Size(620,600); MinimumSize=new Size(460,510); AutoScaleMode=AutoScaleMode.Dpi;
         BackColor=Color.FromArgb(23,22,19); ForeColor=Color.Gainsboro; Font=new Font("Segoe UI",10);
         tabs.Dock=DockStyle.Fill;

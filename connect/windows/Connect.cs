@@ -11,7 +11,6 @@ using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using Microsoft.Win32;
-[assembly: System.Reflection.AssemblyFileVersion("0.2.2.0")]
 
 interface ICampaignProvider {
     string Identity { get; set; }
@@ -31,7 +30,7 @@ sealed class SimulatedProvider : ICampaignProvider {
 }
 
 sealed partial class Connect : Form {
-    const string Version = "0.2.2";
+    const string Version = ConnectVersion.Number;
     static readonly string Origin = ConnectProfile.SupabaseUrl;
     static readonly string Folder = ConnectProfile.LocalFolder;
     readonly string vault = Path.Combine(Folder, "session.dat");

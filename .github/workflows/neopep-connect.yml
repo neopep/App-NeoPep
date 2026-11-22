@@ -8,6 +8,11 @@ on:
     branches: [staging/permanente]
     paths: ['connect/windows/**', 'connect/whatsapp-lab/**', '.github/workflows/neopep-connect.yml']
   workflow_dispatch:
+    inputs:
+      upload_candidate:
+        description: 'Anexar o candidato sem chave oficial à execução'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -126,7 +131,18 @@ jobs:
           }
           Invoke-Setup $setup '--quiet --uninstall'
           if ((Test-Path $installed) -or (Test-Path $runtime) -or (Test-Path $vault)) { throw 'Arquivos ativos permanecem instalados' }
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - name: Construir e verificar o par assinado com chave descartável
+        shell: powershell
+        run: |
+          $cert = New-SelfSignedCertificate -Subject 'CN=NeoPep Connect Teste Update Signing' -CertStoreLocation 'Cert:\CurrentUser\My' -Provider 'Microsoft Software Key Storage Provider' -KeyAlgorithm RSA -KeyLength 3072 -KeyExportPolicy NonExportable -KeyUsage DigitalSignature -Type Custom -NotAfter (Get-Date).AddDays(1)
+          try {
+            ./connect/windows/prepare-update-trial.ps1 -Output "$env:RUNNER_TEMP\connect-signed-trial" -SigningThumbprint $cert.Thumbprint
+          } finally {
+            Remove-Item -LiteralPath ("Cert:\CurrentUser\My\"+$cert.Thumbprint) -DeleteKey -ErrorAction Stop
+            Remove-Item "$env:RUNNER_TEMP\connect-signed-trial" -Recurse -Force -ErrorAction SilentlyContinue
+          }
+      - if: github.event_name == 'workflow_dispatch' && inputs.upload_candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: NeoPep-Connect-0.2.2-Teste-Windows-x64-candidato
           path: |

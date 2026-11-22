@@ -8,7 +8,7 @@ using System.Windows.Forms;
 using Microsoft.Win32;
 
 static class Installer {
-    const string Runtime="whatsapp-runtime-0.2.2";
+    const string Runtime=ConnectVersion.Runtime;
     const string Name=ConnectProfile.InstallerName;
     static readonly string Folder=ConnectProfile.LocalFolder;
     static readonly string Uninstall=ConnectProfile.UninstallRegistryPath;
@@ -40,7 +40,7 @@ static class Installer {
             Directory.CreateDirectory(Folder);
             if(ConnectProfile.ConnectEnabled){
                 InstallRuntime();
-                string helper=Path.Combine(Folder,"NeoPepUpdate-0.2.2.exe"),temporary=helper+".new";
+                string helper=Path.Combine(Folder,"NeoPepUpdate-"+ConnectVersion.Number+".exe"),temporary=helper+".new";
                 using(Stream source=Assembly.GetExecutingAssembly().GetManifestResourceStream("NeoPepUpdate.exe"))
                 using(var output=File.Create(temporary))source.CopyTo(output);
                 if(File.Exists(helper))File.Replace(temporary,helper,null);else File.Move(temporary,helper);
@@ -53,7 +53,7 @@ static class Installer {
             string sourcePath=Assembly.GetExecutingAssembly().Location;
             if(!String.Equals(sourcePath,installed,StringComparison.OrdinalIgnoreCase))File.Copy(sourcePath,installed,true);
             using(var item=Registry.CurrentUser.CreateSubKey(Uninstall)){
-                item.SetValue("DisplayName",Name);item.SetValue("DisplayVersion","0.2.2");item.SetValue("Publisher","NeoPep");
+                item.SetValue("DisplayName",Name);item.SetValue("DisplayVersion",ConnectVersion.Number);item.SetValue("Publisher","NeoPep");
                 item.SetValue("UninstallString","\""+installed+"\" --uninstall");
             }
             Type shell=Type.GetTypeFromProgID("WScript.Shell");
