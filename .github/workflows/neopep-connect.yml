@@ -30,7 +30,7 @@ jobs:
         working-directory: connect/whatsapp-lab
         shell: powershell
         run: |
-          npm ci --omit=dev
+          npm ci --omit=dev --ignore-scripts
           if ($LASTEXITCODE) { throw 'npm ci falhou' }
           npm audit --omit=dev --audit-level=high
           if ($LASTEXITCODE) { throw 'Auditoria npm falhou' }

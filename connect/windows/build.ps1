@@ -3,8 +3,8 @@ $ErrorActionPreference = 'Stop'
 $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if (!(Test-Path $csc)) { throw 'Compilador .NET Framework x64 indisponível' }
 $node = (Get-Command node.exe -ErrorAction Stop).Source
-$nodeVersion = & $node -p 'process.platform + ":" + process.arch + ":" + process.versions.node'
-if ($nodeVersion -ne 'win32:x64:24.22.1') { throw "Runtime incompatível: $nodeVersion" }
+$nodeVersion = & $node -p '[process.platform,process.arch,process.versions.node].join()'
+if ($nodeVersion -ne 'win32,x64,24.22.1') { throw "Runtime incompatível: $nodeVersion" }
 $signature = Get-AuthenticodeSignature $node
 if ($signature.Status -ne 'Valid') { throw "Assinatura do Node.js inválida: $($signature.Status)" }
 $lab = Join-Path (Split-Path $PSScriptRoot) 'whatsapp-lab'
