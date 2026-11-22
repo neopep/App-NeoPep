@@ -87,7 +87,7 @@ export async function createBaileysProvider(
    if(typeof text!=='string'||!text.trim()||text.length>2000)throw Error('Mensagem inválida.');
    const groups=await current.groupFetchAllParticipating();
    if(!connected||socket!==current)throw Error('A sessão mudou.');
-   if(!Object.prototype.hasOwnProperty.call(groups,groupJid))throw Error('A conta não participa deste grupo.');
+   if(!Object.values(groups).some(group=>group?.id===groupJid))throw Error('A conta não participa deste grupo.');
    const receipt=await current.sendMessage(groupJid,{text:text.trim()});
    if(!receipt?.key?.id)throw Error('Não foi possível confirmar o aceite do envio.');
    return {messageId:String(receipt.key.id).slice(0,160)};
