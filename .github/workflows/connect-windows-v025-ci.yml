@@ -10,6 +10,10 @@ on:
       - '.github/workflows/connect-windows-v025-ci.yml'
   workflow_dispatch:
 
+concurrency:
+  group: connect-windows-025-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
