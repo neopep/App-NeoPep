@@ -46,7 +46,7 @@ sealed partial class Connect : Form {
     Dictionary<string,object> local = new Dictionary<string,object>();
     string access;
     DateTime expires;
-    bool busy, exiting;
+    bool busy, exiting, deviceApproved;
 
     [STAThread] static void Main(string[] args) {
         bool created;
@@ -147,7 +147,7 @@ sealed partial class Connect : Form {
 
     void OpenWhatsApp(bool groups){
         whatsappOpen=true;
-        try{using(var window=new WhatsApp(Folder,groups,SyncWhatsAppGroups,SetWhatsAppStatus))window.ShowDialog(this);}
+        try{using(var window=new WhatsApp(Folder,groups,SyncWhatsAppGroups,SetWhatsAppStatus,()=>SessionReady()&&deviceApproved))window.ShowDialog(this);}
         finally{whatsappOpen=false;}
     }
 
@@ -240,14 +240,15 @@ sealed partial class Connect : Form {
                 var heartbeat=await RPC("heartbeat",new {version=Version,working_set_mb=Environment.WorkingSet/1048576,
                     account=String.IsNullOrEmpty(identity)?null:identity});
                 Save();RenderAccounts(heartbeat);
-                state.Text=Value(heartbeat,"state")=="approved"?"Computador autorizado • simulação":"Aprovação pendente.";
+                deviceApproved=Value(heartbeat,"state")=="approved";
+                state.Text=deviceApproved?"Computador autorizado • simulação":"Aprovação pendente.";
             }else{
                 var buffer=new byte[32];using(var rng=RandomNumberGenerator.Create())rng.GetBytes(buffer);
                 local["secret"]=BitConverter.ToString(buffer).Replace("-","").ToLowerInvariant();
                 await Register();
             }
         } catch(Exception) {
-            local=previous;access=null;
+            local=previous;access=null;deviceApproved=false;
             state.Text="Falha no login. Use a conta administrativa que autorizou este computador.";
             Record("login_ou_registro_falhou");
         }
@@ -292,7 +293,8 @@ sealed partial class Connect : Form {
             var heartbeat=await RPC("heartbeat",new {version=Version,working_set_mb=Environment.WorkingSet/1048576,
                 account=String.IsNullOrEmpty(identity)?null:identity});
             RenderAccounts(heartbeat);
-            if(Value(heartbeat,"state")!="approved"){state.Text="Aprovação pendente.";return;}
+            deviceApproved=Value(heartbeat,"state")=="approved";
+            if(!deviceApproved){state.Text="Aprovação pendente.";return;}
             state.Text="Computador autorizado • simulação";
             var reminders=await RPC("reminders",new { });
             var entries=reminders["items"] as System.Collections.ICollection;
@@ -313,7 +315,7 @@ sealed partial class Connect : Form {
         } catch(WebException error) {
             var response=error.Response as HttpWebResponse;
             if(response!=null&&(response.StatusCode==HttpStatusCode.Unauthorized||response.StatusCode==HttpStatusCode.Forbidden)) {
-                state.Text="Sessão ou computador sem autorização.";access=null;
+                state.Text="Sessão ou computador sem autorização.";access=null;deviceApproved=false;
             } else state.Text="Conexão indisponível. Nova tentativa automática.";
             Record("comunicacao_indisponivel");
         } catch(Exception){state.Text="Falha local. Consulte o diagnóstico.";Record("falha_local");}
