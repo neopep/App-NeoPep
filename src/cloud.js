@@ -51,7 +51,7 @@ const api={configured,connectTestEnabled,
  },
  ...(connectTestEnabled ? {
   async importConnectRelease(manifest){
-   const response=await need().functions.invoke('connect-release-draft',{body:manifest});
+   const response=await need().functions.invoke(config.connectReleaseFunction,{body:manifest});
    if(response.error){
     let message='Não foi possível verificar o manifesto no servidor de Teste.';
     try{const detail=await response.error.context.json();if(typeof detail.error==='string')message=detail.error;}catch{}
@@ -149,23 +149,23 @@ const api={configured,connectTestEnabled,
  async geoControl(action){need();return ok(await client.rpc('neo_geo_control',{p_action:action}))},
  async adminGeo(users){need();return ok(await client.rpc('neo_admin_geo',{p_users:users}))},
  async captureGeo(){
-  if(official)return;
+  if(official||!config.geoEndpoint)return;
   need();const version=identityVersion,account=user.id;
   const {session}=ok(await client.auth.getSession());
   if(version!==identityVersion||session?.user?.id!==account||!session.access_token)return;
-  const result=await fetch('/api/staging-observe?mode=geo',{method:'POST',headers:{Authorization:'Bearer '+session.access_token}});
+  const result=await fetch(config.geoEndpoint+'?mode=geo',{method:'POST',headers:{Authorization:'Bearer '+session.access_token}});
   if(version===identityVersion&&result.ok)return result.json();
  },
  async adminOperations(section,days=30,review=null){need();return ok(await client.rpc('neo_admin_operations',{p_section:section,p_days:days,p_review:review}))},
  async qualityObserve(metric,duration=null,revision=''){need();return ok(await client.rpc('neo_quality_observe',{p_metric:metric,p_duration:duration,p_revision:revision}))},
  async adminSystem(action='snapshot',payload={}){need();return ok(await client.rpc('neo_admin_system',{p_action:action,p_payload:payload}))},
  async adminMonitor(provider){
-  if(official)throw Error('Fonte externa indisponível neste ambiente.');
+  if(official||!config.monitorEndpoint)throw Error('Fonte externa indisponível neste ambiente.');
   need();
   const version=identityVersion,account=user.id;
   const {session}=ok(await client.auth.getSession());
   if(version!==identityVersion||session?.user?.id!==account||!session.access_token)throw Error('Sessão indisponível.');
-  const response=await fetch('/api/admin-monitor?provider='+encodeURIComponent(provider),{
+  const response=await fetch(config.monitorEndpoint+'?provider='+encodeURIComponent(provider),{
    headers:{Authorization:'Bearer '+session.access_token}
   });
   if(version!==identityVersion||!response.ok)throw Error('Fonte indisponível.');

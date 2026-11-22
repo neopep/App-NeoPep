@@ -17,6 +17,8 @@ assert.ok(vercel.rewrites.some(route => route.source === '/neo/:path*'));
 assert.doesNotMatch(JSON.stringify(vercel.headers), /noindex/i);
 assert.ok(!fs.existsSync(path.join(root, 'api/admin-monitor.js')));
 assert.ok(!fs.existsSync(path.join(root, 'api/staging-observe.js')));
+assert.ok(!fs.existsSync(path.join(root, 'supabase/functions/connect-release-draft')));
+assert.doesNotMatch(read('dist/cloud.js'), /\/api\/(admin-monitor|staging-observe)|connect-release-draft/);
 const manifest = JSON.parse(read('dist/manifest.webmanifest'));
 for (const key of ['id', 'start_url', 'scope']) assert.equal(manifest[key], './');
 assert.equal(manifest.name, 'NeoPep');

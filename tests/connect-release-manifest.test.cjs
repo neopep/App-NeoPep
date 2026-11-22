@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {webcrypto,createHash,timingSafeEqual}=require('node:crypto');
-const shared=import('../supabase/functions/connect-release-draft/manifest.mjs');
+const shared=import('../release/production/staging-edge/connect-release-draft/manifest.mjs');
 
 test('manifesto assinado vincula versão, artefato e bytes ao pacote privado',async()=>{
  const {parseManifest,canonical,verifyManifest,verifyObject,precedes}=await shared;
@@ -28,7 +28,7 @@ test('Edge nega produção, anônimo e não administrador antes de acessar Stora
  const {runInNewContext}=require('node:vm');
  const {transformSync}=require('esbuild');
  const service=await shared;
- const source=readFileSync('supabase/functions/connect-release-draft/index.ts','utf8').replace(/^import .*;\n/gm,'');
+ const source=readFileSync('release/production/staging-edge/connect-release-draft/index.ts','utf8').replace(/^import .*;\n/gm,'');
  let handler,stage=service.staging;const operations=[];
  runInNewContext(transformSync(source,{loader:'ts'}).code,{
   ...service,Request,Response,URL,createHash,AbortSignal,TextDecoder,
@@ -51,7 +51,7 @@ test('Edge só registra rascunho depois de verificar o objeto e tolera reimporta
  const {runInNewContext}=require('node:vm');
  const {transformSync}=require('esbuild');
  const service=await shared;
- const source=readFileSync('supabase/functions/connect-release-draft/index.ts','utf8').replace(/^import .*;\n/gm,'');
+ const source=readFileSync('release/production/staging-edge/connect-release-draft/index.ts','utf8').replace(/^import .*;\n/gm,'');
  const bytes=Buffer.from('object-fixture');
  const manifest={version:'0.2.6',profile:'staging',channel:'stable',bytes:bytes.length,
   sha256:createHash('sha256').update(bytes).digest('hex'),artifact:'connect-teste-0.2.6-123-1',signature:'A'.repeat(344)};
@@ -107,7 +107,7 @@ test('importação administrativa de 0.2.5 usa a referência existente e cria s�
  const {runInNewContext}=require('node:vm');
  const {transformSync}=require('esbuild');
  const service=await shared;
- const source=readFileSync('supabase/functions/connect-release-draft/index.ts','utf8').replace(/^import .*;\n/gm,'');
+ const source=readFileSync('release/production/staging-edge/connect-release-draft/index.ts','utf8').replace(/^import .*;\n/gm,'');
  let handler;
  const operations=[];
  const manifest={version:'0.2.5',profile:'staging',channel:'stable',bytes:50102784,

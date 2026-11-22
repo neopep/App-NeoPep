@@ -23,7 +23,7 @@ A issue #24 fixa a origem funcional no commit fa8429a. A candidata parte de f123
 | platform-integrations | Preservar fonte oficial atual; conferir metadados implantados nos dois ambientes. |
 | ai-reply, agent-integrations | Código candidato em Git. Comparar contratos, autenticação no handler, provider, CORS e compatibilidade com o agente legado antes de aprovar qualquer deploy. |
 | push-dispatch | Código candidato em Git. Preservar o job pg_cron oficial ativo a cada minuto. Conferir rotina, filas, credencial e a configuração JWT antes de homologar a atualização. |
-| connect-update, connect-release-draft | Manter fora de produção até canal próprio, permissões, chave e homologação Windows. A fonte connect-release-draft presente no Git é exclusiva de Teste. A versão remota de connect-update deve ser auditada separadamente. |
+| connect-update, connect-release-draft | Manter fora de produção até canal próprio, permissões, chave e homologação Windows. O handler e a configuração de gateway de connect-release-draft foram arquivados em release/production/staging-edge, fora da raiz de deploy. A versão remota de connect-update deve ser auditada separadamente. |
 
 A versão 20261122022149 foi localizada no commit 295e484. O conteúdo é referência para reconciliar o ledger em leitura, sem criar um segundo lançamento da mesma migração. Os IDs 20261122040259, 20261122044929 e 20261122151856 exigem reconciliação com o catálogo e o histórico remoto. As fixtures associadas confirmam contratos em isolamento e não demonstram identidade com os deploys remotos.
 

@@ -184,15 +184,15 @@ Posições auditadas — produção `f1237493ecaeef4b99e5679ea31685cfdde3b792` e
 | `scripts/prepare-multiagent-staging.cjs` | A | A | Homologação | Fonte de Teste | — | 539f98b744dc |
 | `src/app.js` | A | A | Frontend | Frontend | — | 9c61a2771d72 |
 | `src/cloud.js` | M | M | Frontend | Frontend | 8d13feaee305 | 0f6cae5b6c93 |
-| `supabase/config.toml` | A | A | Infraestrutura e ferramentas | Desenvolvimento | — | defeb2e3b2cf |
+| `supabase/config.toml` | A | A | Edge Functions | Fonte e configuração de Teste arquivadas fora da raiz de deploy | — | defeb2e3b2cf |
 | `supabase/functions/_shared/agent-providers.ts` | M | M | Edge Functions | Candidata para revisão separada, implantação suspensa | d89967c64200 | 063c03d0c25b |
 | `supabase/functions/_shared/ai-provider.ts` | M | M | Edge Functions | Candidata para revisão separada, implantação suspensa | 3d3d6f263ee4 | 4c5692f6efc8 |
 | `supabase/functions/_shared/ai-usage.ts` | A | A | Edge Functions | Candidata para revisão separada, implantação suspensa | — | 9e75731cfd57 |
 | `supabase/functions/_shared/origins.ts` | A | A | Edge Functions | Candidata para revisão separada, implantação suspensa | — | 9e529a84f475 |
 | `supabase/functions/agent-integrations/index.ts` | M | M | Edge Functions | Candidata para revisão separada, implantação suspensa | 8fe972aad2b5 | e1e6b656dd6d |
 | `supabase/functions/ai-reply/index.ts` | M | M | Edge Functions | Candidata para revisão separada, implantação suspensa | 02db7c158e4e | 9081e7888706 |
-| `supabase/functions/connect-release-draft/index.ts` | A | A | Edge Functions | Candidata para revisão separada, implantação suspensa | — | e6298d4a1efb |
-| `supabase/functions/connect-release-draft/manifest.mjs` | A | A | Edge Functions | Candidata para revisão separada, implantação suspensa | — | 7a29f62749ba |
+| `supabase/functions/connect-release-draft/index.ts` | A | A | Edge Functions | Fonte e configuração de Teste arquivadas fora da raiz de deploy | — | e6298d4a1efb |
+| `supabase/functions/connect-release-draft/manifest.mjs` | A | A | Edge Functions | Fonte e configuração de Teste arquivadas fora da raiz de deploy | — | 7a29f62749ba |
 | `supabase/functions/push-dispatch/index.ts` | M | M | Edge Functions | Candidata para revisão separada, implantação suspensa | ccb7160e3802 | db327d5e7697 |
 | `supabase/migrations/202611200001_multiagent_foundation.sql` | A | A | Banco | Histórico de referência, sem replay automático | — | 50e31a8cc369 |
 | `supabase/migrations/202611200002_multiagent_runtime.sql` | A | A | Banco | Histórico de referência, sem replay automático | — | d8e2f8dcab17 |
