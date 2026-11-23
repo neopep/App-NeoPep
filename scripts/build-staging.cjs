@@ -44,6 +44,40 @@ async function prepare() {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   Object.assign(manifest, { id: '/', name: 'NeoPep Teste', short_name: 'NeoPep Teste', start_url: '/', scope: '/' });
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  // Watermark is injected only by the staging build; production builds never execute this script.
+  // It intentionally stays above app dialogs without intercepting taps or swipes.
+  const watermarkStyle = `<style id="neo-staging-watermark-style">
+    .neo-staging-watermark {
+      position: fixed;
+      z-index: 2147483647;
+      top: calc(env(safe-area-inset-top, 0px) + 9px);
+      left: 50%;
+      transform: translateX(-50%);
+      box-sizing: border-box;
+      padding: 5px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 244, 218, 0.18);
+      background: rgba(24, 21, 16, 0.32);
+      color: rgba(255, 245, 224, 0.78);
+      box-shadow: 0 1px 8px rgba(0, 0, 0, 0.14);
+      font: 800 11px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: .26em;
+      white-space: nowrap;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+  </style>`;
+  const addWatermark = html => {
+    if (html.includes('id="neo-staging-watermark-style"')) return html;
+    if (!/<\\/head>/i.test(html) || !/<body\\b/i.test(html)) {
+      throw new Error('Página sem estrutura esperada para marca d’água de Teste.');
+    }
+    return html
+      .replace(/<\\/head>/i, watermarkStyle + '</head>')
+      .replace(/(<body\\b[^>]*>)/i,
+        '$1<div class="neo-staging-watermark" aria-hidden="true">TESTE</div>');
+  };
   for (const path of ['dist/index.html', 'dist/admin/index.html', 'dist/excluir-conta/index.html']) {
     const html = fs.readFileSync(path, 'utf8')
       .replace(/<title>([^<]*?)(?: — Homologação)?<\/title>/, (_, title) => '<title>' + title.replace(/NeoPep(?! Teste)/, 'NeoPep Teste') + '</title>')
@@ -51,7 +85,7 @@ async function prepare() {
       .replaceAll('cpslafpzjtbpmoxxysaa', 'qnuluspqfazdppciermw')
       .replaceAll('https://*.supabase.co', staging)
       .replaceAll('wss://*.supabase.co', staging.replace('https:', 'wss:'));
-    fs.writeFileSync(path, html);
+    fs.writeFileSync(path, addWatermark(html));
   }
   // Keep the former launch URL and Auth callback as real pages at the same origin.
   fs.mkdirSync('dist/neo', { recursive: true });
@@ -60,7 +94,7 @@ async function prepare() {
   const serviceWorker = 'dist/sw.js';
   const worker = fs.readFileSync(serviceWorker, 'utf8')
     .replace(/^const CACHE=.*;$/m,
-      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v24-pr35';")
+      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v25-pr35-watermark';")
     .replace(/key\.startsWith\((?:'[^']+'|CACHE_PREFIX)\)/, 'key.startsWith(CACHE_PREFIX)');
   fs.writeFileSync(serviceWorker, worker);
 }
