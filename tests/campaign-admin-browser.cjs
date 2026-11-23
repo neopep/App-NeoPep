@@ -40,6 +40,11 @@ const formats = { '.css':'text/css', '.js':'text/javascript', '.html':'text/html
 async function run(browser, viewport, theme) {
  const page = await browser.newPage({viewport,isMobile:viewport.width<600,hasTouch:viewport.width<600});
  const errors = [];
+ const capture=async name=>{
+  if(!process.env.CAMPAIGN_SCREENSHOTS)return;
+  await fs.mkdir(process.env.CAMPAIGN_SCREENSHOTS,{recursive:true});
+  await page.screenshot({path:path.join(process.env.CAMPAIGN_SCREENSHOTS,`${name}-${viewport.width}.png`)});
+ };
  page.on('pageerror', error => errors.push(error.message));
  await page.addInitScript(value => localStorage.setItem('neo_theme',value), theme);
  await page.route('**/*', async route => {
@@ -58,11 +63,14 @@ async function run(browser, viewport, theme) {
  await page.getByRole('button',{name:'WhatsApp',exact:true}).first().click();
  await page.getByRole('tab',{name:'Grupos',exact:true}).click();
  await page.getByText('Equipe sincronizada',{exact:true}).waitFor();
+ await capture('grupos');
  assert.equal(await page.getByRole('button',{name:'Novo grupo'}).count(),0);
  await page.getByRole('tab',{name:'NeoPep Connect',exact:true}).click();
  await page.getByText('Computador A',{exact:false}).first().waitFor();
  await page.getByText('Equipe sincronizada',{exact:false}).first().waitFor();
  assert.equal(await page.getByText('fixture-simulada',{exact:false}).count() > 0,true);
+ assert.equal(await page.getByText('fixture-simulada',{exact:false}).first().isVisible(),false);
+ await capture('connect');
  for(const name of ['Computadores','Atualizações','Contas','Vínculos','Simulação','Histórico','Ajuda','Visão geral']){
   const tab=page.getByRole('tab',{name,exact:true});
   await tab.click();
@@ -74,6 +82,10 @@ async function run(browser, viewport, theme) {
  await page.getByRole('tab',{name:'Visão geral',exact:true}).press('End');
  assert.equal(await page.getByRole('tab',{name:'Ajuda',exact:true}).getAttribute('aria-selected'),'true');
  await page.getByRole('tab',{name:'Campanhas',exact:true}).click();
+ await page.goBack();
+ await page.getByRole('tab',{name:'NeoPep Connect',exact:true}).waitFor();
+ assert.match(page.url(),/campaignView=connect/);
+ await page.goForward();
  await page.getByRole('button',{name:'Nova campanha',exact:true}).click();
  const editor=page.getByRole('dialog',{name:'Nova campanha'});
  await editor.locator('[name=title]').fill('Campanha nova');
@@ -86,6 +98,7 @@ async function run(browser, viewport, theme) {
  assert.equal(await editor.getByLabel('Grupo desconectado',{exact:false}).isDisabled(),true);
  const dimensions=await editor.boundingBox();
  assert.ok(dimensions.width<=viewport.width+1&&dimensions.height>viewport.height-4);
+ await capture('editor');
  await editor.locator('[type=submit]').click();
  await page.getByText('Alteração confirmada.',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Abrir',exact:true}).click();

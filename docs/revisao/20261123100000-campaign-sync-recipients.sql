@@ -2,12 +2,18 @@ begin;
 
 -- Requires the separately installed Connect group synchronization contract.
 do $$
+declare legacy oid:=to_regprocedure('public.neo_campaign_wa(text,uuid,jsonb)');
 begin
  if to_regprocedure('public.neo_connect_wa_list_connections()') is null
- or to_regprocedure('public.neo_campaign_wa(text,uuid,jsonb)') is null
+ or legacy is null
  or to_regclass('neo_private.connect_wa_selected_groups') is null
  or to_regclass('neo_private.connect_group_accounts') is null then
   raise exception 'Instale e verifique os contratos de Campanhas e Connect primeiro.';
+ end if;
+ if not exists(select from pg_proc where oid=legacy and prosecdef
+   and encode(sha256(convert_to(prosrc,'UTF8')),'hex')=
+   '32e19084e06db5328a3aad6365d93804daf3b978dda4994068ff50fcd024d087') then
+  raise exception 'Corpo da RPC WhatsApp divergente do baseline revisado.';
  end if;
 end $$;
 
@@ -88,7 +94,7 @@ begin
  end if;
  return neo_private.campaign_wa_legacy(p_action,p_id,p_data);
 end $$;
-revoke all on function public.neo_campaign_wa(text,uuid,jsonb) from public,anon,authenticated;
+revoke all on function public.neo_campaign_wa(text,uuid,jsonb) from public,anon,authenticated,service_role;
 grant execute on function public.neo_campaign_wa(text,uuid,jsonb) to authenticated;
 
 create function neo_private.campaign_wa_sync_catalog(p_owner uuid)

@@ -231,5 +231,10 @@ test('destinatários sincronizados são atômicos, privados por titular e restri
   await sync('save',saved.id,{...draft,recipients:[]});
   assert.deepEqual(await sync('recipients',saved.id),[]);
   assert.equal((await wa('queue')).length,2);
+  await db.exec('reset role');
+  await apply('docs/revisao/20261123100000-campaign-sync-suspend.sql');
+  await as(admin);
+  await assert.rejects(sync('catalog'),{code:'42501'});
+  assert.equal((await wa('queue')).length,2);
  }finally{await db.close()}
 });

@@ -117,7 +117,8 @@ test('Atualizações fica indisponível sem acesso à RPC administrativa',async(
  const cloud={connectAdmin:async()=>({releases:[],accounts:[],devices:[],groups:[],tasks:[],audit:[]}),
   campaignWhatsApp:async()=>[]};
  await scope.mountNeoConnect(root,cloud).load();
- assert.equal(root.querySelector('[data-connect-tab="updates"]'),null);
+ assert.ok(root.querySelector('[data-connect-tab="updates"]'));
+ assert.equal(Boolean(root.querySelector('[data-connect-form="update_register"]')),false);
  const restricted=document.createElement('div');
  document.body.append(restricted);
  cloud.connectUpdateAdmin=async()=>{throw new Error('Administrador obrigatório');};

@@ -55,7 +55,12 @@ function mountNeoConnect(root,cloud){
  const wa=root.querySelector('[data-wa-selected]'),waStatus=wa.querySelector('[data-wa-selected-status]');
  const waConnection=wa.querySelector('[data-wa-connection]'),waGroups=wa.querySelector('[data-wa-selected-groups]');
  const waMore=wa.querySelector('[data-wa-more]');
- let waRevision=0,waAfter=null;
+ let waRevision=0,waAfter=null,waConnections=[],waConnectionError=false;
+ function renderConnections(){
+  const items=waConnections.map(row=>`<li>${esc(row.label)} · ${esc(({connected:'Conectada',disconnected:'Desconectada',revoked:'Revogada',stale:'Desatualizada'})[row.status]||'Estado desconhecido')} · ${esc(time(row.last_synced_at))} · ${Number(row.group_count||0)} grupo(s)</li>`);
+  const empty=waConnectionError?'Diagnóstico de conexões indisponível.':'Nenhuma conexão sincronizada.';
+  for(const list of root.querySelectorAll('[data-connect-connections]'))list.innerHTML=items.join('')||`<li>${empty}</li>`;
+ }
  async function loadWaGroups(append=false){
   const request=++waRevision,id=waConnection.value;
   if(!append){waAfter=null;waGroups.replaceChildren();}
@@ -82,7 +87,7 @@ function mountNeoConnect(root,cloud){
   try{
    const rows=await cloud.connectWaConnections();
    if(request!==waRevision||!wa.isConnected)return;
-   root.querySelector('[data-connect-connections]').innerHTML=rows.map(row=>`<li>${esc(row.label)} · ${esc(({connected:'Conectada',disconnected:'Desconectada',revoked:'Revogada',stale:'Desatualizada'})[row.status]||'Estado desconhecido')} · ${esc(time(row.last_synced_at))} · ${Number(row.group_count||0)} grupo(s)</li>`).join('')||'<li>Nenhuma conexão sincronizada.</li>';
+   waConnections=rows;waConnectionError=false;renderConnections();
    for(const row of rows){
     const option=document.createElement('option');
     option.value=row.id;option.textContent=row.label+' · '+time(row.last_synced_at);waConnection.append(option);
@@ -90,7 +95,12 @@ function mountNeoConnect(root,cloud){
    if(rows.some(row=>row.id===chosen))waConnection.value=chosen;
    if(!rows.length){waStatus.textContent="Nenhuma conexão sincronizada.";return;}
    await loadWaGroups();
-  }catch{if(request===waRevision)waStatus.textContent="Sincronização de grupos indisponível neste ambiente.";}
+  }catch{
+   if(request===waRevision){
+    waConnectionError=true;waConnections=[];renderConnections();
+    waStatus.textContent='Sincronização de grupos indisponível neste ambiente.';
+   }
+  }
  }
 
  waConnection.addEventListener('change',()=>{void loadWaGroups();});
@@ -99,11 +109,11 @@ function mountNeoConnect(root,cloud){
  async function load(){
   void loadWaConnections();
   const version=++loadVersion;
-  const result=await Promise.all([rpc('snapshot'),cloud.campaignWhatsApp('groups'),cloud.campaignWhatsApp('queue'),
+  const result=await Promise.all([rpc('snapshot'),cloud.campaignWhatsApp('groups').catch(()=>null),cloud.campaignWhatsApp('queue').catch(()=>null),
    canManageUpdates?cloud.connectUpdateAdmin('list').catch(()=>null):null]);
   if(!root.isConnected||version!==loadVersion)return;
   [snapshot,groups,queue]=result;
-  queue=queue.filter(row=>!row.synced_target);
+  groups??=[];queue=(queue??[]).filter(row=>!row.synced_target);
   releaseInfo=result[3];
   const enabled=snapshot.accounts.filter(x=>x.enabled);
   const evidenceFor=r=>{
@@ -177,11 +187,11 @@ function mountNeoConnect(root,cloud){
      <form data-connect-form="priority" data-id="${esc(d.id)}"><label>Prioridade <input required name="priority" type="number" min="0" max="100" value="${Number(d.priority)}"></label><button class="secondary">Salvar</button></form>
      </div></article>`;
    }).join('')||'<p>Nenhum computador registrado.</p>'}
-   </section><section data-connect-pane="accounts"><h4>Contas simuladas</h4>
+   </section><section data-connect-pane="accounts"><h4>Conexões WhatsApp sincronizadas</h4><ul data-connect-connections></ul><h4>Contas simuladas</h4>
    <form data-connect-form="create_account"><label>Identidade fictícia<input required name="identity" pattern="fixture-[A-Za-z0-9_-]{1,40}" placeholder="fixture-principal"></label><button class="secondary">Criar para minha conta administrativa</button></form>
    ${snapshot.accounts.map(a=>`<p>${esc(a.identity)} · ${a.enabled?'Disponível':'Revogada'} · ${esc(a.owner_id)}
    ${a.enabled&&a.owner_id===cloud.user?.id?`<button type="button" class="secondary" data-connect="disable_account" data-id="${esc(a.id)}">Revogar conexão</button>`:''}</p>`).join('')}
-   </section><section data-connect-pane="links"><h4>Autorização por grupo</h4>
+   </section><section data-connect-pane="links"><h4>Autorização por grupo</h4>${result[1]===null?'<p>Cadastro legado indisponível. Atualize o diagnóstico.</p>':''}
    <form data-connect-form="associate" class="space">
     <label>Grupo<select name="group" required><option value="">Selecione</option>${opt(groups,x=>x.name)}</select></label>
     <label>Conta simulada<select name="account" required><option value="">Selecione</option>${opt(enabled,x=>x.identity)}</select></label>
@@ -191,7 +201,7 @@ function mountNeoConnect(root,cloud){
     <button class="secondary">Salvar vínculo</button>
    </form>
    ${snapshot.groups.map(g=>`<p>${esc(group(g.group_id))} · ${esc(actor(g.account_id))} · ${g.verified&&g.may_publish?'Elegível':'Sem autorização'} · Prioridade ${Number(g.priority)}</p>`).join('')}
-   </section><section data-connect-pane="simulation"><h4>Fila de simulação</h4><p>O painel registra resultados fictícios.</p><button type="button" class="secondary" data-connect="pause">${snapshot.paused?'Retomar simulação':'Pausar simulação'}</button>
+   </section><section data-connect-pane="simulation"><h4>Fila de simulação</h4>${result[2]===null?'<p>Fila de divulgações indisponível. Atualize o diagnóstico.</p>':''}<p>O painel registra resultados fictícios.</p><button type="button" class="secondary" data-connect="pause">${snapshot.paused?'Retomar simulação':'Pausar simulação'}</button>
    <form data-connect-form="queue" class="space">
     <label>Divulgação por grupo<select name="id" required><option value="">Selecione</option>${opt(queue.filter(x=>x.scheduled_at&&['scheduled','late'].includes(x.state)),x=>x.title+' · '+x.group_name)}</select></label>
     <label>Conta preferencial<select name="account" required><option value="">Selecione</option>${opt(enabled,x=>x.identity)}</select></label>
@@ -200,7 +210,7 @@ function mountNeoConnect(root,cloud){
    </form>
    ${snapshot.tasks.map(t=>`<p>${esc(job(t.publication_id))} · ${esc(events[t.state]||t.state)} · ${esc(actor(t.account_id))} · ${esc(computer(t.device_id))} · ${esc(time(t.occurrence))}</p>`).join('')}
    </section><section data-connect-pane="history"><details><summary>Tentativas e auditoria</summary>${snapshot.audit.map(a=>`<p>${esc(time(a.created_at))} · ${esc(events[a.event]||a.event)} · ${esc(computer(a.device_id))} · ${esc(actor(a.account_id))}</p>`).join('')}</details></section>`);
-  switchConnectTab(activeTab);
+  renderConnections();switchConnectTab(activeTab);
  }
  async function perform(action){
   try{note('Consultando NeoPep Connect…');await action();note('Atualizado.');}
