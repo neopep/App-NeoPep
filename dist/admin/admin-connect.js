@@ -27,9 +27,6 @@ function mountNeoConnect(root,cloud){
  <section data-connect-pane="help"><p class="sub">Cliente Windows 10/11 x64. Consulte Atualizações para obter uma versão aprovada. Entre com a conta administrativa e aprove o dispositivo em Computadores. Confira o SHA-256 antes de executar o instalador.</p></section>
  <div data-connect-content></div>`;
  let activeTab='overview';
- const connectStyle=document.createElement('style');
- connectStyle.textContent='.neo-connect-tabs{display:flex;gap:.3rem;overflow-x:auto;white-space:nowrap;margin-bottom:1rem}.neo-connect-tabs button{flex:0 0 auto;background:transparent;border:0;border-bottom:2px solid transparent;color:inherit;padding:.65rem .85rem}.neo-connect-tabs button[aria-selected=true]{border-bottom-color:currentColor;font-weight:700}[data-connect-pane][hidden]{display:none!important}';
- root.prepend(connectStyle);
  function switchConnectTab(next){
   activeTab=next;
   for(const tab of root.querySelectorAll('[data-connect-tab]')){
@@ -85,7 +82,7 @@ function mountNeoConnect(root,cloud){
   try{
    const rows=await cloud.connectWaConnections();
    if(request!==waRevision||!wa.isConnected)return;
-   root.querySelector('[data-connect-connections]').innerHTML=rows.map(row=>`<li>${esc(row.label)} · ${esc(({connected:'Conectada',disconnected:'Desconectada',revoked:'Revogada'})[row.status]||'Estado desconhecido')} · ${esc(time(row.last_synced_at))}</li>`).join('')||'<li>Nenhuma conexão sincronizada.</li>';
+   root.querySelector('[data-connect-connections]').innerHTML=rows.map(row=>`<li>${esc(row.label)} · ${esc(({connected:'Conectada',disconnected:'Desconectada',revoked:'Revogada',stale:'Desatualizada'})[row.status]||'Estado desconhecido')} · ${esc(time(row.last_synced_at))} · ${Number(row.group_count||0)} grupo(s)</li>`).join('')||'<li>Nenhuma conexão sincronizada.</li>';
    for(const row of rows){
     const option=document.createElement('option');
     option.value=row.id;option.textContent=row.label+' · '+time(row.last_synced_at);waConnection.append(option);
@@ -106,6 +103,7 @@ function mountNeoConnect(root,cloud){
    canManageUpdates?cloud.connectUpdateAdmin('list').catch(()=>null):null]);
   if(!root.isConnected||version!==loadVersion)return;
   [snapshot,groups,queue]=result;
+  queue=queue.filter(row=>!row.synced_target);
   releaseInfo=result[3];
   const enabled=snapshot.accounts.filter(x=>x.enabled);
   const evidenceFor=r=>{
@@ -116,7 +114,8 @@ function mountNeoConnect(root,cloud){
   const needsEvidence=r=>{const [major,minor,patch]=r.version.split('.').map(Number);return major>0||minor>2||minor===2&&patch>=5;};
   const online=d=>d.state==='approved'&&d.last_seen&&Date.now()-new Date(d.last_seen)<70000;
   const connected=snapshot.devices.filter(online).length;
-  root.querySelector('[data-connect-health]').textContent=`Diagnóstico disponível · Simulação ${snapshot.paused?'pausada':'habilitada'}. Consulte o histórico para ver ocorrências.`;
+  const lastIssue=snapshot.audit.find(row=>['uncertain','failed','rejected'].includes(row.event)||row.release_result==='rejected');
+  root.querySelector('[data-connect-health]').textContent=`Diagnóstico disponível · Simulação ${snapshot.paused?'pausada':'habilitada'}. ${lastIssue?'Ocorrência recente: '+(events[lastIssue.event]||lastIssue.event)+' · '+time(lastIssue.created_at):'Sem erros recentes no diagnóstico carregado.'}`;
   root.querySelector('[data-connect-devices]').innerHTML=`<p>${snapshot.devices.length} registrados · ${connected} online · ${snapshot.devices.length-connected} offline</p>`+
    (snapshot.devices.map(d=>`<p>${esc(d.label)} · ${esc(d.version||'Versão desconhecida')} · ${esc(time(d.last_seen))}</p>`).join('')||'<p>Nenhum computador registrado.</p>');
   html(body,`<section data-connect-pane="updates"><h4>Instaladores aprovados</h4>
@@ -166,12 +165,12 @@ function mountNeoConnect(root,cloud){
    </div>`:''}
    </section><section data-connect-pane="computers"><h4>Computadores</h4>
    ${snapshot.devices.map(d=>{
-    const online=d.state!=='revoked'&&d.last_seen&&Date.now()-new Date(d.last_seen)<70000;
+    const deviceOnline=online(d);
     const sessions=snapshot.sessions.filter(s=>s.device_id===d.id);
     return `<article class="monitor-block"><h5>${esc(d.label)}</h5>
-     <p>${esc(d.state)} · ${online?'Online':'Offline'} · versão ${esc(d.version||'—')} · ${esc(d.working_set_mb??'—')} MB</p>
+     <p>${esc(d.state)} · ${deviceOnline?'Online':'Offline'} · versão ${esc(d.version||'—')} · ${esc(d.working_set_mb??'—')} MB</p>
      <p class="sub">Responsável ${esc(d.owner_id)} · Última atividade ${esc(time(d.last_seen))}</p>
-     <p>${sessions.map(s=>esc(actor(s.account_id))+' · '+(s.connected&&online&&Date.now()-new Date(s.last_seen)<70000?'Conectada':'Desconectada')).join(' | ')||'Sem sessão'}</p>
+     <p>${sessions.map(s=>esc(actor(s.account_id))+' · '+(s.connected&&deviceOnline&&Date.now()-new Date(s.last_seen)<70000?'Conectada':'Desconectada')).join(' | ')||'Sem sessão'}</p>
      <div class="neo-campaign-actions">
      ${d.state==='pending'?`<button type="button" class="secondary" data-connect="approve" data-id="${esc(d.id)}">Aprovar</button>`:''}
      ${d.state!=='revoked'?`<button type="button" class="secondary" data-connect="revoke" data-id="${esc(d.id)}">Revogar</button>`:''}
@@ -201,7 +200,6 @@ function mountNeoConnect(root,cloud){
    </form>
    ${snapshot.tasks.map(t=>`<p>${esc(job(t.publication_id))} · ${esc(events[t.state]||t.state)} · ${esc(actor(t.account_id))} · ${esc(computer(t.device_id))} · ${esc(time(t.occurrence))}</p>`).join('')}
    </section><section data-connect-pane="history"><details><summary>Tentativas e auditoria</summary>${snapshot.audit.map(a=>`<p>${esc(time(a.created_at))} · ${esc(events[a.event]||a.event)} · ${esc(computer(a.device_id))} · ${esc(actor(a.account_id))}</p>`).join('')}</details></section>`);
-  switchConnectTab(activeTab);
   switchConnectTab(activeTab);
  }
  async function perform(action){
