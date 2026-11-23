@@ -273,7 +273,7 @@ function updateCalc(commit=false,track=true){
   ${exceedsMass?'<p class="error">O valor informado excede a massa total do frasco.</p>':''}
   ${outside?'<p class="error">O volume excede a capacidade da seringa selecionada.</p>':''}
   <dl class="calc-result-details"><div><dt>Concentração</dt><dd>${calcDisplay(r.concentration)} mg/mL</dd></div><div><dt>Razão massa ÷ dose</dt><dd>${calcDisplay(r.doses)}</dd></div></dl>
-  <p class="sub">A exibição usa até duas casas decimais. Os cálculos mantêm a precisão dos valores informados.</p>`;
+  <p class="sub">A exibição usa até duas casas decimais. Os cálculos mantêm a precisão dos valores informados.</p><button type="button" class="primary" data-calc-saved-action="save">Salvar dosagem</button><p class="sub" data-calc-result-save-status role="status"></p>`;
  }catch(err){
   if(track&&commit&&calcOutcome!=='invalid')engagementTrack('calculator_validation_error','calculadora');
   calcOutcome='invalid';
@@ -466,7 +466,8 @@ function restoreCalcSaved(){
 document.addEventListener('click',event=>{
  const control=event.target.closest('[data-calc-saved-action]');
  if(!control)return;
- const status=$('#calc-saved-status'),key=calcStorageKey(),action=control.dataset.calcSavedAction;
+ const resultStatus=control.closest('#result')?.querySelector('[data-calc-result-save-status]');
+ const status=resultStatus||$('#calc-saved-status'),key=calcStorageKey(),action=control.dataset.calcSavedAction;
  if(!key||$('#calcForm').dataset.calcOwner!==key){
   status.textContent='A sessão mudou. Reabra a calculadora para continuar.';
   return;
@@ -499,7 +500,7 @@ document.addEventListener('click',event=>{
  status.textContent={save:'Dosagem salva neste dispositivo.',apply:'Dosagem aplicada.',rename:'Nome atualizado.',remove:'Dosagem excluída.'}[action];
  const focused=saved.items.some(value=>value.id===item.id)?
   $('#calc-saved-list').querySelector('[data-saved-id="'+item.id+'"] [data-calc-saved-action="'+(action==='rename'?'rename':'apply')+'"]'):$('#calc-save');
- focused?.focus({preventScroll:true});
+ if(!resultStatus)focused?.focus({preventScroll:true});
 });
 
 function reports(){const rows=C.periodRows(state.weights,period),m=C.metrics(state);return head('Sua jornada, em perspectiva.','Relatórios descritivos para acompanhar e compartilhar.',`<button class="primary" id="csvPeriod">${icon('download')}<span>CSV do período</span></button>`)+stats(true)+`<div class="report-print-heading"><h2>NeoPep · Relatório pessoal</h2><p>${esc(state.profile.name)} · Emitido em ${date(C.today())}</p></div><div class="grid"><section class="card"><div class="card-head"><h2>Relatório de evolução</h2><button class="text-btn" id="print">PDF / Imprimir</button></div>${periods()}${chart(rows)}<p class="sub">${rows.length?'Período: '+date(rows[0].date)+' a '+date(rows.at(-1).date)+'. Variação: '+weight(rows.at(-1).value-rows[0].value)+' '+unit()+'.':'Nenhum peso no período selecionado.'}</p></section><section class="card"><h2>Comparação entre períodos</h2>${comparison()}<p class="sub space">Meta: ${weight(m.goal)} ${unit()} · Progresso: ${fmt(m.progress,0)}%.</p><p class="sub space">Os dados não estabelecem causa entre mudanças corporais e aplicações. IMC é um indicador descritivo, limitado e não diagnóstico.</p></section></div><section class="card space"><h2>Pesos no período</h2>${historyTable('weights',rows)}</section><section class="card space"><h2>Diário no período</h2>${historyTable('journal',C.periodRows(state.journal,period))}</section><section class="card space"><h2>Medidas no período</h2>${historyTable('measures',C.periodRows(state.measures,period))}</section><section class="card space"><h2>Aplicações no período</h2>${historyTable('doses',C.periodRows(state.doses,period))}</section><div class="notice">O CSV desta tela respeita o período escolhido e inclui os registros e o diário. Para exportar todo o histórico, use o CSV ou backup no Perfil. Filtros de texto afetam a visualização, não o CSV do período. Para PDF, use “PDF / Imprimir” e a opção de salvar ou compartilhar PDF do sistema. O CSV usa kg e cm; aplicações mantêm a unidade informada. Fotos são exportadas individualmente para preservar sua privacidade.</div>`}

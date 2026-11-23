@@ -604,3 +604,6 @@ html.library-video-open,html.library-video-open body{overflow:hidden;overscroll-
  .shop-product-visibility[open] .shop-visibility-content{animation:shop-visibility-reveal .18s ease-out}
  @keyframes shop-visibility-reveal{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 }
+
+.library-home-symbol :is(img,video,canvas){width:100%;height:100%;object-fit:contain;display:block}
+.library-home-symbol [data-pdf-thumb]{display:block;width:100%;height:100%}
