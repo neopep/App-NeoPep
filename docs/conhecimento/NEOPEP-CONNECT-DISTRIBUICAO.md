@@ -14,6 +14,16 @@ A mesma chave pública RSA pinada mantém compatibilidade com os clientes instal
 
 A lista registra a evidência de build e verificação apenas após gravar o rascunho. O estado anterior à assinatura fica nos recibos locais. Sem contato com o agente, o painel não confirma seu progresso. As ações de aprovação e bloqueio continuam restritas ao administrador e ao projeto atual. O cliente instala após confirmação da pessoa.
 
+## Rodízio obrigatório do hash de confiança após atualização do workflow privado
+
+A esteira privada revisada mudou o **Git blob SHA-1** do arquivo `.github/workflows/neopep-connect-release.yml`: `9809901068336c37f8d42442d81c58304bc82a6b` (antigo) → `d2894eb125d29ff5a3a95059c9fa6812c6e16da6` (novo).
+
+O agente **já instalado** em Windows tem `agent.xml.workflowBlob` fixado ao SHA antigo. Ele não deve ser recriado nem aceitar automaticamente qualquer hash que vier do GitHub. Caso o run privado de 0.2.8 esteja verde e não apareça rascunho no Supabase Teste, conferir o estado do assinador local: `%LOCALAPPDATA%\\NeoPep Connect Release Agent\\agent.json`. Um problema possível é `ERROR_PROVENIENCIA`, mas o arquivo local ainda não foi inspecionado.
+
+Existe um script para atualização controlada no PR #32: `release/connect/rotate-agent-trust.ps1`. Ele verifica a origem remota autenticada e os hashes exatos dos dois scripts de agente, preserva o cofre DPAPI/token, certificado, recibos e agenda, faz backup e só altera após `-Apply`. `-RunNow` opcional inicia a tarefa para reavaliar runs pendentes. Deve ser executado no **mesmo usuário do Windows assinador**, a partir da pasta de código revisada. Executar sem parâmetros apenas verifica o plano e não modifica nada.
+
+**Não compartilhar** `agent.xml`, `hosts.yml`, tokens, certificado privado, manifesto assinado ou URLs temporárias de Storage. Não rodar a rotação se o hash local não for exatamente o anterior conhecido. Produção terá um cofre, token e agente próprio; não tentar usar esse script de Teste para alterar o perfil Produção.
+
 ## Ativação e evidências pendentes
 
 1. Aplicar os workflows revisados ao repositório privado com a conta autorizada. Instalar o agente de Produção no Windows custodiante com o thumbprint Authenticode e o blob aprovado. Preservar o agente de Teste, seu token e recibos.
