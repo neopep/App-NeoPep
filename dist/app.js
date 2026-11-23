@@ -138,8 +138,19 @@ function calcField(id){
  </section>`;
 }
 function calcCapacity(){
- return `<section class="card calc-card calc-capacity"><h2><label for="calc-capacity">Capacidade da seringa U-100</label></h2>
-  <select name="capacity" id="calc-capacity">${Object.keys(syringeModels).sort((a,b)=>a-b).map(value=>`<option value="${value}" ${Number(value)===calcCapacityValue?'selected':''}>${calcNumber(Number(value))} mL · ${syringeModels[value].units} na escala</option>`).join('')}</select>
+ return `<section class="card calc-card calc-capacity" aria-labelledby="calc-capacity-title">
+  <h2 id="calc-capacity-title">Capacidade da seringa U-100</h2>
+  <div class="calc-capacities" role="radiogroup" aria-labelledby="calc-capacity-title">
+   ${Object.keys(syringeModels).sort((a,b)=>Number(a)-Number(b)).map(value=>`
+    <label class="calc-capacity-choice" data-calc-capacity="${value}">
+     <input type="radio" name="capacity" value="${value}" ${Number(value)===calcCapacityValue?'checked':''}>
+     <span class="calc-capacity-content">
+      ${syringeSymbol(value)}
+      <b>${calcNumber(Number(value))} mL</b>
+      <small>${syringeModels[value].units} na escala</small>
+     </span>
+    </label>`).join('')}
+  </div>
  </section>`;
 }
 function syringeScale(capacity,units=null){
@@ -255,7 +266,7 @@ document.addEventListener('click',event=>{
 });
 document.addEventListener('change',event=>{
  const input=event.target;
- if(input.id==='calc-capacity'){
+ if(input.name==='capacity'&&input.type==='radio'&&input.closest('#calcForm')){
   calcCapacityValue=Number(input.value);
   calcInputChanged(null,true);return;
  }
