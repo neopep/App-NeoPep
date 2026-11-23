@@ -50,15 +50,13 @@ create policy neo_saved_comparisons_owner_delete
 on public.neo_saved_comparisons for delete to authenticated
 using (user_id = (select auth.uid()));
 
+-- Owner-only read also permits cleanup of an upload whose metadata insert failed.
+-- Signed URLs remain short-lived and cannot be created by other users.
 create policy neo_comparisons_storage_read
 on storage.objects for select to authenticated
 using (
  bucket_id = 'neo-comparisons'
  and (storage.foldername(name))[1] = (select auth.uid())::text
- and exists (
-   select 1 from public.neo_saved_comparisons c
-   where c.path = name and c.user_id = (select auth.uid())
- )
 );
 
 create policy neo_comparisons_storage_upload
