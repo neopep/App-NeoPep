@@ -219,7 +219,8 @@ const api={configured,
   return !result.error;
  },
  async savedBeforeAfter(){
-  needsHealth();
+  // Listing must remain possible after photo/health consent is withdrawn.
+  need();
   const account=user.id,version=identityVersion;
   const rows=ok(await client.from('neo_saved_comparisons')
    .select('id,user_id,path,before_photo_id,after_photo_id,before_date,after_date,created_at')
@@ -286,7 +287,8 @@ const api={configured,
   return blob;
  },
  async deleteBeforeAfter(item){
-  needsHealth();
+  // A user must be able to erase data even after revoking prior consent.
+  need();
   const account=user.id,version=identityVersion;
   if(item?.user_id!==account||!item.path?.startsWith(account+'/'))throw Error('Comparação privada indisponível.');
   // Delete Storage first: its SELECT policy verifies that this metadata still exists.
