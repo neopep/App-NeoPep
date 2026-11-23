@@ -14,3 +14,11 @@ test('credencial produtiva não é usada como se fosse conta de teste',async()=>
 
 test('Orders API recebe o total líquido exato e os itens já descontados',async()=>{const s=setup('mercadopago-create',{orderOverrides:{discount_cents:398,total_cents:4082,payment_method:'pix'}});const response=await s.handle(new Request('https://edge.test',{method:'POST',headers:{Origin:'https://app.test',Authorization:'Bearer valid-user','Content-Type':'application/json'},body:JSON.stringify({order_id:O})}));assert.equal(response.status,200);const sent=JSON.parse(s.http.find(c=>c[0].endsWith('/v1/orders'))[1].body);assert.equal(sent.items[0].quantity,1);assert.equal(sent.items[0].unit_price,'35.82');assert.equal(sent.items[1].unit_price,'5.00');assert.equal(sent.total_amount,'40.82');assert.equal(sent.config.online.auto_return,'approved');});
 test('webhook informa a forma efetivamente verificada no provedor',async()=>{for(const [payment,method] of [[{payment_method:{id:'pix',type:'bank_transfer'}},'pix'],[{payment_method:{id:'visa',type:'credit_card'}},'credit_card'],[{payment_method:{id:'bolbradesco',type:'ticket'}},'boleto']]){const s=setup('mercadopago-webhook',{transaction:payment});assert.equal((await s.handle(await webhook())).status,200);assert.equal(s.calls[0][1].p_method,method);}});
+
+test('estorno integral e chargeback explícitos prevalecem sobre detalhe parcial da transação',async()=>{
+ for(const status of ['refunded','charged_back']){
+  const s=setup('mercadopago-webhook',{payment:{status},transaction:{status_detail:'partially_refunded'}});
+  assert.equal((await s.handle(await webhook())).status,200);
+  assert.equal(s.calls[0][1].p_status,status);
+ }
+});
