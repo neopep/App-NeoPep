@@ -9,6 +9,7 @@ using Microsoft.Win32;
 
 static class Installer {
     const string Runtime=ConnectVersion.Runtime;
+    static readonly string[] WebViewFiles={"Microsoft.Web.WebView2.Core.dll","Microsoft.Web.WebView2.WinForms.dll","WebView2Loader.dll"};
     const string Name=ConnectProfile.InstallerName;
     static readonly string Folder=ConnectProfile.InstallFolder;
     static readonly string Uninstall=ConnectProfile.UninstallRegistryPath;
@@ -26,6 +27,7 @@ static class Installer {
                     if(run!=null)run.DeleteValue(ConnectProfile.StartupRegistryName,false);
                 foreach(string file in new[]{"NeoPepConnect.exe"})
                     File.Delete(Path.Combine(Folder,file));
+                foreach(string file in WebViewFiles)File.Delete(Path.Combine(Folder,file));
                 string runtime=Path.Combine(Folder,Runtime);
                 if(Directory.Exists(runtime))Directory.Delete(runtime,true);
                 string legacy=Path.Combine(Folder,"whatsapp-runtime-0.2.0");
@@ -45,6 +47,7 @@ static class Installer {
                 using(var output=File.Create(temporary))source.CopyTo(output);
                 if(File.Exists(helper))File.Replace(temporary,helper,null);else File.Move(temporary,helper);
             }
+            foreach(string file in WebViewFiles)InstallResource(file);
             string binary=Path.Combine(Folder,"NeoPepConnect.exe"),pending=binary+".new";
             using(Stream source=Assembly.GetExecutingAssembly().GetManifestResourceStream("NeoPepConnect.exe"))
             using(var destination=File.Create(pending)){source.CopyTo(destination);}
@@ -71,6 +74,12 @@ static class Installer {
             if(!quiet)MessageBox.Show("Feche o NeoPep Connect antes de atualizar ou desinstalar.",Name);
             return 2;
         }
+    }
+    static void InstallResource(string name){
+        string target=Path.Combine(Folder,name),temporary=target+".new";
+        using(Stream source=Assembly.GetExecutingAssembly().GetManifestResourceStream(name))
+        using(var output=File.Create(temporary))source.CopyTo(output);
+        if(File.Exists(target))File.Replace(temporary,target,null);else File.Move(temporary,target);
     }
     static void InstallRuntime(){
         string runtime=Path.Combine(Folder,Runtime), staging=runtime+"-"+Guid.NewGuid().ToString("N");
