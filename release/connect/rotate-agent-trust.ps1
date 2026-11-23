@@ -5,7 +5,7 @@ param(
 $ErrorActionPreference='Stop'
 # Uma rotação revisada, por hash exato. Não gera token ou certificado novo.
 $oldWorkflow='9809901068336c37f8d42442d81c58304bc82a6b'
-$newWorkflow='d2894eb125d29ff5a3a95059c9fa6812c6e16da6'
+$newWorkflow='3def75a277a54e9eda489e9068ea9ced42e5c723'
 $expectedSources=@{
     'run-release-agent.ps1'='a5a7e89953d12e07a754d579570e38d61ffda33e'
     'prepare-release.ps1'='267a39f3bf52cb4a8e8ef56f7732627720c8df95'
