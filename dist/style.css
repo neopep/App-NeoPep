@@ -462,51 +462,45 @@ legend>.campaign-field-help{display:inline-grid;grid-template-columns:auto;verti
 
 
 /* Calculadora de volume */
-.calc-layout{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(0,1fr);gap:16px;align-items:start}
+.calc-layout{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);gap:16px;align-items:start;padding-bottom:max(2rem,env(safe-area-inset-bottom))}
 .calc-inputs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;min-width:0}
 .calc-card,.calc-result,.calc-formula{min-width:0;padding:clamp(14px,2.35vw,24px)}
-.calc-card h2,.calc-result h2,.calc-formula h2,.calc-capacity legend{font-size:1.12rem;margin:0;font-weight:650}
-.calc-card-heading{display:flex;align-items:center;justify-content:space-between;gap:.6rem;min-height:64px}
-.calc-card-volume .sub{margin:0 0 .7rem}
+.calc-card h2,.calc-card h2 label,.calc-result h2,.calc-formula h2{font-size:1.12rem;margin:0;font-weight:650}
 .calc-card-mass,.calc-card-volume{display:flex;flex-direction:column}
-.calc-card-mass .calc-card-heading,.calc-card-volume .calc-card-heading{margin-bottom:auto}
-.calc-card-dose,.calc-capacity,.calc-submit,.calc-formula{grid-column:1/-1}
-.calc-card-dose .calc-card-heading{min-height:0;margin-bottom:.6rem}
+.calc-card-mass h2,.calc-card-volume h2{text-align:center}
+.calc-card-volume .sub{margin:.25rem 0 .7rem}
+.calc-card-dose,.calc-capacity,.calc-formula{grid-column:1/-1}
 .calc-card label,.calc-card .sub,.calc-result .sub{font-size:.875rem}
 .calc-card input[type=number],.calc-card select{min-height:44px;font-size:1rem;width:100%;margin-top:.3rem}
 .calc-number-group{display:grid;grid-template-columns:minmax(0,1fr) minmax(74px,.35fr);gap:.65rem}
+.calc-manual{margin-top:.75rem}
+.calc-manual summary{cursor:pointer;min-height:44px;align-content:center}
+.calc-slider{position:relative;padding-top:1.85rem}
+.calc-bubble{position:absolute;top:0;left:var(--calc-position,0%);transform:translateX(calc(-1 * var(--calc-position,0%)));width:max-content;max-width:6.7rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:.2rem .5rem;border:1px solid var(--border);border-radius:8px;background:var(--soft);color:var(--ink);font-size:.82rem;font-weight:650;pointer-events:none}
 .calc-card input[type=range]{appearance:auto;display:block;min-height:44px;width:100%;margin:0;padding:0;accent-color:var(--accent);background:transparent;border:0}
 .calc-card .calc-range-label{display:block;margin-top:.65rem}
-.calc-limits{display:flex;justify-content:space-between;gap:.5rem;font-size:.82rem;color:var(--muted)}
+.calc-limits{display:flex;justify-content:space-between;gap:.5rem;font-size:.82rem;color:var(--muted);overflow-wrap:anywhere}
 .calc-chips{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.7rem}
 .calc-chips button{min-height:44px;padding:.4rem .65rem}
-.calc-chips button[aria-pressed=true],.calc-capacities input:checked+span{color:var(--ink);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--soft)}
-.calc-capacity,.calc-precision{margin:0}
-.calc-capacity legend{padding:0 .25rem}
-.calc-precision{border:0;padding:0;margin-top:.8rem}
-.calc-precision legend{font-size:.875rem}
-.calc-capacities{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.4rem}
-.calc-capacities label{display:block;position:relative;min-width:0}
-.calc-capacities label>input{position:absolute;top:7px;left:7px;margin:0;width:15px;height:15px;accent-color:var(--accent)}
-.calc-capacities label>span{display:grid;place-items:center;gap:.25rem;min-height:84px;padding:.6rem .25rem;border:1px solid var(--line);border-radius:12px;cursor:pointer}
-.calc-capacities input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
-.calc-capacities small{color:var(--muted);font-size:.75rem}
-.calc-capacities svg{width:min(92%,100px)}
-.calc-capacities [data-calc-capacity="0.3"] svg{width:min(68%,72px)}
-.calc-capacities [data-calc-capacity="0.5"] svg{width:min(80%,86px)}
-.calc-vial{width:58px;min-width:50px;height:68px}
+.calc-chips button[aria-pressed=true]{color:var(--ink);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--soft)}
+.calc-capacity{display:grid;grid-template-columns:1fr minmax(9rem,1fr);align-items:center;gap:.6rem;margin:0}
+.calc-capacity select{margin:0}
+.calc-vial{display:block;width:clamp(92px,19vw,132px);height:clamp(112px,23vw,162px);margin:.3rem auto .65rem}
+.calc-vial .calc-glass{fill:var(--gold,#c9a462);fill-opacity:.14;stroke:var(--gold,#c9a462)}
+.calc-vial .calc-hardware,.calc-vial .calc-liquid{fill:var(--gold,#c9a462)}
 .calc-glass{fill:var(--soft);stroke:var(--accent);stroke-width:1.4}
 .calc-hardware,.calc-liquid{fill:var(--accent)}
 .calc-liquid{opacity:.65}
-.calc-mark{fill:none;stroke:var(--ink);stroke-opacity:.65;stroke-linecap:round;stroke-width:1.5}
+.calc-mark{fill:none;stroke:var(--ink);stroke-opacity:.7;stroke-linecap:round;stroke-width:1.15}
+.calc-syringe text{fill:var(--ink);font-size:9px;font-variant-numeric:tabular-nums}
 .calc-result{border-color:var(--accent)}
 .calc-result h2{text-align:center;margin-bottom:.8rem}
 .calc-result-values{text-align:center;background:var(--soft);border-radius:14px;padding:.8rem;overflow-wrap:anywhere}
 .calc-result-values .big{font-size:clamp(1.8rem,4vw,3rem);font-weight:680;line-height:1.1;margin-bottom:.35rem}
 .calc-result-values .big small{font-size:1rem}
 .calc-scale{margin:1rem 0}
-.calc-scale svg{width:100%;max-height:102px}
-.calc-scale figcaption{display:flex;align-items:center;justify-content:space-between;gap:.4rem;font-size:.82rem;color:var(--muted)}
+.calc-scale svg{width:100%;max-height:138px}
+.calc-scale figcaption{font-size:.82rem;color:var(--muted)}
 .calc-scale .syringe-reading{position:static;transform:none;white-space:normal;text-align:center}
 .calc-scale.scale-overflow .calc-liquid{fill:var(--danger)}
 .calc-result-details{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem;margin:.85rem 0}
@@ -520,4 +514,6 @@ legend>.campaign-field-help{display:inline-grid;grid-template-columns:auto;verti
 @media(max-width:760px){
  .calc-layout,.calc-inputs,.calc-formula ol{grid-template-columns:minmax(0,1fr)}
  .calc-card-mass,.calc-card-volume{display:block}
+ .calc-capacity{grid-template-columns:1fr}
+ .calc-layout{padding-bottom:calc(5rem + env(safe-area-inset-bottom))}
 }
