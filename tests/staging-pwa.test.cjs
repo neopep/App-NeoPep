@@ -12,7 +12,7 @@ test('staging installs at the root and keeps the former launch and worker routes
   for (const file of [
     'scripts/build-staging.cjs', 'release/multiagent-staging/configure-frontend.cjs',
     'dist/index.html', 'dist/admin/index.html', 'dist/excluir-conta/index.html',
-    'dist/sw.js', 'dist/manifest.webmanifest'
+    'dist/sw.js', 'dist/manifest.webmanifest', 'dist/style.css'
   ]) {
     const dest = path.join(work, file);
     fs.mkdirSync(path.dirname(dest), { recursive: true });
@@ -26,6 +26,10 @@ test('staging installs at the root and keeps the former launch and worker routes
     }
   });
   const read = (file) => fs.readFileSync(path.join(work, 'dist', file), 'utf8');
+  assert.doesNotMatch(fs.readFileSync('dist/style.css','utf8'), /content:"TESTE"/);
+  assert.match(read('style.css'), /content:"TESTE";position:fixed/);
+  assert.match(read('style.css'), /pointer-events:none/);
+  assert.match(read('admin/index.html'), /href="..\/style.css"/);
   const manifest = JSON.parse(read('manifest.webmanifest'));
   assert.deepEqual([manifest.id, manifest.start_url, manifest.scope], ['/', '/', '/']);
   assert.equal(manifest.name, 'NeoPep Teste');
@@ -34,6 +38,7 @@ test('staging installs at the root and keeps the former launch and worker routes
   assert.equal(read('neo/index.html'), read('index.html'));
   const window = {};
   vm.runInNewContext(read('config.js'), { window });
+  assert.equal(window.NEO_CONFIG.supabaseUrl, 'https://qnuluspqfazdppciermw.supabase.co');
   assert.equal(window.NEO_CONFIG.authRedirectPath, '/neo/');
   assert.equal(window.NEO_CONFIG.legacyPushScope, '/neo/');
   const cache = (scope) => vm.runInNewContext(read('sw.js') + '\nCACHE', {

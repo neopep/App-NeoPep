@@ -139,10 +139,12 @@ function syringeReading(capacity,units){
  return {outside,between,mark:outside?max:between?Math.floor(units/division)*division:Math.min(max,nearest)};
 }
 function syringeSymbol(capacity,mark=0,compact=false,calculated=null){
- const {units,division,length,height}=syringeModels[capacity];
+ const {units,division,length:baseLength,height}=syringeModels[capacity];
+ const wide=!compact&&units===100;
+ const length=wide?196:baseLength;
  const end=246,start=end-length,top=43-height/2,bottom=top+height;
  const position=value=>end-value/units*length;
- const piston=position(mark),grip=start-9-42*mark/units;
+ const piston=position(mark),grip=start-9-(wide?34:42)*mark/units;
  const label=calculated===null?'':calcDisplay(calculated)+' UI';
  const labelWidth=Math.max(48,label.length*6+10),labelX=Math.max(labelWidth/2+2,Math.min(284-labelWidth/2,piston));
  const art='calc-syringe-'+(++calcGraphicSequence);
@@ -275,19 +277,21 @@ function calculator(){
  return head('Calculadora de volume','Conversão matemática de dados confirmados do frasco e da prescrição.')+
  `<div class="calc-layout"><form id="calcForm" class="calc-inputs" data-calc-owner="${esc(calcStorageKey()||'')}" novalidate>
  ${calcField('mass')}${calcField('volume')}${calcCapacity()}${calcField('dose')}
- <section class="card calc-saved" aria-labelledby="calc-saved-title">
- <h2 id="calc-saved-title">Dosagens salvas</h2>
- <p class="sub">Salvas neste navegador. As dosagens não são sincronizadas entre dispositivos.</p>
- <div class="calc-saved-entry"><label for="calc-saved-name">Nome (opcional)<input id="calc-saved-name" maxlength="80"></label>
- <button id="calc-save" type="button" class="primary" data-calc-saved-action="save">Salvar dosagem</button></div>
- <p class="sub" id="calc-saved-status" role="status"></p><div id="calc-saved-list"></div></section></form>
+ </form>
  <section class="card calc-result"><h2>Resultado</h2><div id="result" role="status" aria-live="polite">${calcEmpty()}</div>
  <p class="sub calc-context">Na escala U-100, 100 unidades correspondem a 1 mL. Essa graduação mede volume e é distinta das unidades de atividade de outras substâncias. Um valor caber na escala não indica que seja prescrito ou seguro.</p></section>
  <section class="card calc-formula"><h2>Como o cálculo funciona</h2><ol>
  <li><strong>Concentração</strong><span>Massa total ÷ volume final</span></li>
  <li><strong>Volume</strong><span>Dose informada em mg ÷ concentração</span></li>
  <li><strong>Graduação U-100</strong><span>Volume em mL × 100</span></li>
- </ol></section></div>`;
+ </ol></section>
+ <section class="card calc-saved" aria-labelledby="calc-saved-title">
+ <h2 id="calc-saved-title">Dosagens salvas</h2>
+ <p class="sub">Salvas neste navegador. As dosagens não são sincronizadas entre dispositivos.</p>
+ <div class="calc-saved-entry"><label for="calc-saved-name">Nome (opcional)<input id="calc-saved-name" maxlength="80"></label>
+ <button id="calc-save" type="button" class="primary" data-calc-saved-action="save">Salvar dosagem</button></div>
+ <p class="sub" id="calc-saved-status" role="status"></p><div id="calc-saved-list"></div></section>
+ </div>`;
 }
 function calcSliderConfig(id){
  if(id!=='dose')return calcFields[id];

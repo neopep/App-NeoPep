@@ -48,6 +48,19 @@ async function prepare() {
       .replaceAll('wss://*.supabase.co', staging.replace('https:', 'wss:'));
     fs.writeFileSync(path, html);
   }
+  const style = 'dist/style.css';
+  const marker = '/* Identificação exclusiva da homologação */';
+  const css = fs.readFileSync(style, 'utf8').split(marker)[0];
+  fs.writeFileSync(style, css + `
+${marker}
+html::after,dialog[open]::after{
+  content:"TESTE";position:fixed;top:calc(env(safe-area-inset-top,0px) + 4px);left:50%;
+  transform:translateX(-50%);z-index:2147483647;pointer-events:none;
+  color:#e5c886;background:#19150f;border:1px solid #d5ad62;border-radius:999px;
+  padding:2px 9px;font:700 10px/1.3 system-ui,sans-serif;letter-spacing:.13em;opacity:.72;
+}
+html:has(dialog[open])::after{visibility:hidden}
+`);
   // Keep the former launch URL and Auth callback as real pages at the same origin.
   fs.mkdirSync('dist/neo', { recursive: true });
   fs.copyFileSync('dist/index.html', 'dist/neo/index.html');
@@ -55,7 +68,7 @@ async function prepare() {
   const serviceWorker = 'dist/sw.js';
   const worker = fs.readFileSync(serviceWorker, 'utf8')
     .replace(/^const CACHE=.*;$/m,
-      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v25';")
+      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v26';")
     .replace(/key\.startsWith\((?:'[^']+'|CACHE_PREFIX)\)/, 'key.startsWith(CACHE_PREFIX)');
   fs.writeFileSync(serviceWorker, worker);
 }

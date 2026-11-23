@@ -501,3 +501,7 @@ Dosagens salvas usam armazenamento local separado por conta e pela modalidade de
 ## Avatar no topo do Início
 
 A foto do cabeçalho preenche o círculo com recorte central e mantém o tamanho responsivo. A regra fica restrita à tela Início. O build de homologação usa o cache PWA `pwa-v25`.
+
+## Ajustes locais da calculadora e identificação de Teste
+
+Dosagens salvas fica depois do conteúdo explicativo. Só a seringa de 100 UI no resultado recebeu um cilindro mais longo. A identificação TESTE é acrescentada ao CSS pelo build de homologação, com cache `pwa-v26`. Build, check, 63 testes direcionados e Chromium a 390 px passaram. Alterações mantidas em branch local para a próxima integração autorizada.

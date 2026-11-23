@@ -441,6 +441,7 @@ test('dosagens preservam precisão, múltiplos itens, seleção, renomeação e 
  };
  put('10','2','4.275','A');put('20','1','2.5','B');
  assert.equal(q('#calc-saved-list').children.length,2);
+ assert.equal(q('.calc-layout').lastElementChild.classList.contains('calc-saved'),true);
  const data=JSON.parse(a.data.get('neo-calc-saved-v1:'+owner));
  const first=data.items.find(x=>x.name==='A');
  assert.equal(first.dose,4.275);assert.equal(first.ml,C.convertDose(10,2,4.275,'mg',1).ml);
@@ -467,7 +468,7 @@ test('seringas têm comprimento comum, diâmetros diversos e recorte externo da 
  for(const [capacity,height] of [[.3,24],[.5,30],[1,38]]){
   const {document}=parseHTML(a.run("syringeSymbol("+capacity+",15,false,15.12345)"));
   const glass=document.querySelector('rect[stroke="#9a845f"]');
-  assert.equal(glass.getAttribute('width'),'166');assert.equal(glass.getAttribute('height'),String(height));
+  assert.equal(glass.getAttribute('width'),capacity===1?'196':'166');assert.equal(glass.getAttribute('height'),String(height));
   const stem=document.querySelector('.calc-external-stem'),id=stem.getAttribute('clip-path').slice(5,-1);
   assert.equal(document.getElementById(id).firstElementChild.getAttribute('width'),glass.getAttribute('x'));
   assert.equal(document.querySelector('.calc-level-label text').textContent,'15,12 UI');
