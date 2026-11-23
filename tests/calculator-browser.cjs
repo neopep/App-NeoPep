@@ -35,7 +35,7 @@ async function verify(browser,options,label,theme){
   assert.equal(await bubble.textContent(),'60 mg');
   await page.locator('[data-calc-chip=mass][data-value="15"]').click();
   await page.locator('[data-calc-chip=volume][data-value="3"]').click();
-  await page.locator('[data-calc-capacity="0.5"] input').check();
+  await page.locator('[data-calc-capacity="0.5"]').click();
   await page.locator('[data-calc-chip=dose][data-value="2.5"]').click();
   assert.match(await page.locator('#result .big').textContent(),/0,5/);
   assert.equal(await page.locator('#calc-range-dose').getAttribute('max'),'2.5');
@@ -46,7 +46,7 @@ async function verify(browser,options,label,theme){
   assert.match(await page.locator('#result .error').textContent(),/valores positivos/);
   await page.locator('#dose').fill('2.5125');
   assert.match(await page.locator('.syringe-reading').textContent(),/fora da capacidade/);
-  await page.locator('[data-calc-capacity="1"] input').check();
+  await page.locator('[data-calc-capacity="1"]').click();
   assert.match(await page.locator('.syringe-reading').textContent(),/entre marcas/);
   assert.equal(await page.locator('#dose').inputValue(),'2.5125');
   await page.selectOption('#doseUnit','mcg');
