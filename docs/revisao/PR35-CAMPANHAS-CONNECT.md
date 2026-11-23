@@ -29,3 +29,9 @@ Produção depende da homologação integrada no Teste, da confirmação do cat�
 - A tentativa de alcançar o Supabase de Teste encontrou HTTP 403 no túnel da rede deste workspace. O banco remoto e o pareamento de um Windows real ainda exigem ensaio integrado.
 
 Build e check passaram. Os 32 testes focados de Campanhas, painel administrativo e Connect passaram. A suíte completa da candidata teve 347 aprovações e 55 falhas. A `main` em `1cadd8b` teve 346 aprovações e as mesmas 55 falhas por nome. A regressão adicional cobre o contrato SQL de destinatários sincronizados.
+
+## Correção complementar da foto de perfil
+
+O cabeçalho e a página Perfil usam o arquivo principal do avatar salvo, que já contém o recorte quadrado. A cópia enviada para a comunidade vem do mesmo JPEG. A prévia e a gravação agora usam a mesma geometria de zoom e posição. Avatares quadrados existentes mantêm o enquadramento e fotos antigas retangulares preenchem o círculo com ajuste central apenas na exibição, sem regravação. O cache do PWA foi atualizado para distribuir os estilos e o editor juntos.
+
+A regressão `node tests/avatar-browser.cjs` verifica o CSS e compara pixels da prévia com o arquivo salvo para fotos verticais, horizontais e quadradas no Chromium, em desktop e na emulação de iPhone 13. A validação em Safari num iPhone físico permanece pendente.
