@@ -38,6 +38,9 @@ test('visibilidade por produto protege a compra e duplicação preserva listas e
  try{
   await db.exec('alter table auth.users add column email text, add column deleted_at timestamptz, add column is_anonymous boolean default false; create publication supabase_realtime;');
   await db.exec(fs.readFileSync('supabase/migrations/20261123220000_shop_member_visibility.sql','utf8'));
+  const productionDelta=fs.readFileSync('release/shop-admin-visibility/production.sql','utf8');
+  await db.exec(productionDelta);
+  await db.exec(productionDelta);
   await db.query('insert into auth.users(id,email,raw_user_meta_data) values ($1,$2,$3),($4,$5,$6),($7,$8,$9)',
    [A,'admin@example.test','{"full_name":"Administradora"}',B,'beatriz@example.test','{"full_name":"Beatriz"}',other,'outra@example.test','{"full_name":"Outra pessoa"}']);
   for(const account of [A,B,other]){await as(db,account);await onboard(db);}
@@ -87,6 +90,11 @@ test('visibilidade por produto protege a compra e duplicação preserva listas e
 
   await as(db,A);await mode('allowlist');
   assert.equal((await members()).selected_count,0);
+  const adminInventory=(await shop('catalog')).products;
+  assert.equal(adminInventory.find(row=>row.id===product).shop_store_hidden,true);
+  assert.equal(adminInventory.find(row=>row.id===unchanged).shop_store_hidden,false);
+  assert.deepEqual(await visible('featured'),[unchanged]);
+  assert.equal((await shop('product_detail',{id:product})).product,null);
   await as(db,B);assert.deepEqual(await visible(),[unchanged]);
   await as(db,other);assert.deepEqual(await visible(),[unchanged]);
   await db.exec('reset role');

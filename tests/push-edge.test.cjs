@@ -7,14 +7,14 @@ test('envio discreto, descarte de inscrição expirada e bloqueio de endpoint ar
 
 test('postagem da comunidade usa mensagem sem conteúdo pessoal e fila própria',async()=>{const job={id:'00000000-0000-4000-8000-000000000009',endpoint:'https://web.push.apple.com/valid',keys:{},kind:'community'};const s=setup(settings,[],[job]);assert.equal((await s.handler(req(settings.NEO_PUSH_CRON_SECRET))).status,200);assert.deepEqual(JSON.parse(s.sent[0].payload),{tag:job.id,kind:'community'});assert.equal(s.finished[0].p_id,job.id)});
 
-test('aviso privado usa fila separada e não inclui o conteúdo da conversa',async()=>{const job={id:'00000000-0000-4000-8000-000000000010',endpoint:'https://web.push.apple.com/valid',keys:{},kind:'support'};const s=setup(settings,[],[],[job]);assert.equal((await s.handler(req(settings.NEO_PUSH_CRON_SECRET))).status,200);assert.deepEqual(JSON.parse(s.sent[0].payload),{tag:job.id,kind:'support'});assert.equal(s.finished[0].p_id,job.id)});
+test('aviso privado usa fila separada e não inclui o conteúdo da conversa',async()=>{const job={id:'00000000-0000-4000-8000-000000000010',endpoint:'https://web.push.apple.com/valid',keys:{},kind:'support',title:'Nome privado',body:'Mensagem privada'};const s=setup(settings,[],[],[job]);assert.equal((await s.handler(req(settings.NEO_PUSH_CRON_SECRET))).status,200);assert.deepEqual(JSON.parse(s.sent[0].payload),{tag:job.id,kind:'support'});assert.equal(s.finished[0].p_id,job.id)});
 
-test('eventos de biblioteca e loja conservam categoria e conteúdo para o roteamento da PWA',async()=>{
+test('eventos de biblioteca e loja conservam categoria para o roteamento sem enviar o conteúdo',async()=>{
  const eventJobs=['library','shop'].map((kind,i)=>({
   id:'00000000-0000-4000-8000-00000000002'+i,kind,endpoint:'https://web.push.apple.com/valid',keys:{},title:'Aviso sintético',body:'Evento de teste'
  }));
  const s=setup(settings,[],[],[],eventJobs);
  assert.equal((await s.handler(req(settings.NEO_PUSH_CRON_SECRET))).status,200);
- assert.deepEqual(s.sent.map(x=>JSON.parse(x.payload)),eventJobs.map(({id,kind,title,body})=>({tag:id,kind,title,body})));
+ assert.deepEqual(s.sent.map(x=>JSON.parse(x.payload)),eventJobs.map(({id,kind})=>({tag:id,kind})));
  assert.deepEqual(s.finished.map(x=>x.p_id),eventJobs.map(x=>x.id));
 });
