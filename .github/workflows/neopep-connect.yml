@@ -2,7 +2,7 @@ name: NeoPep Connect Windows
 
 on:
   push:
-    branches: [desenvolvimento/connect-windows-02, desenvolvimento/connect-whatsapp-grupos, desenvolvimento/connect-windows-campanhas-v026, desenvolvimento/connect-dois-ambientes]
+    branches: [desenvolvimento/connect-windows-02, desenvolvimento/connect-whatsapp-grupos, desenvolvimento/connect-windows-campanhas-v026, desenvolvimento/connect-dois-ambientes, desenvolvimento/connect-turnstile]
     paths: ['connect/windows/**', 'connect/whatsapp-lab/**', '.github/workflows/neopep-connect.yml']
   pull_request:
     branches: [staging/permanente, desenvolvimento/connect-windows-02, desenvolvimento/connect-windows-campanhas-v025]
@@ -19,9 +19,9 @@ permissions:
 
 jobs:
   windows:
-    if: contains(fromJSON('["desenvolvimento/connect-windows-02","desenvolvimento/connect-whatsapp-grupos","desenvolvimento/connect-windows-campanhas-v026","desenvolvimento/connect-windows-026-integracao-staging","desenvolvimento/connect-dois-ambientes"]'), github.event.pull_request.head.ref || github.ref_name)
+    if: contains(fromJSON('["desenvolvimento/connect-windows-02","desenvolvimento/connect-whatsapp-grupos","desenvolvimento/connect-windows-campanhas-v026","desenvolvimento/connect-windows-026-integracao-staging","desenvolvimento/connect-dois-ambientes","desenvolvimento/connect-turnstile"]'), github.event.pull_request.head.ref || github.ref_name)
     env:
-      CONNECT_TEST_VERSION: ${{ (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/connect-dois-ambientes' && '0.2.7' || contains(fromJSON('["desenvolvimento/connect-windows-campanhas-v026","desenvolvimento/connect-windows-026-integracao-staging"]'), (github.event.pull_request.head.ref || github.ref_name)) && '0.2.6' || (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/connect-whatsapp-grupos' && '0.2.4' || '0.2.2' }}
+      CONNECT_TEST_VERSION: ${{ (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/connect-turnstile' && '0.2.8' || (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/connect-dois-ambientes' && '0.2.7' || contains(fromJSON('["desenvolvimento/connect-windows-campanhas-v026","desenvolvimento/connect-windows-026-integracao-staging"]'), (github.event.pull_request.head.ref || github.ref_name)) && '0.2.6' || (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/connect-whatsapp-grupos' && '0.2.4' || '0.2.2' }}
     runs-on: windows-2022
     timeout-minutes: 15
     steps:
@@ -62,8 +62,20 @@ jobs:
       - name: Compilar aplicativo e instalador x64
         shell: powershell
         run: ./connect/windows/build.ps1 -Perfil Teste -Version $env:CONNECT_TEST_VERSION -Output "$env:RUNNER_TEMP\connect"
+      - name: Verificar contrato Turnstile sem acessar Auth remoto
+        if: env.CONNECT_TEST_VERSION == '0.2.8'
+        shell: powershell
+        run: |
+          $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+          $source = (Resolve-Path 'connect/windows').Path
+          $out = Join-Path $env:RUNNER_TEMP 'connect'
+          $spec = Join-Path $out 'TurnstileTest.exe'
+          & $compiler /nologo /platform:x64 /codepage:65001 "/out:$spec" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll "/r:$out\Microsoft.Web.WebView2.Core.dll" "/r:$out\Microsoft.Web.WebView2.WinForms.dll" "$source\ConnectProfile.cs" "$source\Turnstile.cs" "$source\TurnstileTest.cs"
+          if ($LASTEXITCODE) { throw 'Falha ao compilar teste de CAPTCHA' }
+          & $spec
+          if ($LASTEXITCODE) { throw 'Falha no contrato de CAPTCHA' }
       - name: Verificar tema, prévia e rascunho protegido de campanha
-        if: env.CONNECT_TEST_VERSION == '0.2.6' || env.CONNECT_TEST_VERSION == '0.2.7'
+        if: env.CONNECT_TEST_VERSION == '0.2.6' || env.CONNECT_TEST_VERSION == '0.2.7' || env.CONNECT_TEST_VERSION == '0.2.8'
         shell: powershell
         run: |
           $exe = Join-Path $env:RUNNER_TEMP 'connect\NeoPepConnect.exe'
@@ -124,18 +136,19 @@ jobs:
           foreach ($baseline in @(
             @{version='0.1.1'; commit='4264a48c8503b4c2749b25ef25e5de4af67691c6'},
             @{version='0.1.2'; commit='60016a98f6d8ef526a8ad2f04a27e0d57ec879c4'},
-            @{version='0.2.6'; commit='fa8429a22b0639f5ab9d48614cd6458ada29ceb0'}
+            @{version='0.2.6'; commit='fa8429a22b0639f5ab9d48614cd6458ada29ceb0'},
+            @{version='0.2.7'; commit='464990cbbf63655b7ab295e387770cce3243f830'}
           )) {
             $worktree = Join-Path $env:RUNNER_TEMP ('baseline-' + $baseline.version)
             git worktree add --detach $worktree $baseline.commit
             if ($LASTEXITCODE) { throw 'Linha de base ausente' }
             $baselineOutput = Join-Path $worktree 'output'
             $baselineBuild = Join-Path $worktree 'connect/windows/build.ps1'
-            if ($baseline.version -eq '0.2.6') {
+            if ($baseline.version -in @('0.2.6','0.2.7')) {
               $modules = (Resolve-Path 'connect/whatsapp-lab/node_modules').Path
               $target = Join-Path $worktree 'connect/whatsapp-lab/node_modules'
               New-Item -ItemType Junction -Path $target -Target $modules | Out-Null
-              & $baselineBuild -Output $baselineOutput -Version '0.2.6'
+              & $baselineBuild -Output $baselineOutput -Version $baseline.version
             } else { & $baselineBuild -Output $baselineOutput }
             Invoke-Setup (Join-Path $baselineOutput 'NeoPepConnectSetup.exe') '--quiet'
             $fixture = '{"device":"fixture-windows","account":"fixture-principal"}'

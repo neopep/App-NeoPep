@@ -388,7 +388,7 @@ sealed partial class Connect : Form {
         var owner=Value(user as Dictionary<string,object>,"id");Guid id;
         if(!Guid.TryParse(owner,out id)||id==Guid.Empty)throw new InvalidOperationException();
         var previousOwner=Value(local,"owner");
-        if(previousOwner!=""&&previousOwner!=id.ToString("D"))throw new InvalidOperationException();
+        if(previousOwner!=""&&previousOwner!=id.ToString("D"))throw new InvalidOperationException("account_mismatch");
         sessionOwner=id;
         local["owner"]=id.ToString("D");
         if(!profile.IsProduction&&Value(local,"legacy_owner")=="")local["legacy_owner"]=id.ToString("D");
@@ -404,8 +404,17 @@ sealed partial class Connect : Form {
     async Task Login() {
         if(busy||installingUpdate||checkingUpdate||whatsappOpen)return;busy=true;
         var previous=new Dictionary<string,object>(local);
+        bool deviceStage=false;
         try {
-            await Tokens("password",new {email=email.Text.Trim(),password=password.Text},false);
+            string loginEmail=email.Text.Trim(),loginPassword=password.Text;
+            string captcha=null;
+            if(!String.IsNullOrEmpty(profile.CaptchaSiteKey)){
+                captcha=await TurnstileDialog.Verify(this,profile);
+                if(captcha==null){state.Text=PasswordGrant.Error("captcha_failed",false);return;}
+            }
+            try{await Tokens("password",PasswordGrant.Payload(loginEmail,loginPassword,captcha),false);}
+            finally{captcha=null;loginPassword=null;}
+            deviceStage=true;
             if(!String.IsNullOrEmpty(Value(local,"device"))){
                 var identity=Value(local,"account");
                 var heartbeat=await RPC("heartbeat",new {version=Version,working_set_mb=Environment.WorkingSet/1048576,
@@ -418,12 +427,35 @@ sealed partial class Connect : Form {
                 local["secret"]=BitConverter.ToString(buffer).Replace("-","").ToLowerInvariant();
                 await Register();
             }
-        } catch(Exception) {
+        } catch(Exception error) {
             local=previous;access=null;sessionOwner=Guid.Empty;deviceApproved=false;if(whatsapp!=null)whatsapp.Close();
-            state.Text="Falha no login. Use a conta administrativa que autorizou este computador.";
-            Record("login_ou_registro_falhou");
+            string code=LoginErrorCode(error);
+            state.Text=PasswordGrant.Error(code,deviceStage);
+            Record("login_"+code);
         }
         finally {password.Clear();busy=false;}
+    }
+    string LoginErrorCode(Exception error){
+        if(error is InvalidOperationException&&error.Message=="account_mismatch")return "account_mismatch";
+        var web=error as WebException;
+        if(web==null)return "internal";
+        using(var response=web.Response as HttpWebResponse){
+            if(response==null)return "network_error";
+            if((int)response.StatusCode>=500)return "network_error";
+            try{
+                using(var stream=response.GetResponseStream())
+                using(var reader=new StreamReader(stream,Encoding.UTF8)){
+                    var buffer=new char[4096];
+                    int size=reader.ReadBlock(buffer,0,buffer.Length);
+                    if(size>=buffer.Length)return "unclassified";
+                    var row=json.Deserialize<Dictionary<string,object>>(new string(buffer,0,size));
+                    string code=Value(row,"error_code");
+                    if(String.IsNullOrEmpty(code))code=Value(row,"code");
+                    if(Array.IndexOf(new[]{"captcha_failed","invalid_credentials","42501"},code)>=0)return code;
+                }
+            }catch{}
+            return "unclassified";
+        }
     }
     string ApprovedStatus(){return profile.IsProduction?"Computador autorizado • produção":"Computador autorizado • simulação";}
     async Task Register() {
