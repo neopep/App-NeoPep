@@ -39,5 +39,16 @@ test('draft SQL uses private bucket and RLS owner checks; does not touch payment
  assert.match(sql,/neo-comparisons','neo-comparisons',false/);
  assert.match(sql,/enable row level security/);
  assert.match(sql,/user_id = \(select auth\.uid\(\)\)/);
+ assert.doesNotMatch(sql,/p\.user_id\s*=\s*user_id\b/,'photo owner must never be inferred from shadowed column');
+ assert.match(sql,/p\.user_id\s*=\s*\(select auth\.uid\(\)\)/);
+ assert.match(sql,/\[\.\]jpg\$/,'storage path must end in JPEG');
  assert.doesNotMatch(sql,/mercadopago|neo_shop_payment|payment_event/i);
+});
+
+test('private comparison deletion keeps storage read policy valid until removal',()=>{
+ const cloud=read('src/cloud.js');
+ const method=cloud.slice(cloud.indexOf('async deleteBeforeAfter(item)'),cloud.indexOf('async photos()'));
+ const storage=method.indexOf("client.storage.from('neo-comparisons').remove([item.path])");
+ const metadata=method.indexOf("client.from('neo_saved_comparisons').delete()");
+ assert.ok(storage>=0&&metadata>storage,'delete storage object before deleting required metadata');
 });
