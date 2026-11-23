@@ -269,6 +269,22 @@ const api={configured,
   if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou.');
   return data.signedUrl;
  },
+ async beforeAfterBlob(item){
+  needsHealth();
+  const account=user.id,version=identityVersion;
+  if(item?.user_id!==account||!item.path?.startsWith(account+'/')||
+   !/^[-a-f0-9]{36}\/[-a-f0-9]{36}\.jpg$/i.test(item.path))
+   throw Error('Comparação privada indisponível.');
+  const record=ok(await client.from('neo_saved_comparisons').select('id,path')
+   .eq('id',item.id).eq('user_id',account).eq('path',item.path).single());
+  if(version!==identityVersion||user?.id!==account||record?.path!==item.path)
+   throw Error('A conta mudou ou a comparação não existe mais.');
+  const blob=ok(await client.storage.from('neo-comparisons').download(item.path));
+  if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou.');
+  if(blob?.type!=='image/jpeg'||!blob.size||blob.size>5242880)
+   throw Error('Imagem da comparação indisponível.');
+  return blob;
+ },
  async deleteBeforeAfter(item){
   needsHealth();
   const account=user.id,version=identityVersion;
