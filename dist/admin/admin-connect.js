@@ -23,6 +23,7 @@ function mountNeoConnect(root,cloud){
  <button type="button" class="secondary" data-wa-more hidden>Carregar mais</button>
  </details><div data-connect-content></div></section>`;
  root.querySelector('[data-connect-group-slot]').append(root.querySelector('[data-wa-selected]'));
+ root.append(root.querySelector('[data-connect-content]'));
  let activeTab='overview';
  const connectStyle=document.createElement('style');connectStyle.textContent=".neo-connect-tabs{display:flex;gap:.3rem;overflow-x:auto;white-space:nowrap;margin-bottom:1rem}.neo-connect-tabs button{flex:0 0 auto;background:transparent;border:0;border-bottom:2px solid transparent;color:inherit;padding:.65rem .85rem;opacity:.7}.neo-connect-tabs button[aria-selected=true]{border-bottom-color:currentColor;opacity:1;font-weight:700}[data-connect-pane][hidden]{display:none!important}";root.prepend(connectStyle);
  function switchConnectTab(next){activeTab=next;for(const tab of root.querySelectorAll('[data-connect-tab]'))tab.setAttribute('aria-selected',String(tab.dataset.connectTab===next));for(const pane of root.querySelectorAll('[data-connect-pane]'))pane.hidden=pane.dataset.connectPane!==next;}
