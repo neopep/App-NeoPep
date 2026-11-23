@@ -505,3 +505,7 @@ A foto do cabeçalho preenche o círculo com recorte central e mantém o tamanho
 ## Ajustes locais da calculadora e identificação de Teste
 
 Dosagens salvas fica depois do conteúdo explicativo. Só a seringa de 100 UI no resultado recebeu um cilindro mais longo. A identificação TESTE é acrescentada ao CSS pelo build de homologação, com cache `pwa-v26`. Build, check, 63 testes direcionados e Chromium a 390 px passaram. Alterações mantidas em branch local para a próxima integração autorizada.
+
+## Foto do cabeçalho compartilhado
+
+A regra de preenchimento do avatar superior passou a valer em todas as rotas que usam o cabeçalho principal. Cada tela preserva o raio existente, inclusive o círculo do Início. O Chromium a 390 px confirmou o preenchimento em oito telas e o enquadramento original da foto dentro do Perfil. Alteração local, sem publicação.

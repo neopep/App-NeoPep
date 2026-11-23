@@ -464,9 +464,10 @@ legend>.campaign-field-help{display:inline-grid;grid-template-columns:auto;verti
 .avatar img{display:block;object-fit:contain;object-position:center}
 .avatar:has(img),.profile-head .avatar:has(img){border-radius:24%}
 
-/* Preenche apenas a foto no cabeçalho da tela Início. */
-#app:has(#homeJourneyDetails) #avatar:has(>img){border-radius:50%;overflow:hidden;padding:0;display:block}
-#app:has(#homeJourneyDetails) #avatar>img{width:100%;height:100%;object-fit:cover}
+/* Preenchimento da foto no cabeçalho compartilhado. */
+.app-header #avatar:has(>img){overflow:hidden;padding:0;display:block}
+.app-header #avatar>img{width:100%;height:100%;object-fit:cover}
+#app:has(#homeJourneyDetails) #avatar:has(>img){border-radius:50%}
 
 /* Calculadora de volume */
 .calc-layout{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);gap:16px;align-items:start;padding-bottom:max(2rem,env(safe-area-inset-bottom))}
