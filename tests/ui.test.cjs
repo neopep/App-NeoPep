@@ -35,6 +35,8 @@ test('calculadora sincroniza seleção rápida, controles deslizantes e valores 
   }else field.value=value;
   field.dispatchEvent(new a.ctx.Event(event,{bubbles:true}));
  };
+ assert.equal(doc.querySelectorAll('.calc-capacity-choice').length,3);
+ assert.equal(node('[data-calc-capacity="1"] input').checked,true);
  assert.equal(node('.syringe-reading'),null);
  assert.equal(node('#dose').value,'');
  assert.equal(node('#calcForm button[type=submit]'),null);
@@ -62,7 +64,7 @@ test('calculadora sincroniza seleção rápida, controles deslizantes e valores 
  assert.equal(Number(node('#calc-range-dose').max),max);
  assert.equal(node('#dose').value,'1000');
  set('#dose','2500');
- set('#calc-capacity','0.3','change');
+ set('[data-calc-capacity="0.3"] input','0.3','change');
  assert.equal(Number(node('#calc-range-dose').max),1500);
  assert.equal(node('#dose').value,'2500');
  assert.match(node('#calc-dose-limit').textContent,/1.500 mcg/);
@@ -73,13 +75,13 @@ test('calculadora sincroniza seleção rápida, controles deslizantes e valores 
  set('#calc-range-dose','1500');
  assert.equal(node('#dose').value,'1500');
  assert.match(node('.syringe-reading').textContent,/30 na escala/);
- set('#calc-capacity','0.5','change');
+ set('[data-calc-capacity="0.5"] input','0.5','change');
  assert.ok(node('[data-graduation="49"]'));
  set('#dose','1575');
  assert.match(node('.syringe-reading').textContent,/entre marcas/);
  const tick=node('[data-graduation="31"]').getAttribute('d').match(/^M([^ ]+)/)[1];
  assert.equal(node('.calc-syringe .calc-liquid').getAttribute('x'),tick);
- set('#calc-capacity','1','change');
+ set('[data-calc-capacity="1"] input','1','change');
  assert.equal(node('[data-graduation="31"]'),null);
  assert.ok(node('[data-graduation="100"]'));
  set('#calc-range-mass','0');
