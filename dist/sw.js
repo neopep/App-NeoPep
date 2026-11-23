@@ -1,10 +1,9 @@
 /* Cache limité à l'interface statique : aucune API, photo ou session. */
-const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');
-const CACHE=CACHE_PREFIX+'pwa-v23';
+const CACHE='neopeptideos-shell-v2-multiagent-80-brand-v1-issue21-calc3d-saved';
 const ASSETS=['./','index.html','style.css','core.js','cloud.js','captcha.js','push.js','community-alerts.js','notification-center.js','shop-core.js','shop-promotions.js','shop.js','support.js','media-links.js','pdf-reader.js','library-files.js','library-shelf.js','vendor/pdfjs/pdf.mjs','vendor/pdfjs/pdf.worker.mjs','community.js','library.js','gestures.js','arrival.js','install.js','app.js','admin/agent.js','config.js','manifest.webmanifest','assets/background.svg','assets/background-gold.svg','assets/brands/mercadopago.svg','assets/photo-example-1.png','assets/photo-example-2.png','assets/logo-neopep.png','assets/favicon-32.png','assets/icon-maskable-512.png','assets/icon-192.png','assets/icon-512.png','assets/apple-touch-icon.png'];
 const urls=new Set(ASSETS.map(p=>new URL(p,self.registration.scope).href));
 self.addEventListener('install',e=>e.waitUntil((async()=>{const cache=await caches.open(CACHE);await Promise.allSettled(ASSETS.map(async asset=>{const url=new URL(asset,self.registration.scope),response=await fetch(new Request(url,{cache:'reload'}));if(response.ok&&!response.redirected)await cache.put(url,response)}));await self.skipWaiting()})()));
-self.addEventListener('activate',e=>e.waitUntil((async()=>{for(const key of await caches.keys())if(key.startsWith(CACHE_PREFIX)&&key!==CACHE)await caches.delete(key);await self.clients.claim()})()));
+self.addEventListener('activate',e=>e.waitUntil((async()=>{for(const key of await caches.keys())if(key.startsWith('neopeptideos-shell-')&&key!==CACHE)await caches.delete(key);await self.clients.claim()})()));
 self.addEventListener('message',e=>{if(e.data?.type==='SKIP_WAITING')self.skipWaiting()});
 self.addEventListener('fetch',e=>{const r=e.request,u=new URL(r.url);if(r.method!=='GET'||u.origin!==self.location.origin||u.search||!urls.has(u.href))return;e.respondWith((async()=>{try{const response=await fetch(r);if(response.ok&&!response.redirected){const cache=await caches.open(CACHE);await cache.put(r,response.clone())}return response}catch{const cached=await caches.match(r);return cached||new Response('Sem conexão. Abra o app online primeiro.',{status:503,headers:{'Content-Type':'text/plain; charset=utf-8'}})}})())});
 
