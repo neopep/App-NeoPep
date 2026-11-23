@@ -8,7 +8,7 @@ Em Windows, use a sessão Teste em um computador aprovado e faça **Verificar at
 
 ## Esteira privada
 
-O workflow comum recebe o perfil explicitamente e usa a árvore dual-ambiente. O candidato de Produção vem de um SHA revisado da main. O agente de Produção tem configuração DPAPI, histórico, tarefa agendada, token e rota próprios. A configuração de Teste sem o campo de perfil continua válida. Atualize os scripts do agente Teste preservando o `agent.xml` e os recibos locais. Atualize o Git blob confiável somente depois de revisar o workflow privado.
+A ponte privada encaminha novos arquivos revisados em `release-requests/`, com `source_sha`, `version` e `profile`. Solicitações idênticas são ignoradas se já têm build em curso ou aprovado pelo CI. O workflow comum recebe o perfil explicitamente e usa a árvore dual-ambiente. O candidato de Produção vem de um SHA revisado da main. O agente de Produção tem configuração DPAPI, histórico, tarefa agendada, token e rota próprios. A configuração de Teste sem o campo de perfil continua válida. Atualize os scripts do agente Teste preservando o `agent.xml` e os recibos locais. Atualize o Git blob confiável somente depois de revisar o workflow privado.
 
 A mesma chave pública RSA pinada mantém compatibilidade com os clientes instalados. O perfil faz parte da assinatura e o cliente também valida o host do URL. O novo token de Produção é independente e somente seu digest vai em `NEO_CONNECT_PRODUCTION_AGENT_TOKEN_SHA256` na Edge do projeto oficial. O certificado Authenticode é separado da chave de manifesto e deve estar disponível no cofre do usuário Windows. Em Produção o agente assina o setup, exige timestamp e status válido e só então calcula os bytes e SHA-256 assinados no manifesto. O broker recebe somente o arquivo daquele ambiente, confere seu hash e cadastra rascunho. Um manifesto de Teste não pode ser reaproveitado em Produção.
 
@@ -16,7 +16,7 @@ A lista registra a evidência de build e verificação apenas após gravar o ras
 
 ## Ativação e evidências pendentes
 
-1. Aplicar o workflow revisado ao repositório privado com a conta autorizada. Instalar o agente de Produção no Windows custodiante com o thumbprint Authenticode e o blob aprovado. Preservar o agente de Teste, seu token e recibos.
+1. Aplicar os workflows revisados ao repositório privado com a conta autorizada. Instalar o agente de Produção no Windows custodiante com o thumbprint Authenticode e o blob aprovado. Preservar o agente de Teste, seu token e recibos.
 2. Publicar a Edge de rascunho em Produção após aprovação do PR e configuração do digest próprio. O broker JWT de download, o bucket privado e a RPC de evidência já existem. Conferir rejeição do token de Teste.
 3. Após promoção seletiva da árvore do Windows, solicitar o candidato oficial pelo workflow privado, verificar Authenticode e evidência e deixar em rascunho. Este passo não deve copiar o objeto já existente em Teste.
 4. Ensaiar Teste com 0.2.4, 0.2.5 ou 0.2.6 autorizada, e depois dois logins e dois WhatsApps em 0.2.7. Em Produção validar em dispositivo explicitamente autorizado antes de qualquer distribuição.

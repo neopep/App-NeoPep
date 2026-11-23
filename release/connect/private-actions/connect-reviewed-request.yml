@@ -1,0 +1,46 @@
+# Atualização da ponte no repositório privado. Solicitações entram por commits revisados.
+name: Connect reviewed request
+on:
+  push:
+    paths: ['release-requests/*.json']
+permissions:
+  contents: read
+  actions: write
+jobs:
+  queue:
+    if: github.repository == 'neopep/NeoPep-Connect-Build-Privado' && github.event.repository.private && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Encaminhar novas solicitações revisadas
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS: ${{ github.event.before }}
+          CURRENT: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! $PREVIOUS =~ ^[0-9a-f]{40}$ || $PREVIOUS =~ ^0+$ ]]; then
+            echo 'Compare com uma revisão existente para evitar reenfileirar solicitações históricas.'
+            exit 1
+          fi
+          while IFS= read -r -d '' request; do
+            [[ $request =~ ^release-requests/[A-Za-z0-9._-]+[.]json$ ]] || exit 1
+            version=$(jq -er '.version | strings | select(test("^(0|[1-9][0-9]{0,4})([.](0|[1-9][0-9]{0,4})){2}$"))' "$request")
+            source=$(jq -er '.source_sha | strings | select(test("^[a-f0-9]{40}$"))' "$request")
+            profile=$(jq -er '(.profile // "staging") | select(. == "staging" or . == "production")' "$request")
+            label=Teste
+            if [[ $profile == production ]]; then label=Producao; fi
+            title="Connect $label $version $source"
+            prefix="Connect $label $version "
+            old=$(gh api --paginate --jq '.workflow_runs[] | select(.conclusion == "success" or .status == "queued" or .status == "in_progress") | .display_title' "repos/$GITHUB_REPOSITORY/actions/workflows/neopep-connect-release.yml/runs?per_page=100")
+            if grep -Fxq "$title" <<< "$old"; then continue; fi
+            if grep -Fq "$prefix" <<< "$old"; then
+              echo 'A versão já está vinculada a outra origem neste ambiente.'
+              exit 1
+            fi
+            gh workflow run neopep-connect-release.yml -R "$GITHUB_REPOSITORY" -f "source_sha=$source" -f "version=$version" -f "profile=$profile"
+          done < <(git diff --diff-filter=A --name-only -z "$PREVIOUS" "$CURRENT" -- 'release-requests/*.json')
