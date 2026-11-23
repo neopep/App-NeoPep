@@ -52,3 +52,12 @@ test('private comparison deletion keeps storage read policy valid until removal'
  const metadata=method.indexOf("client.from('neo_saved_comparisons').delete()");
  assert.ok(storage>=0&&metadata>storage,'delete storage object before deleting required metadata');
 });
+
+test('account deletion includes private comparison files and remains compatible before bucket migration',()=>{
+ const edge=read('supabase/functions/delete-account/index.ts');
+ assert.match(edge,/getBucket\('neo-comparisons'\)/);
+ assert.match(edge,/storage\.from\('neo-comparisons'\)\.list\(user\.id/);
+ assert.match(edge,/storage\.from\('neo-comparisons'\)\.remove\(/);
+ assert.match(edge,/status!=='404'/);
+ assert.ok(edge.indexOf("storage.from('neo-comparisons').remove(")<edge.indexOf('admin.auth.admin.deleteUser(user.id)'), 'remove personal comparisons before deleting auth user');
+});
