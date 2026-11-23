@@ -52,6 +52,19 @@ async function verify(browser,options,label,theme){
   await page.selectOption('#doseUnit','mcg');
   assert.equal(await page.locator('#dose').inputValue(),'2512.5');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  assert.equal(await page.locator('.calc-capacities input[type=radio]').count(),3);
+  const geometry=await page.evaluate(()=>{
+   const svgs=[...document.querySelectorAll('.calc-layout svg:is(.calc-vial,.calc-syringe)')];
+   const ids=svgs.flatMap(svg=>[...svg.querySelectorAll('[id]')].map(node=>node.id));
+   const references=svgs.every(svg=>[...svg.querySelectorAll('[fill^="url("],[clip-path^="url("]')].every(node=>
+    ['fill','clip-path'].every(attribute=>{
+     const id=node.getAttribute(attribute)?.match(/^url\(#(.+)\)$/)?.[1];
+     return !id||[...svg.querySelectorAll('[id]')].some(candidate=>candidate.id===id);
+    })));
+   const cards=[...document.querySelectorAll('.calc-capacity-content')];
+   return {unique:new Set(ids).size===ids.length,references,oneRow:cards.every(card=>card.getBoundingClientRect().top===cards[0].getBoundingClientRect().top)};
+  });
+  assert.deepEqual(geometry,{unique:true,references:true,oneRow:true});
   await page.evaluate(()=>window.scrollTo(0,document.documentElement.scrollHeight));
   if(options.isMobile){
    assert.equal(await page.evaluate(()=>document.querySelector('.calc-formula').getBoundingClientRect().bottom<=document.querySelector('#nav').getBoundingClientRect().top),true);
@@ -67,6 +80,7 @@ async function verify(browser,options,label,theme){
  try{
   await verify(browser,devices['iPhone 13'],'iphone','dark');
   await verify(browser,{viewport:{width:1440,height:900}},'desktop','light');
-  console.log('Calculadora aprovada em Chromium desktop e emulação iPhone 13.');
+  await verify(browser,devices['Pixel 7'],'android','light');
+  console.log('Calculadora aprovada em Chromium desktop e emulações iPhone 13 e Pixel 7.');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

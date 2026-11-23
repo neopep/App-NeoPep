@@ -483,26 +483,19 @@ legend>.campaign-field-help{display:inline-grid;grid-template-columns:auto;verti
 .calc-chips{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.7rem}
 .calc-chips button{min-height:44px;padding:.4rem .65rem}
 .calc-chips button[aria-pressed=true]{color:var(--ink);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--soft)}
-.calc-capacity{display:grid;gap:.7rem;margin:0}
-.calc-capacities{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.6rem}
-.calc-capacity-choice{position:relative;display:block;min-width:0;cursor:pointer}
-.calc-capacity-choice input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-.calc-capacity-content{display:grid;align-content:center;justify-items:center;gap:.22rem;min-height:112px;padding:.65rem .35rem;border:1px solid var(--border);border-radius:14px;background:var(--surface);text-align:center;transition:border-color .15s,background-color .15s,box-shadow .15s}
-.calc-capacity-content svg{display:block;width:100%;max-width:158px;height:48px;overflow:visible}
-.calc-capacity-content b{font-size:1rem;font-weight:650;color:var(--ink)}
-.calc-capacity-content small{font-size:.75rem;color:var(--muted)}
-.calc-capacity-choice input:checked+.calc-capacity-content{border-color:var(--accent);background:var(--soft);box-shadow:inset 0 0 0 1px var(--accent)}
-.calc-capacity-choice input:focus-visible+.calc-capacity-content{outline:3px solid var(--accent);outline-offset:3px}
-@media(hover:hover){.calc-capacity-choice:hover .calc-capacity-content{border-color:var(--accent)}}
-@media(max-width:380px){.calc-capacities{gap:.35rem}.calc-capacity-content{padding:.5rem .2rem}.calc-capacity-content b{font-size:.92rem}.calc-capacity-content small{font-size:.7rem}}
+.calc-capacity{margin:0}
+.calc-capacity h2{font-size:1.12rem;font-weight:650;margin-bottom:.75rem}
+.calc-capacities{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(.3rem,2vw,.7rem)}
+.calc-capacity-choice{display:block;position:relative;min-width:0;cursor:pointer}
+.calc-capacity-choice input[type=radio]{position:absolute;inset:0;z-index:1;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
+.calc-capacity-content{display:grid;justify-items:center;align-content:center;min-height:88px;padding:.45rem .25rem;border:1px solid var(--border);border-radius:14px;background:var(--surface);text-align:center}
+.calc-capacity-content small{color:var(--muted);font-size:.74rem}
+.calc-capacity-content svg{width:100%;max-width:178px;margin-block-end:.2rem}
+.calc-capacity-choice input:checked+.calc-capacity-content{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--soft)}
+.calc-capacity-choice input:focus-visible+.calc-capacity-content{outline:2px solid var(--accent);outline-offset:2px}
 .calc-vial{display:block;width:clamp(92px,19vw,132px);height:clamp(112px,23vw,162px);margin:.3rem auto .65rem}
-.calc-vial .calc-glass{fill:var(--gold,#c9a462);fill-opacity:.14;stroke:var(--gold,#c9a462)}
-.calc-vial .calc-hardware,.calc-vial .calc-liquid{fill:var(--gold,#c9a462)}
-.calc-glass{fill:var(--soft);stroke:var(--accent);stroke-width:1.4}
-.calc-hardware,.calc-liquid{fill:var(--accent)}
-.calc-liquid{opacity:.65}
-.calc-mark{fill:none;stroke:var(--ink);stroke-opacity:.7;stroke-linecap:round;stroke-width:1.15}
-.calc-syringe text{fill:var(--ink);font-size:9px;font-variant-numeric:tabular-nums}
+.calc-mark{fill:none;stroke:var(--ink);stroke-opacity:.86;stroke-linecap:round;stroke-width:1;vector-effect:non-scaling-stroke}
+.calc-syringe text{fill:var(--ink);font-size:10px;font-weight:650;font-variant-numeric:tabular-nums}
 .calc-result{border-color:var(--accent)}
 .calc-result h2{text-align:center;margin-bottom:.8rem}
 .calc-result-values{text-align:center;background:var(--soft);border-radius:14px;padding:.8rem;overflow-wrap:anywhere}
@@ -512,7 +505,7 @@ legend>.campaign-field-help{display:inline-grid;grid-template-columns:auto;verti
 .calc-scale svg{width:100%;max-height:138px}
 .calc-scale figcaption{font-size:.82rem;color:var(--muted)}
 .calc-scale .syringe-reading{position:static;transform:none;white-space:normal;text-align:center}
-.calc-scale.scale-overflow .calc-liquid{fill:var(--danger)}
+.calc-scale.scale-overflow .calc-syringe{--calc-fluid-pigment:#bc454b}
 .calc-result-details{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem;margin:.85rem 0}
 .calc-result-details>div,.calc-formula li{padding:.7rem;background:var(--soft);border-radius:10px;overflow-wrap:anywhere}
 .calc-result-details dt{font-size:.8rem;color:var(--muted)}
