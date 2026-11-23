@@ -1,8 +1,5 @@
--- NeoPep PR #36: proposed private persistence for Before/After compositions.
--- REVIEW ONLY: do not apply to Teste/Producao until code, privacy and cleanup are ready.
--- Expected client path: <auth.uid()>/<random uuid>.jpg, JPEG <= 5 MB.
--- Ownership of both original photos is checked against auth.uid(), never an
--- unqualified column from a correlated subquery (which could shadow the outer user_id).
+-- NeoPep PR #36 | DRAFT: review-only private comparisons schema.
+-- DO NOT APPLY until existing schema, policies, backups and deletion flows are verified.
 begin;
 
 insert into storage.buckets (id,name,public,file_size_limit,allowed_mime_types)
@@ -20,44 +17,63 @@ create table if not exists public.neo_saved_comparisons (
  created_at timestamptz not null default now(),
  constraint neo_comparison_different_photos check (before_photo_id <> after_photo_id),
  constraint neo_comparison_date_order check (before_date < after_date),
- constraint neo_comparison_path check (path = user_id::text || '/' || id::text || '.jpg'),
- constraint neo_comparison_photo_refs check (before_photo_id <> '00000000-0000-0000-0000-000000000000'::uuid and after_photo_id <> '00000000-0000-0000-0000-000000000000'::uuid)
+ constraint neo_comparison_path check (path = user_id::text || '/' || id::text || '.jpg')
 );
-alter table public.neo_saved_comparisons enable row level security;
-revoke all on table public.neo_saved_comparisons from public,anon;
-grant select,insert,delete on table public.neo_saved_comparisons to authenticated;
 
-create policy "neo_saved_comparisons_owner_read"
+alter table public.neo_saved_comparisons enable row level security;
+revoke all on public.neo_saved_comparisons from public, anon;
+grant select, insert, delete on public.neo_saved_comparisons to authenticated;
+
+create policy neo_saved_comparisons_owner_read
 on public.neo_saved_comparisons for select to authenticated
 using (user_id = (select auth.uid()));
-create policy "neo_saved_comparisons_owner_insert"
+
+create policy neo_saved_comparisons_owner_insert
 on public.neo_saved_comparisons for insert to authenticated
 with check (
  user_id = (select auth.uid())
- and exists (select 1 from public.neo_photos p where p.id=before_photo_id and p.user_id=(select auth.uid()) and p.role='progress' and p.date=before_date)
- and exists (select 1 from public.neo_photos p where p.id=after_photo_id and p.user_id=(select auth.uid()) and p.role='progress' and p.date=after_date)
+ and exists (
+   select 1 from public.neo_photos p
+   where p.id = before_photo_id
+     and p.user_id = (select auth.uid())
+     and p.role = 'progress' and p.date = before_date
+ )
+ and exists (
+   select 1 from public.neo_photos p
+   where p.id = after_photo_id
+     and p.user_id = (select auth.uid())
+     and p.role = 'progress' and p.date = after_date
+ )
 );
-create policy "neo_saved_comparisons_owner_delete"
+
+create policy neo_saved_comparisons_owner_delete
 on public.neo_saved_comparisons for delete to authenticated
 using (user_id = (select auth.uid()));
 
-create policy "neo_comparisons_storage_read"
+create policy neo_comparisons_storage_read
 on storage.objects for select to authenticated
-using (bucket_id='neo-comparisons'
- and (storage.foldername(name))[1]=(select auth.uid())::text
- and exists (select 1 from public.neo_saved_comparisons c where c.path=name and c.user_id=(select auth.uid())));
-create policy "neo_comparisons_storage_upload"
-on storage.objects for insert to authenticated
-with check (bucket_id='neo-comparisons' and (storage.foldername(name))[1]=(select auth.uid())::text
- and name ~ ('^' || (select auth.uid())::text || '/[0-9a-f-]{36}[.]jpg));
-create policy "neo_comparisons_storage_delete"
-on storage.objects for delete to authenticated
-using (bucket_id='neo-comparisons' and (storage.foldername(name))[1]=(select auth.uid())::text);
+using (
+ bucket_id = 'neo-comparisons'
+ and (storage.foldername(name))[1] = (select auth.uid())::text
+ and exists (
+   select 1 from public.neo_saved_comparisons c
+   where c.path = name and c.user_id = (select auth.uid())
+ )
+);
 
-commit;
-));
-create policy "neo_comparisons_storage_delete"
+create policy neo_comparisons_storage_upload
+on storage.objects for insert to authenticated
+with check (
+ bucket_id = 'neo-comparisons'
+ and (storage.foldername(name))[1] = (select auth.uid())::text
+ and name ~ ('^' || (select auth.uid())::text || '/[0-9a-f-]{36}[.]jpg$')
+);
+
+create policy neo_comparisons_storage_delete
 on storage.objects for delete to authenticated
-using (bucket_id='neo-comparisons' and (storage.foldername(name))[1]=(select auth.uid())::text);
+using (
+ bucket_id = 'neo-comparisons'
+ and (storage.foldername(name))[1] = (select auth.uid())::text
+);
 
 commit;
