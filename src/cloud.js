@@ -289,9 +289,14 @@ const api={configured,
   needsHealth();
   const account=user.id,version=identityVersion;
   if(item?.user_id!==account||!item.path?.startsWith(account+'/'))throw Error('Comparação privada indisponível.');
-  ok(await client.from('neo_saved_comparisons').delete().eq('id',item.id).eq('user_id',account));
-  if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou.');
+  // Delete Storage first: its SELECT policy verifies that this metadata still exists.
+  const record=ok(await client.from('neo_saved_comparisons').select('id,path')
+   .eq('id',item.id).eq('path',item.path).eq('user_id',account).single());
+  if(version!==identityVersion||user?.id!==account||record?.path!==item.path)
+   throw Error('A conta mudou ou a comparação não existe mais.');
   ok(await client.storage.from('neo-comparisons').remove([item.path]));
+  if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou.');
+  ok(await client.from('neo_saved_comparisons').delete().eq('id',item.id).eq('user_id',account));
  },
  async photos(){
   need();
