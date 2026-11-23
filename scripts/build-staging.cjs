@@ -4,7 +4,7 @@ const { staging, verifyStagingKey, writeConfig } = require('../release/multiagen
 
 async function prepare() {
   const branch = process.env.VERCEL_GIT_COMMIT_REF;
-  if (process.env.VERCEL === '1' && !['staging', 'staging/permanente', 'feature/campaign-admin-tabs-20261122'].includes(branch)) {
+  if (process.env.VERCEL === '1' && !['staging', 'staging/permanente', 'feature/campaign-admin-tabs-20261122', 'staging/pr35-homologacao-20261123'].includes(branch)) {
     throw new Error('Branch inválida para a publicação de homologação.');
   }
 
