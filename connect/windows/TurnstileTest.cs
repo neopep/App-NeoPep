@@ -13,6 +13,7 @@ internal static class TurnstileTest {
         Require(b.Accept(b.Page.AbsoluteUri,a.Nonce+":fixture",now)==null);
         Require(a.Accept(a.Page.AbsoluteUri,a.Nonce+":fixture",now.AddMinutes(4))==null);
         Require(a.Accept(a.Page.AbsoluteUri,a.Nonce+":fixture",now)=="fixture");
+        Require(b.Accept(b.Page.AbsoluteUri,b.Nonce+":second",now)=="second");
         Require(a.Accept(a.Page.AbsoluteUri,a.Nonce+":fixture",now)==null);
         var json=new JavaScriptSerializer();
         Require(json.Serialize(PasswordGrant.Payload("fixture","fixture",null)).IndexOf("captcha_token",StringComparison.Ordinal)<0);

@@ -89,7 +89,9 @@ internal sealed class TurnstileDialog : Form {
             try{
                 environment=await CoreWebView2Environment.CreateAsync(null,folder);
                 if(IsDisposed)return;
-                await browser.EnsureCoreWebView2Async(environment);
+                var options=environment.CreateCoreWebView2ControllerOptions();
+                options.IsInPrivateModeEnabled=true;
+                await browser.EnsureCoreWebView2Async(environment,options);
                 if(IsDisposed)return;
                 var core=browser.CoreWebView2;
                 core.Settings.AreDevToolsEnabled=false;
@@ -105,7 +107,7 @@ internal sealed class TurnstileDialog : Form {
                     if(pageContent==null)pageContent=new MemoryStream(Encoding.UTF8.GetBytes(attempt.Html(profile.CaptchaSiteKey)));
                     e.Response=environment.CreateWebResourceResponse(pageContent,200,"OK",
                         "Content-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\nReferrer-Policy: no-referrer\r\n"+
-                        "Content-Security-Policy: default-src 'none'; script-src 'nonce-"+attempt.Nonce+"' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; base-uri 'none'; form-action 'none'");
+                        "Content-Security-Policy: default-src 'none'; script-src 'nonce-"+attempt.Nonce+"' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src https://challenges.cloudflare.com; base-uri 'none'; form-action 'none'");
                 };
                 core.WebMessageReceived+=delegate(object sender,CoreWebView2WebMessageReceivedEventArgs e){
                     if(e.Source!=attempt.Page.AbsoluteUri||delivered)return;
