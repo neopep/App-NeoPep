@@ -541,3 +541,21 @@ legend>.campaign-field-help{display:inline-grid;grid-template-columns:auto;verti
 .calc-saved-summary span,.calc-saved-summary small{color:var(--muted);font-size:.85rem}
 .calc-saved-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.65rem}
 .calc-saved-actions button{min-height:44px}
+
+/* Perfil e primeiro acesso compartilham os mesmos controles. */
+.privacy-setting-link{display:flex;align-items:center;gap:12px;width:100%;min-height:60px;padding:8px 20px;text-align:left;color:inherit;font-weight:600}
+.privacy-setting-link .profile-setting-chevron{margin-inline-start:auto}
+.privacy-preferences{max-width:520px}
+.privacy-preferences fieldset{border:0;padding:0;margin:0;min-inline-size:0}
+.privacy-preferences .privacy-option{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:51px;margin:0;padding:4px 0;border-bottom:1px solid var(--line);color:var(--ink)}
+.privacy-option input[type="checkbox"]{appearance:none;-webkit-appearance:none;flex:none;position:relative;display:grid;place-items:center;width:54px;height:44px;padding:0;margin:0;border:0;background:transparent;cursor:pointer}
+.privacy-option input::before,.privacy-option input::after{content:"";display:block;grid-area:1/1;border-radius:100px}
+.privacy-option input::before{width:48px;height:28px;background:var(--surface);border:1px solid var(--muted)}
+.privacy-option input::after{width:20px;height:20px;background:var(--muted);transform:translateX(-10px)}
+.privacy-option input:checked::before{background:var(--accent);border-color:var(--accent)}
+.privacy-option input:checked::after{background:#241908;transform:translateX(10px)}
+.privacy-option input:focus-visible,.privacy-setting-link:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.privacy-option input:disabled{opacity:.5;cursor:default}
+.privacy-preferences [data-privacy-notice]{margin-block:10px 0}
+.privacy-preferences [data-privacy-notice]:empty{display:none}
+.privacy-policy-link{display:inline-flex;margin-block:8px 12px}

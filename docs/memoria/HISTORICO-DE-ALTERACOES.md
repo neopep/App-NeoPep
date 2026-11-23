@@ -509,3 +509,9 @@ Dosagens salvas fica depois do conteúdo explicativo. Só a seringa de 100 UI no
 ## Foto do cabeçalho compartilhado
 
 A regra de preenchimento do avatar superior passou a valer em todas as rotas que usam o cabeçalho principal. Cada tela preserva o raio existente, inclusive o círculo do Início. O Chromium a 390 px confirmou o preenchimento em oito telas e o enquadramento original da foto dentro do Perfil. Alteração local, sem publicação.
+
+## Privacidade e permissões no Perfil e primeiro acesso
+
+A branch local `desenvolvimento/calculadora-ajustes-lote` concentra as quatro permissões opcionais em uma tela compacta. Após o cadastro inicial, salvar ou continuar sem autorizar conclui a etapa no Supabase. Estatísticas e medição de uso passam a ter validade e revogação independentes. Campanhas mantêm consentimento próprio e a localização aproximada conserva a fonte da hospedagem. A migração foi ensaiada apenas em banco local descartável.
+
+Build e check aprovados. Nove testes direcionados passaram. Dois testes herdados de interface push falharam tanto no commit-base quanto na alteração porque os ambientes simulados não fornecem `setInterval`. A prévia local em Chromium a 390 px verificou primeiro acesso, opção de pular, persistência, falha recuperável, revogação e temas claro e escuro com conta fictícia. Safari e PWA físicos ainda precisam de homologação. Migração remota, push Git e deploy aguardam autorização. [Preferências e integração](../PREFERENCIAS-E-AUTORIZACOES.md)

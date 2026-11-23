@@ -50,6 +50,16 @@ window.NeoPush=(()=>{
   try{const sub=await subscription();if(!sub){active=false;paint('Notificações desativadas neste dispositivo.');return false}await register(sub);active=true;message('');paint('Notificações ativadas e registradas neste dispositivo.');document.querySelector('[data-push-invite]')?.remove();return true}
   catch(err){active=false;paint('A permissão existe, mas falta concluir o cadastro deste dispositivo.');message(err.code==='PGRST202'?'Falta atualizar a estrutura de notificações no Supabase.':err.message||'Toque em Ativar para tentar novamente.');return false}
  }
+ async function requestPermission(){
+  if(window.Notification?.permission==='denied')return 'Notificações bloqueadas. Altere a permissão nos ajustes do aparelho ou do navegador.';
+  if(ios()&&!installed())return 'No iPhone, abra o NeoPep pelo ícone da tela inicial para autorizar notificações.';
+  if(!configured()||!supports())return 'As notificações ainda não estão disponíveis neste aparelho.';
+  const permission=Notification.permission==='granted'?'granted':await timeout(Notification.requestPermission(),30000,'A autorização do aparelho não foi concluída.');
+  if(permission==='denied')return 'Notificações bloqueadas. Altere a permissão nos ajustes do aparelho ou do navegador.';
+  if(permission!=='granted')return 'O aparelho ainda não autorizou notificações. Você pode tentar novamente em Lembretes.';
+  if(!await subscription().catch(()=>null))return 'Permissão concedida. Ative este dispositivo em Lembretes para receber avisos.';
+  return '';
+ }
  async function enable(){
   if(activationTask)return activationTask;
   const account=window.NeoCloud.user?.id;
@@ -81,7 +91,7 @@ window.NeoPush=(()=>{
   prompted=true;const root=document.createElement('div');root.className='push-invite';root.dataset.pushInvite='';root.innerHTML='<section class="card push-invite-card" role="dialog" aria-modal="true" aria-labelledby="pushInviteTitle"><span class="push-invite-icon" aria-hidden="true">♢</span><p class="eyebrow">NÃO PERCA NENHUMA ATUALIZAÇÃO</p><h2 id="pushInviteTitle">Ative as notificações</h2><p class="sub">Receba lembretes e avisos importantes mesmo quando o NeoPep estiver fechado. Você pode desativar depois em Lembretes.</p><div class="push-invite-actions"><button class="primary full" type="button" data-push="enable">Ativar notificações</button><button class="text-btn full" type="button" data-push-invite-later>Agora não</button></div><p class="push-invite-status" data-push-invite-status role="status"></p></section>';document.body.append(root);root.querySelector('[data-push="enable"]').focus();return true;
  }
  async function maybePrompt(){
-  if(prompted||document.querySelector('[data-arrival]')||!window.NeoCloud?.user)return false;
+  if(prompted||!supports()||document.querySelector('[data-arrival], #privacyPreferences')||!window.NeoCloud?.user||window.NeoCloud.onboardingComplete===false)return false;
   if(Notification.permission==='granted'){await sync();localStorage.setItem(inviteKey,'1');return false}
   return invite();
  }
@@ -95,5 +105,5 @@ window.NeoPush=(()=>{
  document.addEventListener('neo-arrival-finished',()=>setTimeout(maybePrompt,500));
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){sync();setTimeout(maybePrompt,1800)}});
  let checks=0;const startup=setInterval(()=>{checks++;if(window.NeoCloud?.user&&!document.querySelector('[data-arrival]')){clearInterval(startup);setTimeout(maybePrompt,1800)}else if(checks>40)clearInterval(startup)},500);
- return {panel,detach,supports,configured,sync,enable,maybePrompt};
+ return {panel,detach,supports,configured,sync,enable,maybePrompt,requestPermission};
 })();
