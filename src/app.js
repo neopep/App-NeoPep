@@ -963,10 +963,11 @@ async function showComparisonExport(trigger){
   <form method="dialog"><button type="submit" class="secondary" autofocus>Fechar</button></form></header>
   <div class="comparison-export-media"><p role="status">Preparando imagens…</p></div>
   <footer><div class="comparison-export-actions"><button type="button" class="primary" data-export-share disabled>Compartilhar</button>
-  <a class="secondary" data-export-save hidden download="NeoPep-Antes-e-Depois.jpg">Salvar imagem</a></div>
+  <a class="secondary" data-export-save hidden download="NeoPep-Antes-e-Depois.jpg">Salvar imagem</a>
+  <button type="button" class="secondary" data-export-cloud hidden disabled>Salvar no NeoPep</button></div>
   <p data-export-status role="status"></p></footer>`;
  const media=dialog.querySelector('.comparison-export-media');
- const share=dialog.querySelector('[data-export-share]'),save=dialog.querySelector('[data-export-save]');
+ const share=dialog.querySelector('[data-export-share]'),save=dialog.querySelector('[data-export-save]'),cloudSave=dialog.querySelector('[data-export-cloud]');
  const status=dialog.querySelector('[data-export-status]');
  const current=()=>!controller.signal.aborted&&dialog.open&&generation===loadGeneration&&(!account||Cloud.user?.id===account);
  const canvas=document.createElement('canvas');
@@ -983,6 +984,21 @@ async function showComparisonExport(trigger){
  dialog.addEventListener('close',()=>{if(!controller.signal.aborted)dialog.dispose()},{once:true});
  const comparisonOrigin=engagementArea(page);
  save.addEventListener('click',event=>{if(!current())event.preventDefault();else engagementTrack('photo_comparison_export_success',comparisonOrigin)});
+ cloudSave.addEventListener('click',async()=>{
+  if(!current()||!file||!exportable||!account)return;
+  if(!window.confirm('Salvar esta comparação de fotos no armazenamento privado da sua conta NeoPep? Ela não será publicada em grupos.'))return;
+  cloudSave.disabled=true;
+  status.textContent='Salvando sua comparação privada…';
+  try{
+   const saved=await Cloud.saveBeforeAfter(file,photos);
+   if(!current()||!saved)return;
+   status.textContent='Comparação salva na sua conta. Ela não foi compartilhada.';
+   cloudSave.textContent='Salvo no NeoPep';
+   engagementTrack('photo_comparison_export_success',comparisonOrigin);
+  }catch(error){
+   if(current()){cloudSave.disabled=false;status.textContent=error?.message||'Não foi possível salvar. Tente novamente.';}
+  }
+ });
  share.addEventListener('click',async()=>{
   if(!current()||!url)return;
   try{
@@ -1083,6 +1099,14 @@ async function showComparisonExport(trigger){
    save.href=url;
    save.hidden=false;
    share.disabled=false;
+   if(account&&file&&typeof Cloud.beforeAfterAvailable==='function'){
+    try{
+     if(await Cloud.beforeAfterAvailable()&&current()){
+      cloudSave.hidden=false;
+      cloudSave.disabled=false;
+     }
+    }catch{} // Backend ainda não habilitado: manter opção oculta.
+   }
   }else{
    status.textContent=account?'Selecione fotos reais de dois dias diferentes para compartilhar ou salvar.':'Entre na sua conta para compartilhar suas fotos.';
   }
