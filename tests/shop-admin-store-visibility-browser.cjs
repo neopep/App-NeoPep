@@ -36,7 +36,7 @@ async function scenario(browser,options){
    window.unhideAdmin=true;
    await NeoShop.load(true);
   });
-  await page.getByRole('button',{name:'‹ Voltar'}).click();
+  await page.locator('[data-shop="back"]').click();
   assert.equal(await page.locator('.shop-products').getByText('Exclusivo',{exact:true}).count(),1,'explicitly allowed admin cannot view item');
  }finally{await page.close();}
 }
