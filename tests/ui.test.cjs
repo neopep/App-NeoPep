@@ -80,7 +80,7 @@ test('calculadora sincroniza seleção rápida, controles deslizantes e valores 
  set('#dose','1575');
  assert.match(node('.syringe-reading').textContent,/entre marcas/);
  const tick=node('[data-graduation="31"]').getAttribute('d').match(/^M([^ ]+)/)[1];
- assert.equal(node('.calc-syringe .calc-liquid').getAttribute('x'),tick);
+ assert.equal(node('#result .calc-syringe .calc-liquid').getAttribute('x'),tick);
  set('[data-calc-capacity="1"] input','1','change');
  assert.equal(node('[data-graduation="31"]'),null);
  assert.ok(node('[data-graduation="100"]'));
