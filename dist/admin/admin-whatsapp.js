@@ -152,10 +152,9 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  <button type="submit" class="primary">Salvar publicação</button></form>
  <fieldset class="space"><legend data-campaign-legend="state">Fila de publicações</legend><div data-wa-queue></div></fieldset>`;
  const connect=q('[data-wa-connect]');
- if(cloud.connectTestEnabled===false)connect.querySelector('[data-connect-root]').textContent='Canal Windows indisponível neste ambiente.';
  let connectPanel;
  connect.addEventListener('toggle',()=>{
-  if(cloud.connectTestEnabled===false||!connect.open||typeof mountNeoConnect!=='function')return;
+  if(!connect.open||typeof mountNeoConnect!=='function')return;
   connectPanel??=mountNeoConnect(q('[data-connect-root]'),cloud);
   void connectPanel.load();
  });

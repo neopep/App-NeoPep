@@ -579,7 +579,7 @@ function mountSystemHealth(root,summary){
      body.innerHTML=(build?monitorMetric('Build em execução',build.commit,'Metadados do build Vercel de homologação em '+build.builtAt+'. Branch '+build.branch+'.'):'')+
       (data.connected?monitorTable(['Estado','Criação','Branch','Commit','Duração (ms)'],data.deployments.map(row=>
        [row.state,row.created?new Date(row.created).toISOString():null,row.branch,row.commit,row.build_ms])):
-       monitorUnavailable('Histórico de deploys pendente. Configure uma fonte de leitura para o ambiente.'))+
+       monitorUnavailable('Histórico de deploys pendente. Configure acesso de leitura ao projeto app-neopep-staging no backend.'))+
       monitorUnavailable('Tráfego, egress, invocações, latência e faturamento aguardam fonte oficial de consumo.');
      saveRows(part,[['Atualização',data.observed_at],['Fonte',data.connected?'Vercel REST API de homologação':'Metadados do build'],
       ...(build?[['Build',build.commit,build.branch,build.builtAt]]:[]),

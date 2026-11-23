@@ -25,7 +25,15 @@ function applyTheme(){const p=appearance;const dark=p==='dark'||(p==='system'&&m
 function persist(next){if(demo){state=C.validateBackup(next);return}if(mode!=='local')throw Error('Operação local indisponível nesta conta.');if(localError)throw Error('Exporte e recupere os dados locais antes de gravar.');const valid=C.validateBackup(next);try{localStorage.setItem(KEY,JSON.stringify(valid))}catch{throw Error('Não foi possível salvar neste dispositivo. O armazenamento pode estar cheio ou indisponível. Exporte um backup.')}state=valid;localState=valid}
 function localConsent(){return state.profile.consent||confirm('Estes registros podem conter dados de saúde. Você autoriza guardá-los neste navegador? Em dispositivos compartilhados, outras pessoas poderão acessá-los. Você pode exportar e excluir os dados no Perfil.')}
 function download(name,data,type){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([data],{type}));a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000)}
-async function backup(){const gen=loadGeneration,snapshot=JSON.parse(JSON.stringify(state));let accountMetadata=null;if(mode==='cloud'&&!demo)accountMetadata=await Cloud.exportMetadata();if(gen!==loadGeneration)throw Error('O modo ou conta mudou durante a exportação. Tente novamente.');download((demo?'DEMONSTRACAO-':'')+'neopeptideos-backup-'+C.today()+'.json',JSON.stringify({...snapshot,accountMetadata,exportedAt:new Date().toISOString()},null,2),'application/json');if(!demo)backupDone=true;toast('Backup exportado. Na nuvem inclui consentimentos e recibos. As fotos são exportadas separadamente.');}
+async function backup(){const gen=loadGeneration,snapshot=JSON.parse(JSON.stringify(state));let accountMetadata=null;if(mode==='cloud'&&!demo){
+ const account=await Cloud.exportMetadata();
+ if(gen!==loadGeneration)throw Error('A conta mudou durante a exportação.');
+ const [statistics,location]=await Promise.allSettled([Cloud.audience('export'),Cloud.geoControl('export')]);
+ accountMetadata={...account,optionalPrivacy:{
+  statistics:statistics.status==='fulfilled'?statistics.value:null,
+  location:location.status==='fulfilled'?location.value:null
+ }};
+}if(gen!==loadGeneration)throw Error('O modo ou conta mudou durante a exportação. Tente novamente.');download((demo?'DEMONSTRACAO-':'')+'neopeptideos-backup-'+C.today()+'.json',JSON.stringify({...snapshot,accountMetadata,exportedAt:new Date().toISOString()},null,2),'application/json');if(!demo)backupDone=true;toast('Backup exportado. Na nuvem inclui consentimentos e recibos. As fotos são exportadas separadamente.');}
 function legacyBackup(){const raw=localStorage.getItem(LEGACY);if(!raw)throw Error('Nenhum registro anterior encontrado neste navegador.');download('neopeptideos-registros-anteriores-'+C.today()+'.json',raw,'application/json');legacyBackupDone=true;toast('Backup dos registros anteriores exportado.');render()}
 function head(title,sub,action=''){return `${!['inicio','bemvindo','comunidade','loja'].includes(page)?'<button class="text-btn page-back" data-back="auto">‹ Voltar</button>':''}<div class="page-head"><div><div class="eyebrow">${new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'})}</div><h1>${title}</h1><p class="sub">${sub}</p></div>${action}</div>`}
 const addBtn=(kind,label)=>`<button class="primary" data-add="${kind}" aria-label="${label}">${icon('plus')}<span>${label}</span></button>`;
@@ -66,138 +74,303 @@ function applications(){return head('Seu diário de aplicações.','Registre o q
 function protocolCards(){return state.protocols.map(p=>{const applications=C.sorted(state.doses.filter(d=>d.protocolId===p.id)),last=applications.at(-1);return `<article class="card protocol-card"><div class="between"><h3>${esc(p.name)}</h3><span class="tag">${p.status==='active'?'Em acompanhamento':'Encerrado'}</span></div><p class="sub">Desde ${date(p.date)}${p.end?' · até '+date(p.end):''}</p><div class="protocol-count"><strong>${applications.length}</strong><span>aplicações registradas</span></div><p class="sub">${last?'Último registro: '+date(last.date):'Ainda sem aplicação vinculada.'}</p>${p.note?`<p class="sub protocol-note">${esc(p.note)}</p>`:''}<button class="text-btn" data-protocol-apps="${esc(p.id)}">Ver aplicações ${icon('arrow')}</button></article>`}).join('')}
 function protocols(){return head('Seu histórico de protocolos.','Organize datas e informações cadastradas por você.',addBtn('protocol','Novo protocolo'))+`<div class="notice">Este espaço organiza registros pessoais. Não cria esquemas de administração nem recomenda mudanças de dose.</div>${state.protocols.length?`<div class="two-cols">${protocolCards()}</div>`:''}<section class="card space"><h2>Protocolos registrados</h2>${historyTable('protocols')}</section>`}
 const calcFields={
- mass:{label:'Massa total do frasco',unit:'mg',max:60,step:.01,choices:[5,10,20,40,60]},
+ mass:{label:'Massa total do frasco',unit:'mg',max:60,step:.5,choices:[5,10,15,20,40,60]},
  volume:{label:'Volume final da solução',unit:'mL',max:5,step:.01,choices:[1,2,3,5]},
- dose:{label:'Dose da prescrição',unit:'mg',max:1,step:.01}
+ dose:{label:'Dose informada',unit:'mg',max:10,step:.5,choices:[.5,1,1.5,2,2.5,3,3.5,5,7.5,10]}
 };
 const calcMinimum=.000001;
-function calcNumber(value,digits=6){
- return value!==0&&(Math.abs(value)<10**-digits||Math.abs(value)>=1e9)?value.toExponential(2).replace('.',','):fmt(value,digits);
+// Reference configurations of standard-scale U-100 syringes. Other models can differ.
+const syringeModels={
+ '0.3':{units:30,division:1,length:166,height:24},
+ '0.5':{units:50,division:1,length:166,height:30},
+ '1':{units:100,division:2,length:166,height:38}
+};
+let calcCapacityValue=1,calcOutcome='';
+function calcNumber(value){
+ if(value!==0&&(Math.abs(value)<1e-6||Math.abs(value)>=1e9))return value.toExponential().replace('.',',');
+ const [whole,fraction]=String(value).split('.');
+ return whole.replace(/\B(?=(\d{3})+(?!\d))/g,'.')+(fraction?','+fraction:'');
 }
+const calcResultsNumber=new Intl.NumberFormat('pt-BR',{maximumFractionDigits:2});
+function calcDisplay(value){
+ return Math.abs(value)>=1e9?value.toExponential(2).replace('.',','):calcResultsNumber.format(value);
+}
+let calcGraphicSequence=0;
 function calcVial(id){
- return `<svg class="calc-vial" viewBox="0 0 84 100" aria-hidden="true"><rect class="calc-hardware" x="23" y="9" width="38" height="13" rx="4"/><path class="calc-glass" d="M28 23h28v14l10 10v33a8 8 0 0 1-8 8H26a8 8 0 0 1-8-8V47l10-10z"/><rect data-calc-fill="${id}" class="calc-liquid" x="21" y="85" width="42" height="0" rx="2"/><path class="calc-mark" d="M46 52h12m-7 10h7m-12 10h12"/></svg>`;
+ const art='calc-vial-'+(++calcGraphicSequence);
+ const glass='M28 23h28v14l10 10v33a8 8 0 0 1-8 8H26a8 8 0 0 1-8-8V47l10-10z';
+ return `<svg class="calc-vial" viewBox="0 0 84 100" aria-hidden="true">
+ <defs>
+  <linearGradient id="${art}-glass">
+   <stop stop-color="#806235" stop-opacity=".65"/><stop offset=".12" stop-color="#e7c88f" stop-opacity=".45"/>
+   <stop offset=".35" stop-color="#e9d7b1" stop-opacity=".12"/><stop offset=".69" stop-color="#f3e4c4" stop-opacity=".08"/>
+   <stop offset=".9" stop-color="#e6c38a" stop-opacity=".32"/><stop offset="1" stop-color="#8c6e43" stop-opacity=".65"/>
+  </linearGradient>
+  <linearGradient id="${art}-depth" x2="0" y2="1">
+   <stop stop-color="#fff5db" stop-opacity=".2"/><stop offset=".43" stop-color="#a7885e" stop-opacity="0"/>
+   <stop offset="1" stop-color="#6b4b25" stop-opacity=".4"/>
+  </linearGradient>
+  <linearGradient id="${art}-cap" x2="0" y2="1">
+   <stop stop-color="#f1d5a0"/><stop offset=".25" stop-color="#cfa46a"/><stop offset=".67" stop-color="#927043"/><stop offset="1" stop-color="#b98d50"/>
+  </linearGradient>
+  <linearGradient id="${art}-liquid" x2="0" y2="1">
+   <stop stop-color="#fff0c9" stop-opacity=".9"/><stop offset=".08" stop-color="#eacf91" stop-opacity=".84"/>
+   <stop offset=".36" stop-color="#c79549" stop-opacity=".73"/><stop offset="1" stop-color="#91642d" stop-opacity=".86"/>
+  </linearGradient>
+  <radialGradient id="${art}-shadow"><stop stop-color="#261b0d" stop-opacity=".36"/><stop offset="1" stop-color="#261b0d" stop-opacity="0"/></radialGradient>
+  <clipPath id="${art}-chamber"><path d="M30 25h24v13l9 10v31q0 6-6 6H27q-6 0-6-6V48l9-10z"/></clipPath>
+ </defs>
+ <ellipse cx="42" cy="91" rx="30" ry="5" fill="url(#${art}-shadow)"/>
+ <path d="${glass}" fill="url(#${art}-glass)" stroke="#ad8f60" stroke-width="1.15"/>
+ <g clip-path="url(#${art}-chamber)">
+  <svg data-calc-fill="${id}" x="21" y="85" width="42" height="0" overflow="hidden">
+   <rect width="42" height="100%" rx="2" fill="url(#${art}-liquid)"/>
+   <path d="M1 .65Q21 3.8 41 .65" fill="none" stroke="#fff1ce" stroke-opacity=".58" stroke-width=".85"/>
+  </svg>
+  <path d="${glass}" fill="url(#${art}-depth)"/>
+  <path d="M31 27v12l-8 10v28q0 4 3 5m3-32v22" fill="none" stroke="#fff9ed" stroke-width="2" stroke-opacity=".43" stroke-linecap="round"/>
+  <path d="M55 42l6 8v24" fill="none" stroke="#fff3d5" stroke-width="1.3" stroke-opacity=".28" stroke-linecap="round"/>
+ </g>
+ <path d="M24 82q2 3 6 3h24q4 0 6-3" fill="none" stroke="#fff1cf" stroke-opacity=".65" stroke-width="1.5"/>
+ <path class="calc-mark" d="M46 52h12m-7 10h7m-12 10h12"/>
+ <rect x="23" y="9" width="38" height="15" rx="4" fill="url(#${art}-cap)" stroke="#997447" stroke-width=".85"/>
+ <path d="M27 12h30" stroke="#fff1cf" stroke-opacity=".65" stroke-linecap="round"/>
+ <path d="M28 15v5m4-5v5m4-5v5m4-5v5m4-5v5m4-5v5m4-5v5m4-5v5" stroke="#6e4d29" stroke-opacity=".35" stroke-width=".7"/>
+ </svg>`;
 }
-function syringeSymbol(capacity,units=null){
- const fill=units==null?0:Math.min(1,units/(capacity*100))*112;
- return `<svg class="calc-syringe" viewBox="0 0 182 50" aria-hidden="true"><path class="calc-mark" d="M4 16v18m0-9h25m124 0h25"/><rect class="calc-glass" x="29" y="9" width="124" height="32" rx="6"/><rect class="calc-liquid" x="35" y="15" width="${fill}" height="20" rx="2"/><path class="calc-mark" d="M47 10v12m15-12v7m15-7v12m15-12v7m15-7v12m15-12v7m15-7v12"/></svg>`;
+function syringeReading(capacity,units){
+ const {units:max,division}=syringeModels[capacity];
+ const tolerance=Number.EPSILON*Math.max(1,Math.abs(units))*8;
+ const outside=units-max>tolerance;
+ const nearest=Math.round(units/division)*division;
+ const between=!outside&&Math.abs(nearest-units)>tolerance;
+ return {outside,between,mark:outside?max:between?Math.floor(units/division)*division:Math.min(max,nearest)};
+}
+function syringeSymbol(capacity,mark=0,compact=false,calculated=null){
+ const {units,division,length:baseLength,height}=syringeModels[capacity];
+ const wide=!compact&&units===100;
+ const length=wide?196:baseLength;
+ const end=246,start=end-length,top=43-height/2,bottom=top+height;
+ const position=value=>end-value/units*length;
+ const piston=position(mark),grip=start-9-(wide?34:42)*mark/units;
+ const label=calculated===null?'':calcDisplay(calculated)+' UI';
+ const labelWidth=Math.max(48,label.length*6+10),labelX=Math.max(labelWidth/2+2,Math.min(284-labelWidth/2,piston));
+ const art='calc-syringe-'+(++calcGraphicSequence);
+ const ticks=[];
+ const tickStep=compact?10:division;
+ for(let value=0;value<=units;value+=tickStep){
+  const x=position(value),major=value%10===0;
+  ticks.push(`<path class="calc-mark" ${compact?'':`data-graduation="${value}"`} d="M${x} ${bottom}v-${major?11:5}"/>${major&&!compact?`<text x="${x}" y="75" text-anchor="middle">${value}</text>`:''}`);
+ }
+ return `<svg class="calc-syringe" viewBox="0 ${compact?'13':'0'} 286 ${compact?'56':'82'}" aria-hidden="true">
+ <defs>
+  <linearGradient id="${art}-glass" x2="0" y2="1">
+   <stop stop-color="#a68b64" stop-opacity=".6"/><stop offset=".14" stop-color="#fff0d4" stop-opacity=".48"/>
+   <stop offset=".45" stop-color="#e9d7b7" stop-opacity=".09"/><stop offset=".72" stop-color="#bd9f73" stop-opacity=".19"/>
+   <stop offset="1" stop-color="#997e58" stop-opacity=".64"/>
+  </linearGradient>
+  <linearGradient id="${art}-liquid" x2="0" y2="1">
+   <stop stop-color="#fcdf9e" stop-opacity=".63"/><stop offset=".4" stop-color="var(--calc-fluid-pigment,#c49650)" stop-opacity=".65"/>
+   <stop offset="1" stop-color="var(--calc-fluid-pigment,#c49650)" stop-opacity=".92"/>
+  </linearGradient>
+  <linearGradient id="${art}-metal" x2="0" y2="1">
+   <stop stop-color="#e5d3b3"/><stop offset=".26" stop-color="#bcaa8d"/>
+   <stop offset=".55" stop-color="#726657"/><stop offset=".82" stop-color="#9d8a71"/><stop offset="1" stop-color="#665c4f"/>
+  </linearGradient>
+  <radialGradient id="${art}-shadow"><stop stop-color="#2c2014" stop-opacity=".33"/><stop offset="1" stop-color="#2c2014" stop-opacity="0"/></radialGradient>
+  <clipPath id="${art}-chamber"><rect x="${start}" y="${top+2}" width="${length}" height="${height-4}" rx="2"/></clipPath>
+  <clipPath id="${art}-stem"><rect x="0" y="0" width="${start}" height="82"/></clipPath>
+ </defs>
+ <ellipse cx="${(start+end)/2}" cy="${bottom+3}" rx="${length/2+4}" ry="5" fill="url(#${art}-shadow)"/>
+ <path d="M254 43h24l3-1" fill="none" stroke="#968974" stroke-width="1.4" stroke-linecap="round"/>
+ <rect x="245" y="39" width="13" height="8" rx="2" fill="url(#${art}-metal)"/>
+ <g class="calc-external-stem" clip-path="url(#${art}-stem)">
+  <rect x="${grip}" y="41" width="${Math.max(0,piston-grip)}" height="4" rx="2" fill="url(#${art}-metal)"/>
+  <rect x="${grip-3}" y="34" width="5" height="18" rx="2" fill="url(#${art}-metal)" stroke="#736452" stroke-width=".6"/>
+ </g>
+ <rect x="${start}" y="${top}" width="${length}" height="${height}" rx="3" fill="url(#${art}-glass)" stroke="#9a845f" stroke-width="1.15"/>
+ <rect x="${start-2}" y="${top-4}" width="4" height="${height+8}" rx="1.5" fill="url(#${art}-metal)"/>
+ <g clip-path="url(#${art}-chamber)">
+  <rect class="calc-liquid" x="${piston}" y="${top+2}" width="${end-piston}" height="${height-4}" fill="url(#${art}-liquid)"/>
+  <path d="M${start+2} ${top+4}H${end-2}" stroke="#fff7e8" stroke-width="2.6" stroke-opacity=".47" stroke-linecap="round"/>
+  <path d="M${start+1} ${bottom-3}H${end-1}" stroke="#f9e8c9" stroke-width="1.05" stroke-opacity=".43" stroke-linecap="round"/>
+ </g>
+ ${mark>0?`<path class="calc-meniscus" d="M${piston} ${top+2} Q${piston+3} 43 ${piston} ${bottom-2}" fill="none" stroke="#fff1ce" stroke-opacity=".55"/>`:''}
+ <rect data-calc-piston x="${piston-3}" y="${top+2}" width="3" height="${height-4}" rx="1" fill="url(#${art}-metal)"/>
+ ${ticks.join('')}
+ ${label?`<g class="calc-level-label"><path d="M${labelX} 19L${piston} ${top}"/><rect x="${labelX-labelWidth/2}" y="2" width="${labelWidth}" height="17" rx="5"/><text x="${labelX}" y="14" text-anchor="middle">${label}</text></g>`:''}
+ </svg>`;
 }
 function calcField(id){
  const {label,unit,max,step,choices}=calcFields[id];
- const quick=choices?`<div class="calc-chips" role="group" aria-label="Valores rápidos de ${label}">${choices.map(value=>`<button type="button" class="secondary" data-calc-chip="${id}" data-value="${value}" aria-pressed="false">${fmt(value,2)} ${unit}</button>`).join('')}</div>`:
-  `<fieldset class="calc-precision"><legend>Passo do controle deslizante</legend><div class="calc-chips">${[.001,.01,.1].map(value=>`<button type="button" class="secondary" data-calc-step="${value}" aria-pressed="${value===step}">${fmt(value,3)} mg</button>`).join('')}</div></fieldset>`;
  return `<section class="card calc-card calc-card-${id}">
-  <div class="calc-card-heading"><h2>${label}</h2>${choices?calcVial(id):''}</div>
+  <h2>${label}</h2>${id==='dose'?'':calcVial(id)}
   ${id==='volume'?'<p class="sub">Informe o volume final confirmado, que pode diferir do diluente adicionado.</p>':''}
-  ${id==='dose'?'<div class="calc-number-group">':'<div>'}
-   <label for="${id}">Outro valor <span data-calc-unit="${id}">(${unit})</span><input name="${id}" id="${id}" type="number" min="${calcMinimum}" step="any" inputmode="decimal" required></label>
-   ${id==='dose'?'<label>Unidade<select name="doseUnit" id="doseUnit" data-unit="mg"><option value="mg" selected>mg</option><option value="mcg">mcg</option></select></label>':''}
-  </div>
   <label for="calc-range-${id}" class="calc-range-label">Ajustar ${label.toLocaleLowerCase('pt-BR')}</label>
-  <input id="calc-range-${id}" data-calc-range="${id}" type="range" min="0" max="${max}" step="${step}" value="0" aria-label="Ajustar ${label}" aria-valuetext="Não informado">
-  <div class="calc-limits" aria-hidden="true"><span>0</span><span data-calc-max="${id}">${fmt(max)} ${unit}</span></div>
-  ${quick}
+  <div class="calc-slider"><output class="calc-bubble" data-calc-bubble="${id}" aria-hidden="true">—</output>
+   <input id="calc-range-${id}" data-calc-range="${id}" type="range" min="0" max="${max}" step="${step}" value="0" aria-valuetext="Não informado">
+  </div>
+  <div class="calc-limits" aria-hidden="true"><span>0</span><span data-calc-max="${id}">${calcNumber(max)} ${unit}</span></div>
+  ${id==='dose'?'<p class="sub" id="calc-dose-limit"></p>':''}
+  <div class="calc-chips" role="group" aria-label="Valores rápidos de ${label}">${choices.map(value=>`<button type="button" class="secondary" data-calc-chip="${id}" data-value="${value}" aria-pressed="false">${calcNumber(value)} ${unit}</button>`).join('')}</div>
+  <details class="calc-manual"><summary>Entrada manual${id==='dose'?' e unidade':''}</summary>
+   <div class="${id==='dose'?'calc-number-group':''}">
+    <label for="${id}">Valor <span data-calc-unit="${id}">(${unit})</span><input name="${id}" id="${id}" type="number" min="${calcMinimum}" step="any" inputmode="decimal"></label>
+    ${id==='dose'?'<label>Unidade<select name="doseUnit" id="doseUnit" data-unit="mg"><option value="mg" selected>mg</option><option value="mcg">mcg</option></select></label>':''}
+   </div>
+   ${id==='dose'?'<label>Passo do controle em mcg<select id="calcDoseStep"><option value="0.1">100 mcg</option><option value="0.01">10 mcg</option><option value="0.001">1 mcg</option></select></label>':''}
+  </details>
  </section>`;
 }
 function calcCapacity(){
- return `<fieldset class="card calc-card calc-capacity"><legend>Capacidade da seringa U-100</legend><div class="calc-capacities">${[.3,.5,1].map(value=>`<label data-calc-capacity="${value}"><input type="radio" name="capacity" value="${value}" ${value===1?'checked':''}><span>${syringeSymbol(value)}<b>${fmt(value)} mL</b><small>${value*100} UI</small></span></label>`).join('')}</div></fieldset>`;
+ return `<section class="card calc-card calc-capacity" aria-labelledby="calc-capacity-title">
+  <h2 id="calc-capacity-title">Capacidade da seringa U-100</h2>
+  <div class="calc-capacities" role="radiogroup" aria-labelledby="calc-capacity-title">
+   ${Object.keys(syringeModels).sort((a,b)=>Number(a)-Number(b)).map(value=>`
+    <label class="calc-capacity-choice" data-calc-capacity="${value}">
+     <input type="radio" name="capacity" value="${value}" ${Number(value)===calcCapacityValue?'checked':''}>
+     <span class="calc-capacity-content">
+      ${syringeSymbol(value,0,true)}
+      <b>${calcNumber(Number(value))} mL</b>
+      <small>${syringeModels[value].units} na escala</small>
+     </span>
+    </label>`).join('')}
+  </div>
+ </section>`;
 }
 function syringeScale(capacity,units=null){
- const max=capacity*100,outside=units!==null&&units>max;
- return `<figure class="calc-scale ${outside?'scale-overflow':''}" aria-label="Escala de 0 a ${max} UI">
-  ${syringeSymbol(capacity,units)}
-  <figcaption><span>0 UI</span>${units===null?'':`<strong class="syringe-reading">${calcNumber(units,4)} UI${outside?' · fora da escala':''}</strong>`}<span>${max} UI</span></figcaption>
+ const {units:max,division}=syringeModels[capacity];
+ const reading=units===null?null:syringeReading(capacity,units);
+ return `<figure class="calc-scale ${reading?.outside?'scale-overflow':''}" aria-label="Escala volumétrica de 0 a ${max}, divisões de ${division}">
+  ${syringeSymbol(capacity,reading?.mark,false,units)}
+  <figcaption>Divisão de ${division} na escala U-100. Confira a graduação do seu modelo.</figcaption>
+  ${reading?`<p class="syringe-reading">${calcDisplay(units)} UI na escala U-100${reading.outside?' · fora da capacidade':reading.between?` · entre marcas. O desenho aproxima pela marca inferior (${reading.mark}).`:''}</p>`:''}
  </figure>`;
 }
-function calcEmpty(capacity=1){
+function calcEmpty(capacity=calcCapacityValue){
  return `${syringeScale(capacity)}<p class="sub">Preencha os dados confirmados para calcular o volume e a graduação U-100.</p>`;
 }
-function updateCalc(showErrors=false){
+function updateCalc(commit=false,track=true){
  const fields=['mass','volume','dose'].map(id=>$('#'+id));
  const [mass,volume,dose]=fields.map(field=>Number(field.value));
- const unit=$('#doseUnit').value;
- const capacity=Number($('#calcForm input[name=capacity]:checked')?.value||1);
- const result=$('#result');
- const invalid=fields.some(field=>field.validity?.badInput||field.value!==''&&(!Number.isFinite(Number(field.value))||Number(field.value)<calcMinimum));
- if(!showErrors&&!invalid&&fields.some(field=>field.value==='')){
-  result.innerHTML=calcEmpty(capacity);return;
+ const unit=$('#doseUnit').value,capacity=calcCapacityValue,result=$('#result');
+ const isInvalid=field=>field.validity?.badInput||field.value!==''&&(!Number.isFinite(Number(field.value))||Number(field.value)<calcMinimum);
+ const invalid=fields.some(field=>isInvalid(field)&&(commit||field!==document.activeElement&&!field.validity?.badInput));
+ const draft=fields.some(field=>field===document.activeElement&&isInvalid(field));
+ if(!commit&&!invalid&&draft){result.innerHTML=calcEmpty(capacity);return;}
+ if(!invalid&&fields.some(field=>field.value==='')){
+  calcOutcome='';result.innerHTML=calcEmpty(capacity);return;
  }
  try{
-  const r=C.convertDose(mass,volume,dose,unit,capacity);
   if(invalid)throw Error('Informe valores positivos e finitos, a partir de 0,000001.');
-  if(showErrors)engagementTrack('calculator_completed','calculadora');
-  result.innerHTML=`<div class="calc-result-values"><div class="big">${calcNumber(r.ml)} <small>mL</small></div><strong>${calcNumber(r.units,4)} UI na escala U-100</strong></div>
+  const r=C.convertDose(mass,volume,dose,unit,capacity);
+  const {outside}=syringeReading(capacity,r.units);
+  const exceedsMass=dose/(unit==='mcg'?1000:1)>mass;
+  if(track&&calcOutcome!=='valid')engagementTrack('calculator_completed','calculadora');
+  calcOutcome='valid';
+  result.innerHTML=`<div class="calc-result-values"><div class="big">${calcDisplay(r.ml)} <small>mL</small></div><strong>${calcDisplay(r.units)} UI na escala U-100</strong></div>
   ${syringeScale(capacity,r.units)}
-  ${r.warning?`<p class="error">${esc(r.warning)}</p>`:''}
-  <dl class="calc-result-details"><div><dt>Concentração</dt><dd>${calcNumber(r.concentration)} mg/mL</dd></div><div><dt>Razão massa ÷ dose</dt><dd>${calcNumber(r.doses,2)}</dd></div></dl>
-  <p class="sub">Valores arredondados para exibição.</p>`;
+  ${exceedsMass?'<p class="error">O valor informado excede a massa total do frasco.</p>':''}
+  ${outside?'<p class="error">O volume excede a capacidade da seringa selecionada.</p>':''}
+  <dl class="calc-result-details"><div><dt>Concentração</dt><dd>${calcDisplay(r.concentration)} mg/mL</dd></div><div><dt>Razão massa ÷ dose</dt><dd>${calcDisplay(r.doses)}</dd></div></dl>
+  <p class="sub">A exibição usa até duas casas decimais. Os cálculos mantêm a precisão dos valores informados.</p>`;
  }catch(err){
-  if(showErrors)engagementTrack('calculator_validation_error','calculadora');
+  if(track&&commit&&calcOutcome!=='invalid')engagementTrack('calculator_validation_error','calculadora');
+  calcOutcome='invalid';
   result.innerHTML=`${syringeScale(capacity)}<p class="error">${esc(err.message)}</p>`;
  }
 }
 function calculator(){
+ calcOutcome='';calcCapacityValue=1;
  return head('Calculadora de volume','Conversão matemática de dados confirmados do frasco e da prescrição.')+
- `<div class="calc-layout"><form id="calcForm" class="calc-inputs">
+ `<div class="calc-layout"><form id="calcForm" class="calc-inputs" data-calc-owner="${esc(calcStorageKey()||'')}" novalidate>
  ${calcField('mass')}${calcField('volume')}${calcCapacity()}${calcField('dose')}
- <button class="secondary calc-submit" type="submit">Calcular volume</button></form>
+ </form>
  <section class="card calc-result"><h2>Resultado</h2><div id="result" role="status" aria-live="polite">${calcEmpty()}</div>
- <p class="sub calc-context">U-100 expressa uma graduação volumétrica: 100 UI correspondem a 1 mL. O cálculo não prescreve doses nem orienta preparo ou aplicação.</p></section>
+ <p class="sub calc-context">Na escala U-100, 100 unidades correspondem a 1 mL. Essa graduação mede volume e é distinta das unidades de atividade de outras substâncias. Um valor caber na escala não indica que seja prescrito ou seguro.</p></section>
  <section class="card calc-formula"><h2>Como o cálculo funciona</h2><ol>
  <li><strong>Concentração</strong><span>Massa total ÷ volume final</span></li>
  <li><strong>Volume</strong><span>Dose informada em mg ÷ concentração</span></li>
  <li><strong>Graduação U-100</strong><span>Volume em mL × 100</span></li>
- </ol></section></div>`;
+ </ol></section>
+ <section class="card calc-saved" aria-labelledby="calc-saved-title">
+ <h2 id="calc-saved-title">Dosagens salvas</h2>
+ <p class="sub">Salvas neste navegador. As dosagens não são sincronizadas entre dispositivos.</p>
+ <div class="calc-saved-entry"><label for="calc-saved-name">Nome (opcional)<input id="calc-saved-name" maxlength="80"></label>
+ <button id="calc-save" type="button" class="primary" data-calc-saved-action="save">Salvar dosagem</button></div>
+ <p class="sub" id="calc-saved-status" role="status"></p><div id="calc-saved-list"></div></section>
+ </div>`;
 }
 function calcSliderConfig(id){
  if(id!=='dose')return calcFields[id];
- const multiplier=$('#doseUnit').value==='mcg'?1000:1;
- const selected=$('[data-calc-step][aria-pressed=true]');
- const step=Number(selected?.dataset.calcStep||.01)*multiplier;
- return {step,max:step*100,unit:$('#doseUnit').value};
+ const unit=$('#doseUnit').value,multiplier=unit==='mcg'?1000:1;
+ const step=unit==='mg'?.5:Number($('#calcDoseStep').value||.1)*multiplier;
+ const mass=Number($('#mass').value),volume=Number($('#volume').value);
+ const limit=(mass/volume)*calcCapacityValue*multiplier;
+ const known=mass>=calcMinimum&&volume>=calcMinimum&&Number.isFinite(limit)&&limit>0;
+ const steps=known?Math.min(Number.MAX_SAFE_INTEGER,Math.floor(limit/step+Number.EPSILON*(limit/step))):Math.round(10*multiplier/step);
+ return {unit,step,max:Number((steps*step).toPrecision(15)),limit:known?limit:null};
 }
-function syncCalcField(id,preserveRange){
- const field=$('#'+id),range=$('#calc-range-'+id),{max,step,unit}=calcSliderConfig(id);
+function syncCalcField(id,commit=false){
+ const field=$('#'+id),range=$('#calc-range-'+id),config=calcSliderConfig(id);
+ const {step,unit,limit}=config;
  const number=Number(field.value),valid=field.value!==''&&Number.isFinite(number)&&number>=calcMinimum;
- const rangeMax=Math.max(max,preserveRange?Number(range.max):0,valid?Math.ceil(Math.min(number,1e9)/step)*step:0);
- range.max=String(rangeMax);
+ const max=id==='dose'?config.max:Math.max(config.max,valid?Number((Math.ceil(Math.min(number,1e9)/step)*step).toPrecision(15)):0);
+ range.max=String(max);
  range.step=String(step);
- range.value=String(valid?Math.min(number,rangeMax):0);
- field.setAttribute('aria-invalid',String(!!field.validity?.badInput||field.value!==''&&!valid));
- range.setAttribute('aria-valuetext',valid?calcNumber(number)+' '+unit:'Não informado');
- $('[data-calc-max='+id+']').textContent=calcNumber(rangeMax)+' '+unit;
+ range.disabled=max<=0;
+ const thumb=valid?Math.min(max,Math.round(number/step)*step):0;
+ range.value=String(Number(thumb.toPrecision(15)));
+ field.setAttribute('aria-invalid',String((commit||field!==document.activeElement)&&(!!field.validity?.badInput||field.value!==''&&!valid)));
+ const value=valid?calcDisplay(number)+' '+unit:'Não informado';
+ range.setAttribute('aria-valuetext',value);
+ const bubble=$('[data-calc-bubble='+id+']');
+ bubble.textContent=valid?value:'—';
+ bubble.title=valid?value:'';
+ bubble.style.setProperty('--calc-position',(max?100*thumb/max:0)+'%');
+ $('[data-calc-max='+id+']').textContent=calcDisplay(max)+' '+unit;
  $('[data-calc-unit='+id+']').textContent='('+unit+')';
+ if(id==='dose')$('#calcDoseStep').disabled=unit==='mg';
+ if(id==='dose')$('#calc-dose-limit').textContent=limit===null?'':`Limite volumétrico calculado: ${calcDisplay(limit)} ${unit}. A entrada manual preserva valores entre passos ou fora da escala.`;
+ const multiplier=id==='dose'&&unit==='mcg'?1000:1;
  for(const chip of document.querySelectorAll('[data-calc-chip='+id+']')){
-  chip.setAttribute('aria-pressed',String(valid&&number===Number(chip.dataset.value)));
+  const amount=Number(chip.dataset.value)*multiplier;
+  chip.textContent=calcNumber(amount)+' '+unit;
+  chip.setAttribute('aria-pressed',String(valid&&number===amount));
  }
  const fill=$('[data-calc-fill='+id+']');
  if(fill){
-  const height=valid?Math.min(39,39*number/rangeMax):0;
+  const height=valid?Math.min(39,39*number/max):0;
   fill.setAttribute('y',85-height);fill.setAttribute('height',height);
  }
 }
-function calcInputChanged(id,preserveRange=false){
+function calcInputChanged(id,commit=false){
  if(!engagementCalcStarted){engagementCalcStarted=true;engagementTrack('calculator_started','calculadora');}
  formDirty=true;
- if(id)syncCalcField(id,preserveRange);
- updateCalc();
+ if(id&&id!=='dose')syncCalcField(id,commit);
+ syncCalcField('dose',commit);
+ updateCalc(commit);
 }
 document.addEventListener('click',event=>{
- const control=event.target.closest('[data-calc-chip],[data-calc-step]');
+ const control=event.target.closest('[data-calc-chip]');
  if(!control)return;
- const id=control.dataset.calcChip;
- if(id){$('#'+id).value=control.dataset.value;calcInputChanged(id);return;}
- for(const option of document.querySelectorAll('[data-calc-step]'))option.setAttribute('aria-pressed',String(option===control));
- calcInputChanged('dose');
+ const id=control.dataset.calcChip,multiplier=id==='dose'&&$('#doseUnit').value==='mcg'?1000:1;
+ $('#'+id).value=String(Number(control.dataset.value)*multiplier);
+ calcInputChanged(id,true);
 });
 document.addEventListener('change',event=>{
  const input=event.target;
- if(input.name==='capacity'&&input.closest('#calcForm'))calcInputChanged();
+ if(input.matches('input[name="capacity"][type="radio"]')&&input.closest('#calcForm')){
+  calcCapacityValue=Number(input.value);
+  calcInputChanged(null,true);return;
+ }
+ if(input.id==='calcDoseStep'){calcInputChanged('dose',true);return;}
  if(input.id!=='doseUnit')return;
  const field=$('#dose'),targetUnit=input.value;
  if(field.value!==''&&input.dataset.unit!==targetUnit){
   const [mantissa,exponent]=Number(field.value).toExponential().split('e');
   const converted=Number(mantissa+'e'+(Number(exponent)+(targetUnit==='mcg'?3:-3)));
-  if(Number.isFinite(converted))field.value=String(converted);
+  if(Number.isFinite(converted)&&converted!==0)field.value=String(converted);
   else {
    input.value=input.dataset.unit;
    $('#result').textContent='Valor fora do limite para a unidade selecionada.';
@@ -205,17 +378,128 @@ document.addEventListener('change',event=>{
   }
  }
  input.dataset.unit=targetUnit;
- const multiplier=targetUnit==='mcg'?1000:1;
- for(const option of document.querySelectorAll('[data-calc-step]'))option.textContent=fmt(Number(option.dataset.calcStep)*multiplier,3)+' '+targetUnit;
- calcInputChanged('dose');
+ calcInputChanged('dose',true);
 });
 document.addEventListener('input',event=>{
  const input=event.target;
  if(input.dataset.calcRange){
   const id=input.dataset.calcRange;
-  $('#'+id).value=input.value;
-  calcInputChanged(id,true);
+  $('#'+id).value=Number(input.value)===0?'':input.value;
+  calcInputChanged(id);
  }else if(input.matches('#mass,#volume,#dose'))calcInputChanged(input.id);
+});
+document.addEventListener('focusout',event=>{
+ if(event.target.matches?.('#mass,#volume,#dose'))calcInputChanged(event.target.id,true);
+});
+
+function calcStorageKey(){
+ if(demo)return 'neo-calc-saved-v1:demo';
+ if(mode!=='cloud')return 'neo-calc-saved-v1:local';
+ const owner=Cloud.user?.id;
+ return /^[a-f0-9-]{36}$/i.test(owner||'')?'neo-calc-saved-v1:'+owner:null;
+}
+function calcSnapshot(input){
+ if(!input||!['mg','mcg'].includes(input.unit)||![.3,.5,1].includes(input.capacity)||
+    ![input.mass,input.volume,input.dose].every(n=>Number.isFinite(n)&&n>=calcMinimum))return null;
+ const {mass,volume,dose,unit,capacity}=input;
+ try{
+  const {concentration,ml,units}=C.convertDose(mass,volume,dose,unit,capacity);
+  return {mass,volume,dose,unit,capacity,concentration,ml,units};
+ }catch{return null;}
+}
+function readCalcSaved(key){
+ if(!key)throw Error('A conta ainda não está disponível para salvar dosagens.');
+ const raw=localStorage.getItem(key);
+ if(raw===null)return {items:[],last:null};
+ const value=JSON.parse(raw);
+ if(!value||!Array.isArray(value.items))throw Error('Os dados locais de dosagens não puderam ser lidos.');
+ const items=value.items.flatMap(item=>{
+  const snapshot=calcSnapshot(item);
+  if(!snapshot||typeof item.id!=='string'||!/^[-a-z0-9]{1,100}$/i.test(item.id)||
+     typeof item.name!=='string'||item.name.length>80||typeof item.savedAt!=='string'||!Number.isFinite(Date.parse(item.savedAt)))return [];
+  return [{...snapshot,id:item.id,name:item.name,savedAt:item.savedAt}];
+ });
+ return {items,last:items.some(item=>item.id===value.last)?value.last:null};
+}
+function renderCalcSaved(saved){
+ const list=$('#calc-saved-list');
+ if(!list)return;
+ list.innerHTML=saved.items.map(item=>`<article class="calc-saved-row" data-saved-id="${esc(item.id)}">
+  <button type="button" class="calc-saved-summary" data-calc-saved-action="apply" aria-pressed="${item.id===saved.last}">
+   <strong>${esc(item.name||'Dosagem sem nome')}</strong>
+   <span>Dose: ${calcDisplay(item.dose)} ${item.unit} · Concentração: ${calcDisplay(item.concentration)} mg/mL</span>
+   <span>Volume: ${calcDisplay(item.ml)} mL · Escala: ${calcDisplay(item.units)} UI · Seringa: ${calcDisplay(item.capacity)} mL</span>
+   <small>${esc(new Date(item.savedAt).toLocaleString('pt-BR'))}</small>
+  </button>
+  <div class="calc-saved-actions">
+   <button type="button" class="secondary" data-calc-saved-action="apply">Aplicar</button>
+   <button type="button" class="text-btn" data-calc-saved-action="rename">Renomear</button>
+   <button type="button" class="text-btn" data-calc-saved-action="remove">Excluir</button>
+  </div>
+ </article>`).join('')||'<p class="sub">Nenhuma dosagem salva.</p>';
+}
+function applyCalcSaved(item){
+ calcCapacityValue=item.capacity;
+ for(const id of ['mass','volume','dose'])$('#'+id).value=String(item[id]);
+ const unit=$('#doseUnit');
+ for(const option of unit.querySelectorAll('option'))option.toggleAttribute('selected',option.value===item.unit);
+ const selected=unit.querySelector('[selected]');
+ if(selected)selected.selected=true;
+ unit.dataset.unit=item.unit;
+ for(const radio of document.querySelectorAll('#calcForm [name=capacity]')){
+  radio.checked=Number(radio.value)===item.capacity;
+  radio.toggleAttribute('checked',radio.checked);
+ }
+ for(const id of ['mass','volume','dose'])syncCalcField(id,true);
+ updateCalc(true,false);
+ formDirty=false;
+}
+function restoreCalcSaved(){
+ if(!$('#calc-saved-list'))return;
+ try{
+  const saved=readCalcSaved(calcStorageKey());
+  renderCalcSaved(saved);
+  const selected=saved.items.find(item=>item.id===saved.last);
+  if(selected)applyCalcSaved(selected);
+ }catch{$('#calc-saved-status').textContent='Não foi possível ler as dosagens neste navegador.';}
+}
+document.addEventListener('click',event=>{
+ const control=event.target.closest('[data-calc-saved-action]');
+ if(!control)return;
+ const status=$('#calc-saved-status'),key=calcStorageKey(),action=control.dataset.calcSavedAction;
+ if(!key||$('#calcForm').dataset.calcOwner!==key){
+  status.textContent='A sessão mudou. Reabra a calculadora para continuar.';
+  return;
+ }
+ let saved;
+ try{saved=readCalcSaved(key);}
+ catch{status.textContent='As dosagens locais estão indisponíveis neste navegador.';return;}
+ let item=saved.items.find(value=>value.id===control.closest('[data-saved-id]')?.dataset.savedId);
+ if(action==='save'){
+  const snapshot=calcSnapshot({mass:Number($('#mass').value),volume:Number($('#volume').value),dose:Number($('#dose').value),unit:$('#doseUnit').value,capacity:calcCapacityValue});
+  if(!snapshot){status.textContent='Preencha valores válidos antes de salvar.';return;}
+  item={...snapshot,id:uid(),name:$('#calc-saved-name').value.trim().slice(0,80),savedAt:new Date().toISOString()};
+  saved.items.unshift(item);saved.last=item.id;
+ }else if(!item)return;
+ else if(action==='apply')saved.last=item.id;
+ else if(action==='rename'){
+  const name=prompt('Nome da dosagem (opcional)',item.name);
+  if(name===null)return;
+  item.name=name.trim().slice(0,80);
+ }else if(action==='remove'){
+  if(!confirm('Excluir esta dosagem salva?'))return;
+  saved.items=saved.items.filter(value=>value.id!==item.id);
+  if(saved.last===item.id)saved.last=null;
+ }else return;
+ try{localStorage.setItem(key,JSON.stringify(saved));}
+ catch{status.textContent='Não foi possível salvar a alteração. O armazenamento local está cheio ou indisponível.';return;}
+ if(action==='apply')applyCalcSaved(item);
+ if(action==='save'){$('#calc-saved-name').value='';formDirty=false;}
+ renderCalcSaved(saved);
+ status.textContent={save:'Dosagem salva neste dispositivo.',apply:'Dosagem aplicada.',rename:'Nome atualizado.',remove:'Dosagem excluída.'}[action];
+ const focused=saved.items.some(value=>value.id===item.id)?
+  $('#calc-saved-list').querySelector('[data-saved-id="'+item.id+'"] [data-calc-saved-action="'+(action==='rename'?'rename':'apply')+'"]'):$('#calc-save');
+ focused?.focus({preventScroll:true});
 });
 
 function reports(){const rows=C.periodRows(state.weights,period),m=C.metrics(state);return head('Sua jornada, em perspectiva.','Relatórios descritivos para acompanhar e compartilhar.',`<button class="primary" id="csvPeriod">${icon('download')}<span>CSV do período</span></button>`)+stats(true)+`<div class="report-print-heading"><h2>NeoPep · Relatório pessoal</h2><p>${esc(state.profile.name)} · Emitido em ${date(C.today())}</p></div><div class="grid"><section class="card"><div class="card-head"><h2>Relatório de evolução</h2><button class="text-btn" id="print">PDF / Imprimir</button></div>${periods()}${chart(rows)}<p class="sub">${rows.length?'Período: '+date(rows[0].date)+' a '+date(rows.at(-1).date)+'. Variação: '+weight(rows.at(-1).value-rows[0].value)+' '+unit()+'.':'Nenhum peso no período selecionado.'}</p></section><section class="card"><h2>Comparação entre períodos</h2>${comparison()}<p class="sub space">Meta: ${weight(m.goal)} ${unit()} · Progresso: ${fmt(m.progress,0)}%.</p><p class="sub space">Os dados não estabelecem causa entre mudanças corporais e aplicações. IMC é um indicador descritivo, limitado e não diagnóstico.</p></section></div><section class="card space"><h2>Pesos no período</h2>${historyTable('weights',rows)}</section><section class="card space"><h2>Diário no período</h2>${historyTable('journal',C.periodRows(state.journal,period))}</section><section class="card space"><h2>Medidas no período</h2>${historyTable('measures',C.periodRows(state.measures,period))}</section><section class="card space"><h2>Aplicações no período</h2>${historyTable('doses',C.periodRows(state.doses,period))}</section><div class="notice">O CSV desta tela respeita o período escolhido e inclui os registros e o diário. Para exportar todo o histórico, use o CSV ou backup no Perfil. Filtros de texto afetam a visualização, não o CSV do período. Para PDF, use “PDF / Imprimir” e a opção de salvar ou compartilhar PDF do sistema. O CSV usa kg e cm; aplicações mantêm a unidade informada. Fotos são exportadas individualmente para preservar sua privacidade.</div>`}
@@ -883,19 +1167,12 @@ function audienceDevice(){
   navigator.standalone===false||matchMedia('(display-mode: browser)').matches?'browser':null;
  return {category,os,browser:match?.[0],major:match?.[1].exec(ua)?.[1],context};
 }
-function paintAudienceControls(){
- const root=$('[data-audience-controls]');
- if(!root)return;
- root.querySelector('[data-audience-status]').textContent=audienceAllowed===true?'Coleta opcional ativa.':audienceAllowed===false?'Coleta opcional desativada.':'Preferência ainda não confirmada.';
- for(const button of root.querySelectorAll('button'))button.hidden=button.dataset.audienceAction==='allow'?audienceAllowed===true:audienceAllowed!==true;
-}
 async function syncAudience(){
  const account=mode==='cloud'&&!demo?Cloud.user?.id:null;
  if(audienceAccount!==account){
   if(audienceAccount)audienceCampaignPending=false;
   audienceAccount=account;audienceAllowed=null;audienceCheck=null;audienceObservedAt=0;
  }
- paintAudienceControls();
  if(!account||!Cloud.audience||audienceCheck||document.visibilityState==='hidden'||navigator.onLine===false||audienceAllowed===false)return;
  const request={};audienceCheck=request;
  try{
@@ -903,7 +1180,6 @@ async function syncAudience(){
    const status=await Cloud.audience('status');
    if(audienceCheck!==request||Cloud.user?.id!==account)return;
    audienceAllowed=status.allowed===true;
-   paintAudienceControls();
   }
   if(!audienceAllowed||Date.now()-audienceObservedAt<300000)return;
   const result=await Cloud.audience('observe',audienceDevice(),audienceCampaignPending?audienceCampaign:null);
@@ -911,27 +1187,9 @@ async function syncAudience(){
   audienceAllowed=result.allowed===true;
   audienceObservedAt=Date.now();
   audienceCampaignPending=false;
-  paintAudienceControls();
  }catch{}finally{if(audienceCheck===request)audienceCheck=null}
 }
-document.addEventListener('click',async event=>{
- const button=event.target.closest?.('[data-audience-action]');
- if(!button||mode!=='cloud'||demo||!Cloud.user||!Cloud.audience||button.disabled)return;
- const kind=button.dataset.audienceAction,account=Cloud.user.id,root=button.closest('[data-audience-controls]');
- for(const action of root.querySelectorAll('button'))action.disabled=true;
- audienceCheck=null;
- try{
-  const result=await Cloud.audience(kind);
-  if(Cloud.user?.id!==account)return;
-  audienceAccount=account;
-  audienceAllowed=result.allowed===true;
-  if(kind==='remove'){audienceCampaignPending=false;audienceObservedAt=0;resetEngagement(account);paintEngagementControls()}
-  if(kind==='export')download('neopep-dados-de-publico.json',JSON.stringify(result,null,2),'application/json');
-  paintAudienceControls();
-  if(kind==='allow')void syncAudience();
- }catch{if(Cloud.user?.id===account)toast('Não foi possível atualizar os dados opcionais.')}
- finally{for(const action of root.querySelectorAll('button'))action.disabled=false}
-});
+
 window.addEventListener('pageshow',syncAudience);
 setInterval(syncAudience,300000);
 const engagementViews={
@@ -980,7 +1238,7 @@ async function flushEngagement(){
   if(queue!==engagementQueue||Cloud.user?.id!==owner)return;
   const sent=new Set(batch.map(event=>event.id));
   queue.splice(0,queue.length,...queue.filter(event=>!sent.has(event.id)));
-  if(!result.allowed){engagementAllowed=false;queue.length=0;paintEngagementControls()}
+  if(!result.allowed){engagementAllowed=false;queue.length=0}
  }catch{}finally{if(queue===engagementQueue)engagementBusy=false}
 }
 function engagementView(){
@@ -992,28 +1250,10 @@ function engagementView(){
  engagementCalcStarted=false;
  if(Object.hasOwn(engagementViews,area))engagementTrack(engagementViews[area],area);
 }
-function paintEngagementControls(){
- const root=$('[data-engagement-controls]');
- if(!root)return;
- root.querySelector('[data-engagement-status]').textContent=engagementAllowed?'Medição de uso ativa.':'Medição de uso desativada.';
- root.querySelector('[data-engagement-action=enable]').hidden=engagementAllowed;
- root.querySelector('[data-engagement-action=disable]').hidden=!engagementAllowed;
-}
 let geoAccount=null,geoAllowed=null,geoPending=false,geoNext=0,geoCaptureRequested=true;
-function paintGeoControls(){
- const root=$('[data-geo-controls]');
- if(!root)return;
- const enabled=window.NEO_CONFIG?.stagingGeoEnabled===true;
- root.querySelector('[data-geo-status]').textContent=geoAllowed===true?'Localização aproximada autorizada.':
-  enabled?'Localização aproximada desativada.':'Origem aproximada aguarda configuração em homologação.';
- for(const button of root.querySelectorAll('[data-geo-action]')){
-  button.hidden=button.dataset.geoAction==='allow'?(!enabled||geoAllowed===true):geoAllowed!==true;
- }
-}
 async function syncGeo(){
  const account=mode==='cloud'&&!demo?Cloud.user?.id:null;
  if(geoAccount!==account){geoAccount=account;geoAllowed=null;geoPending=false;geoNext=0;geoCaptureRequested=true}
- paintGeoControls();
  const enabled=window.NEO_CONFIG?.stagingGeoEnabled===true;
  if(!account||!Cloud.geoControl||geoPending||document.visibilityState==='hidden'||(!enabled&&page!=='perfil')||Date.now()<geoNext)return;
  geoPending=true;
@@ -1022,26 +1262,11 @@ async function syncGeo(){
    const result=await Cloud.geoControl('status');
    if(geoAccount!==account||Cloud.user?.id!==account)return;
    geoAllowed=result.allowed===true;
-   paintGeoControls();
   }
   if(enabled&&geoAllowed&&geoCaptureRequested&&Cloud.captureGeo){await Cloud.captureGeo();geoCaptureRequested=false;}
  }catch{}finally{if(geoAccount===account){geoPending=false;geoNext=Date.now()+300000}}
 }
-document.addEventListener('click',async event=>{
- const button=event.target.closest?.('[data-geo-action]'),account=Cloud.user?.id,action=button?.dataset.geoAction;
- if(!button||button.disabled||!account||mode!=='cloud'||demo||!Cloud.geoControl)return;
- if(action==='allow'&&window.NEO_CONFIG?.stagingGeoEnabled!==true)return;
- button.disabled=true;
- try{
-  const result=await Cloud.geoControl(action);
-  if(Cloud.user?.id!==account)return;
-  geoAllowed=result.allowed===true;geoNext=0;
-  if(action==='export')download('neopep-localizacao-aproximada.json',JSON.stringify(result,null,2),'application/json');
-  paintGeoControls();
-  if(action==='allow'){geoCaptureRequested=true;void syncGeo();}
- }catch{if(Cloud.user?.id===account)toast('Não foi possível atualizar a localização opcional.')}
- finally{button.disabled=false}
-});
+
 for(const event of ['pageshow','focus'])window.addEventListener(event,()=>{geoCaptureRequested=true;void syncGeo()});
 const qualityNext=new Map();
 let qualityNavigationMeasured=false,vitalsOwner=null;
@@ -1084,7 +1309,6 @@ window.addEventListener('unhandledrejection',()=>observeQuality('javascript_erro
 async function syncEngagement(){
  const owner=mode==='cloud'&&!demo?Cloud.user?.id:null;
  if(engagementOwner!==owner)resetEngagement(owner);
- paintEngagementControls();
  if(!owner||!Cloud.engagement||engagementChecking||!engagementVisible())return;
  if(!engagementChecked){
   engagementChecking=true;
@@ -1094,7 +1318,6 @@ async function syncEngagement(){
    if(queue!==engagementQueue||Cloud.user?.id!==owner)return;
    engagementAllowed=status.allowed===true;
    engagementChecked=true;
-   paintEngagementControls();
   }catch{return}finally{if(queue===engagementQueue)engagementChecking=false}
  }
  engagementView();
@@ -1126,46 +1349,118 @@ document.addEventListener('visibilitychange',()=>{
 });
 window.addEventListener('pagehide',()=>void flushEngagement());
 setInterval(()=>{sampleEngagement();void syncEngagement();void flushEngagement()},15000);
-document.addEventListener('click',async event=>{
- const button=event.target.closest?.('[data-engagement-action]');
- if(!button||mode!=='cloud'||demo||!Cloud.user||!Cloud.engagement||button.disabled)return;
- const owner=Cloud.user.id,action=button.dataset.engagementAction;
- const queue=engagementQueue;
- button.disabled=true;
- if(action==='disable')resetEngagement(owner);
- try{
-  if(action==='enable'&&!audienceAllowed){
-   toast('Permita primeiro a coleta opcional de estatísticas.');
-   return;
+
+const privacyOptions=[
+ ['statistics','Estatísticas do aplicativo'],
+ ['usage','Medição de uso'],
+ ['campaigns','Notificações de campanhas'],
+ ['location','Localização aproximada']
+];
+function privacyPreferencesPage(){
+ if(mode!=='cloud'||demo||!Cloud.user)return head('Privacidade e permissões','Entre na sua conta para configurar suas preferências.');
+ const initial=page==='permissoes-iniciais';
+ const title=initial?'Privacidade e notificações':'Privacidade e permissões';
+ return (initial?'<div class="page-head"><h1>'+title+'</h1></div>':head(title,''))+
+  `<form id="privacyPreferences" class="card privacy-preferences" data-privacy-account="${esc(Cloud.user.id)}" data-privacy-page="${page}">
+  ${initial?'<p class="sub">Escolha como deseja receber notificações e contribuir para melhorar o NeoPep.</p>':''}
+  <fieldset disabled aria-label="Permissões opcionais">
+  ${privacyOptions.map(([key,label])=>`<label class="privacy-option" for="privacy-${key}"><span>${label}</span><input id="privacy-${key}" name="${key}" type="checkbox" role="switch"></label>`).join('')}
+  </fieldset>
+  <p class="sub" data-privacy-notice role="status">Consultando preferências…</p>
+  <a class="text-btn privacy-policy-link" href="#privacidade" target="_blank" rel="noopener">Política de Privacidade</a>
+  <button type="submit" class="primary full" disabled>${initial?'Salvar e continuar':'Salvar preferências'}</button>
+  ${initial?'<button type="submit" name="skip" class="text-btn full">Continuar sem autorizar</button>':''}
+  </form>`;
+}
+function privacyHelp(form){
+ const messages=[];
+ if(window.Notification?.permission==='denied')messages.push('Notificações bloqueadas. Para liberá-las, abra os ajustes de notificações do aparelho ou do navegador.');
+ if(form.elements.location.disabled)messages.push('A localização aproximada ainda está indisponível neste ambiente.');
+ return messages.join(' ');
+}
+function mountPrivacyPreferences(){
+ const form=$('#privacyPreferences');
+ if(!form||form.dataset.mounted)return;
+ form.dataset.mounted='true';
+ const account=Cloud.user.id,initial=page==='permissoes-iniciais',fields=form.querySelector('fieldset');
+ const status=form.querySelector('[data-privacy-notice]'),save=form.querySelector('button.primary');
+ const skip=form.querySelector('[name=skip]');
+ const current=()=>Cloud.user?.id===account&&form.isConnected;
+ let baseline=null,saving=false;
+ function apply(values){
+  baseline=values;
+  for(const [key] of privacyOptions)form.elements[key].checked=values[key]===true;
+  form.elements.location.disabled=!values.location&&window.NEO_CONFIG?.stagingGeoEnabled!==true;
+  status.textContent=privacyHelp(form);
+ }
+ async function load(){
+  status.textContent='Consultando preferências…';
+  try{
+   const values=await Cloud.privacyPreferences();
+   if(!current()||saving)return;
+   if(initial&&!values.pending){await openAccountDestination(false);return;}
+   apply(values);
+   fields.disabled=false;
+  }catch{
+   if(current()&&!saving)status.textContent='Não foi possível consultar as preferências. Tente novamente.';
   }
-  const result=await Cloud.engagement(action);
-  if(engagementOwner!==owner||Cloud.user?.id!==owner||(action==='enable'&&queue!==engagementQueue))return;
-  engagementAllowed=result.allowed===true;
-  engagementChecked=true;
-  paintEngagementControls();
-  engagementView();
- }catch{if(Cloud.user?.id===owner)toast('Não foi possível atualizar a medição de uso.')}
- finally{button.disabled=false}
-});
-function profilePage(){const audience=mode==='cloud'&&!demo?`<section class="card space" data-audience-controls><h2>Estatísticas opcionais</h2><p class="sub">Permita guardar a categoria do dispositivo, navegador e campanhas para melhorar o NeoPep. Os dados ficam disponíveis por até 90 dias. Você pode exportá-los ou apagar a coleta a qualquer momento.</p><p data-audience-status role="status"></p><button type="button" class="secondary" data-audience-action="allow">Permitir coleta</button> <button type="button" class="secondary" data-audience-action="export" hidden>Exportar dados</button> <button type="button" class="secondary" data-audience-action="remove" hidden>Desativar e apagar</button></section>
- <section class="card space" data-engagement-controls><h2>Medição de uso</h2><p class="sub">Permita medir aberturas, tempo ativo e ações concluídas para melhorar o NeoPep. A medição usa eventos de uso sem valores ou conteúdo. Você pode desligá-la e apagar os eventos.</p>
- <p data-engagement-status role="status"></p><button type="button" class="secondary" data-engagement-action="enable">Permitir medição</button>
- <button type="button" class="secondary" data-engagement-action="disable" hidden>Desativar e apagar eventos</button></section>
- <section class="card space" data-campaign-push><h2>Notificações de campanhas</h2>
- <p class="sub">Escolha se deseja receber avisos de campanhas em seus dispositivos com notificações ativadas.</p>
- <button type="button" class="secondary" data-campaign-push-preference>Consultar preferência</button><p role="status"></p></section>
- <section class="card space" data-geo-controls><h2>Localização aproximada opcional</h2>
- <p class="sub">Se você permitir, o NeoPep registra país, região e cidade aproximados informados pela hospedagem. Você pode exportar ou apagar os dados.</p>
- <p data-geo-status role="status"></p><button type="button" class="secondary" data-geo-action="allow" hidden>Permitir localização aproximada</button>
- <button type="button" class="secondary" data-geo-action="export" hidden>Exportar localização</button>
- <button type="button" class="secondary" data-geo-action="remove" hidden>Desativar e apagar localização</button></section>`:'';const p={...state.profile,theme:appearance,consent:mode==='cloud'&&!demo?Cloud.hasConsent('health'):state.profile.consent};return head('Seu espaço, do seu jeito.','Perfil, preferências e controle dos seus dados.')+`<div class="two-cols"><section class="card"><div class="profile-head"><div class="avatar">${avatarURL?`<img src="${esc(avatarURL)}" alt="Sua foto">`:esc(p.name.slice(0,1).toUpperCase()||'N')}</div><div><h2>${esc(p.name||'Como podemos chamar você?')}</h2><p class="sub">${mode==='cloud'?esc(Cloud.user?.email||'Conta conectada'):'Perfil local · neste navegador'}</p><button class="text-btn" data-add="avatar">Alterar foto</button></div></div><form id="profileForm"><label>Nome<input name="name" value="${esc(p.name)}" maxlength="100" autocomplete="given-name" required placeholder="Seu nome"></label>${mode==='cloud'?`<label>E-mail da conta<input type="email" disabled value="${esc(Cloud.user?.email||'')}"></label>`:''}<div class="form-grid"><label class="profile-birth-date">Nascimento (opcional)<input name="birthDate" type="date" value="${esc(p.birthDate)}" max="${C.today()}"></label><label class="profile-height">Altura (cm)<input name="height" type="number" min="40" max="260" step="0.1" inputmode="decimal" value="${p.height??''}"></label><label>Peso inicial (kg)<input name="initialWeight" type="number" min="1" max="650" step="0.01" inputmode="decimal" value="${p.initialWeight??''}"></label><label>Meta de peso (kg)<input name="goal" type="number" min="1" max="650" step="0.01" inputmode="decimal" value="${p.goal??''}"></label></div><div class="form-grid"><label>Unidades de exibição<select name="units"><option value="metric" ${p.units==='metric'?'selected':''}>kg e cm</option><option value="imperial" ${p.units==='imperial'?'selected':''}>lb e polegadas</option></select></label><label>Aparência<select name="theme" id="themeSelect">${[['system','Automática'],['light','Clara'],['dark','Escura']].map(([v,t])=>`<option value="${v}" ${p.theme===v?'selected':''}>${t}</option>`).join('')}</select></label></div><p class="form-help">Os formulários guardam valores em kg e cm; a preferência altera a exibição de peso e medidas.</p>${mode!=='cloud'||demo?profilePermissions(p):''}${trackingFields(p)}<button class="primary full">Salvar perfil</button></form></section><section><div class="card"><h2>Conta e sincronização</h2>${mode==='cloud'&&!Cloud.onboardingComplete?'<button class="primary full space" data-go="onboarding">Concluir cadastro inicial</button>':''}<p class="sub space">${mode==='cloud'?'Sua conta está conectada. Alterações confirmadas são persistidas na nuvem.':'Você está no modo local. Os dados deste dispositivo não são enviados à nuvem automaticamente.'}</p>${mode==='cloud'?`<button class="secondary full space" id="refresh">${icon('refresh')} Atualizar dados da nuvem</button><button class="text-btn full" id="logout">${icon('logout')} Sair da conta</button><button class="text-btn full" id="logoutAll">Sair de todos os dispositivos</button>`:`<button class="primary full space" data-go="bemvindo">${icon('user')} Entrar ou criar conta</button><p class="not-configured space">${Cloud.configured?'Integração configurada; valide o acesso na sua conta.':'Apple, Google e e-mail aguardam configuração externa.'}</p>`}</div><div class="profile-settings space"><details class="card profile-setting"><summary><span class="profile-setting-icon">${icon('download')}</span><span>Meus dados<small>Exportar, importar e excluir</small></span><span class="profile-setting-chevron" aria-hidden="true">⌄</span></summary><div class="profile-setting-content"><div class="profile-data-actions"><button class="secondary" id="backup">${icon('download')} Exportar backup</button><button class="secondary" id="restore">Importar backup</button><button class="secondary" id="csv">Exportar planilha</button></div><p class="sub space">O backup inclui seu perfil e registros. As fotos são exportadas separadamente na galeria. A importação adiciona registros sem apagar os existentes ou substituir seu perfil.</p><button class="text-btn" data-go="fotos">Abrir minhas fotos</button>${legacyExists&&!demo?`<details class="space"><summary>Recuperar registros anteriores</summary><p class="sub">Exporte o original antes de revisar a importação.</p><button class="secondary space" id="legacyBackup">Exportar registros originais</button><button class="secondary space" id="legacyImport" ${legacyBackupDone?'':'disabled'}>Revisar importação</button></details>`:''}${localError?'<button class="secondary full space" id="rawBackup">Exportar dados locais brutos</button>':''}<div class="danger-zone">${mode==='cloud'?'<button class="delete" id="deleteAccount">Excluir minha conta</button><p class="sub">A exclusão é permanente e exige confirmação de identidade. Exportar os dados antes é opcional.</p>':'<button class="delete" id="clearLocal">Excluir dados deste dispositivo</button><p class="sub">A exclusão é permanente e afeta os dados locais neste navegador. Exportar antes é opcional.</p>'}</div></div></details><details class="card profile-setting"><summary><span class="profile-setting-icon">${icon('shield')}</span><span>Privacidade<small>Autorizações e documentos</small></span><span class="profile-setting-chevron" aria-hidden="true">⌄</span></summary><div class="profile-setting-content">${mode==='cloud'&&!demo?profilePermissions(p):'<p class="sub">Você controla os dados que registra. Consulte os documentos e as opções de exclusão em Meus dados.</p>'}${mode==='cloud'?'<div class="privacy-controls"><button class="text-btn" id="withdrawHealth">Retirar autorização de saúde</button><button class="text-btn" id="withdrawPhotos">Retirar autorização de fotos</button></div><p class="sub">Retirar uma autorização bloqueia novas gravações correspondentes; não apaga automaticamente os dados anteriores.</p>':''}<div class="privacy-documents"><button class="text-btn" data-go="termos">Termos de uso</button><button class="text-btn" data-go="privacidade">Política de Privacidade</button></div></div></details><details class="card profile-setting"><summary><span class="profile-setting-icon">${icon('download')}</span><span>Instalar aplicativo<small>Adicionar à tela inicial</small></span><span class="profile-setting-chevron" aria-hidden="true">⌄</span></summary><div class="profile-setting-content">${window.NeoInstall?.guide()||'<p class="sub">Abra o menu do navegador e escolha adicionar à tela inicial.</p>'}</div></details></div></section></div>`+audience}
+  if(current()&&!saving)save.disabled=false;
+ }
+ form.addEventListener('submit',async event=>{
+  event.preventDefault();
+  if(!current()||saving)return;
+  const skipping=!!skip&&event.submitter===skip;
+  if(!skipping&&!baseline){await load();return;}
+  const choices={};
+  if(!skipping)for(const [key] of privacyOptions){
+   if(form.elements[key].checked!==baseline[key])choices[key]=form.elements[key].checked;
+  }
+  // Start native authorization within the submit gesture, before the network request.
+  const wantsCampaigns=choices.campaigns===true;
+  const nativeNotice=wantsCampaigns?Promise.resolve(window.NeoPush?.requestPermission?.()).catch(()=> 'Não foi possível concluir a autorização do aparelho. Confira os ajustes de notificações.'):Promise.resolve('');
+  saving=true;fields.disabled=true;save.disabled=true;if(skip)skip.disabled=true;
+  status.textContent='Salvando preferências…';
+  try{
+   const values=await Cloud.privacyPreferences(skipping?null:choices,initial);
+   if(Cloud.user?.id!==account)return;
+   if(choices.statistics!==undefined){
+    audienceAccount=account;audienceAllowed=values.statistics;audienceCheck=null;audienceObservedAt=0;
+    if(!values.statistics)audienceCampaignPending=false;
+    else void syncAudience();
+   }
+   if(choices.usage!==undefined){
+    resetEngagement(account);engagementAllowed=values.usage;engagementChecked=true;
+    if(values.usage)void syncEngagement();
+   }
+   if(choices.location!==undefined){
+    geoAccount=account;geoAllowed=values.location;geoNext=0;geoCaptureRequested=values.location;
+    if(values.location)void syncGeo();
+   }
+   const notice=await nativeNotice;
+   if(!current())return;
+   apply(values);
+   if(initial){
+    window.NeoArrival?.arm(account,true);
+    await openAccountDestination(false);
+    toast(notice||'Seu espaço está pronto.');
+   }else status.textContent=['Preferências salvas.',notice||privacyHelp(form)].filter(Boolean).join(' ');
+  }catch{
+   if(current())status.textContent='Não foi possível salvar as preferências. Tente novamente.';
+  }finally{
+   saving=false;
+   if(current()){fields.disabled=!baseline;save.disabled=false;if(skip)skip.disabled=false;}
+  }
+ });
+ void load();
+}
+function profilePage(){const p={...state.profile,theme:appearance,consent:mode==='cloud'&&!demo?Cloud.hasConsent('health'):state.profile.consent};return head('Seu espaço, do seu jeito.','Perfil, preferências e controle dos seus dados.')+`<div class="two-cols"><section class="card"><div class="profile-head"><div class="avatar">${avatarURL?`<img src="${esc(avatarURL)}" alt="Sua foto">`:esc(p.name.slice(0,1).toUpperCase()||'N')}</div><div><h2>${esc(p.name||'Como podemos chamar você?')}</h2><p class="sub">${mode==='cloud'?esc(Cloud.user?.email||'Conta conectada'):'Perfil local · neste navegador'}</p><button class="text-btn" data-add="avatar">Alterar foto</button></div></div><form id="profileForm"><label>Nome<input name="name" value="${esc(p.name)}" maxlength="100" autocomplete="given-name" required placeholder="Seu nome"></label>${mode==='cloud'?`<label>E-mail da conta<input type="email" disabled value="${esc(Cloud.user?.email||'')}"></label>`:''}<div class="form-grid"><label class="profile-birth-date">Nascimento (opcional)<input name="birthDate" type="date" value="${esc(p.birthDate)}" max="${C.today()}"></label><label class="profile-height">Altura (cm)<input name="height" type="number" min="40" max="260" step="0.1" inputmode="decimal" value="${p.height??''}"></label><label>Peso inicial (kg)<input name="initialWeight" type="number" min="1" max="650" step="0.01" inputmode="decimal" value="${p.initialWeight??''}"></label><label>Meta de peso (kg)<input name="goal" type="number" min="1" max="650" step="0.01" inputmode="decimal" value="${p.goal??''}"></label></div><div class="form-grid"><label>Unidades de exibição<select name="units"><option value="metric" ${p.units==='metric'?'selected':''}>kg e cm</option><option value="imperial" ${p.units==='imperial'?'selected':''}>lb e polegadas</option></select></label><label>Aparência<select name="theme" id="themeSelect">${[['system','Automática'],['light','Clara'],['dark','Escura']].map(([v,t])=>`<option value="${v}" ${p.theme===v?'selected':''}>${t}</option>`).join('')}</select></label></div><p class="form-help">Os formulários guardam valores em kg e cm; a preferência altera a exibição de peso e medidas.</p>${mode!=='cloud'||demo?profilePermissions(p):''}${trackingFields(p)}<button class="primary full">Salvar perfil</button></form></section><section><div class="card"><h2>Conta e sincronização</h2>${mode==='cloud'&&!Cloud.onboardingComplete?'<button class="primary full space" data-go="onboarding">Concluir cadastro inicial</button>':''}<p class="sub space">${mode==='cloud'?'Sua conta está conectada. Alterações confirmadas são persistidas na nuvem.':'Você está no modo local. Os dados deste dispositivo não são enviados à nuvem automaticamente.'}</p>${mode==='cloud'?`<button class="secondary full space" id="refresh">${icon('refresh')} Atualizar dados da nuvem</button><button class="text-btn full" id="logout">${icon('logout')} Sair da conta</button><button class="text-btn full" id="logoutAll">Sair de todos os dispositivos</button>`:`<button class="primary full space" data-go="bemvindo">${icon('user')} Entrar ou criar conta</button><p class="not-configured space">${Cloud.configured?'Integração configurada; valide o acesso na sua conta.':'Apple, Google e e-mail aguardam configuração externa.'}</p>`}</div><div class="profile-settings space"><details class="card profile-setting"><summary><span class="profile-setting-icon">${icon('download')}</span><span>Meus dados<small>Exportar, importar e excluir</small></span><span class="profile-setting-chevron" aria-hidden="true">⌄</span></summary><div class="profile-setting-content"><div class="profile-data-actions"><button class="secondary" id="backup">${icon('download')} Exportar backup</button><button class="secondary" id="restore">Importar backup</button><button class="secondary" id="csv">Exportar planilha</button></div><p class="sub space">O backup inclui seu perfil e registros. As fotos são exportadas separadamente na galeria. A importação adiciona registros sem apagar os existentes ou substituir seu perfil.</p><button class="text-btn" data-go="fotos">Abrir minhas fotos</button>${legacyExists&&!demo?`<details class="space"><summary>Recuperar registros anteriores</summary><p class="sub">Exporte o original antes de revisar a importação.</p><button class="secondary space" id="legacyBackup">Exportar registros originais</button><button class="secondary space" id="legacyImport" ${legacyBackupDone?'':'disabled'}>Revisar importação</button></details>`:''}${localError?'<button class="secondary full space" id="rawBackup">Exportar dados locais brutos</button>':''}<div class="danger-zone">${mode==='cloud'?'<button class="delete" id="deleteAccount">Excluir minha conta</button><p class="sub">A exclusão é permanente e exige confirmação de identidade. Exportar os dados antes é opcional.</p>':'<button class="delete" id="clearLocal">Excluir dados deste dispositivo</button><p class="sub">A exclusão é permanente e afeta os dados locais neste navegador. Exportar antes é opcional.</p>'}</div></div></details>${mode==='cloud'&&!demo?`<button type="button" class="card profile-setting privacy-setting-link" data-go="permissoes"><span class="profile-setting-icon">${icon('shield')}</span><span>Privacidade e permissões</span><span class="profile-setting-chevron" aria-hidden="true">›</span></button>`:''}<details class="card profile-setting"><summary><span class="profile-setting-icon">${icon('shield')}</span><span>Dados de saúde e fotos<small>Autorizações e documentos</small></span><span class="profile-setting-chevron" aria-hidden="true">⌄</span></summary><div class="profile-setting-content">${mode==='cloud'&&!demo?profilePermissions(p):'<p class="sub">Você controla os dados que registra. Consulte os documentos e as opções de exclusão em Meus dados.</p>'}${mode==='cloud'?'<div class="privacy-controls"><button class="text-btn" id="withdrawHealth">Retirar autorização de saúde</button><button class="text-btn" id="withdrawPhotos">Retirar autorização de fotos</button></div><p class="sub">Retirar uma autorização bloqueia novas gravações correspondentes; não apaga automaticamente os dados anteriores.</p>':''}<div class="privacy-documents"><button class="text-btn" data-go="termos">Termos de uso</button><button class="text-btn" data-go="privacidade">Política de Privacidade</button></div></div></details><details class="card profile-setting"><summary><span class="profile-setting-icon">${icon('download')}</span><span>Instalar aplicativo<small>Adicionar à tela inicial</small></span><span class="profile-setting-chevron" aria-hidden="true">⌄</span></summary><div class="profile-setting-content">${window.NeoInstall?.guide()||'<p class="sub">Abra o menu do navegador e escolha adicionar à tela inicial.</p>'}</div></details></div></section></div>`}
 function rememberRecovery(stage){try{window.sessionStorage?.setItem('neo-recovery-request',JSON.stringify({email:authEmail,stage,requestedAt:Date.now()}));}catch{}}
 function clearRecovery(){try{window.sessionStorage?.removeItem('neo-recovery-request');}catch{}}
 function restoreRecovery(){try{const saved=JSON.parse(window.sessionStorage?.getItem('neo-recovery-request')||'null');if(!saved||!/^\S+@\S+\.\S+$/.test(saved.email)||!Number.isFinite(saved.requestedAt)||Date.now()-saved.requestedAt>3600000||saved.requestedAt>Date.now()||!['verifycode','newpassword'].includes(saved.stage))return;authEmail=saved.email;authMode=saved.stage;recoveryFlow=true;resetNextAt=saved.stage==='verifycode'?saved.requestedAt+60000:0;page='bemvindo';}catch{}}
 function socialLoginButtons(cfg){const apple='<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17.05 12.54c.03 3.03 2.66 4.04 2.69 4.05-.02.07-.42 1.44-1.39 2.86-.84 1.23-1.71 2.45-3.08 2.48-1.34.03-1.77-.8-3.3-.8-1.52 0-2 .77-3.27.83-1.32.05-2.33-1.33-3.18-2.55-1.73-2.5-3.05-7.07-1.27-10.15.88-1.53 2.45-2.5 4.16-2.52 1.3-.03 2.53.88 3.32.88.8 0 2.29-1.09 3.86-.93.66.03 2.5.27 3.68 2.01-.1.06-2.2 1.28-2.22 3.84M14.54 5.03c.7-.85 1.17-2.02 1.04-3.19-1.01.04-2.23.67-2.95 1.52-.65.75-1.22 1.95-1.06 3.1 1.13.09 2.28-.57 2.97-1.43"/></svg>';const google='<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.6 12.23c0-.71-.06-1.39-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-2 3.02v2.51h3.24c1.89-1.74 2.98-4.3 2.98-7.36M12 22c2.7 0 4.96-.9 6.62-2.41l-3.24-2.51c-.9.6-2.04.96-3.38.96-2.6 0-4.8-1.76-5.59-4.12H3.07v2.59A10 10 0 0 0 12 22M6.41 13.92a6 6 0 0 1 0-3.84V7.49H3.07a10 10 0 0 0 0 9.02zM12 5.96c1.47 0 2.79.5 3.82 1.5l2.87-2.88A9.6 9.6 0 0 0 12 2a10 10 0 0 0-8.93 5.49l3.34 2.59C7.2 7.72 9.4 5.96 12 5.96"/></svg>';return `<div class="auth-social-buttons" role="group" aria-label="Outras formas de entrar"><button type="button" class="auth-social-circle" data-oauth="apple" aria-label="Continuar com Apple" title="Continuar com Apple" ${Cloud.configured&&cfg.providers.apple?'':'disabled'}>${apple}</button><button type="button" class="auth-social-circle" data-oauth="google" aria-label="Continuar com Google" title="Continuar com Google" ${Cloud.configured&&cfg.providers.google?'':'disabled'}>${google}</button></div>`;}
 function welcome(){const cfg=window.NEO_CONFIG,codeMode=authMode==='verifycode',passwordMode=authMode==='newpassword',recovery=['reset','verifycode','newpassword'].includes(authMode),cooldown=authMode==='reset'&&Date.now()<resetNextAt;return `<section class="card auth-card"><div class="auth-brand"><img src="assets/logo-neopep.png" alt="NeoPep"><h1>NeoPep</h1><p class="sub">Sua evolução, em suas mãos.</p></div><h2 style="text-align:center">${codeMode?'Confira seu e-mail.':passwordMode?'Crie sua nova senha.':authMode==='reset'?'Recupere seu acesso.':'Seu cuidado começa com você.'}</h2><p class="sub" style="text-align:center">${codeMode?'Volte aqui e informe o código recebido.':passwordMode?'Escolha uma senha com pelo menos 8 caracteres.':authMode==='reset'?'Receba um código e altere sua senha aqui no aplicativo.':'Um espaço pessoal para acompanhar cada passo.'}</p>${!recovery?(window.NeoInstall?.loginNotice()||''):''}${authMode!=='login'&&!passwordMode?`<button class="text-btn" type="button" data-auth="${codeMode?'reset':'login'}">‹ ${codeMode?'Alterar e-mail':'Voltar para entrar'}</button>`:''}<div class="divider">${{login:'entre com e-mail',signup:'crie sua conta',reset:'envie seu código',verifycode:'confirme seu código',newpassword:'defina uma nova senha'}[authMode]}</div>${authMessage?`<p class="notice auth-feedback" id="authMessage" role="status">${esc(authMessage)}</p>`:''}<form id="authForm">${authMode==='signup'?input('name','Nome completo','text','required maxlength="100" autocomplete="name"'):''}${!passwordMode&&!codeMode?input('email','E-mail','email','required autocomplete="email"',authEmail):''}${codeMode?`<p class="sub recovery-email">E-mail: <strong>${esc(authEmail)}</strong></p>${input('code','Código recebido por e-mail','text','required inputmode="numeric" autocomplete="one-time-code" minlength="6" maxlength="10" pattern="[0-9]{6,10}" autocapitalize="off" spellcheck="false"')}`:''}${['login','signup','newpassword'].includes(authMode)?input('password',passwordMode?'Nova senha':'Senha','password',`required minlength="${authMode==='login'?1:8}" maxlength="128" autocomplete="${authMode==='login'?'current-password':'new-password'}"`):''}${passwordMode?input('confirmPassword','Confirmar nova senha','password','required minlength="8" maxlength="128" autocomplete="new-password"'):''}${authMode==='signup'?'<label class="check auth-legal"><input id="authLegalConsent" type="checkbox" name="consent" required><span>Li a <a href="#privacidade" target="_blank" rel="noopener">Política de Privacidade</a> e aceito os <a href="#termos" target="_blank" rel="noopener">Termos de Uso</a>. O consentimento para dados de saúde será solicitado separadamente.</span></label>':''}${['login','signup'].includes(authMode)?`<label class="check auth-remember"><input type="checkbox" name="remember" ${authRemember?'checked':''}>Manter conectado neste dispositivo</label>`:''}${Cloud.persistenceLimited?'<p class="sub">Este navegador limitou o armazenamento. Talvez seja necessário entrar novamente após fechar a aba.</p>':''}${cfg.captchaRequired&&!codeMode&&!passwordMode?'<div id="captcha" class="space" aria-live="polite"></div>':''}<button class="primary full" ${Cloud.configured&&cfg.providers.email&&(!cfg.captchaRequired||cfg.captchaSiteKey||codeMode||passwordMode)&&(authMode!=='signup'||cfg.publicRegistration||cfg.previewRegistration)&&!cooldown?'':'disabled'}>${{login:'Entrar',signup:'Criar conta',reset:'Enviar código',verifycode:'Validar código',newpassword:'Salvar nova senha'}[authMode]}</button><p id="authError" class="error" role="alert"></p></form>${!recovery?socialLoginButtons(cfg):''}${codeMode?'<button type="button" class="text-btn full space" data-auth="reset">Não recebeu? Solicitar novo código</button>':passwordMode?'':`<div class="auth-tabs"><button type="button" class="${authMode==='login'?'primary full auth-create-account':'text-btn'}" data-auth="${authMode==='signup'?'login':'signup'}">${authMode==='signup'?'Já tenho conta':'Criar conta'}</button><button class="text-btn" data-auth="reset">Esqueci a senha</button>${authMode!=='signup'?'<a href="#privacidade" target="_blank" rel="noopener">Privacidade</a><a href="#termos" target="_blank" rel="noopener">Termos</a>':''}</div>`}</section>`}
 
-function privacy(){return head('Privacidade com transparência.','Você decide o que registrar e onde armazenar.')+`<article class="card privacy"><h2>O que esta prévia faz</h2><p>NeoPep organiza peso, medidas, fotos, aplicações e diário pessoal. Não fornece diagnóstico ou recomendação de tratamento.</p><h2>Armazenamento e finalidade</h2><p>No modo local, os registros ficam em localStorage e as fotos em IndexedDB, neste navegador. O dispositivo não constitui conta autenticada; pessoas que utilizam o mesmo perfil de navegador podem acessar esses dados. Limpar os dados do site pode removê-los. Não há envio automático dos registros anteriores ou dos dados locais a terceiros.</p><p>Quando configurado e escolhido por você, o modo nuvem utiliza Supabase para autenticação, banco e armazenamento privado de fotos, com autorização por usuário. Apple e Google são usados apenas para autenticação. A hospedagem Sites pode exigir sua conta ChatGPT para abrir a página. Os provedores mantêm suas próprias políticas e registros operacionais.</p><h2>Manter conectado</h2><p>Com essa opção ativada, o navegador guarda os tokens de sessão para restaurar seu acesso e renová-los quando permitido pelo serviço. O aplicativo não salva sua senha. Ao desativar a opção, a sessão fica restrita à aba. Sair remove os tokens de acesso armazenados neste navegador; limpar os dados do site também pode encerrar o acesso.</p><h2>Dados sensíveis e consentimento</h2><p>Peso, medidas e registros pessoais podem revelar informações de saúde. Cadastre apenas o que deseja guardar. O consentimento é específico ao uso escolhido e pode ser retirado pela exclusão dos dados. Não usamos informações reais para a demonstração. Não há rastreadores de publicidade ou ferramentas de análise nesta implementação.</p><h2>Comunidade e atendimento privado</h2><p>No Grupo, mensagens e anexos enviados ficam visíveis aos membros após publicação. A lista de membros mostra nome público, função e data de entrada, sem dados de saúde. No atendimento privado, sua mensagem aguarda um atendente; os demais administradores veem somente o pedido pendente. Após o aceite, o conteúdo é acessível a você e ao atendente responsável. O histórico é preservado para continuar o atendimento. Você pode enviar fotos, documentos e áudio voluntariamente; o microfone depende da sua permissão. Links dos anexos são temporários. Avisos de mensagens não incluem o conteúdo da conversa.</p><h2>Compras na loja</h2><p>A loja usa dados de contato e endereço fornecidos na compra para pagamento e entrega. O pagamento, quando ativado, ocorre no ambiente do Mercado Pago; o aplicativo não recebe dados do cartão. Registros corporais não são usados na compra. Pedidos em aberto precisam de atendimento antes da exclusão da conta; após a resolução, dados pessoais são anonimizados, preservando o registro financeiro para controle comercial.</p><h2>Atendimento virtual</h2><p>O atendimento privado pode usar um assistente virtual configurado pela equipe, com processamento de textos pela integração selecionada: OpenAI, Google Gemini ou Anthropic Claude. O contexto usa textos recentes da conversa e informações operacionais aprovadas pela empresa. Fotos, áudios, arquivos da conversa e registros de saúde do seu perfil não são enviados automaticamente ao agente. O atendimento humano pode assumir a conversa. Não envie senhas ou códigos de acesso.</p><h2>Seus direitos e controles</h2><p>Você pode acessar e editar registros, exportar JSON e CSV, salvar relatórios em PDF pelo sistema e excluir fotos individualmente. A importação exige backup e confirmação, é aditiva e preserva os registros originais. Exporte fotos separadamente. Na nuvem, a exclusão de conta remove fotos e dados associados, após autenticação recente e confirmação. Backups baixados permanecem sob seu controle.</p><h2>Segurança e limites</h2><p>Use HTTPS, bloqueio de tela e um dispositivo de confiança. Na nuvem, RLS restringe registros e objetos ao titular. Links de fotos são temporários. O cache offline armazena somente os arquivos da interface; não armazena respostas de autenticação, APIs ou fotos da nuvem. Ao sair, os registros da conta são removidos da memória da interface. Nenhum sistema oferece risco zero.</p><h2>Consentimentos e administração</h2><p>As autorizações de saúde, termos e fotos são registradas com versão e horário no servidor. Você pode retirar autorizações no Perfil; novas gravações ficam bloqueadas sem impedir exportação e exclusão. O painel administrativo exibe somente totais e indicadores agregados, sem valores individuais de saúde, notas, e-mails ou fotografias. Para operação, o servidor guarda identificador da conta, último acesso e contadores de erro de categoria fixa; não guarda conteúdo dos registros nesses indicadores.</p><h2>Retenção e responsável</h2><p>Dados locais permanecem até sua exclusão ou limpeza do navegador. Na nuvem, permanecem até a exclusão pelo titular; retenção de backups do provedor depende do plano e precisa ser documentada antes do lançamento. O responsável pelo aplicativo deve definir identificação do controlador, canal para exercício de direitos LGPD, região de processamento e política de retenção antes de habilitar cadastro público.</p><p>Empresa responsável: ${esc(window.NEO_CONFIG.controllerName||'NeoPep')}</p>${window.NEO_CONFIG.controllerCnpj?`<p>CNPJ: ${esc(window.NEO_CONFIG.controllerCnpj)}</p>`:''}<p>${window.NEO_CONFIG.privacyContact?'Contato para privacidade e exercício de direitos: '+esc(window.NEO_CONFIG.privacyContact):'Contato do controlador: pendente de configuração. Esta política é uma minuta funcional para a prévia e requer identificação do responsável antes de uso com público.'}</p><h2>Atendimento com IA opcional</h2><p>Quando habilitado pela plataforma e autorizado por você na conversa privada, textos enviados após a autorização podem ser encaminhados à OpenAI para gerar respostas operacionais. O fluxo não envia fotografias, áudios, anexos nem busca seus registros de saúde. A IA é identificada e não substitui atendimento profissional; um administrador pode assumir a conversa.</p><p>Você pode desativar a IA na própria conversa. O provedor processa os textos conforme suas políticas; desativar não desfaz envios anteriores. A confirmação específica é registrada separadamente das preferências de acompanhamento.</p><button class="secondary" data-go="perfil">Voltar ao perfil</button></article>`}
+function privacy(){return head('Privacidade com transparência.','Você decide o que registrar e onde armazenar.')+`<article class="card privacy"><h2>O que esta prévia faz</h2><p>NeoPep organiza peso, medidas, fotos, aplicações e diário pessoal. Não fornece diagnóstico ou recomendação de tratamento.</p><h2>Armazenamento e finalidade</h2><p>No modo local, os registros ficam em localStorage e as fotos em IndexedDB, neste navegador. O dispositivo não constitui conta autenticada; pessoas que utilizam o mesmo perfil de navegador podem acessar esses dados. Limpar os dados do site pode removê-los. Não há envio automático dos registros anteriores ou dos dados locais a terceiros.</p><p>Quando configurado e escolhido por você, o modo nuvem utiliza Supabase para autenticação, banco e armazenamento privado de fotos, com autorização por usuário. Apple e Google são usados apenas para autenticação. A hospedagem Sites pode exigir sua conta ChatGPT para abrir a página. Os provedores mantêm suas próprias políticas e registros operacionais.</p><h2>Permissões opcionais</h2><p>Estatísticas guardam informações gerais sobre dispositivo, navegador e origem de campanhas por até 90 dias. Medição de uso registra ações e tempo de uso por até 90 dias, sem guardar o conteúdo dos registros. As duas opções são independentes.</p><p>A localização aproximada usa cidade, estado e país disponibilizados pela hospedagem, sem acesso ao GPS. As notificações de campanhas são promocionais e têm preferência própria. Para receber notificações no aparelho, é necessário autorizá-las e ativar o dispositivo em Lembretes.</p><p>Consulte ou revogue qualquer opção em Perfil → Privacidade e permissões. O backup em Meus dados inclui as informações opcionais disponíveis.</p><h2>Manter conectado</h2><p>Com essa opção ativada, o navegador guarda os tokens de sessão para restaurar seu acesso e renová-los quando permitido pelo serviço. O aplicativo não salva sua senha. Ao desativar a opção, a sessão fica restrita à aba. Sair remove os tokens de acesso armazenados neste navegador; limpar os dados do site também pode encerrar o acesso.</p><h2>Dados sensíveis e consentimento</h2><p>Peso, medidas e registros pessoais podem revelar informações de saúde. Cadastre apenas o que deseja guardar. O consentimento é específico ao uso escolhido e pode ser retirado pela exclusão dos dados. Não usamos informações reais para a demonstração. Não há rastreadores de publicidade ou ferramentas de análise nesta implementação.</p><h2>Comunidade e atendimento privado</h2><p>No Grupo, mensagens e anexos enviados ficam visíveis aos membros após publicação. A lista de membros mostra nome público, função e data de entrada, sem dados de saúde. No atendimento privado, sua mensagem aguarda um atendente; os demais administradores veem somente o pedido pendente. Após o aceite, o conteúdo é acessível a você e ao atendente responsável. O histórico é preservado para continuar o atendimento. Você pode enviar fotos, documentos e áudio voluntariamente; o microfone depende da sua permissão. Links dos anexos são temporários. Avisos de mensagens não incluem o conteúdo da conversa.</p><h2>Compras na loja</h2><p>A loja usa dados de contato e endereço fornecidos na compra para pagamento e entrega. O pagamento, quando ativado, ocorre no ambiente do Mercado Pago; o aplicativo não recebe dados do cartão. Registros corporais não são usados na compra. Pedidos em aberto precisam de atendimento antes da exclusão da conta; após a resolução, dados pessoais são anonimizados, preservando o registro financeiro para controle comercial.</p><h2>Atendimento virtual</h2><p>O atendimento privado pode usar um assistente virtual configurado pela equipe, com processamento de textos pela integração selecionada: OpenAI, Google Gemini ou Anthropic Claude. O contexto usa textos recentes da conversa e informações operacionais aprovadas pela empresa. Fotos, áudios, arquivos da conversa e registros de saúde do seu perfil não são enviados automaticamente ao agente. O atendimento humano pode assumir a conversa. Não envie senhas ou códigos de acesso.</p><h2>Seus direitos e controles</h2><p>Você pode acessar e editar registros, exportar JSON e CSV, salvar relatórios em PDF pelo sistema e excluir fotos individualmente. A importação exige backup e confirmação, é aditiva e preserva os registros originais. Exporte fotos separadamente. Na nuvem, a exclusão de conta remove fotos e dados associados, após autenticação recente e confirmação. Backups baixados permanecem sob seu controle.</p><h2>Segurança e limites</h2><p>Use HTTPS, bloqueio de tela e um dispositivo de confiança. Na nuvem, RLS restringe registros e objetos ao titular. Links de fotos são temporários. O cache offline armazena somente os arquivos da interface; não armazena respostas de autenticação, APIs ou fotos da nuvem. Ao sair, os registros da conta são removidos da memória da interface. Nenhum sistema oferece risco zero.</p><h2>Consentimentos e administração</h2><p>As autorizações de saúde, termos e fotos são registradas com versão e horário no servidor. Você pode retirar autorizações no Perfil; novas gravações ficam bloqueadas sem impedir exportação e exclusão. O painel administrativo exibe somente totais e indicadores agregados, sem valores individuais de saúde, notas, e-mails ou fotografias. Para operação, o servidor guarda identificador da conta, último acesso e contadores de erro de categoria fixa; não guarda conteúdo dos registros nesses indicadores.</p><h2>Retenção e responsável</h2><p>Dados locais permanecem até sua exclusão ou limpeza do navegador. Na nuvem, permanecem até a exclusão pelo titular; retenção de backups do provedor depende do plano e precisa ser documentada antes do lançamento. O responsável pelo aplicativo deve definir identificação do controlador, canal para exercício de direitos LGPD, região de processamento e política de retenção antes de habilitar cadastro público.</p><p>Empresa responsável: ${esc(window.NEO_CONFIG.controllerName||'NeoPep')}</p>${window.NEO_CONFIG.controllerCnpj?`<p>CNPJ: ${esc(window.NEO_CONFIG.controllerCnpj)}</p>`:''}<p>${window.NEO_CONFIG.privacyContact?'Contato para privacidade e exercício de direitos: '+esc(window.NEO_CONFIG.privacyContact):'Contato do controlador: pendente de configuração. Esta política é uma minuta funcional para a prévia e requer identificação do responsável antes de uso com público.'}</p><h2>Atendimento com IA opcional</h2><p>Quando habilitado pela plataforma e autorizado por você na conversa privada, textos enviados após a autorização podem ser encaminhados à OpenAI para gerar respostas operacionais. O fluxo não envia fotografias, áudios, anexos nem busca seus registros de saúde. A IA é identificada e não substitui atendimento profissional; um administrador pode assumir a conversa.</p><p>Você pode desativar a IA na própria conversa. O provedor processa os textos conforme suas políticas; desativar não desfaz envios anteriores. A confirmação específica é registrada separadamente das preferências de acompanhamento.</p><button class="secondary" data-go="perfil">Voltar ao perfil</button></article>`}
 
 function trackingFields(p){return `<fieldset class="tracking"><legend>Personalizar meu acompanhamento</legend><p class="form-help tracking-help">Escolha os atalhos da tela inicial. Peso e medidas também participam dos lembretes configurados. Desmarcar não apaga dados nem remove os módulos de Registros.</p>${[['weight','Peso','Registro diário e lembrete de peso.'],['measures','Medidas','Registro e lembrete semanal.'],['journal','Diário de bem-estar','Atalho para registrar como você se sente.'],['photos','Fotos de evolução','Atalho para adicionar uma foto de evolução.'],['applications','Aplicações e protocolos','Atalho para registrar uma aplicação.']].map(([k,t,h])=>`<label class="check tracking-choice"><input type="checkbox" name="track_${k}" ${p.tracking?.[k]?'checked':''}><span>${t}<small>${h}</small></span></label>`).join('')}</fieldset>`}
 function profilePermissions(p){return `<section class="profile-permissions"><h3>Privacidade e autorizações</h3>${mode==='cloud'&&!demo?`<p class="sub">Dados de saúde: <strong>${p.consent?'autorizados':'novas gravações bloqueadas'}</strong>.</p><p class="sub">Fotos: <strong>${Cloud.hasConsent('photos')?'envios autorizados':'autorização necessária ao enviar'}</strong>.</p><p class="form-help">Essas autorizações permitem guardar seus dados na conta. Não publicam informações na comunidade. Você pode retirá-las pelos controles desta seção, sem apagar automaticamente os registros anteriores.</p>`:`<label class="check"><input type="checkbox" name="consent" ${p.consent?'checked':''}>Autorizo o armazenamento dos dados pessoais e de saúde que eu registrar, conforme a Política de Privacidade.</label>`}</section>`}
@@ -1173,7 +1468,7 @@ function arrivalWelcome(){return `<section class="card arrival-welcome"><span cl
 function onboarding(){const p=state.profile;return `<section class="card onboarding-card onboarding-minimal"><p class="eyebrow">SEU PONTO DE PARTIDA</p><h1>Vamos conhecer você.</h1><p class="sub">Preencha seus dados. Você pode ajustar depois.</p><form id="onboardingForm" class="space">${input('name','Nome completo','text','required maxlength="100" autocomplete="name"',p.name)}<div class="form-grid">${input('height','Altura (cm)','number','required min="40" max="260" step="0.1"',p.height??'')}${input('initialWeight','Peso inicial (kg)','number','required min="1" max="650" step="0.01"',p.initialWeight??'')}${input('goal','Meta de peso (kg)','number','required min="1" max="650" step="0.01"',p.goal??'')}</div><p class="sub onboarding-goal-intent" id="onboardingGoalIntent" role="status">${goalIntent(p.initialWeight,p.goal)}</p><details class="onboarding-options"><summary>O que quero acompanhar</summary>${[['weight','Peso'],['measures','Medidas'],['journal','Bem-estar'],['photos','Fotos de evolução'],['applications','Aplicações']].map(([key,label])=>`<label class="check"><input type="checkbox" name="track_${key}" ${p.tracking?.[key]?'checked':''}>${label}</label>`).join('')}</details><label class="check"><input type="checkbox" name="health" required><span>Autorizo o uso dos dados de saúde que registrar para acompanhar minha evolução. Posso retirar a autorização no Perfil.</span></label><label class="check"><input type="checkbox" name="terms" required><span>Li a <a href="#privacidade">Política de Privacidade</a> e aceito os <a href="#termos">Termos de Uso</a>.</span></label><p id="onboardingError" class="error" role="alert"></p><button class="primary full" type="submit">Entrar no meu espaço ${icon('arrow')}</button></form></section>`;}
 function terms(){return head('Termos de Uso','Versão final · 16 de novembro de 2026')+`<article class="card privacy"><p>Estes Termos regulam o acesso e o uso do NeoPep. Ao criar uma conta ou continuar usando o aplicativo, você declara que leu e aceita estas condições e a Política de Privacidade.</p><h2>1. Finalidade do aplicativo</h2><p>O NeoPep oferece ferramentas para acompanhamento pessoal, registros de peso e medidas, fotos, diário, aplicações, lembretes, comunidade, biblioteca, atendimento e compras. O aplicativo não substitui médico, nutricionista, farmacêutico ou outro profissional habilitado, não realiza diagnóstico e não prescreve tratamentos, produtos, doses ou protocolos. Resultados de calculadoras são apenas matemáticos e devem ser conferidos antes do uso.</p><h2>2. Conta e segurança</h2><p>A conta é pessoal. Você deve fornecer informações verdadeiras, proteger senha, e-mail e dispositivo e comunicar acessos suspeitos. É proibido acessar conta de terceiros, contornar controles, testar vulnerabilidades sem autorização, automatizar abuso ou usar a plataforma para atividade ilegal. A pessoa usuária responde pelo conteúdo e pelas ações realizadas em sua conta até comunicar comprometimento.</p><h2>3. Registros pessoais e consentimentos</h2><p>Você escolhe quais informações registrar. Dados de saúde e fotografias dependem de consentimentos específicos. É possível editar, exportar ou excluir registros e retirar consentimentos pelos controles disponíveis. A retirada pode impedir novas gravações sem apagar automaticamente dados que devam ser preservados por obrigação legal, segurança ou relação comercial. Consulte a Política de Privacidade para detalhes.</p><h2>4. Comunidade, biblioteca e atendimento</h2><p>Conteúdos publicados no Grupo podem ser vistos pelos membros. Não publique dados de terceiros sem autorização, conteúdo ofensivo, discriminatório, fraudulento, ilegal, perigoso ou que viole direitos autorais. A equipe pode moderar, ocultar ou remover conteúdo e restringir contas para proteger a comunidade. Materiais da biblioteca têm finalidade informativa e não representam orientação individual.</p><p>Conversas privadas podem ser atendidas pela equipe ou por assistente virtual identificado. Quando habilitado, o agente processa textos da conversa conforme a Política de Privacidade e pode encaminhar o atendimento a uma pessoa. Não envie senhas, códigos de autenticação ou dados completos de pagamento.</p><h2>5. Loja, pagamento e entrega</h2><p>Antes de finalizar, confira produto, quantidade, preço, descontos, frete, endereço e identificação. O pagamento é processado no ambiente do Mercado Pago; o NeoPep não recebe os dados completos do cartão. A aprovação exibida no provedor depende da confirmação recebida pelo sistema. Prazos de entrega são estimativas e podem variar por endereço, transportadora e eventos externos.</p><p>Pedidos ainda não pagos podem ser cancelados conforme a opção disponível. Para pedidos pagos, o cliente pode solicitar cancelamento e a loja analisará o estado do envio, as condições informadas e a legislação aplicável. Aprovar um cancelamento não significa reembolso instantâneo: o estorno depende do Mercado Pago, do meio de pagamento e dos prazos financeiros. Produtos já entregues seguem as condições de troca, arrependimento e garantia aplicáveis.</p><h2>6. Notificações e lembretes</h2><p>Com permissão do dispositivo, o aplicativo pode enviar lembretes e avisos de mensagens mesmo quando estiver fechado. A entrega depende do sistema operacional, navegador, conexão e serviços de terceiros e pode atrasar ou não ocorrer. Notificações são apoio de organização e não devem ser usadas como único alerta para medicação, emergência ou cuidado de saúde.</p><h2>7. Propriedade intelectual</h2><p>A marca, identidade visual, software, textos próprios e organização da plataforma pertencem ao responsável ou aos respectivos licenciadores. O uso da conta não transfere esses direitos. Você mantém os direitos sobre o conteúdo que envia e concede apenas a autorização necessária para armazená-lo, exibi-lo e processá-lo dentro das funções solicitadas.</p><h2>8. Disponibilidade e alterações</h2><p>Podem ocorrer manutenção, indisponibilidade, falhas de conexão ou mudanças nas integrações. Funcionalidades podem ser corrigidas, substituídas ou descontinuadas para segurança, conformidade ou evolução do serviço. Alterações relevantes destes Termos serão apresentadas com nova versão e poderão exigir nova aceitação.</p><h2>9. Suspensão e encerramento</h2><p>A conta pode ser suspensa em caso de fraude, abuso, risco à segurança, violação destes Termos ou obrigação legal, assegurados os direitos aplicáveis. Você pode solicitar a exclusão da conta. Pedidos, disputas, obrigações financeiras e registros que precisem ser legalmente preservados devem ser resolvidos ou anonimizados conforme a Política de Privacidade.</p><h2>10. Responsabilidade</h2><p>O serviço é fornecido com esforços razoáveis de segurança e continuidade, sem garantia de operação ininterrupta. O responsável não responde por decisões clínicas tomadas com base em registros, calculadoras ou conteúdos informativos, nem por falhas externas do dispositivo, internet, Mercado Pago, transportadoras ou outros provedores, sem prejuízo das responsabilidades que não possam ser excluídas pela legislação brasileira.</p><h2>11. Legislação e contato</h2><p>Aplicam-se as leis da República Federativa do Brasil, inclusive as normas de proteção do consumidor e de dados pessoais quando cabíveis. Antes de qualquer medida, procure o canal de atendimento para tentativa de solução.</p><p><strong>${esc(window.NEO_CONFIG.controllerName||'NeoPep')}</strong>${window.NEO_CONFIG.controllerCnpj?`<br>CNPJ: ${esc(window.NEO_CONFIG.controllerCnpj)}`:''}<br>Contato: <a href="mailto:${esc(window.NEO_CONFIG.privacyContact||'neopeptideos@proton.me')}">${esc(window.NEO_CONFIG.privacyContact||'neopeptideos@proton.me')}</a></p><button class="secondary" data-go="perfil">Voltar ao Perfil</button></article>`}
 
-const routes={loja:()=>window.NeoShop.view({cloud:mode==='cloud'&&!demo,user:Cloud.user,admin:Cloud.admin,demo,sanitizePhoto,profileName:state.profile.name}),comunidade:()=>window.NeoCommunity.view({cloud:mode==='cloud'&&!demo,user:Cloud.user,admin:Cloud.admin,demo,sanitizePhoto,profileName:state.profile.name}),preparar:arrivalWelcome,onboarding,termos:terms,inicio:overview,evolucao:evolution,peso:evolution,registros:records,diario:journal,aplicacoes:applications,protocolos:protocols,calculadora:calculator,relatorios:reports,calendario:calendarPage,lembretes:remindersPage,fotos:photosPage,perfil:profilePage,bemvindo:welcome,privacidade:privacy};
+const routes={loja:()=>window.NeoShop.view({cloud:mode==='cloud'&&!demo,user:Cloud.user,admin:Cloud.admin,demo,sanitizePhoto,profileName:state.profile.name}),comunidade:()=>window.NeoCommunity.view({cloud:mode==='cloud'&&!demo,user:Cloud.user,admin:Cloud.admin,demo,sanitizePhoto,profileName:state.profile.name}),preparar:arrivalWelcome,onboarding,termos:terms,inicio:overview,evolucao:evolution,peso:evolution,registros:records,diario:journal,aplicacoes:applications,protocolos:protocols,calculadora:calculator,relatorios:reports,calendario:calendarPage,lembretes:remindersPage,fotos:photosPage,perfil:profilePage,permissoes:privacyPreferencesPage,'permissoes-iniciais':privacyPreferencesPage,bemvindo:welcome,privacidade:privacy};
 let workspaceEntered=false;
 let dailySeen=new Set(),dailyOwner='',dailyDate='',dailyPrompt=null,reminderSetupPrompt=null;
 function resetDailyVisit(){reminderSetupPrompt?.remove();reminderSetupPrompt=null;dailySeen.clear();dailyDate=C.today();dailyPrompt?.remove();dailyPrompt=null;}
@@ -1247,25 +1542,11 @@ async function refreshSignupBadge(){
 setInterval(refreshSignupBadge,30000);
 window.addEventListener('focus',refreshSignupBadge);
 window.addEventListener('pageshow',refreshSignupBadge);
-document.addEventListener('click',async event=>{
- const button=event.target.closest?.('[data-campaign-push-preference]');
- if(!button||!Cloud.campaignPushPreference||button.disabled)return;
- const account=Cloud.user?.id,status=button.parentElement.querySelector('[role=status]');
- if(!account)return;
- button.disabled=true;
- try{
-  const enabled=await Cloud.campaignPushPreference(button.dataset.enabled===undefined?null:button.dataset.enabled!=='true');
-  if(account!==Cloud.user?.id||!button.isConnected)return;
-  button.dataset.enabled=String(enabled);
-  button.textContent=enabled?'Desativar avisos de campanhas':'Permitir avisos de campanhas';
-  status.textContent=enabled?'Avisos de campanhas autorizados.':'Avisos de campanhas desativados.';
- }catch{if(button.isConnected)status.textContent='Não foi possível consultar ou atualizar a preferência.';}
- finally{button.disabled=false;}
-});
+
 let campaignOwner=null,campaignChecked=false,campaignPending=false,campaignDialog=null,campaignTimer=null;
 function campaignReady(){
  return !sessionLoading&&!recoveryFlow&&mode==='cloud'&&!demo&&arrivalReady&&Cloud.onboardingComplete===true
-  &&!['bemvindo','preparar','onboarding','termos','privacidade'].includes(page);
+  &&!['bemvindo','preparar','onboarding','permissoes-iniciais','termos','privacidade'].includes(page);
 }
 function campaignBlocked(){
  return document.visibilityState==='hidden'||busy||formDirty||window.NeoInstall?.blocking||document.querySelector('dialog[open], [data-arrival]');
@@ -1326,13 +1607,25 @@ function render(){applyTheme();void Promise.resolve().then(syncCampaign);void Pr
  $('#banner').innerHTML='';
  $('#content').innerHTML='<div class="session-start" role="status"><img src="assets/logo-neopep.png" alt=""><p>Verificando sua sessão…</p></div>';
  return;
-}if(window.NeoInstall?.blocking){document.body.classList.add('auth-screen');document.body.classList.remove('community-route');document.querySelector('.app-header').hidden=true;$('#nav').hidden=true;document.querySelector('#app > footer').hidden=true;$('#banner').innerHTML='';$('#content').innerHTML=window.NeoInstall.screen();window.NeoArrival?.sync(false,false);window.NeoCaptcha?.remove();return;}window.NeoLibraryShelf?.session?.(mode==='cloud'&&!demo?Cloud.user:null);window.NeoCommunity?.materialSession?.(mode==='cloud'&&!demo?Cloud.user:null);if(page!=='comunidade')window.NeoCommunity?.closeMaterialEditor?.();window.NeoLibraryFiles?.session(mode==='cloud'&&!demo?Cloud.user:null);if(page!=='comunidade')window.NeoLibraryFiles?.close();if(page!=='comunidade')window.NeoSupport?.leave?.();window.NeoShop?.session(mode==='cloud'&&!demo?Cloud.user:null);window.NeoLibrary?.session(mode==='cloud'&&!demo?Cloud.user:null);window.NeoSupport?.session(mode==='cloud'&&!demo?Cloud.user:null);document.body.classList.toggle('community-route',page==='comunidade');const authScreen=['bemvindo','preparar','onboarding'].includes(page)||!(demo||(mode==='cloud'&&Cloud.user)||workspaceEntered);document.body.classList.toggle('auth-screen',authScreen);document.querySelector('.app-header').hidden=authScreen;const showAdmin=!authScreen&&mode==='cloud'&&!demo&&!!Cloud.user&&Cloud.admin===true;$('#adminShortcut').hidden=!showAdmin;renderSignupBadge($('#adminShortcut'),showAdmin?Cloud.user.id:null);document.querySelector('.app-header').classList.toggle('has-admin-shortcut',showAdmin);$('#nav').hidden=authScreen;document.querySelector('#app > footer').hidden=authScreen;const active=['peso','evolucao'].includes(page)?'evolucao':['aplicacoes','diario','protocolos','calculadora','relatorios','fotos','lembretes'].includes(page)?'registros':page;$('#nav').innerHTML=[['inicio','Início','home'],['evolucao','Evolução','trend'],['comunidade','Comunidade','community'],['registros','Registros','plus'],['loja','Loja','shop']].map(([p,t,i])=>`<button data-go="${p}" class="${p==='comunidade'?'nav-community ':''}${active===p?'active':''}" ${active===p?'aria-current="page"':''}>${icon(i)}<span>${t}</span>${p==='comunidade'?'<b class="nav-community-count" data-message-badge="all" hidden></b>':''}</button>`).join('');$('#bell').innerHTML=icon('bell');$('#connection').textContent=demo?'Demonstração':mode==='cloud'?(navigator.onLine?'Conta conectada':'Sem conexão'):'Neste dispositivo';$('#avatar').innerHTML=avatarURL&&!demo?`<img src="${esc(avatarURL)}" alt="Sua foto">`:esc(state.profile.name.slice(0,1).toUpperCase()||'N');let banner='';if(demo)banner+='<div class="banner demo-banner"><span>Demonstração · Dados fictícios, separados dos seus registros.</span><button class="text-btn" id="exitDemo">Sair</button></div>';else if(mode==='local'&&page!=='bemvindo')banner+='<div class="banner"><span>Modo local · Seus registros ficam neste dispositivo.</span><button class="text-btn" data-go="bemvindo">Minha conta</button></div>';if(!navigator.onLine)banner+='<div class="banner offline-banner">Sem conexão. '+(mode==='cloud'?'Os dados da conta não podem ser alterados agora.':'Seus registros locais continuam disponíveis.')+'</div>';if(localError)banner+='<div class="notice error">'+esc(localError)+'</div>';if(cloudError)banner+='<div class="notice error">'+esc(cloudError)+' <button class="text-btn" id="refresh">Tentar novamente</button></div>';if(window.NeoWaitingWorker)banner+='<div class="banner"><span>Atualização disponível. Salve os registros antes de atualizar.</span><button class="text-btn" id="applyUpdate">Atualizar agora</button></div>';$('#banner').innerHTML=banner;$('#content').innerHTML=sessionFailed
+}if(window.NeoInstall?.blocking){document.body.classList.add('auth-screen');document.body.classList.remove('community-route');document.querySelector('.app-header').hidden=true;$('#nav').hidden=true;document.querySelector('#app > footer').hidden=true;$('#banner').innerHTML='';$('#content').innerHTML=window.NeoInstall.screen();window.NeoArrival?.sync(false,false);window.NeoCaptcha?.remove();return;}window.NeoLibraryShelf?.session?.(mode==='cloud'&&!demo?Cloud.user:null);window.NeoCommunity?.materialSession?.(mode==='cloud'&&!demo?Cloud.user:null);if(page!=='comunidade')window.NeoCommunity?.closeMaterialEditor?.();window.NeoLibraryFiles?.session(mode==='cloud'&&!demo?Cloud.user:null);if(page!=='comunidade')window.NeoLibraryFiles?.close();if(page!=='comunidade')window.NeoSupport?.leave?.();window.NeoShop?.session(mode==='cloud'&&!demo?Cloud.user:null);window.NeoLibrary?.session(mode==='cloud'&&!demo?Cloud.user:null);window.NeoSupport?.session(mode==='cloud'&&!demo?Cloud.user:null);document.body.classList.toggle('community-route',page==='comunidade');const authScreen=['bemvindo','preparar','onboarding','permissoes-iniciais'].includes(page)||!(demo||(mode==='cloud'&&Cloud.user)||workspaceEntered);document.body.classList.toggle('auth-screen',authScreen);document.querySelector('.app-header').hidden=authScreen;const showAdmin=!authScreen&&mode==='cloud'&&!demo&&!!Cloud.user&&Cloud.admin===true;$('#adminShortcut').hidden=!showAdmin;renderSignupBadge($('#adminShortcut'),showAdmin?Cloud.user.id:null);document.querySelector('.app-header').classList.toggle('has-admin-shortcut',showAdmin);$('#nav').hidden=authScreen;document.querySelector('#app > footer').hidden=authScreen;const active=['peso','evolucao'].includes(page)?'evolucao':['aplicacoes','diario','protocolos','calculadora','relatorios','fotos','lembretes'].includes(page)?'registros':page;$('#nav').innerHTML=[['inicio','Início','home'],['evolucao','Evolução','trend'],['comunidade','Comunidade','community'],['registros','Registros','plus'],['loja','Loja','shop']].map(([p,t,i])=>`<button data-go="${p}" class="${p==='comunidade'?'nav-community ':''}${active===p?'active':''}" ${active===p?'aria-current="page"':''}>${icon(i)}<span>${t}</span>${p==='comunidade'?'<b class="nav-community-count" data-message-badge="all" hidden></b>':''}</button>`).join('');$('#bell').innerHTML=icon('bell');$('#connection').textContent=demo?'Demonstração':mode==='cloud'?(navigator.onLine?'Conta conectada':'Sem conexão'):'Neste dispositivo';$('#avatar').innerHTML=avatarURL&&!demo?`<img src="${esc(avatarURL)}" alt="Sua foto">`:esc(state.profile.name.slice(0,1).toUpperCase()||'N');let banner='';if(demo)banner+='<div class="banner demo-banner"><span>Demonstração · Dados fictícios, separados dos seus registros.</span><button class="text-btn" id="exitDemo">Sair</button></div>';else if(mode==='local'&&page!=='bemvindo')banner+='<div class="banner"><span>Modo local · Seus registros ficam neste dispositivo.</span><button class="text-btn" data-go="bemvindo">Minha conta</button></div>';if(!navigator.onLine)banner+='<div class="banner offline-banner">Sem conexão. '+(mode==='cloud'?'Os dados da conta não podem ser alterados agora.':'Seus registros locais continuam disponíveis.')+'</div>';if(localError)banner+='<div class="notice error">'+esc(localError)+'</div>';if(cloudError)banner+='<div class="notice error">'+esc(cloudError)+' <button class="text-btn" id="refresh">Tentar novamente</button></div>';if(window.NeoWaitingWorker)banner+='<div class="banner"><span>Atualização disponível. Salve os registros antes de atualizar.</span><button class="text-btn" id="applyUpdate">Atualizar agora</button></div>';$('#banner').innerHTML=banner;
+const privacyForm=$('#privacyPreferences');
+if(sessionFailed||mode!=='cloud'||demo||!privacyForm||privacyForm.dataset.privacyAccount!==Cloud.user?.id||privacyForm.dataset.privacyPage!==page)
+ $('#content').innerHTML=sessionFailed
  ?'<div class="session-start" role="alert"><p>Não foi possível verificar sua sessão. Confira a conexão e tente novamente.</p><button class="primary" id="retrySession">Tentar novamente</button></div>'
- :(routes[page]||overview)();hydratePhotoImages();window.NeoArrival?.sync(arrivalReady&&page==='inicio'&&mode==='cloud'&&!demo&&Cloud.onboardingComplete===true,state.settings.showArrivalGuide!==false);scheduleDailyCheck();updateResetCooldown();document.title=(window.NEO_CONFIG?.appDisplayName||'NeoPep')+' — Sua evolução, em suas mãos.';if(page==='bemvindo')window.NeoCaptcha?.mount();else if(!document.querySelector('.deletion-choice #captcha'))window.NeoCaptcha?.remove();window.NeoCommunityAlerts?.refresh(mode==='cloud'&&!demo?Cloud.user:null);if(page==='inicio'&&mode==='cloud'&&!demo)window.NeoShop?.loadHome?.({cloud:true,user:Cloud.user,admin:Cloud.admin,sanitizePhoto});if(page==='inicio'&&mode==='cloud'&&!demo)window.NeoLibrary?.loadHome?.({cloud:true,user:Cloud.user,admin:Cloud.admin});if(page==='loja')window.NeoShop.load();if(page==='comunidade')window.NeoCommunity.load({cloud:mode==='cloud'&&!demo,user:Cloud.user,admin:Cloud.admin,demo,sanitizePhoto,profileName:state.profile.name,avatarURL});}
-function navigateBack(fallback='auto'){if(formDirty&&!confirm('Há alterações não salvas. Deseja voltar?'))return;if((history.state?.neoDepth||0)>0&&typeof history.back==='function'){history.back();return;}const target=fallback!=='auto'?fallback:['diario','aplicacoes','protocolos','fotos','calculadora','relatorios','lembretes'].includes(page)?'registros':'inicio';go(target,false);}
+ :(routes[page]||overview)();mountPrivacyPreferences();if(page==='calculadora')restoreCalcSaved();hydratePhotoImages();window.NeoArrival?.sync(arrivalReady&&page==='inicio'&&mode==='cloud'&&!demo&&Cloud.onboardingComplete===true,state.settings.showArrivalGuide!==false);scheduleDailyCheck();updateResetCooldown();document.title=(window.NEO_CONFIG?.appDisplayName||'NeoPep')+' — Sua evolução, em suas mãos.';if(page==='bemvindo')window.NeoCaptcha?.mount();else if(!document.querySelector('.deletion-choice #captcha'))window.NeoCaptcha?.remove();window.NeoCommunityAlerts?.refresh(mode==='cloud'&&!demo?Cloud.user:null);if(page==='inicio'&&mode==='cloud'&&!demo)window.NeoShop?.loadHome?.({cloud:true,user:Cloud.user,admin:Cloud.admin,sanitizePhoto});if(page==='inicio'&&mode==='cloud'&&!demo)window.NeoLibrary?.loadHome?.({cloud:true,user:Cloud.user,admin:Cloud.admin});if(page==='loja')window.NeoShop.load();if(page==='comunidade')window.NeoCommunity.load({cloud:mode==='cloud'&&!demo,user:Cloud.user,admin:Cloud.admin,demo,sanitizePhoto,profileName:state.profile.name,avatarURL});}
+function navigateBack(fallback='auto'){if(formDirty&&!confirm('Há alterações não salvas. Deseja voltar?'))return;if((history.state?.neoDepth||0)>0&&typeof history.back==='function'){history.back();return;}const target=fallback!=='auto'?fallback:page==='permissoes'?'perfil':['diario','aplicacoes','protocolos','fotos','calculadora','relatorios','lembretes'].includes(page)?'registros':'inicio';go(target,false);}
 const validSharedMaterial=value=>/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(String(value||''));
 function pendingLibraryMaterial(){let fromURL='';try{fromURL=new URL(location.href).searchParams.get('material')||'';}catch{}if(validSharedMaterial(fromURL)){try{if(typeof sessionStorage!=='undefined')sessionStorage.setItem('neo-library-destination',fromURL);}catch{}return fromURL;}try{const saved=typeof sessionStorage!=='undefined'?sessionStorage.getItem('neo-library-destination'):'';return validSharedMaterial(saved)?saved:'';}catch{return '';}}
-async function openAccountDestination(){const material=pendingLibraryMaterial();if(material){await go('comunidade',true,false,'library',material);try{if(typeof sessionStorage!=='undefined')sessionStorage.removeItem('neo-library-destination');const url=new URL(location.href);url.searchParams.delete('material');history.replaceState(history.state||null,'',url.href);}catch{}return;}if(/[?&]conversa=1(?:&|$)/.test(location.search||''))await go('comunidade',true,true);else await go('inicio');}
+async function openAccountDestination(checkPrivacy=true){
+ const account=Cloud.user?.id;
+ if(checkPrivacy&&account&&Cloud.privacyPreferences){
+  try{
+   const preferences=await Cloud.privacyPreferences();
+   if(Cloud.user?.id!==account)return;
+   if(preferences.pending)return go('permissoes-iniciais',false);
+  }catch{if(Cloud.user?.id!==account)return;}
+ }
+ const material=pendingLibraryMaterial();if(material){await go('comunidade',true,false,'library',material);try{if(typeof sessionStorage!=='undefined')sessionStorage.removeItem('neo-library-destination');const url=new URL(location.href);url.searchParams.delete('material');history.replaceState(history.state||null,'',url.href);}catch{}return;}if(/[?&]conversa=1(?:&|$)/.test(location.search||''))await go('comunidade',true,true);else await go('inicio');}
 async function go(p,focus=true,direct=false,communityTab='feed',materialID=''){if(!routes[p])p='inicio';if(p==='inicio')homeDetailsOpen=false;if(p==='comunidade')window.NeoCommunity?.beginVisit(direct,communityTab,materialID);if(mode==='cloud'&&!demo&&Cloud.onboardingComplete===false&&!['preparar','onboarding','perfil','bemvindo','termos','privacidade'].includes(p))p=arrivalWelcomeStarted?'onboarding':'preparar';formDirty=false;page=p;const previous=history.state?.neoDepth||0;const nav={neoPage:p,neoDepth:previous+(focus&&location.hash!=='#'+p?1:0),direct,communityTab,materialID};if(focus&&location.hash!=='#'+p&&typeof history.pushState==='function')history.pushState(nav,'','#'+p);else history.replaceState(nav,'','#'+p);render();if(p==='comunidade')window.NeoCommunity.load({cloud:mode==='cloud'&&!demo,user:Cloud.user,admin:Cloud.admin,demo,sanitizePhoto,profileName:state.profile.name,avatarURL});if(typeof $('#content').animate==='function'&&!matchMedia('(prefers-reduced-motion: reduce)').matches)$('#content').animate([{opacity:.5,transform:'translateY(4px)'},{opacity:1,transform:'translateY(0)'}],{duration:180,easing:'ease-out'});if(!photoMetadataLoaded&&(['fotos','perfil','evolucao','peso'].includes(p)||(p==='inicio'&&mode==='local'&&!demo))){try{await loadPhotos();if(page===p)render()}catch(e){if(p==='fotos')toast(e.message)}}if(focus){window.scrollTo({top:0,behavior:'auto'});$('#content').focus({preventScroll:true})}}
 function input(name,label,type='number',extra='',value=''){if(type==='password'){const id='auth-'+name,description=name==='confirmPassword'?'confirmação de senha':label.toLowerCase();return `<div class="password-field"><label for="${id}">${label}</label><div class="password-input"><input id="${id}" name="${name}" type="password" ${extra} value="${esc(value)}"><button type="button" class="password-toggle" data-password-toggle="${id}" data-password-label="${esc(description)}" aria-controls="${id}" aria-pressed="false" aria-label="Mostrar ${esc(description)}">${icon('eye')}</button></div></div>`;}return `<label>${label}<input name="${name}" type="${type}" ${extra} value="${esc(value)}"></label>`}
 function textarea(name,label,value='',limit=2000){return `<label>${label}<textarea name="${name}" maxlength="${limit}">${esc(value)}</textarea></label>`}
@@ -1525,7 +1818,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('button');const t
 document.addEventListener('submit',e=>{const type=e.target.dataset.historyFilter;if(!type)return;e.preventDefault();const values=Object.fromEntries(new FormData(e.target));try{C.filterRecords(state[type],values);historyPrefs[type]={...values,page:0};formDirty=false;render()}catch(err){toast(err.message)}});
 document.addEventListener('change',e=>{if(e.target.id==='measureSeries'){selectedMeasure=e.target.value;render()}if(e.target.id==='protocolFilter'){selectedProtocol=e.target.value;delete historyPrefs.doses;render()}});
 document.addEventListener('focusin',e=>{const tip=e.target.closest('[data-tip]');if(tip){const target=tip.closest('.card').querySelector('.chart-tip');if(target)target.textContent=tip.dataset.tip}});
-document.addEventListener('submit',e=>{const form=e.target;if(!['calcForm','profileForm','settingsForm','authForm','onboardingForm'].includes(form.id))return;e.preventDefault();if(form.id==='calcForm'){if(!engagementCalcStarted){engagementCalcStarted=true;engagementTrack('calculator_started','calculadora')}updateCalc(true);return}action(async()=>{const f=new FormData(form),data=Object.fromEntries(f),submit=form.querySelector('button[type=submit],button.primary');if(submit)submit.disabled=true;try{if(form.id==='onboardingForm'){if(mode!=='cloud'||demo)throw Error('Entre na sua conta real para concluir o cadastro.');const p=C.profile({...state.profile,...data,consent:f.has('health'),tracking:Object.fromEntries(['weight','measures','journal','photos','applications'].map(k=>[k,f.has('track_'+k)]))});await Cloud.onboard(p,state.settings,f.has('health'),f.has('terms'));engagementTrack('onboarding_completed','onboarding');formDirty=false;await reloadCloud();window.NeoArrival?.arm(Cloud.user.id,true);await go('inicio');toast('Seu espaço está pronto.')}if(form.id==='profileForm'){const p=C.profile({...state.profile,...data,tracking:Object.fromEntries(['weight','measures','journal','photos','applications'].map(k=>[k,f.has('track_'+k)])),consent:mode==='cloud'&&!demo?Cloud.hasConsent('health'):f.has('consent')});if(!p.consent)throw Error('Para guardar o perfil, confirme o consentimento. Você pode excluir seus dados para retirá-lo.');if(mode==='cloud'&&!demo){await Cloud.saveProfile(p,state.settings);engagementTrack('profile_updated','perfil');await reloadCloud()}else persist({...state,profile:p});if(!demo){appearance=p.theme;try{localStorage.setItem('neo-appearance',appearance)}catch{}}formDirty=false;render();toast('Perfil atualizado.')}if(form.id==='settingsForm'){const settings=C.validateBackup({settings:{...state.settings,...data,reminderScheduleConfigured:true}}).settings;if(mode==='cloud'&&!demo){await Cloud.saveProfile(state.profile,settings);engagementTrack('reminder_settings_saved','lembretes');await reloadCloud()}else persist({...state,settings});formDirty=false;toast('Horários salvos. Atualize sua agenda se necessário.')}if(form.id==='authForm'){const intent=authMode;if(intent==='reset'&&Date.now()<resetNextAt)throw Error('Aguarde um minuto antes de pedir outro código. Confira também sua caixa de entrada e o spam.');if($('#authError'))$('#authError').textContent='';if(intent==='reset'&&submit)submit.textContent='Enviando…';if(intent==='newpassword'&&data.password!==data.confirmPassword)throw Error('As senhas não conferem. Digite a mesma senha nos dois campos.');if(intent==='signup'&&!f.has('consent'))throw Error('Aceite os Termos de Uso para criar a conta.');authEmail=String(data.email||authEmail).trim();if(intent==='verifycode')data.email=authEmail;if(['signup','login'].includes(intent))authRemember=f.has('remember');authMessage='';const result=await Cloud.email(intent,data.email,data.password,data.name,{code:data.code,captchaToken:['verifycode','newpassword'].includes(intent)?undefined:window.NeoCaptcha?.take?window.NeoCaptcha.take():window.NeoCaptcha?.token,remember:authRemember});window.NeoCaptcha?.reset();if(intent==='signup'){const password=form.querySelector('[name=password]');if(password)password.value='';formDirty=false;if(result.session){authMessage='';const account=result.session.user||result.user||Cloud.user;if(account)await authChanged('SIGNED_IN',account)}else{authMode='login';authMessage='Enviamos um link para confirmar seu e-mail. Abra a mensagem e confirme o cadastro antes de entrar.';if(page==='bemvindo')render()}}if(intent==='reset'){resetNextAt=Date.now()+60000;recoveryFlow=true;authMode='verifycode';rememberRecovery('verifycode');authMessage='Se houver uma conta com esse e-mail, você receberá um código para recuperar sua senha.';formDirty=false;render()}if(intent==='verifycode'){if(!result.session||(!result.session.user&&!result.user))throw Error('Código inválido ou expirado. Solicite um novo.');signedInAccountId=(result.session?.user||result.user).id;mode='cloud';authMode='newpassword';rememberRecovery('newpassword');authMessage='';formDirty=false;await go('bemvindo');}if(intent==='login'&&result.session){formDirty=false;const account=result.session.user||result.user||Cloud.user;if(account)await authChanged('SIGNED_IN',account)}if(intent==='newpassword'){formDirty=false;form.querySelectorAll('input[name=password],input[name=confirmPassword]').forEach(input=>input.value='');clearRecovery();try{await reloadCloud();recoveryFlow=false;authMode='login';authMessage='';await go(Cloud.onboardingComplete?'inicio':'preparar');toast('Senha atualizada. Você já está no seu aplicativo.')}catch{recoveryFlow=false;signedInAccountId=null;authMode='login';authMessage='Sua senha foi atualizada. Entre com a nova senha para continuar.';await go('bemvindo');}}}}catch(err){if(form.id==='authForm'&&$('#authError')){$('#authError').textContent=authMode==='verifycode'&&(/otp|token|expired|invalid/i.test(String(err.code||'')+' '+err.message))?'Código inválido ou expirado. Confira o código ou solicite um novo.':/captcha|timeout-or-duplicate/i.test(String(err.code||'')+' '+err.message)?'A verificação de segurança expirou ou já foi usada. Faça a nova verificação e tente novamente. Se já recebeu o e-mail, use o link recebido.':'Não foi possível concluir: '+err.message;window.NeoCaptcha?.reset();}else if(form.id==='onboardingForm'&&$('#onboardingError'))$('#onboardingError').textContent=err.message;else throw err}finally{if(submit)submit.disabled=form.id==='authForm'&&authMode==='reset'&&Date.now()<resetNextAt;updateResetCooldown();}})});
+document.addEventListener('submit',e=>{const form=e.target;if(!['calcForm','profileForm','settingsForm','authForm','onboardingForm'].includes(form.id))return;e.preventDefault();if(form.id==='calcForm'){if(!engagementCalcStarted){engagementCalcStarted=true;engagementTrack('calculator_started','calculadora')}updateCalc(true);return}action(async()=>{const f=new FormData(form),data=Object.fromEntries(f),submit=form.querySelector('button[type=submit],button.primary');if(submit)submit.disabled=true;try{if(form.id==='onboardingForm'){if(mode!=='cloud'||demo)throw Error('Entre na sua conta real para concluir o cadastro.');const p=C.profile({...state.profile,...data,consent:f.has('health'),tracking:Object.fromEntries(['weight','measures','journal','photos','applications'].map(k=>[k,f.has('track_'+k)]))});await Cloud.onboard(p,state.settings,f.has('health'),f.has('terms'));engagementTrack('onboarding_completed','onboarding');formDirty=false;await reloadCloud();window.NeoArrival?.arm(Cloud.user.id,true);await openAccountDestination()}if(form.id==='profileForm'){const p=C.profile({...state.profile,...data,tracking:Object.fromEntries(['weight','measures','journal','photos','applications'].map(k=>[k,f.has('track_'+k)])),consent:mode==='cloud'&&!demo?Cloud.hasConsent('health'):f.has('consent')});if(!p.consent)throw Error('Para guardar o perfil, confirme o consentimento. Você pode excluir seus dados para retirá-lo.');if(mode==='cloud'&&!demo){await Cloud.saveProfile(p,state.settings);engagementTrack('profile_updated','perfil');await reloadCloud()}else persist({...state,profile:p});if(!demo){appearance=p.theme;try{localStorage.setItem('neo-appearance',appearance)}catch{}}formDirty=false;render();toast('Perfil atualizado.')}if(form.id==='settingsForm'){const settings=C.validateBackup({settings:{...state.settings,...data,reminderScheduleConfigured:true}}).settings;if(mode==='cloud'&&!demo){await Cloud.saveProfile(state.profile,settings);engagementTrack('reminder_settings_saved','lembretes');await reloadCloud()}else persist({...state,settings});formDirty=false;toast('Horários salvos. Atualize sua agenda se necessário.')}if(form.id==='authForm'){const intent=authMode;if(intent==='reset'&&Date.now()<resetNextAt)throw Error('Aguarde um minuto antes de pedir outro código. Confira também sua caixa de entrada e o spam.');if($('#authError'))$('#authError').textContent='';if(intent==='reset'&&submit)submit.textContent='Enviando…';if(intent==='newpassword'&&data.password!==data.confirmPassword)throw Error('As senhas não conferem. Digite a mesma senha nos dois campos.');if(intent==='signup'&&!f.has('consent'))throw Error('Aceite os Termos de Uso para criar a conta.');authEmail=String(data.email||authEmail).trim();if(intent==='verifycode')data.email=authEmail;if(['signup','login'].includes(intent))authRemember=f.has('remember');authMessage='';const result=await Cloud.email(intent,data.email,data.password,data.name,{code:data.code,captchaToken:['verifycode','newpassword'].includes(intent)?undefined:window.NeoCaptcha?.take?window.NeoCaptcha.take():window.NeoCaptcha?.token,remember:authRemember});window.NeoCaptcha?.reset();if(intent==='signup'){const password=form.querySelector('[name=password]');if(password)password.value='';formDirty=false;if(result.session){authMessage='';const account=result.session.user||result.user||Cloud.user;if(account)await authChanged('SIGNED_IN',account)}else{authMode='login';authMessage='Enviamos um link para confirmar seu e-mail. Abra a mensagem e confirme o cadastro antes de entrar.';if(page==='bemvindo')render()}}if(intent==='reset'){resetNextAt=Date.now()+60000;recoveryFlow=true;authMode='verifycode';rememberRecovery('verifycode');authMessage='Se houver uma conta com esse e-mail, você receberá um código para recuperar sua senha.';formDirty=false;render()}if(intent==='verifycode'){if(!result.session||(!result.session.user&&!result.user))throw Error('Código inválido ou expirado. Solicite um novo.');signedInAccountId=(result.session?.user||result.user).id;mode='cloud';authMode='newpassword';rememberRecovery('newpassword');authMessage='';formDirty=false;await go('bemvindo');}if(intent==='login'&&result.session){formDirty=false;const account=result.session.user||result.user||Cloud.user;if(account)await authChanged('SIGNED_IN',account)}if(intent==='newpassword'){formDirty=false;form.querySelectorAll('input[name=password],input[name=confirmPassword]').forEach(input=>input.value='');clearRecovery();try{await reloadCloud();recoveryFlow=false;authMode='login';authMessage='';if(Cloud.onboardingComplete)await openAccountDestination();else await go('preparar');toast('Senha atualizada. Você já está no seu aplicativo.')}catch{recoveryFlow=false;signedInAccountId=null;authMode='login';authMessage='Sua senha foi atualizada. Entre com a nova senha para continuar.';await go('bemvindo');}}}}catch(err){if(form.id==='authForm'&&$('#authError')){$('#authError').textContent=authMode==='verifycode'&&(/otp|token|expired|invalid/i.test(String(err.code||'')+' '+err.message))?'Código inválido ou expirado. Confira o código ou solicite um novo.':/captcha|timeout-or-duplicate/i.test(String(err.code||'')+' '+err.message)?'A verificação de segurança expirou ou já foi usada. Faça a nova verificação e tente novamente. Se já recebeu o e-mail, use o link recebido.':'Não foi possível concluir: '+err.message;window.NeoCaptcha?.reset();}else if(form.id==='onboardingForm'&&$('#onboardingError'))$('#onboardingError').textContent=err.message;else throw err}finally{if(submit)submit.disabled=form.id==='authForm'&&authMode==='reset'&&Date.now()<resetNextAt;updateResetCooldown();}})});
 $('#restoreFile').addEventListener('change',e=>action(async()=>{const file=e.target.files[0];if(!file)return;if(file.size>20*1024*1024)throw Error('Backup grande demais. Limite de 20 MB.');await importReview(JSON.parse(await file.text()))}));
 document.addEventListener('input',e=>{if(e.target.closest('form'))formDirty=true});
 window.addEventListener('hashchange',()=>{const p=location.hash.slice(1);if(routes[p])go(p,false)});window.addEventListener('online',()=>{render();if(mode==='cloud'&&!demo)action(reloadCloud)});window.addEventListener('offline',render);matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>applyTheme());
