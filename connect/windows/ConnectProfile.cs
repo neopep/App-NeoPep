@@ -18,6 +18,7 @@ internal sealed class ConnectProfile {
     internal readonly ConnectEnvironment EnvironmentId;
     internal readonly string EnvironmentName, EnvironmentCode, SupabaseUrl, PublishableKey, PanelUrl;
     internal bool IsProduction {get{return EnvironmentId==ConnectEnvironment.Producao;}}
+    internal string CaptchaSiteKey {get{return IsProduction?"0x4AAAAAAGAwsdQjxAWnkGLM":null;}}
     internal string AppName {get{return "NeoPep Connect • "+EnvironmentName;}}
     // The legacy folder remains the Teste profile, so upgrade and rollback never copy its data.
     internal string LocalFolder {get{return IsProduction?Path.Combine(InstallFolder,"profiles","production"):InstallFolder;}}
