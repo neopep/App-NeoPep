@@ -769,7 +769,7 @@ function comparisonCard(home){
    <div class="comparison-slider-slot"><input type="range" data-photo-slider="${label}" aria-label="Fotografia ${label}" aria-valuetext="${date(selected.date)}, ${position}" min="0" step="1" max="${rows.length-1}" value="${index}" style="--photo-progress:${rows.length>1?100*index/(rows.length-1):0}%" ${rows.length===1?'disabled hidden':''}></div></figure>`;
   }).join('');
  return `<section class="card space" data-photo-comparison data-comparison-home="${home}">${heading}
-  <div class="compare photo-comparison" id="comparisonPhotos">${figures}</div><div class="comparison-card-actions"><div class="comparison-weight" data-comparison-weight aria-live="polite">${comparisonWeightMarkup(currentComparisonWeight())}</div><button type="button" class="secondary full comparison-export-button" data-comparison-export>${icon('expand')} Comparar e compartilhar</button>${comparisonDays.size<2?addBtn('photo',photos.length?'Adicionar foto de outro dia':'Adicionar minhas fotos'):''}</div></section>`;
+  <div class="compare photo-comparison" id="comparisonPhotos">${figures}</div><div class="comparison-card-actions"><div class="comparison-weight" data-comparison-weight aria-live="polite">${comparisonWeightMarkup(currentComparisonWeight())}</div><button type="button" class="secondary full comparison-export-button" data-comparison-export>${icon('expand')} Comparar e compartilhar</button>${mode==='cloud'&&!demo?'<button type="button" class="secondary full" data-saved-comparisons>Minhas comparações salvas</button>':''}${comparisonDays.size<2?addBtn('photo',photos.length?'Adicionar foto de outro dia':'Adicionar minhas fotos'):''}</div></section>`;
 }
 function paintComparison(figure,day,index,warm=false){
  const side=Number(figure.dataset.photoSide),label=side?'Depois':'Antes',rows=comparisonDays.get(day),photo=rows?.[index];
@@ -1119,6 +1119,74 @@ async function showComparisonExport(trigger){
 document.addEventListener('click',event=>{
  const trigger=event.target.closest?.('[data-comparison-export]');
  if(trigger&&!$('#comparisonExport')){engagementTrack(page==='fotos'?'photo_comparison_started':'before_after_open');void showComparisonExport(trigger)}
+});
+async function showSavedComparisons(trigger){
+ if($('#savedComparisonsDialog')||mode!=='cloud'||demo||!Cloud.user?.id)return;
+ const generation=loadGeneration,account=Cloud.user.id;
+ const dialog=document.createElement('dialog');
+ dialog.id='savedComparisonsDialog';
+ dialog.className='comparison-export-dialog';
+ dialog.setAttribute('aria-label','Minhas comparações salvas');
+ dialog.innerHTML='<header><h2>Minhas comparações salvas</h2><form method="dialog"><button class="secondary" type="submit">Fechar</button></form></header><div class="comparison-saved-list" role="region" aria-live="polite"><p>Carregando…</p></div>';
+ const active=()=>dialog.isConnected&&dialog.open&&generation===loadGeneration&&mode==='cloud'&&Cloud.user?.id===account;
+ dialog.addEventListener('close',()=>{dialog.remove();if(trigger?.isConnected)trigger.focus({preventScroll:true})},{once:true});
+ document.body.append(dialog);
+ if(typeof dialog.showModal==='function')dialog.showModal();else dialog.setAttribute('open','');
+ const list=dialog.querySelector('.comparison-saved-list');
+ async function refresh(){
+  if(!active())return;
+  try{
+   const records=await Cloud.savedBeforeAfter();
+   if(!active())return;
+   list.replaceChildren();
+   if(!records.length){const empty=document.createElement('p');empty.textContent='Você ainda não salvou comparações nesta conta.';list.append(empty);return;}
+   for(const item of records){
+    const section=document.createElement('section');
+    section.className='card space';
+    const label=document.createElement('p');
+    label.textContent='Antes: '+date(item.before_date)+' · Depois: '+date(item.after_date);
+    const controls=document.createElement('div');
+    controls.className='comparison-export-actions';
+    const view=document.createElement('button'),remove=document.createElement('button');
+    view.type=remove.type='button';
+    view.className='secondary';view.textContent='Visualizar';
+    remove.className='secondary';remove.textContent='Excluir';
+    const preview=document.createElement('div');
+    preview.className='comparison-saved-preview';
+    view.addEventListener('click',async()=>{
+     if(!active())return;
+     view.disabled=true;
+     try{
+      const url=await Cloud.beforeAfterURL(item);
+      if(!active())return;
+      const img=document.createElement('img');
+      img.src=url;img.alt='Comparação privada de '+date(item.before_date)+' até '+date(item.after_date);
+      img.referrerPolicy='no-referrer';
+      img.style.maxWidth='100%';
+      img.style.maxHeight='65vh';
+      preview.replaceChildren(img);
+     }catch(error){if(active())preview.textContent=error?.message||'Prévia indisponível.'}
+     finally{if(active())view.disabled=false}
+    });
+    remove.addEventListener('click',async()=>{
+     if(!active()||!window.confirm('Excluir permanentemente esta comparação privada do NeoPep? As fotos originais não serão excluídas.'))return;
+     remove.disabled=true;
+     try{
+      await Cloud.deleteBeforeAfter(item);
+      if(active())await refresh();
+     }catch(error){
+      if(active()){remove.disabled=false;preview.textContent=error?.message||'Não foi possível excluir a comparação.';}
+     }
+    });
+    controls.append(view,remove);section.append(label,controls,preview);list.append(section);
+   }
+  }catch(error){if(active())list.textContent=error?.message||'Não foi possível carregar as comparações salvas.'}
+ }
+ void refresh();
+}
+document.addEventListener('click',event=>{
+ const button=event.target.closest?.('[data-saved-comparisons]');
+ if(button)void showSavedComparisons(button);
 });
 async function showPhoto(id,trigger=document.activeElement){
  const photo=photoList.find(row=>row.id===id),generation=loadGeneration;
