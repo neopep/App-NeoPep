@@ -32,6 +32,9 @@ create policy neo_saved_comparisons_owner_insert
 on public.neo_saved_comparisons for insert to authenticated
 with check (
  user_id = (select auth.uid())
+ and public.neo_has_consent('health')
+ and public.neo_has_consent('photos')
+ and public.neo_has_consent('terms')
  and exists (
    select 1 from public.neo_photos p
    where p.id = before_photo_id
@@ -64,6 +67,9 @@ on storage.objects for insert to authenticated
 with check (
  bucket_id = 'neo-comparisons'
  and (storage.foldername(name))[1] = (select auth.uid())::text
+ and public.neo_has_consent('health')
+ and public.neo_has_consent('photos')
+ and public.neo_has_consent('terms')
  and name ~ ('^' || (select auth.uid())::text || '/[0-9a-f-]{36}[.]jpg$')
 );
 
