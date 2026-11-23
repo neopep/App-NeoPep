@@ -36,7 +36,7 @@ test('calculadora sincroniza seleção rápida, controles deslizantes e valores 
   field.dispatchEvent(new a.ctx.Event(event,{bubbles:true}));
  };
  assert.equal(doc.querySelectorAll('.calc-capacity-choice').length,3);
- assert.equal(node('[data-calc-capacity="1"] input').checked,true);
+ assert.equal(node('[data-calc-capacity="1"] input').hasAttribute('checked'),true);
  assert.equal(node('.syringe-reading'),null);
  assert.equal(node('#dose').value,'');
  assert.equal(node('#calcForm button[type=submit]'),null);
