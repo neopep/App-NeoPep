@@ -1,6 +1,8 @@
 -- NeoPep PR #36: proposed private persistence for Before/After compositions.
 -- REVIEW ONLY: do not apply to Teste/Producao until code, privacy and cleanup are ready.
 -- Expected client path: <auth.uid()>/<random uuid>.jpg, JPEG <= 5 MB.
+-- Ownership of both original photos is checked against auth.uid(), never an
+-- unqualified column from a correlated subquery (which could shadow the outer user_id).
 begin;
 
 insert into storage.buckets (id,name,public,file_size_limit,allowed_mime_types)
@@ -32,8 +34,8 @@ create policy "neo_saved_comparisons_owner_insert"
 on public.neo_saved_comparisons for insert to authenticated
 with check (
  user_id = (select auth.uid())
- and exists (select 1 from public.neo_photos p where p.id=before_photo_id and p.user_id=user_id and p.role='progress' and p.date=before_date)
- and exists (select 1 from public.neo_photos p where p.id=after_photo_id and p.user_id=user_id and p.role='progress' and p.date=after_date)
+ and exists (select 1 from public.neo_photos p where p.id=before_photo_id and p.user_id=(select auth.uid()) and p.role='progress' and p.date=before_date)
+ and exists (select 1 from public.neo_photos p where p.id=after_photo_id and p.user_id=(select auth.uid()) and p.role='progress' and p.date=after_date)
 );
 create policy "neo_saved_comparisons_owner_delete"
 on public.neo_saved_comparisons for delete to authenticated
@@ -47,7 +49,13 @@ using (bucket_id='neo-comparisons'
 create policy "neo_comparisons_storage_upload"
 on storage.objects for insert to authenticated
 with check (bucket_id='neo-comparisons' and (storage.foldername(name))[1]=(select auth.uid())::text
- and name ~ ('^' || (select auth.uid())::text || '/[0-9a-f-]{36}\\.jpg$'));
+ and name ~ ('^' || (select auth.uid())::text || '/[0-9a-f-]{36}[.]jpg));
+create policy "neo_comparisons_storage_delete"
+on storage.objects for delete to authenticated
+using (bucket_id='neo-comparisons' and (storage.foldername(name))[1]=(select auth.uid())::text);
+
+commit;
+));
 create policy "neo_comparisons_storage_delete"
 on storage.objects for delete to authenticated
 using (bucket_id='neo-comparisons' and (storage.foldername(name))[1]=(select auth.uid())::text);
