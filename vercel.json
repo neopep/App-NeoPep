@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run build",
+  "buildCommand": "npm run build && node scripts/build-staging.cjs",
   "outputDirectory": "dist",
   "rewrites": [
     {
@@ -38,6 +38,10 @@
     {
       "source": "/(.*)",
       "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        },
         {
           "key": "X-Content-Type-Options",
           "value": "nosniff"
