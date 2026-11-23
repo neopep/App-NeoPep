@@ -189,3 +189,21 @@ test('Produção exige credencial própria, artefato de Produção e Storage no 
  assert.equal(response.status,201);assert.equal((await response.json()).state,'draft');
  assert.deepEqual(calls,['list','list','list','register']);
 });
+
+
+test('rotação do agente Teste mantém pin do workflow, cofre e rollback',()=>{
+ const {readFileSync}=require('node:fs');
+ const script=readFileSync('release/connect/rotate-agent-trust.ps1','utf8');
+ assert.ok(script.includes('9809901068336c37f8d42442d81c58304bc82a6b'));
+ assert.ok(script.includes('d2894eb125d29ff5a3a95059c9fa6812c6e16da6'));
+ assert.match(script,/gh api 'repos\/neopep\/NeoPep-Connect-Build-Privado\/contents\/\.github\/workflows\/neopep-connect-release\.yml\?ref=main'/);
+ assert.match(script,/Assert-Blob/);
+ assert.match(script,/Import-Clixml/);
+ assert.match(script,/Export-Clixml/);
+ assert.match(script,/Disable-ScheduledTask/);
+ assert.match(script,/Enable-ScheduledTask/);
+ assert.match(script,/backup-confianca-/);
+ assert.match(script,/\$agent\.workflowBlob=\$newWorkflow/);
+ assert.match(script,/\[switch\]\$Apply/);
+ assert.doesNotMatch(script,/New-Object byte\[\] 32|ConvertTo-SecureString -AsPlainText|Set-AuthenticodeSignature|New-ScheduledTaskTrigger/);
+});
