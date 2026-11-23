@@ -266,7 +266,7 @@ document.addEventListener('click',event=>{
 });
 document.addEventListener('change',event=>{
  const input=event.target;
- if(input.name==='capacity'&&input.type==='radio'&&input.closest('#calcForm')){
+ if(input.matches('input[name="capacity"][type="radio"]')&&input.closest('#calcForm')){
   calcCapacityValue=Number(input.value);
   calcInputChanged(null,true);return;
  }
