@@ -207,3 +207,16 @@ test('rotação do agente Teste mantém pin do workflow, cofre e rollback',()=>{
  assert.match(script,/\[switch\]\$Apply/);
  assert.doesNotMatch(script,/New-Object byte\[\] 32|ConvertTo-SecureString -AsPlainText|Set-AuthenticodeSignature|New-ScheduledTaskTrigger/);
 });
+
+test('agente deve reportar o ultimo build, sem deixar falha antiga como estado geral',()=>{
+ const {readFileSync}=require('node:fs');
+ const agent=readFileSync('release/connect/run-release-agent.ps1','utf8');
+ assert.match(agent,/Sort-Object created_at/);
+ assert.match(agent,/\$latestState='BUILD_ERROR'/);
+ assert.match(agent,/\$latestState='DRAFT_PRONTO'/);
+ assert.match(agent,/\$latestState=\$phase/);
+ assert.match(agent,/Write-Receipt \(Join-Path \$folder 'agent\.json'\) \$latestState/);
+ assert.doesNotMatch(agent,/\$hasFailure=\$true|if\(\$hasFailure\)/);
+ const rotator=readFileSync('release/connect/rotate-agent-trust.ps1','utf8');
+ assert.ok(rotator.includes('505af1b5b8c4ab8ee42a11e5bbdaefed47cdf5d7'));
+});
