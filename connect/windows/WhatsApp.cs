@@ -14,6 +14,8 @@ sealed partial class WhatsApp : Form {
     static readonly Encoding Utf8=new UTF8Encoding(false);
     readonly string vault;
     readonly string runtime;
+    readonly ConnectProfile environment;
+    readonly byte[] entropy;
     readonly string draftPath;
     readonly string sendAuditPath;
     string draftGroupId="";
@@ -46,22 +48,25 @@ sealed partial class WhatsApp : Form {
     bool closing,forgetting,ready;
     int generation;
 
-    public WhatsApp(string profile,bool showGroups=false,Func<Guid,long,object[],Task<long>> saveSelection=null,Func<Guid,string,Task> reportStatus=null,Func<bool> canPublish=null,Func<string,string,Task<Dictionary<string,object>[]>> loadSources=null,bool showComposer=false,Func<string,string,Task<byte[]>> loadImage=null) {
+    public WhatsApp(string profile,bool showGroups=false,Func<Guid,long,object[],Task<long>> saveSelection=null,Func<Guid,string,Task> reportStatus=null,Func<bool> canPublish=null,Func<string,string,Task<Dictionary<string,object>[]>> loadSources=null,bool showComposer=false,Func<string,string,Task<byte[]>> loadImage=null) : this(profile,showGroups,saveSelection,reportStatus,canPublish,loadSources,showComposer,loadImage,ConnectProfile.Teste,null) {}
+
+    internal WhatsApp(string profile,bool showGroups,Func<Guid,long,object[],Task<long>> saveSelection,Func<Guid,string,Task> reportStatus,Func<bool> canPublish,Func<string,string,Task<Dictionary<string,object>[]>> loadSources,bool showComposer,Func<string,string,Task<byte[]>> loadImage,ConnectProfile environment,byte[] entropy) {
+        this.environment=environment;this.entropy=entropy;
         this.saveSelection=saveSelection;this.reportStatus=reportStatus;this.canPublish=canPublish;this.loadSources=loadSources;this.loadImage=loadImage;
         var waHeartbeat=new Timer{Interval=60000};
         waHeartbeat.Tick+=async delegate{if(ready)await ReportStatus("connected");};
         waHeartbeat.Start();
         FormClosed+=delegate{waHeartbeat.Dispose();};
         vault=Path.Combine(profile,"whatsapp-session.dat");
-        runtime=Path.Combine(profile,ConnectVersion.Runtime);
+        runtime=Path.Combine(ConnectProfile.InstallFolder,ConnectVersion.Runtime);
         draftPath=Path.Combine(profile,"whatsapp-message-draft.dat");
         sendAuditPath=Path.Combine(profile,"whatsapp-send-audit.log");
-        Text="NeoPep Connect • Campanhas WhatsApp"; Size=new Size(1024,700); MinimumSize=new Size(800,570); AutoScaleMode=AutoScaleMode.Dpi;
+        Text=environment.AppName+" • WhatsApp"; Size=new Size(1024,700); MinimumSize=new Size(800,570); AutoScaleMode=AutoScaleMode.Dpi;
         BackColor=ConnectTheme.Background; ForeColor=ConnectTheme.Text; Font=new Font("Segoe UI",10);
         tabs.Dock=DockStyle.Fill;
-        var status=Page("Estado");status.Controls.Add(LabelOf("Homologação. Use somente um número próprio de teste. O agente simulado funciona separadamente."));
+        var status=Page("Estado");status.Controls.Add(LabelOf(environment.EnvironmentName+" • Conta WhatsApp vinculada localmente neste ambiente."));
         summary.Text="WhatsApp desconectado.";Format(summary);status.Controls.Add(summary);
-        var pairing=Page("Conexão WhatsApp");pairing.Controls.Add(LabelOf("No telefone de teste, abra Dispositivos conectados e escaneie o QR Code desta janela."));
+        var pairing=Page("Conexão WhatsApp");pairing.Controls.Add(LabelOf("No telefone autorizado para "+environment.EnvironmentName+", abra Dispositivos conectados e escaneie o QR Code desta janela."));
         pair=Action("Conectar WhatsApp",ConnectSession);
         disconnect=Action("Desconectar WhatsApp",Disconnect);
         var actions=new FlowLayoutPanel{AutoSize=true,Dock=DockStyle.Top};actions.Controls.Add(pair);actions.Controls.Add(disconnect);
@@ -94,11 +99,12 @@ sealed partial class WhatsApp : Form {
         Controls.Add(back);
         ConnectTheme.Apply(this,tabs);
         ConnectTheme.ApplyContent(tabs);
-        Controls.Add(ConnectTheme.BuildShell(tabs,"NEOPEP CONNECT"));
+        Controls.Add(ConnectTheme.BuildShell(tabs,environment.EnvironmentName));
         ConnectTheme.Primary(pair);ConnectTheme.Primary(sendTextButton);ConnectTheme.Primary(sync);
         ConnectTheme.Restyle(this);
+        if(environment.IsProduction)sendStatus.Text="Produção: envio bloqueado até a homologação controlada.";
         if(showComposer)tabs.SelectedTab=compose;else if(showGroups)tabs.SelectedTab=listing;
-        Shown+=delegate{LoadDraft();if(File.Exists(vault))ConnectSession();};
+        Shown+=delegate{LoadDraft();if(!environment.IsProduction&&File.Exists(vault))ConnectSession();};
         FormClosing+=delegate{if(ready)ReportStatus("disconnected");closing=true;StopBridge();ClearQr();};
     }
     FlowLayoutPanel Page(string name) {
@@ -114,8 +120,8 @@ sealed partial class WhatsApp : Form {
     }
     void Notify(string text){
         connection.Text=text;summary.Text=text;diagnostic.Text=text;
-        pair.Enabled=ConnectProfile.ConnectEnabled&&process==null&&!forgetting;
-        disconnect.Enabled=ConnectProfile.ConnectEnabled&&!forgetting;
+        pair.Enabled=process==null&&!forgetting;
+        disconnect.Enabled=!forgetting;
     }
     DateTime? groupReadAt;
     void RefreshGroups(){
@@ -169,7 +175,7 @@ sealed partial class WhatsApp : Form {
         if(sendTextButton==null)return;
         UpdatePhone();
         targetGroup.Enabled=ready&&!sendingText&&targetGroup.Items.Count>0;
-        sendTextButton.Enabled=ready&&!sendingText&&canPublish!=null&&canPublish()&&groupReadAt.HasValue&&
+        sendTextButton.Enabled=!environment.IsProduction&&ready&&!sendingText&&canPublish!=null&&canPublish()&&groupReadAt.HasValue&&
             targetGroup.SelectedItem is GroupChoice&&(campaignImage!=null||!String.IsNullOrWhiteSpace(CampaignText()))&&CampaignText().Length<=2000;
     }
     void SaveDraft(){SaveCampaignDraft();}
@@ -178,7 +184,7 @@ sealed partial class WhatsApp : Form {
             var choice=targetGroup.SelectedItem as GroupChoice;
             var payload=json.Serialize(new {text=messageText.Text,group=choice==null?draftGroupId:choice.Id,title=campaignTitle.Text,cta=campaignCta.Text,
                 image=campaignImage==null?null:Convert.ToBase64String(campaignImage),origin=campaignOrigin.Text,due=scheduledUtc.HasValue?scheduledUtc.Value.ToString("o"):null});
-            byte[] bytes=ProtectedData.Protect(Utf8.GetBytes(payload),null,DataProtectionScope.CurrentUser);
+            byte[] bytes=ProtectedData.Protect(Utf8.GetBytes(payload),entropy,DataProtectionScope.CurrentUser);
             string temporary=draftPath+".new";
             File.WriteAllBytes(temporary,bytes);
             if(File.Exists(draftPath))File.Replace(temporary,draftPath,null);
@@ -189,7 +195,7 @@ sealed partial class WhatsApp : Form {
     void LoadDraft(){
         if(!File.Exists(draftPath))return;
         try{
-            var data=ProtectedData.Unprotect(File.ReadAllBytes(draftPath),null,DataProtectionScope.CurrentUser);
+            var data=ProtectedData.Unprotect(File.ReadAllBytes(draftPath),entropy,DataProtectionScope.CurrentUser);
             var draft=json.Deserialize<Dictionary<string,object>>(Utf8.GetString(data));
             draftGroupId=TextValue(draft,"group");
             messageText.Text=TextValue(draft,"text");
@@ -208,11 +214,11 @@ sealed partial class WhatsApp : Form {
         }catch{}
     }
     void PublishManualText(){
-        if(!ready||sendingText||!groupReadAt.HasValue||pendingSend!=Guid.Empty||canPublish==null||!canPublish())return;
+        if(environment.IsProduction||!ready||sendingText||!groupReadAt.HasValue||pendingSend!=Guid.Empty||canPublish==null||!canPublish())return;
         var choice=targetGroup.SelectedItem as GroupChoice;
         string text=CampaignText();
         if(choice==null||!selected.Contains(choice.Id)||(campaignImage==null&&String.IsNullOrEmpty(text))||text.Length>2000)return;
-        string question="Enviar uma mensagem real para o grupo '"+choice.Name+"'?"+
+        string question=environment.EnvironmentName+" • Enviar uma mensagem real para o grupo '"+choice.Name+"'?"+
             Environment.NewLine+Environment.NewLine+(campaignImage==null?"":"Imagem JPEG anexada."+Environment.NewLine)+text+
             Environment.NewLine+Environment.NewLine+"A ação não pode ser desfeita. Não haverá repetição automática.";
         if(MessageBox.Show(question,"Confirmar publicação real",
@@ -268,7 +274,7 @@ sealed partial class WhatsApp : Form {
     void ClearQr(){var previous=qr.Image;qr.Image=null;if(previous!=null)previous.Dispose();}
     string OpenVault(){
         if(!File.Exists(vault))return null;
-        var text=Utf8.GetString(ProtectedData.Unprotect(File.ReadAllBytes(vault),null,DataProtectionScope.CurrentUser));
+        var text=Utf8.GetString(ProtectedData.Unprotect(File.ReadAllBytes(vault),entropy,DataProtectionScope.CurrentUser));
         localVault=json.Deserialize<Dictionary<string,object>>(text);
         if(!Guid.TryParse(TextValue(localVault,"neo_connection"),out connectionId))connectionId=Guid.NewGuid();
         if(!Int64.TryParse(TextValue(localVault,"neo_revision"),out selectionRevision))selectionRevision=0;
@@ -287,11 +293,11 @@ sealed partial class WhatsApp : Form {
         localVault["neo_connection"]=connectionId.ToString();
         localVault["neo_revision"]=selectionRevision;
         localVault["neo_selected"]=new List<string>(selected).ToArray();
-        File.WriteAllBytes(vault+".new",ProtectedData.Protect(Utf8.GetBytes(json.Serialize(localVault)),null,DataProtectionScope.CurrentUser));
+        File.WriteAllBytes(vault+".new",ProtectedData.Protect(Utf8.GetBytes(json.Serialize(localVault)),entropy,DataProtectionScope.CurrentUser));
         if(File.Exists(vault))File.Replace(vault+".new",vault,null);else File.Move(vault+".new",vault);
     }
     void ConnectSession(){
-        if(!ConnectProfile.ConnectEnabled||forgetting||ready||process!=null)return;
+        if(forgetting||ready||process!=null)return;
         try{
             string existing=OpenVault();
             var start=new ProcessStartInfo(Path.Combine(runtime,"node.exe"),"windows-bridge.mjs") {
@@ -325,7 +331,7 @@ sealed partial class WhatsApp : Form {
         catch{StopBridge();Notify("A conexão local foi interrompida. Tente novamente.");}
     }
     void Disconnect(){
-        if(!ConnectProfile.ConnectEnabled||forgetting)return;
+        if(forgetting)return;
         ReportStatus("revoked");
         forgetting=true;ready=false;ClearQr();ClearGroups();
         try{

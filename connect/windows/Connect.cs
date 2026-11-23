@@ -31,10 +31,12 @@ sealed class SimulatedProvider : ICampaignProvider {
 
 sealed partial class Connect : Form {
     const string Version = ConnectVersion.Number;
-    static readonly string Origin = ConnectProfile.SupabaseUrl;
-    static readonly string Folder = ConnectProfile.LocalFolder;
-    readonly string vault = Path.Combine(Folder, "session.dat");
-    readonly string log = Path.Combine(Folder, "diagnostico.log");
+    readonly ConnectProfile profile;
+    readonly string Folder,vault,log;
+    Connect sibling;
+    WhatsApp whatsapp;
+    Guid sessionOwner;
+    static bool installingUpdate;
     readonly JavaScriptSerializer json = new JavaScriptSerializer();
     readonly TextBox email = new TextBox(), password = new TextBox();
     readonly ComboBox accounts = new ComboBox();
@@ -55,13 +57,21 @@ sealed partial class Connect : Form {
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new Connect(Array.IndexOf(args,"--background")>=0));
+            bool background=Array.IndexOf(args,"--background")>=0;
+            using(var test=new Connect(ConnectProfile.Teste,background))
+            using(var production=new Connect(ConnectProfile.Producao,false)){
+                test.sibling=production;production.sibling=test;
+                if(!background)test.Shown+=delegate{test.BeginInvoke((Action)(()=>production.Show()));};
+                Application.Run(test);
+            }
         }
     }
 
-    Connect(bool background) {
+    Connect(ConnectProfile environment,bool background) {
+        profile=environment;Folder=profile.LocalFolder;
         Directory.CreateDirectory(Folder);
-        Text=ConnectProfile.AppName; BackColor=ConnectTheme.Background; ForeColor=ConnectTheme.Text;
+        vault=Path.Combine(Folder,"session.dat");log=Path.Combine(Folder,"diagnostico.log");
+        Text=profile.AppName; BackColor=ConnectTheme.Background; ForeColor=ConnectTheme.Text;
         Size=new Size(720,550); MinimumSize=new Size(500,430); Font=new Font("Segoe UI",10);
         AutoScaleMode=AutoScaleMode.Dpi;
         var tabs=new TabControl{Dock=DockStyle.Fill};
@@ -72,16 +82,16 @@ sealed partial class Connect : Form {
         var settings=Page(tabs,"Configurações");
         var title=new Label{Tag="accent",Text="NeoPep Connect",ForeColor=ConnectTheme.Accent,Font=new Font("Segoe UI Semibold",24,FontStyle.Bold),AutoSize=true};
         overview.Controls.Add(title);
-        overview.Controls.Add(new Label{Text=ConnectProfile.EnvironmentName+" • versão "+Version+" • configuração automática",AutoSize=true});
-        overview.Controls.Add(new Label{Text=ConnectProfile.ConnectEnabled?"Conexão NeoPep • provedor simulado":"Produção preparada • Connect ainda não habilitado no servidor",AutoSize=true});
+        overview.Controls.Add(new Label{Text=profile.EnvironmentName+" • versão "+Version+" • configuração automática",AutoSize=true});
+        overview.Controls.Add(new Label{Text=profile.IsProduction?"Conexão NeoPep • envio em homologação":"Conexão NeoPep • provedor simulado",AutoSize=true});
         var metrics=new FlowLayoutPanel{AutoSize=true,Dock=DockStyle.Top,WrapContents=true,Padding=new Padding(4,14,4,14)};
         var deviceMetric=new Label();
         metrics.Controls.Add(Metric("COMPUTADOR",deviceMetric,"Verificação pendente"));
         metrics.Controls.Add(Metric("WHATSAPP",new Label{Text="Gerenciar conexão"},"Conexão local"));
-        metrics.Controls.Add(Metric("PUBLICAÇÕES",new Label{Text="Envio manual"},"Teste • confirmação obrigatória"));
+        metrics.Controls.Add(Metric("PUBLICAÇÕES",new Label{Text="Envio manual"},profile.IsProduction?"Produção • envio bloqueado":"Teste • confirmação obrigatória"));
         overview.Controls.Add(metrics);
         state.TextChanged+=delegate{
-            deviceMetric.Text=deviceApproved?"Autorizado":!ConnectProfile.ConnectEnabled?"Indisponível":"Aguardando";
+            deviceMetric.Text=deviceApproved?"Autorizado":"Aguardando conexão";
         };
         AddField(credentials,"E-mail administrativo",email);
         password.UseSystemPasswordChar=true; AddField(credentials,"Senha",password);
@@ -96,35 +106,37 @@ sealed partial class Connect : Form {
         var statusLog=new TextBox{Multiline=true,ReadOnly=true,ScrollBars=ScrollBars.Vertical,Height=235,Dock=DockStyle.Top};
         AddField(diagnostics,"Eventos locais",statusLog);
         diagnostics.Controls.Add(diagnose);
-        computer.Controls.Add(new Label{Text="Gerencie a aprovação do computador pelo painel de homologação.",AutoSize=true});
+        computer.Controls.Add(new Label{Text="Gerencie a aprovação do computador no painel de "+profile.EnvironmentName+".",AutoSize=true});
         var whatsAppPage=Page(tabs,"WhatsApp");
-        whatsAppPage.Controls.Add(new Label{Text="Integração experimental. Use somente conta própria de teste.",AutoSize=true});
+        whatsAppPage.Controls.Add(new Label{Text="Integração experimental. Vincule somente uma conta autorizada para "+profile.EnvironmentName+".",AutoSize=true});
         var groupsPage=Page(tabs,"Grupos");
         groupsPage.Controls.Add(new Label{Text="Consulte apenas o nome e a contagem dos grupos da conta conectada.",AutoSize=true});
         var pairing=Button("Abrir conexão WhatsApp");var groupList=Button("Abrir consulta de grupos");
-        pairing.Enabled=groupList.Enabled=ConnectProfile.ConnectEnabled&&ConnectProfile.IsValid;
         pairing.Click+=delegate {OpenWhatsApp(false);};
         groupList.Click+=delegate {OpenWhatsApp(true);};
         whatsAppPage.Controls.Add(pairing);groupsPage.Controls.Add(groupList);
         var publishPage=Page(tabs,"Publicar");
         var prepare=Button("Preparar campanha");
-        prepare.Enabled=ConnectProfile.ConnectEnabled&&ConnectProfile.IsValid;
         prepare.Click+=delegate{OpenWhatsApp(false,true);};
         publishPage.Controls.Add(new Label{Text="Organize a mensagem, confira a prévia e revise o destino.",AutoSize=true});
         publishPage.Controls.Add(prepare);
-        login.Enabled=ConnectProfile.ConnectEnabled && ConnectProfile.IsValid;
         var loginFeedback=new Label{AutoSize=true,MaximumSize=new Size(420,0)};
         login.Click+=async delegate {
             if(busy)return;
             login.Enabled=false;
             try {await Login();loginFeedback.Text=state.Text;}
-            finally{login.Enabled=ConnectProfile.ConnectEnabled&&ConnectProfile.IsValid;}
+            finally{login.Enabled=true;}
         };
         credentials.Controls.Add(loginFeedback);
         diagnose.Click+=delegate {statusLog.Text=File.Exists(log)?File.ReadAllText(log):"Sem eventos registrados.";};
-        open.Enabled=!String.IsNullOrEmpty(ConnectProfile.PanelUrl);
-        open.Click+=delegate {if(!String.IsNullOrEmpty(ConnectProfile.PanelUrl))Process.Start(ConnectProfile.PanelUrl);};
-        credentials.Controls.Add(login);actions.Controls.Add(open);overview.Controls.Add(actions);
+        open.Enabled=!String.IsNullOrEmpty(profile.PanelUrl);
+        open.Click+=delegate {if(!String.IsNullOrEmpty(profile.PanelUrl))Process.Start(profile.PanelUrl);};
+        credentials.Controls.Add(login);
+        var logout=Button("Sair desta conta");logout.Click+=async delegate{await Logout();};credentials.Controls.Add(logout);
+        actions.Controls.Add(open);
+        var switchEnvironment=Button(profile.IsProduction?"Abrir TESTE":"Abrir PRODUÇÃO");
+        switchEnvironment.Click+=delegate{if(sibling!=null){sibling.Show();sibling.Activate();}};
+        actions.Controls.Add(switchEnvironment);overview.Controls.Add(actions);
         startup.Text="Iniciar com o Windows";startup.AutoSize=true;
         using(var run=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")){
             startup.Checked=run.GetValue(ConnectProfile.StartupRegistryName)!=null;
@@ -135,13 +147,14 @@ sealed partial class Connect : Form {
                 else run.DeleteValue(ConnectProfile.StartupRegistryName,false);
             }
         };
-        settings.Controls.Add(startup);state.AutoSize=true;overview.Controls.Add(state);
+        if(!profile.IsProduction)settings.Controls.Add(startup);state.AutoSize=true;overview.Controls.Add(state);
         LoadVault();local.Remove("key");
         var theme=new ComboBox{DropDownStyle=ComboBoxStyle.DropDownList,Width=210};
         theme.Items.AddRange(new object[]{"Claro","Escuro","Seguir sistema"});
         string savedTheme=Value(local,"theme");
         theme.SelectedItem=theme.Items.Contains(savedTheme)?savedTheme:"Escuro";
         ConnectTheme.Select(theme.Text);AddField(settings,"Tema",theme);
+        Activated+=delegate{ConnectTheme.Select(theme.Text);ConnectTheme.Restyle(this);};
         theme.SelectedIndexChanged+=delegate{
             ConnectTheme.Select(theme.Text);ConnectTheme.Restyle(this);
             try{local["theme"]=theme.Text;Save();}catch{Record("tema_nao_salvo");}
@@ -154,18 +167,18 @@ sealed partial class Connect : Form {
         }
         ConnectTheme.Apply(this,tabs);
         ConnectTheme.ApplyContent(tabs);
-        Controls.Add(ConnectTheme.BuildShell(tabs,"NEOPEP"));
+        Controls.Add(ConnectTheme.BuildShell(tabs,profile.EnvironmentName));
         ConnectTheme.Restyle(this);
         ConnectTheme.Primary(login);
-        tray.Icon=Icon;tray.Text=ConnectProfile.AppName;tray.Visible=true;
+        tray.Icon=Icon;tray.Text=profile.AppName;tray.Visible=true;
         var menu=new ContextMenuStrip();
-        menu.Items.Add("Abrir",null,delegate {Show();Activate();});menu.Items.Add("Sair",null,delegate {exiting=true;Close();});
+        menu.Items.Add("Abrir "+profile.EnvironmentName,null,delegate {Show();Activate();});menu.Items.Add("Sair dos dois ambientes",null,delegate {ExitBoth();});
         tray.ContextMenuStrip=menu;tray.DoubleClick+=delegate {Show();Activate();};
         FormClosing+=delegate(object sender,FormClosingEventArgs e) {
             if(!exiting&&e.CloseReason==CloseReason.UserClosing){e.Cancel=true;Hide();return;}
             timer.Stop();tray.Dispose();
         };
-        state.Text=!ConnectProfile.IsValid?"Configuração inválida. Instale uma versão oficial.":!ConnectProfile.ConnectEnabled?"Produção preparada • Connect ainda não habilitado.":String.IsNullOrEmpty(Value(local,"refresh_token"))?"Entre para registrar este computador.":"Aguardando estado do computador.";
+        state.Text=String.IsNullOrEmpty(Value(local,"refresh_token"))?"Entre para registrar este computador.":"Aguardando estado do computador.";
         timer.Interval=12000;timer.Tick+=async delegate {CheckCampaignReview();await Tick();};timer.Start();
         Shown+=async delegate {if(background)Hide();await Tick();await CheckUpdate(false);};
     }
@@ -173,14 +186,14 @@ sealed partial class Connect : Form {
     DateTime campaignDraftWrite;
     DateTime? campaignReview;
     void CheckCampaignReview(){
-        if(!ConnectProfile.ConnectEnabled)return;
+        if(sessionOwner==Guid.Empty)return;
         try{
-            string path=Path.Combine(Folder,"whatsapp-message-draft.dat");
+            string path=Path.Combine(WhatsAppFolder(),"whatsapp-message-draft.dat");
             var file=new FileInfo(path);
             if(!file.Exists||file.Length>2*1024*1024){campaignReview=null;campaignDraftWrite=DateTime.MinValue;return;}
             if(file.LastWriteTimeUtc!=campaignDraftWrite){
                 campaignReview=null;
-                var clear=ProtectedData.Unprotect(File.ReadAllBytes(path),null,DataProtectionScope.CurrentUser);
+                var clear=ProtectedData.Unprotect(File.ReadAllBytes(path),WhatsAppEntropy(),DataProtectionScope.CurrentUser);
                 var draft=json.Deserialize<Dictionary<string,object>>(Encoding.UTF8.GetString(clear));
                 DateTime due;
                 if(DateTime.TryParseExact(Value(draft,"due"),"o",System.Globalization.CultureInfo.InvariantCulture,System.Globalization.DateTimeStyles.RoundtripKind,out due))
@@ -191,20 +204,61 @@ sealed partial class Connect : Form {
             string key=campaignReview.Value.ToString("o");
             if(Value(local,"campaign_review_notified")==key)return;
             local["campaign_review_notified"]=key;Save();
-            tray.BalloonTipTitle="NeoPep Connect";
+            tray.BalloonTipTitle=profile.AppName;
             tray.BalloonTipText="Uma campanha está pronta para revisão. Abra Publicar para conferir.";
             tray.ShowBalloonTip(5000);
         }catch{}
     }
 
+    void ExitBoth(){
+        exiting=true;
+        if(sibling!=null){sibling.exiting=true;if(sibling.whatsapp!=null)sibling.whatsapp.Close();sibling.Close();}
+        if(whatsapp!=null)whatsapp.Close();Close();
+    }
+
+    string WhatsAppFolder(){
+        Guid legacy;
+        Guid.TryParse(Value(local,"legacy_owner"),out legacy);
+        return profile.AccountFolder(sessionOwner,legacy);
+    }
+    byte[] WhatsAppEntropy(){
+        return WhatsAppFolder()==ConnectProfile.InstallFolder?null:
+            Encoding.UTF8.GetBytes("NeoPepConnect/"+profile.EnvironmentCode+"/"+sessionOwner.ToString("D"));
+    }
     void OpenWhatsApp(bool groups,bool composer=false){
+        if(sessionOwner==Guid.Empty||!SessionReady()){
+            MessageBox.Show("Entre na conta deste ambiente primeiro.",profile.AppName);
+            return;
+        }
+        if(whatsapp!=null){whatsapp.Activate();return;}
+        var folder=WhatsAppFolder();
+        Directory.CreateDirectory(folder);
+        whatsapp=new WhatsApp(folder,groups,SyncWhatsAppGroups,SetWhatsAppStatus,
+            ()=>!profile.IsProduction&&SessionReady()&&deviceApproved,LoadCampaignSources,composer,LoadCampaignImage,
+            profile,WhatsAppEntropy());
         whatsappOpen=true;
-        try{using(var window=new WhatsApp(Folder,groups,SyncWhatsAppGroups,SetWhatsAppStatus,()=>SessionReady()&&deviceApproved,LoadCampaignSources,composer,LoadCampaignImage))window.ShowDialog(this);}
-        finally{whatsappOpen=false;}
+        whatsapp.FormClosed+=delegate{whatsappOpen=false;whatsapp=null;};
+        whatsapp.Show(this);
+    }
+
+    async Task Logout(){
+        if(busy||checkingUpdate||installingUpdate)return;
+        busy=true;
+        try{
+            if(!String.IsNullOrEmpty(access)){
+                try{await Post("/auth/v1/logout?scope=local",new {},true);}catch{}
+            }
+            access=null;expires=DateTime.MinValue;sessionOwner=Guid.Empty;deviceApproved=false;
+            if(whatsapp!=null)whatsapp.Close();offer=null;updateInstall.Enabled=false;updateDetails.Text="";
+            foreach(var key in new[]{"refresh_token","device","secret","account","owner","campaign_review_notified"})local.Remove(key);
+            accounts.Items.Clear();email.Clear();password.Clear();Save();
+            state.Text="Sessão local encerrada neste ambiente.";
+        }catch{state.Text="Não foi possível persistir a saída. Tente novamente.";}
+        finally{busy=false;}
     }
 
     async Task<long> SyncWhatsAppGroups(Guid connection,long revision,object[] groups){
-        if(!SessionReady())throw new InvalidOperationException();
+        if(!SessionReady()||!deviceApproved)throw new InvalidOperationException();
         var result=await Post("/rest/v1/rpc/neo_connect_wa_replace_selection",new {
             p_device=Value(local,"device"),p_secret=Value(local,"secret"),p_connection=connection,
             p_expected_revision=revision,p_label="WhatsApp",p_groups=groups
@@ -213,7 +267,7 @@ sealed partial class Connect : Form {
     }
 
     async Task SetWhatsAppStatus(Guid connection,string status){
-        if(!SessionReady())return;
+        if(!SessionReady()||!deviceApproved)return;
         await Post("/rest/v1/rpc/neo_connect_wa_set_status",new {
             p_device=Value(local,"device"),p_secret=Value(local,"secret"),p_connection=connection,p_status=status
         },true);
@@ -252,11 +306,11 @@ sealed partial class Connect : Form {
     }
     void LoadVault() {
         if(!File.Exists(vault))return;
-        try {local=json.Deserialize<Dictionary<string,object>>(Encoding.UTF8.GetString(ProtectedData.Unprotect(File.ReadAllBytes(vault),null,DataProtectionScope.CurrentUser)));}
-        catch(CryptographicException){Record("cofre_indisponivel");}
+        try {local=json.Deserialize<Dictionary<string,object>>(Encoding.UTF8.GetString(ProtectedData.Unprotect(File.ReadAllBytes(vault),profile.Entropy,DataProtectionScope.CurrentUser)));}
+        catch(Exception){Record("cofre_indisponivel");}
     }
     void Save() {
-        byte[] data=ProtectedData.Protect(Encoding.UTF8.GetBytes(json.Serialize(local)),null,DataProtectionScope.CurrentUser);
+        byte[] data=ProtectedData.Protect(Encoding.UTF8.GetBytes(json.Serialize(local)),profile.Entropy,DataProtectionScope.CurrentUser);
         string temporary=vault+".new";
         File.WriteAllBytes(temporary,data);
         if(File.Exists(vault))File.Replace(temporary,vault,null);else File.Move(temporary,vault);
@@ -276,14 +330,13 @@ sealed partial class Connect : Form {
         return PostJson<Dictionary<string,object>>(route,data,session);
     }
     async Task<T> PostJson<T>(string route, object data, bool session) {
-        if(!ConnectProfile.ConnectEnabled||!ConnectProfile.IsValid)throw new InvalidOperationException();
-        using(var client=route=="/functions/v1/connect-update"?new UpdateBrokerClient():new WebClient()) {
+        using(var client=new UpdateBrokerClient()) {
             client.Proxy=WebRequest.DefaultWebProxy;
             client.Encoding=Encoding.UTF8;
-            client.Headers["Content-Type"]="application/json";client.Headers["apikey"]=ConnectProfile.PublishableKey;
+            client.Headers["Content-Type"]="application/json";client.Headers["apikey"]=profile.PublishableKey;
             if(session)client.Headers["Authorization"]="Bearer "+access;
-            string result=await client.UploadStringTaskAsync(new Uri(Origin+route),"POST",json.Serialize(data));
-            return json.Deserialize<T>(result);
+            string result=await client.UploadStringTaskAsync(profile.Endpoint(route),"POST",json.Serialize(data));
+            return String.IsNullOrWhiteSpace(result)?default(T):json.Deserialize<T>(result);
         }
     }
     async Task<Dictionary<string,object>[]> LoadCampaignSources(string kind,string search){
@@ -309,8 +362,8 @@ sealed partial class Connect : Form {
         if(!SessionReady()||!deviceApproved||(bucket!="neo-shop-products"&&bucket!="neo-campaign-images")||
            !System.Text.RegularExpressions.Regex.IsMatch(path,@"\A[a-f0-9-]{36}/[a-f0-9-]{36}\.(jpg|jpeg|png)\z"))
             throw new InvalidOperationException();
-        var request=(HttpWebRequest)WebRequest.Create(Origin+"/storage/v1/object/authenticated/"+bucket+"/"+path);
-        request.AllowAutoRedirect=false;request.Headers["Authorization"]="Bearer "+access;request.Headers["apikey"]=ConnectProfile.PublishableKey;
+        var request=(HttpWebRequest)WebRequest.Create(profile.Endpoint("/storage/v1/object/authenticated/"+bucket+"/"+path));
+        request.AllowAutoRedirect=false;request.Headers["Authorization"]="Bearer "+access;request.Headers["apikey"]=profile.PublishableKey;
         using(var deadline=new System.Threading.Timer(_=>request.Abort(),null,TimeSpan.FromSeconds(15),System.Threading.Timeout.InfiniteTimeSpan))
         using(var response=(HttpWebResponse)await request.GetResponseAsync())
         using(var input=response.GetResponseStream())
@@ -330,6 +383,15 @@ sealed partial class Connect : Form {
         var result=await Post("/auth/v1/token?grant_type="+grant,credentials,false);
         var nextAccess=Value(result,"access_token");var nextRefresh=Value(result,"refresh_token");
         if(String.IsNullOrEmpty(nextAccess)||String.IsNullOrEmpty(nextRefresh))throw new InvalidOperationException();
+        object user;
+        if(!result.TryGetValue("user",out user))throw new InvalidOperationException();
+        var owner=Value(user as Dictionary<string,object>,"id");Guid id;
+        if(!Guid.TryParse(owner,out id)||id==Guid.Empty)throw new InvalidOperationException();
+        var previousOwner=Value(local,"owner");
+        if(previousOwner!=""&&previousOwner!=id.ToString("D"))throw new InvalidOperationException("account_mismatch");
+        sessionOwner=id;
+        local["owner"]=id.ToString("D");
+        if(!profile.IsProduction&&Value(local,"legacy_owner")=="")local["legacy_owner"]=id.ToString("D");
         access=nextAccess;expires=DateTime.UtcNow.AddSeconds(Convert.ToInt32(result["expires_in"])-60);
         local["refresh_token"]=nextRefresh;if(persist)Save();
     }
@@ -340,30 +402,62 @@ sealed partial class Connect : Form {
         },true);
     }
     async Task Login() {
-        if(busy || !ConnectProfile.ConnectEnabled)return;busy=true;
+        if(busy||installingUpdate||checkingUpdate||whatsappOpen)return;busy=true;
         var previous=new Dictionary<string,object>(local);
+        bool deviceStage=false;
         try {
-            if(!ConnectProfile.IsValid)throw new InvalidOperationException();
-            await Tokens("password",new {email=email.Text.Trim(),password=password.Text},false);
+            string loginEmail=email.Text.Trim(),loginPassword=password.Text;
+            string captcha=null;
+            if(!String.IsNullOrEmpty(profile.CaptchaSiteKey)){
+                captcha=await TurnstileDialog.Verify(this,profile);
+                if(captcha==null){state.Text=PasswordGrant.Error("captcha_failed",false);return;}
+            }
+            try{await Tokens("password",PasswordGrant.Payload(loginEmail,loginPassword,captcha),false);}
+            finally{captcha=null;loginPassword=null;}
+            deviceStage=true;
             if(!String.IsNullOrEmpty(Value(local,"device"))){
                 var identity=Value(local,"account");
                 var heartbeat=await RPC("heartbeat",new {version=Version,working_set_mb=Environment.WorkingSet/1048576,
                     account=String.IsNullOrEmpty(identity)?null:identity});
                 Save();RenderAccounts(heartbeat);
                 deviceApproved=Value(heartbeat,"state")=="approved";
-                state.Text=deviceApproved?"Computador autorizado • simulação":"Aprovação pendente.";
+                state.Text=deviceApproved?ApprovedStatus():"Aprovação pendente.";
             }else{
                 var buffer=new byte[32];using(var rng=RandomNumberGenerator.Create())rng.GetBytes(buffer);
                 local["secret"]=BitConverter.ToString(buffer).Replace("-","").ToLowerInvariant();
                 await Register();
             }
-        } catch(Exception) {
-            local=previous;access=null;deviceApproved=false;
-            state.Text="Falha no login. Use a conta administrativa que autorizou este computador.";
-            Record("login_ou_registro_falhou");
+        } catch(Exception error) {
+            local=previous;access=null;sessionOwner=Guid.Empty;deviceApproved=false;if(whatsapp!=null)whatsapp.Close();
+            string code=LoginErrorCode(error);
+            state.Text=PasswordGrant.Error(code,deviceStage);
+            Record("login_"+code);
         }
         finally {password.Clear();busy=false;}
     }
+    string LoginErrorCode(Exception error){
+        if(error is InvalidOperationException&&error.Message=="account_mismatch")return "account_mismatch";
+        var web=error as WebException;
+        if(web==null)return "internal";
+        using(var response=web.Response as HttpWebResponse){
+            if(response==null)return "network_error";
+            if((int)response.StatusCode>=500)return "network_error";
+            try{
+                using(var stream=response.GetResponseStream())
+                using(var reader=new StreamReader(stream,Encoding.UTF8)){
+                    var buffer=new char[4096];
+                    int size=reader.ReadBlock(buffer,0,buffer.Length);
+                    if(size>=buffer.Length)return "unclassified";
+                    var row=json.Deserialize<Dictionary<string,object>>(new string(buffer,0,size));
+                    string code=Value(row,"error_code");
+                    if(String.IsNullOrEmpty(code))code=Value(row,"code");
+                    if(Array.IndexOf(new[]{"captcha_failed","invalid_credentials","42501"},code)>=0)return code;
+                }
+            }catch{}
+            return "unclassified";
+        }
+    }
+    string ApprovedStatus(){return profile.IsProduction?"Computador autorizado • produção":"Computador autorizado • simulação";}
     async Task Register() {
         var device=await RPC("register",new {label=Environment.MachineName});
         local["device"]=Value(device,"id");Save();Record("registrado");
@@ -374,7 +468,9 @@ sealed partial class Connect : Form {
         public override string ToString(){return Name;}
     }
     void RenderAccounts(Dictionary<string,object> data) {
-        var list=data["accounts"] as System.Collections.IEnumerable;
+        object accountRows;
+        if(!data.TryGetValue("accounts",out accountRows))return;
+        var list=accountRows as System.Collections.IEnumerable;
         if(list==null)return;
         var selected=Value(local,"account");
         var next=new List<Account>{new Account{ Id="",Name="Sem sessão fictícia"}};
@@ -390,7 +486,7 @@ sealed partial class Connect : Form {
         accounts.SelectedIndex=index<0?0:index;
     }
     async Task Tick() {
-        if(!ConnectProfile.ConnectEnabled||!ConnectProfile.IsValid||busy||String.IsNullOrEmpty(Value(local,"refresh_token")))return;
+        if(exiting||installingUpdate||busy||String.IsNullOrEmpty(Value(local,"refresh_token")))return;
         busy=true;
         try {
             if(String.IsNullOrEmpty(access)||DateTime.UtcNow>=expires)await Tokens("refresh_token",new {refresh_token=Value(local,"refresh_token")});
@@ -405,14 +501,15 @@ sealed partial class Connect : Form {
             RenderAccounts(heartbeat);
             deviceApproved=Value(heartbeat,"state")=="approved";
             if(!deviceApproved){state.Text="Aprovação pendente.";return;}
-            state.Text="Computador autorizado • simulação";
+            state.Text=ApprovedStatus();
             var reminders=await RPC("reminders",new { });
             var entries=reminders["items"] as System.Collections.ICollection;
             if(entries!=null&&entries.Count>0) {
-                tray.BalloonTipTitle="NeoPep Connect";
+                tray.BalloonTipTitle=profile.AppName;
                 tray.BalloonTipText="Há divulgações manuais previstas. Consulte o painel.";
                 tray.ShowBalloonTip(5000);
             }
+            if(profile.IsProduction)return;
             var job=await RPC("claim",new { });
             if(job==null)return;
             var id=Value(job,"id");var fence=Value(job,"fence");var account=Value(job,"account");
