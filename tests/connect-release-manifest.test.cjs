@@ -13,6 +13,13 @@ test('manifesto assinado vincula versão, artefato e bytes ao pacote privado',as
  m.signature=Buffer.from(await webcrypto.subtle.sign(algorithm,keys.privateKey,Buffer.from(canonical(m)))).toString('base64');
  assert.deepEqual(parseManifest(m),m);
  assert.equal(await verifyManifest(m,jwk,webcrypto.subtle),true);
+ const production={...m,profile:'production'};
+ assert.deepEqual(parseManifest(production,'production'),production);
+ assert.throws(()=>parseManifest(m,'production'));
+ assert.equal(await verifyManifest(production,jwk,webcrypto.subtle),false);
+ production.signature=Buffer.from(await webcrypto.subtle.sign(algorithm,keys.privateKey,Buffer.from(canonical(production)))).toString('base64');
+ assert.equal(await verifyManifest(production,jwk,webcrypto.subtle),true);
+ assert.equal(await verifyManifest({...production,profile:'staging'},jwk,webcrypto.subtle),false);
  for(const changed of [{artifact:'outro'},{version:'0.2.7'},{signature:'A'.repeat(344)}])
   assert.equal(await verifyManifest({...m,...changed},jwk,webcrypto.subtle),false);
  for(const changed of [{version:'../a'},{version:'0.2.5'},{profile:'production'},{channel:'beta'},{bytes:52428801}])
@@ -23,7 +30,7 @@ test('manifesto assinado vincula versão, artefato e bytes ao pacote privado',as
  assert.equal(precedes('0.2.9','0.2.10'),true);
 });
 
-test('Edge nega produção, anônimo e não administrador antes de acessar Storage',async()=>{
+test('Edge nega origem cruzada, anônimo e não administrador antes de acessar Storage',async()=>{
  const {readFileSync}=require('node:fs');
  const {runInNewContext}=require('node:vm');
  const {transformSync}=require('esbuild');
@@ -41,6 +48,10 @@ test('Edge nega produção, anônimo e não administrador antes de acessar Stora
  assert.equal((await invoke()).status,401);
  assert.equal((await invoke({Origin:'https://app.neopep.com.br'})).status,403);
  assert.equal((await invoke({Authorization:'Bearer '+'a'.repeat(40)})).status,403);
+ assert.deepEqual(operations,['list']);
+ stage=service.production;
+ assert.equal((await invoke({Authorization:'Bearer '+'a'.repeat(40)})).status,403);
+ assert.equal((await invoke({'X-Neo-Release-Agent':'a'.repeat(64)})).status,401);
  assert.deepEqual(operations,['list']);
  stage='https://example.invalid';
  assert.equal((await invoke({Authorization:'Bearer '+'a'.repeat(40)})).status,404);
@@ -141,4 +152,71 @@ test('importação administrativa de 0.2.5 usa a referência existente e cria s�
  const result=await call();
  assert.equal(result.status,201);assert.equal((await result.json()).state,'draft');
  assert.deepEqual(operations,[['neo_connect_update_admin','list'],['neo_connect_update_admin','list'],['neo_connect_release_stage','register']]);
+});
+
+test('Produção exige credencial própria, artefato de Produção e Storage no mesmo projeto',async()=>{
+ const {readFileSync}=require('node:fs'),{runInNewContext}=require('node:vm'),{transformSync}=require('esbuild');
+ const service=await shared,token='a'.repeat(64),testToken='b'.repeat(64);
+ const digest=t=>createHash('sha256').update(t).digest('hex');
+ const fixture=Buffer.from('production-fixture');
+ const manifest={version:'0.2.8',profile:'production',channel:'stable',bytes:fixture.length,
+  sha256:digest(fixture),artifact:'connect-producao-0.2.8-123-1',signature:'A'.repeat(344)};
+ const calls=[];let handler;
+ const source=readFileSync('supabase/functions/connect-release-draft/index.ts','utf8').replace(/^import .*;\n/gm,'');
+ runInNewContext(transformSync(source,{loader:'ts'}).code,{
+  ...service,Request,Response,URL,AbortSignal,TextDecoder,createHash,timingSafeEqual,verifyManifest:async()=>true,
+  Deno:{serve(fn){handler=fn;},env:{get:key=>({
+   SUPABASE_URL:service.production,SUPABASE_ANON_KEY:'fixture',SUPABASE_SERVICE_ROLE_KEY:'fixture',
+   NEO_CONNECT_AGENT_TOKEN_SHA256:digest(testToken),NEO_CONNECT_PRODUCTION_AGENT_TOKEN_SHA256:digest(token)
+  })[key]}},
+  createClient(project){
+   assert.equal(project,service.production);
+   return {async rpc(name,p){assert.equal(name,'neo_connect_release_stage');calls.push(p.p_action);
+    if(p.p_action==='list')return {data:{releases:[]}};
+    assert.equal(p.p_data.profile,'production');assert.equal(p.p_data.actor,null);return {data:{ok:true}};}};
+  },
+  async fetch(url){
+   assert.equal(url,service.production+'/storage/v1/object/authenticated/neo-connect-releases/0.2.8/NeoPepConnectSetup.exe');
+   return new Response(fixture);
+  }
+ });
+ const call=(key=token,data=manifest)=>handler(new Request(service.production,{method:'POST',headers:{'X-Neo-Release-Agent':key},
+  body:JSON.stringify({manifest:data,commit:'c'.repeat(40),runId:'123',attempt:'1'})}));
+ assert.equal((await call(testToken)).status,401);
+ assert.equal((await call(token,{...manifest,profile:'staging'})).status,400);
+ assert.equal((await call(token,{...manifest,artifact:'connect-teste-0.2.8-123-1'})).status,400);
+ const response=await call();
+ assert.equal(response.status,201);assert.equal((await response.json()).state,'draft');
+ assert.deepEqual(calls,['list','list','list','register']);
+});
+
+
+test('rotação do agente Teste mantém pin do workflow, cofre e rollback',()=>{
+ const {readFileSync}=require('node:fs');
+ const script=readFileSync('release/connect/rotate-agent-trust.ps1','utf8');
+ assert.ok(script.includes('9809901068336c37f8d42442d81c58304bc82a6b'));
+ assert.ok(script.includes('3def75a277a54e9eda489e9068ea9ced42e5c723'));
+ assert.match(script,/gh api 'repos\/neopep\/NeoPep-Connect-Build-Privado\/contents\/\.github\/workflows\/neopep-connect-release\.yml\?ref=main'/);
+ assert.match(script,/Assert-Blob/);
+ assert.match(script,/Import-Clixml/);
+ assert.match(script,/Export-Clixml/);
+ assert.match(script,/Disable-ScheduledTask/);
+ assert.match(script,/Enable-ScheduledTask/);
+ assert.match(script,/backup-confianca-/);
+ assert.match(script,/\$agent\.workflowBlob=\$newWorkflow/);
+ assert.match(script,/\[switch\]\$Apply/);
+ assert.doesNotMatch(script,/New-Object byte\[\] 32|ConvertTo-SecureString -AsPlainText|Set-AuthenticodeSignature|New-ScheduledTaskTrigger/);
+});
+
+test('agente deve reportar o ultimo build, sem deixar falha antiga como estado geral',()=>{
+ const {readFileSync}=require('node:fs');
+ const agent=readFileSync('release/connect/run-release-agent.ps1','utf8');
+ assert.match(agent,/Sort-Object created_at/);
+ assert.match(agent,/\$latestState='BUILD_ERROR'/);
+ assert.match(agent,/\$latestState='DRAFT_PRONTO'/);
+ assert.match(agent,/\$latestState=\$phase/);
+ assert.match(agent,/Write-Receipt \(Join-Path \$folder 'agent\.json'\) \$latestState/);
+ assert.doesNotMatch(agent,/\$hasFailure=\$true|if\(\$hasFailure\)/);
+ const rotator=readFileSync('release/connect/rotate-agent-trust.ps1','utf8');
+ assert.ok(rotator.includes('505af1b5b8c4ab8ee42a11e5bbdaefed47cdf5d7'));
 });

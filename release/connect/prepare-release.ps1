@@ -4,13 +4,18 @@ param(
     [Parameter(Mandatory=$true)][ValidatePattern('\A(0|[1-9][0-9]{0,7})(\.(0|[1-9][0-9]{0,7})){2}\z')][string]$Version,
     [Parameter(Mandatory=$true)][ValidatePattern('\A[A-Fa-f0-9]{40}\z')][string]$SigningThumbprint,
     [Parameter(Mandatory=$true)][ValidatePattern('\A[a-f0-9]{40}\z')][string]$WorkflowBlob,
-    [Parameter(Mandatory=$true)][Security.SecureString]$AgentToken
+    [Parameter(Mandatory=$true)][Security.SecureString]$AgentToken,
+    [ValidateSet('staging','production')][string]$Profile='staging',
+    [ValidatePattern('\A[A-Fa-f0-9]{40}\z')][string]$AuthenticodeThumbprint
 )
 $ErrorActionPreference = 'Stop'
 $repo = 'neopep/NeoPep-Connect-Build-Privado'
 $ghDirectory=Join-Path $env:ProgramFiles 'GitHub CLI'
 if(Test-Path -LiteralPath (Join-Path $ghDirectory 'gh.exe')){ $env:Path=$ghDirectory+';'+$env:Path }
-$origin = 'https://qnuluspqfazdppciermw.supabase.co'
+$production = $Profile -ceq 'production'
+$label = if($production){'Producao'}else{'Teste'}
+$prefix = if($production){'connect-producao'}else{'connect-teste'}
+$origin = if($production){'https://cpslafpzjtbpmoxxysaa.supabase.co'}else{'https://qnuluspqfazdppciermw.supabase.co'}
 $workflow = '.github/workflows/neopep-connect-release.yml'
 $dir = Join-Path $env:TEMP ('neopep-release-'+[Guid]::NewGuid().ToString('N'))
 $key = $null
@@ -27,12 +32,12 @@ try {
     if (!$source.private -or $source.full_name -cne $repo -or $run.repository.full_name -cne $repo -or
         $run.head_repository.full_name -cne $repo -or $run.head_branch -cne $source.default_branch -or
         $run.path -cne $workflow -or $run.event -notin @('repository_dispatch','workflow_dispatch') -or
-        $run.display_title -cne "Connect Teste $Version $SourceSha" -or $run.conclusion -cne 'success') {
+        $run.display_title -cne "Connect $label $Version $SourceSha" -or $run.conclusion -cne 'success') {
         throw 'Execução fora do workflow privado revisado ou build sem sucesso.'
     }
     $definition = Get-GitHubJson ("repos/$repo/contents/${workflow}?ref="+$run.head_sha)
     if ($definition.sha -cne $WorkflowBlob) { throw 'O workflow da execução não está na lista confiável.' }
-    $artifact = "connect-teste-$Version-$RunId-"+$run.run_attempt
+    $artifact = "$prefix-$Version-$RunId-"+$run.run_attempt
     $items = Get-GitHubJson "repos/$repo/actions/runs/$RunId/artifacts?per_page=100"
     $matches = @($items.artifacts | Where-Object { $_.name -ceq $artifact -and !$_.expired })
     if ($matches.Count -ne 1) { throw 'Artefato ausente, duplicado ou expirado.' }
@@ -62,16 +67,25 @@ try {
     try { $pinHash = [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($pin))).Replace('-','').ToLowerInvariant() }
     finally { $sha.Dispose() }
     if ($pinHash -cne $build.publisher_key_sha256) { throw 'A chave do custodiante diverge da chave pública do build.' }
-    $canonical = [Text.Encoding]::UTF8.GetBytes(@('neopep-connect/v1',$Version,'staging','stable',
+    if($production){
+        if(!$AuthenticodeThumbprint){throw 'Certificado Authenticode obrigatório para Produção.'}
+        $codeCert=Get-Item -LiteralPath ("Cert:\CurrentUser\My\"+$AuthenticodeThumbprint)
+        $signed=Set-AuthenticodeSignature -LiteralPath $setup -Certificate $codeCert -HashAlgorithm SHA256 -TimestampServer 'http://timestamp.digicert.com'
+        if($signed.Status -ne 'Valid' -or $signed.SignerCertificate.Thumbprint -ne $AuthenticodeThumbprint -or !$signed.TimeStamperCertificate){throw 'Authenticode inválido.'}
+        $file=Get-Item -LiteralPath $setup
+        if($file.Length -gt 52428800){throw 'Pacote assinado acima do limite.'}
+        $hash=(Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+    $canonical = [Text.Encoding]::UTF8.GetBytes(@('neopep-connect/v1',$Version,$Profile,'stable',
         $file.Length.ToString([Globalization.CultureInfo]::InvariantCulture),$hash,$artifact) -join "`n")
     $alg = [Security.Cryptography.HashAlgorithmName]::SHA256
     $padding = [Security.Cryptography.RSASignaturePadding]::Pkcs1
     $signature = $key.SignData($canonical,$alg,$padding)
     if (!$key.VerifyData($canonical,$signature,$alg,$padding)) { throw 'Verificação da assinatura falhou.' }
-    $manifest = @{version=$Version;profile='staging';channel='stable';bytes=$file.Length;sha256=$hash;
+    $manifest = @{version=$Version;profile=$Profile;channel='stable';bytes=$file.Length;sha256=$hash;
         artifact=$artifact;signature=[Convert]::ToBase64String($signature)}
     $payload = @{manifest=$manifest;commit=$SourceSha;runId=$RunId;attempt=[string]$run.run_attempt} | ConvertTo-Json -Depth 4 -Compress
-    Write-Host "Teste $Version | $SourceSha | $hash"
+    Write-Host "$label $Version | $SourceSha | $hash"
     $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($AgentToken)
     try { $headers = @{'X-Neo-Release-Agent'=[Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer)} }
     finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer) }
@@ -81,16 +95,16 @@ try {
         $upload = Invoke-RestMethod -Method Post -Uri ($endpoint+'?action=upload') -Headers $headers -ContentType 'application/json' -MaximumRedirection 0 -Body $payload
         if (!$upload.exists) {
             $target = [uri]$upload.url
-            if ($target.Scheme -cne 'https' -or $target.Host -cne 'qnuluspqfazdppciermw.supabase.co' -or !$target.IsDefaultPort -or
+            if ($target.Scheme -cne 'https' -or $target.Host -cne ([uri]$origin).Host -or !$target.IsDefaultPort -or
                 $target.UserInfo -or $target.Fragment -or $target.AbsolutePath -cne "/storage/v1/object/upload/sign/neo-connect-releases/$Version/NeoPepConnectSetup.exe" -or
                 $target.Query -cnotmatch '\A\?token=[A-Za-z0-9_.-]+\z') { throw 'Destino inválido.' }
             Invoke-WebRequest -UseBasicParsing -Method Put -Uri $target -InFile $setup -ContentType 'application/octet-stream' -TimeoutSec 300 -MaximumRedirection 0 -Headers @{'x-upsert'='false'} | Out-Null
         }
         $phase = "RASCUNHO"
         $draft = Invoke-RestMethod -Method Post -Uri $endpoint -Headers $headers -ContentType 'application/json' -TimeoutSec 120 -MaximumRedirection 0 -Body $payload
-    } catch { throw 'Falha de upload ou verificação no ambiente Teste. A versão continua sem aprovação. Uma nova tentativa verifica o objeto já existente.' }
+    } catch { throw 'Falha de upload ou verificação neste ambiente. A versão continua sem aprovação. Uma nova tentativa verifica o objeto já existente.' }
     if ($draft.state -cne 'draft' -or $draft.version -cne $Version -or $draft.sha256 -cne $hash) { throw 'O servidor não confirmou o rascunho.' }
-    Write-Host "Rascunho $Version verificado. A aprovação é feita no painel NeoPep Teste."
+    Write-Host "Rascunho $Version verificado. A aprovação é feita no painel do ambiente correspondente."
 } catch { throw ("ERROR_"+$phase) }
 finally {
     if ($key) { $key.Dispose() }

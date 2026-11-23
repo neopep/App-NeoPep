@@ -1,17 +1,18 @@
 export const maxBytes=50*1024*1024;
 export const staging='https://qnuluspqfazdppciermw.supabase.co';
+export const production='https://cpslafpzjtbpmoxxysaa.supabase.co';
 export const fileName='NeoPepConnectSetup.exe';
 export const bucket='neo-connect-releases';
-export function parseManifest(input){
+export function parseManifest(input,expectedProfile='staging'){
  if(!input||typeof input!=='object'||Array.isArray(input))throw Error('Manifesto inválido.');
  const {version,profile,channel,bytes,sha256,artifact,signature}=input;
  if(typeof version!=='string'||! /^(0|[1-9][0-9]{0,7})([.](0|[1-9][0-9]{0,7})){2}$/.test(version)||
-  profile!=='staging'||channel!=='stable'||!Number.isSafeInteger(bytes)||bytes<1||bytes>maxBytes||
+  !['staging','production'].includes(expectedProfile)||profile!==expectedProfile||channel!=='stable'||!Number.isSafeInteger(bytes)||bytes<1||bytes>maxBytes||
   typeof sha256!=='string'||! /^[0-9a-f]{64}$/.test(sha256)||
   typeof artifact!=='string'||! /^[A-Za-z0-9._-]{1,120}$/.test(artifact)||
   typeof signature!=='string'||signature.length<344||signature.length>1024||signature.length%4||
-  !/^[A-Za-z0-9+/]+={0,2}$/.test(signature))throw Error('Confira versão, perfil Teste, canal, tamanho, SHA-256, artefato e assinatura.');
- if(version==='0.2.5'&&(bytes!==50102784||sha256!=='314d03ffba3871da65ffb95df82fba3b35f19e4aba14038ef583590db7d9b759'))
+  !/^[A-Za-z0-9+/]+={0,2}$/.test(signature))throw Error('Confira versão, perfil, canal, tamanho, SHA-256, artefato e assinatura.');
+ if(profile==='staging'&&version==='0.2.5'&&(bytes!==50102784||sha256!=='314d03ffba3871da65ffb95df82fba3b35f19e4aba14038ef583590db7d9b759'))
   throw Error('Tamanho ou SHA-256 diverge do instalador 0.2.5 de referência.');
  return {version,profile,channel,bytes,sha256,artifact,signature};
 }
