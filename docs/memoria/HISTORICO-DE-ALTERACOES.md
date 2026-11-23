@@ -491,3 +491,9 @@ O leitor PDF contínuo agora atende a Biblioteca e o manual administrativo. A pi
 ## Issue #27 — Perfis simultâneos no NeoPep Connect Windows
 
 O candidato 0.2.7 mantém o cofre legado em Teste e cria uma janela Produção com sessão, dados e consulta de atualização independentes. O instalador e o runtime são compartilhados. O manifesto assinado continua vinculado ao perfil emissor. [Guia de homologação e recuperação](../conhecimento/NEOPEP-CONNECT-DOIS-AMBIENTES.md)
+
+## Calculadora 3D e dosagens salvas
+
+A homologação recebeu somente a calculadora 3D da PR #35. As seringas compartilham o comprimento do cilindro, variam no diâmetro e ocultam a haste dentro da câmara. O indicador acompanha a marca da representação e mostra o valor calculado com até duas casas. A conversão mantém a precisão original e avisa quando a graduação física é insuficiente. A dose em mg usa passo de 0,5 no slider.
+
+Dosagens salvas usam armazenamento local separado por conta e pela modalidade de uso. Aplicar restaura entradas originais e recalcula a conversão. Renomear e excluir atuam só nos registros salvos. Os valores digitados temporariamente não substituem esses registros. O teste local usou dados fictícios e incluiu recarga e viewport móvel de 390 px em Chromium. Safari e PWA em iPhone físico aguardam conferência.

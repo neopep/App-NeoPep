@@ -66,82 +66,223 @@ function applications(){return head('Seu diário de aplicações.','Registre o q
 function protocolCards(){return state.protocols.map(p=>{const applications=C.sorted(state.doses.filter(d=>d.protocolId===p.id)),last=applications.at(-1);return `<article class="card protocol-card"><div class="between"><h3>${esc(p.name)}</h3><span class="tag">${p.status==='active'?'Em acompanhamento':'Encerrado'}</span></div><p class="sub">Desde ${date(p.date)}${p.end?' · até '+date(p.end):''}</p><div class="protocol-count"><strong>${applications.length}</strong><span>aplicações registradas</span></div><p class="sub">${last?'Último registro: '+date(last.date):'Ainda sem aplicação vinculada.'}</p>${p.note?`<p class="sub protocol-note">${esc(p.note)}</p>`:''}<button class="text-btn" data-protocol-apps="${esc(p.id)}">Ver aplicações ${icon('arrow')}</button></article>`}).join('')}
 function protocols(){return head('Seu histórico de protocolos.','Organize datas e informações cadastradas por você.',addBtn('protocol','Novo protocolo'))+`<div class="notice">Este espaço organiza registros pessoais. Não cria esquemas de administração nem recomenda mudanças de dose.</div>${state.protocols.length?`<div class="two-cols">${protocolCards()}</div>`:''}<section class="card space"><h2>Protocolos registrados</h2>${historyTable('protocols')}</section>`}
 const calcFields={
- mass:{label:'Massa total do frasco',unit:'mg',max:60,step:.01,choices:[5,10,20,40,60]},
+ mass:{label:'Massa total do frasco',unit:'mg',max:60,step:.5,choices:[5,10,15,20,40,60]},
  volume:{label:'Volume final da solução',unit:'mL',max:5,step:.01,choices:[1,2,3,5]},
- dose:{label:'Dose da prescrição',unit:'mg',max:1,step:.01}
+ dose:{label:'Dose informada',unit:'mg',max:10,step:.5,choices:[.5,1,1.5,2,2.5,3,3.5,5,7.5,10]}
 };
 const calcMinimum=.000001;
-function calcNumber(value,digits=6){
- return value!==0&&(Math.abs(value)<10**-digits||Math.abs(value)>=1e9)?value.toExponential(2).replace('.',','):fmt(value,digits);
+// Reference configurations of standard-scale U-100 syringes. Other models can differ.
+const syringeModels={
+ '0.3':{units:30,division:1,length:166,height:24},
+ '0.5':{units:50,division:1,length:166,height:30},
+ '1':{units:100,division:2,length:166,height:38}
+};
+let calcCapacityValue=1,calcOutcome='';
+function calcNumber(value){
+ if(value!==0&&(Math.abs(value)<1e-6||Math.abs(value)>=1e9))return value.toExponential().replace('.',',');
+ const [whole,fraction]=String(value).split('.');
+ return whole.replace(/\B(?=(\d{3})+(?!\d))/g,'.')+(fraction?','+fraction:'');
 }
+const calcResultsNumber=new Intl.NumberFormat('pt-BR',{maximumFractionDigits:2});
+function calcDisplay(value){
+ return Math.abs(value)>=1e9?value.toExponential(2).replace('.',','):calcResultsNumber.format(value);
+}
+let calcGraphicSequence=0;
 function calcVial(id){
- return `<svg class="calc-vial" viewBox="0 0 84 100" aria-hidden="true"><rect class="calc-hardware" x="23" y="9" width="38" height="13" rx="4"/><path class="calc-glass" d="M28 23h28v14l10 10v33a8 8 0 0 1-8 8H26a8 8 0 0 1-8-8V47l10-10z"/><rect data-calc-fill="${id}" class="calc-liquid" x="21" y="85" width="42" height="0" rx="2"/><path class="calc-mark" d="M46 52h12m-7 10h7m-12 10h12"/></svg>`;
+ const art='calc-vial-'+(++calcGraphicSequence);
+ const glass='M28 23h28v14l10 10v33a8 8 0 0 1-8 8H26a8 8 0 0 1-8-8V47l10-10z';
+ return `<svg class="calc-vial" viewBox="0 0 84 100" aria-hidden="true">
+ <defs>
+  <linearGradient id="${art}-glass">
+   <stop stop-color="#806235" stop-opacity=".65"/><stop offset=".12" stop-color="#e7c88f" stop-opacity=".45"/>
+   <stop offset=".35" stop-color="#e9d7b1" stop-opacity=".12"/><stop offset=".69" stop-color="#f3e4c4" stop-opacity=".08"/>
+   <stop offset=".9" stop-color="#e6c38a" stop-opacity=".32"/><stop offset="1" stop-color="#8c6e43" stop-opacity=".65"/>
+  </linearGradient>
+  <linearGradient id="${art}-depth" x2="0" y2="1">
+   <stop stop-color="#fff5db" stop-opacity=".2"/><stop offset=".43" stop-color="#a7885e" stop-opacity="0"/>
+   <stop offset="1" stop-color="#6b4b25" stop-opacity=".4"/>
+  </linearGradient>
+  <linearGradient id="${art}-cap" x2="0" y2="1">
+   <stop stop-color="#f1d5a0"/><stop offset=".25" stop-color="#cfa46a"/><stop offset=".67" stop-color="#927043"/><stop offset="1" stop-color="#b98d50"/>
+  </linearGradient>
+  <linearGradient id="${art}-liquid" x2="0" y2="1">
+   <stop stop-color="#fff0c9" stop-opacity=".9"/><stop offset=".08" stop-color="#eacf91" stop-opacity=".84"/>
+   <stop offset=".36" stop-color="#c79549" stop-opacity=".73"/><stop offset="1" stop-color="#91642d" stop-opacity=".86"/>
+  </linearGradient>
+  <radialGradient id="${art}-shadow"><stop stop-color="#261b0d" stop-opacity=".36"/><stop offset="1" stop-color="#261b0d" stop-opacity="0"/></radialGradient>
+  <clipPath id="${art}-chamber"><path d="M30 25h24v13l9 10v31q0 6-6 6H27q-6 0-6-6V48l9-10z"/></clipPath>
+ </defs>
+ <ellipse cx="42" cy="91" rx="30" ry="5" fill="url(#${art}-shadow)"/>
+ <path d="${glass}" fill="url(#${art}-glass)" stroke="#ad8f60" stroke-width="1.15"/>
+ <g clip-path="url(#${art}-chamber)">
+  <svg data-calc-fill="${id}" x="21" y="85" width="42" height="0" overflow="hidden">
+   <rect width="42" height="100%" rx="2" fill="url(#${art}-liquid)"/>
+   <path d="M1 .65Q21 3.8 41 .65" fill="none" stroke="#fff1ce" stroke-opacity=".58" stroke-width=".85"/>
+  </svg>
+  <path d="${glass}" fill="url(#${art}-depth)"/>
+  <path d="M31 27v12l-8 10v28q0 4 3 5m3-32v22" fill="none" stroke="#fff9ed" stroke-width="2" stroke-opacity=".43" stroke-linecap="round"/>
+  <path d="M55 42l6 8v24" fill="none" stroke="#fff3d5" stroke-width="1.3" stroke-opacity=".28" stroke-linecap="round"/>
+ </g>
+ <path d="M24 82q2 3 6 3h24q4 0 6-3" fill="none" stroke="#fff1cf" stroke-opacity=".65" stroke-width="1.5"/>
+ <path class="calc-mark" d="M46 52h12m-7 10h7m-12 10h12"/>
+ <rect x="23" y="9" width="38" height="15" rx="4" fill="url(#${art}-cap)" stroke="#997447" stroke-width=".85"/>
+ <path d="M27 12h30" stroke="#fff1cf" stroke-opacity=".65" stroke-linecap="round"/>
+ <path d="M28 15v5m4-5v5m4-5v5m4-5v5m4-5v5m4-5v5m4-5v5m4-5v5" stroke="#6e4d29" stroke-opacity=".35" stroke-width=".7"/>
+ </svg>`;
 }
-function syringeSymbol(capacity,units=null){
- const fill=units==null?0:Math.min(1,units/(capacity*100))*112;
- return `<svg class="calc-syringe" viewBox="0 0 182 50" aria-hidden="true"><path class="calc-mark" d="M4 16v18m0-9h25m124 0h25"/><rect class="calc-glass" x="29" y="9" width="124" height="32" rx="6"/><rect class="calc-liquid" x="35" y="15" width="${fill}" height="20" rx="2"/><path class="calc-mark" d="M47 10v12m15-12v7m15-7v12m15-12v7m15-7v12m15-12v7m15-7v12"/></svg>`;
+function syringeReading(capacity,units){
+ const {units:max,division}=syringeModels[capacity];
+ const tolerance=Number.EPSILON*Math.max(1,Math.abs(units))*8;
+ const outside=units-max>tolerance;
+ const nearest=Math.round(units/division)*division;
+ const between=!outside&&Math.abs(nearest-units)>tolerance;
+ return {outside,between,mark:outside?max:between?Math.floor(units/division)*division:Math.min(max,nearest)};
+}
+function syringeSymbol(capacity,mark=0,compact=false,calculated=null){
+ const {units,division,length,height}=syringeModels[capacity];
+ const end=246,start=end-length,top=43-height/2,bottom=top+height;
+ const position=value=>end-value/units*length;
+ const piston=position(mark),grip=start-9-42*mark/units;
+ const label=calculated===null?'':calcDisplay(calculated)+' UI';
+ const labelWidth=Math.max(48,label.length*6+10),labelX=Math.max(labelWidth/2+2,Math.min(284-labelWidth/2,piston));
+ const art='calc-syringe-'+(++calcGraphicSequence);
+ const ticks=[];
+ const tickStep=compact?10:division;
+ for(let value=0;value<=units;value+=tickStep){
+  const x=position(value),major=value%10===0;
+  ticks.push(`<path class="calc-mark" ${compact?'':`data-graduation="${value}"`} d="M${x} ${bottom}v-${major?11:5}"/>${major&&!compact?`<text x="${x}" y="75" text-anchor="middle">${value}</text>`:''}`);
+ }
+ return `<svg class="calc-syringe" viewBox="0 ${compact?'13':'0'} 286 ${compact?'56':'82'}" aria-hidden="true">
+ <defs>
+  <linearGradient id="${art}-glass" x2="0" y2="1">
+   <stop stop-color="#a68b64" stop-opacity=".6"/><stop offset=".14" stop-color="#fff0d4" stop-opacity=".48"/>
+   <stop offset=".45" stop-color="#e9d7b7" stop-opacity=".09"/><stop offset=".72" stop-color="#bd9f73" stop-opacity=".19"/>
+   <stop offset="1" stop-color="#997e58" stop-opacity=".64"/>
+  </linearGradient>
+  <linearGradient id="${art}-liquid" x2="0" y2="1">
+   <stop stop-color="#fcdf9e" stop-opacity=".63"/><stop offset=".4" stop-color="var(--calc-fluid-pigment,#c49650)" stop-opacity=".65"/>
+   <stop offset="1" stop-color="var(--calc-fluid-pigment,#c49650)" stop-opacity=".92"/>
+  </linearGradient>
+  <linearGradient id="${art}-metal" x2="0" y2="1">
+   <stop stop-color="#e5d3b3"/><stop offset=".26" stop-color="#bcaa8d"/>
+   <stop offset=".55" stop-color="#726657"/><stop offset=".82" stop-color="#9d8a71"/><stop offset="1" stop-color="#665c4f"/>
+  </linearGradient>
+  <radialGradient id="${art}-shadow"><stop stop-color="#2c2014" stop-opacity=".33"/><stop offset="1" stop-color="#2c2014" stop-opacity="0"/></radialGradient>
+  <clipPath id="${art}-chamber"><rect x="${start}" y="${top+2}" width="${length}" height="${height-4}" rx="2"/></clipPath>
+  <clipPath id="${art}-stem"><rect x="0" y="0" width="${start}" height="82"/></clipPath>
+ </defs>
+ <ellipse cx="${(start+end)/2}" cy="${bottom+3}" rx="${length/2+4}" ry="5" fill="url(#${art}-shadow)"/>
+ <path d="M254 43h24l3-1" fill="none" stroke="#968974" stroke-width="1.4" stroke-linecap="round"/>
+ <rect x="245" y="39" width="13" height="8" rx="2" fill="url(#${art}-metal)"/>
+ <g class="calc-external-stem" clip-path="url(#${art}-stem)">
+  <rect x="${grip}" y="41" width="${Math.max(0,piston-grip)}" height="4" rx="2" fill="url(#${art}-metal)"/>
+  <rect x="${grip-3}" y="34" width="5" height="18" rx="2" fill="url(#${art}-metal)" stroke="#736452" stroke-width=".6"/>
+ </g>
+ <rect x="${start}" y="${top}" width="${length}" height="${height}" rx="3" fill="url(#${art}-glass)" stroke="#9a845f" stroke-width="1.15"/>
+ <rect x="${start-2}" y="${top-4}" width="4" height="${height+8}" rx="1.5" fill="url(#${art}-metal)"/>
+ <g clip-path="url(#${art}-chamber)">
+  <rect class="calc-liquid" x="${piston}" y="${top+2}" width="${end-piston}" height="${height-4}" fill="url(#${art}-liquid)"/>
+  <path d="M${start+2} ${top+4}H${end-2}" stroke="#fff7e8" stroke-width="2.6" stroke-opacity=".47" stroke-linecap="round"/>
+  <path d="M${start+1} ${bottom-3}H${end-1}" stroke="#f9e8c9" stroke-width="1.05" stroke-opacity=".43" stroke-linecap="round"/>
+ </g>
+ ${mark>0?`<path class="calc-meniscus" d="M${piston} ${top+2} Q${piston+3} 43 ${piston} ${bottom-2}" fill="none" stroke="#fff1ce" stroke-opacity=".55"/>`:''}
+ <rect data-calc-piston x="${piston-3}" y="${top+2}" width="3" height="${height-4}" rx="1" fill="url(#${art}-metal)"/>
+ ${ticks.join('')}
+ ${label?`<g class="calc-level-label"><path d="M${labelX} 19L${piston} ${top}"/><rect x="${labelX-labelWidth/2}" y="2" width="${labelWidth}" height="17" rx="5"/><text x="${labelX}" y="14" text-anchor="middle">${label}</text></g>`:''}
+ </svg>`;
 }
 function calcField(id){
  const {label,unit,max,step,choices}=calcFields[id];
- const quick=choices?`<div class="calc-chips" role="group" aria-label="Valores rápidos de ${label}">${choices.map(value=>`<button type="button" class="secondary" data-calc-chip="${id}" data-value="${value}" aria-pressed="false">${fmt(value,2)} ${unit}</button>`).join('')}</div>`:
-  `<fieldset class="calc-precision"><legend>Passo do controle deslizante</legend><div class="calc-chips">${[.001,.01,.1].map(value=>`<button type="button" class="secondary" data-calc-step="${value}" aria-pressed="${value===step}">${fmt(value,3)} mg</button>`).join('')}</div></fieldset>`;
  return `<section class="card calc-card calc-card-${id}">
-  <div class="calc-card-heading"><h2>${label}</h2>${choices?calcVial(id):''}</div>
+  <h2>${label}</h2>${id==='dose'?'':calcVial(id)}
   ${id==='volume'?'<p class="sub">Informe o volume final confirmado, que pode diferir do diluente adicionado.</p>':''}
-  ${id==='dose'?'<div class="calc-number-group">':'<div>'}
-   <label for="${id}">Outro valor <span data-calc-unit="${id}">(${unit})</span><input name="${id}" id="${id}" type="number" min="${calcMinimum}" step="any" inputmode="decimal" required></label>
-   ${id==='dose'?'<label>Unidade<select name="doseUnit" id="doseUnit" data-unit="mg"><option value="mg" selected>mg</option><option value="mcg">mcg</option></select></label>':''}
-  </div>
   <label for="calc-range-${id}" class="calc-range-label">Ajustar ${label.toLocaleLowerCase('pt-BR')}</label>
-  <input id="calc-range-${id}" data-calc-range="${id}" type="range" min="0" max="${max}" step="${step}" value="0" aria-label="Ajustar ${label}" aria-valuetext="Não informado">
-  <div class="calc-limits" aria-hidden="true"><span>0</span><span data-calc-max="${id}">${fmt(max)} ${unit}</span></div>
-  ${quick}
+  <div class="calc-slider"><output class="calc-bubble" data-calc-bubble="${id}" aria-hidden="true">—</output>
+   <input id="calc-range-${id}" data-calc-range="${id}" type="range" min="0" max="${max}" step="${step}" value="0" aria-valuetext="Não informado">
+  </div>
+  <div class="calc-limits" aria-hidden="true"><span>0</span><span data-calc-max="${id}">${calcNumber(max)} ${unit}</span></div>
+  ${id==='dose'?'<p class="sub" id="calc-dose-limit"></p>':''}
+  <div class="calc-chips" role="group" aria-label="Valores rápidos de ${label}">${choices.map(value=>`<button type="button" class="secondary" data-calc-chip="${id}" data-value="${value}" aria-pressed="false">${calcNumber(value)} ${unit}</button>`).join('')}</div>
+  <details class="calc-manual"><summary>Entrada manual${id==='dose'?' e unidade':''}</summary>
+   <div class="${id==='dose'?'calc-number-group':''}">
+    <label for="${id}">Valor <span data-calc-unit="${id}">(${unit})</span><input name="${id}" id="${id}" type="number" min="${calcMinimum}" step="any" inputmode="decimal"></label>
+    ${id==='dose'?'<label>Unidade<select name="doseUnit" id="doseUnit" data-unit="mg"><option value="mg" selected>mg</option><option value="mcg">mcg</option></select></label>':''}
+   </div>
+   ${id==='dose'?'<label>Passo do controle em mcg<select id="calcDoseStep"><option value="0.1">100 mcg</option><option value="0.01">10 mcg</option><option value="0.001">1 mcg</option></select></label>':''}
+  </details>
  </section>`;
 }
 function calcCapacity(){
- return `<fieldset class="card calc-card calc-capacity"><legend>Capacidade da seringa U-100</legend><div class="calc-capacities">${[.3,.5,1].map(value=>`<label data-calc-capacity="${value}"><input type="radio" name="capacity" value="${value}" ${value===1?'checked':''}><span>${syringeSymbol(value)}<b>${fmt(value)} mL</b><small>${value*100} UI</small></span></label>`).join('')}</div></fieldset>`;
+ return `<section class="card calc-card calc-capacity" aria-labelledby="calc-capacity-title">
+  <h2 id="calc-capacity-title">Capacidade da seringa U-100</h2>
+  <div class="calc-capacities" role="radiogroup" aria-labelledby="calc-capacity-title">
+   ${Object.keys(syringeModels).sort((a,b)=>Number(a)-Number(b)).map(value=>`
+    <label class="calc-capacity-choice" data-calc-capacity="${value}">
+     <input type="radio" name="capacity" value="${value}" ${Number(value)===calcCapacityValue?'checked':''}>
+     <span class="calc-capacity-content">
+      ${syringeSymbol(value,0,true)}
+      <b>${calcNumber(Number(value))} mL</b>
+      <small>${syringeModels[value].units} na escala</small>
+     </span>
+    </label>`).join('')}
+  </div>
+ </section>`;
 }
 function syringeScale(capacity,units=null){
- const max=capacity*100,outside=units!==null&&units>max;
- return `<figure class="calc-scale ${outside?'scale-overflow':''}" aria-label="Escala de 0 a ${max} UI">
-  ${syringeSymbol(capacity,units)}
-  <figcaption><span>0 UI</span>${units===null?'':`<strong class="syringe-reading">${calcNumber(units,4)} UI${outside?' · fora da escala':''}</strong>`}<span>${max} UI</span></figcaption>
+ const {units:max,division}=syringeModels[capacity];
+ const reading=units===null?null:syringeReading(capacity,units);
+ return `<figure class="calc-scale ${reading?.outside?'scale-overflow':''}" aria-label="Escala volumétrica de 0 a ${max}, divisões de ${division}">
+  ${syringeSymbol(capacity,reading?.mark,false,units)}
+  <figcaption>Divisão de ${division} na escala U-100. Confira a graduação do seu modelo.</figcaption>
+  ${reading?`<p class="syringe-reading">${calcDisplay(units)} UI na escala U-100${reading.outside?' · fora da capacidade':reading.between?` · entre marcas. O desenho aproxima pela marca inferior (${reading.mark}).`:''}</p>`:''}
  </figure>`;
 }
-function calcEmpty(capacity=1){
+function calcEmpty(capacity=calcCapacityValue){
  return `${syringeScale(capacity)}<p class="sub">Preencha os dados confirmados para calcular o volume e a graduação U-100.</p>`;
 }
-function updateCalc(showErrors=false){
+function updateCalc(commit=false,track=true){
  const fields=['mass','volume','dose'].map(id=>$('#'+id));
  const [mass,volume,dose]=fields.map(field=>Number(field.value));
- const unit=$('#doseUnit').value;
- const capacity=Number($('#calcForm input[name=capacity]:checked')?.value||1);
- const result=$('#result');
- const invalid=fields.some(field=>field.validity?.badInput||field.value!==''&&(!Number.isFinite(Number(field.value))||Number(field.value)<calcMinimum));
- if(!showErrors&&!invalid&&fields.some(field=>field.value==='')){
-  result.innerHTML=calcEmpty(capacity);return;
+ const unit=$('#doseUnit').value,capacity=calcCapacityValue,result=$('#result');
+ const isInvalid=field=>field.validity?.badInput||field.value!==''&&(!Number.isFinite(Number(field.value))||Number(field.value)<calcMinimum);
+ const invalid=fields.some(field=>isInvalid(field)&&(commit||field!==document.activeElement&&!field.validity?.badInput));
+ const draft=fields.some(field=>field===document.activeElement&&isInvalid(field));
+ if(!commit&&!invalid&&draft){result.innerHTML=calcEmpty(capacity);return;}
+ if(!invalid&&fields.some(field=>field.value==='')){
+  calcOutcome='';result.innerHTML=calcEmpty(capacity);return;
  }
  try{
-  const r=C.convertDose(mass,volume,dose,unit,capacity);
   if(invalid)throw Error('Informe valores positivos e finitos, a partir de 0,000001.');
-  if(showErrors)engagementTrack('calculator_completed','calculadora');
-  result.innerHTML=`<div class="calc-result-values"><div class="big">${calcNumber(r.ml)} <small>mL</small></div><strong>${calcNumber(r.units,4)} UI na escala U-100</strong></div>
+  const r=C.convertDose(mass,volume,dose,unit,capacity);
+  const {outside}=syringeReading(capacity,r.units);
+  const exceedsMass=dose/(unit==='mcg'?1000:1)>mass;
+  if(track&&calcOutcome!=='valid')engagementTrack('calculator_completed','calculadora');
+  calcOutcome='valid';
+  result.innerHTML=`<div class="calc-result-values"><div class="big">${calcDisplay(r.ml)} <small>mL</small></div><strong>${calcDisplay(r.units)} UI na escala U-100</strong></div>
   ${syringeScale(capacity,r.units)}
-  ${r.warning?`<p class="error">${esc(r.warning)}</p>`:''}
-  <dl class="calc-result-details"><div><dt>Concentração</dt><dd>${calcNumber(r.concentration)} mg/mL</dd></div><div><dt>Razão massa ÷ dose</dt><dd>${calcNumber(r.doses,2)}</dd></div></dl>
-  <p class="sub">Valores arredondados para exibição.</p>`;
+  ${exceedsMass?'<p class="error">O valor informado excede a massa total do frasco.</p>':''}
+  ${outside?'<p class="error">O volume excede a capacidade da seringa selecionada.</p>':''}
+  <dl class="calc-result-details"><div><dt>Concentração</dt><dd>${calcDisplay(r.concentration)} mg/mL</dd></div><div><dt>Razão massa ÷ dose</dt><dd>${calcDisplay(r.doses)}</dd></div></dl>
+  <p class="sub">A exibição usa até duas casas decimais. Os cálculos mantêm a precisão dos valores informados.</p>`;
  }catch(err){
-  if(showErrors)engagementTrack('calculator_validation_error','calculadora');
+  if(track&&commit&&calcOutcome!=='invalid')engagementTrack('calculator_validation_error','calculadora');
+  calcOutcome='invalid';
   result.innerHTML=`${syringeScale(capacity)}<p class="error">${esc(err.message)}</p>`;
  }
 }
 function calculator(){
+ calcOutcome='';calcCapacityValue=1;
  return head('Calculadora de volume','Conversão matemática de dados confirmados do frasco e da prescrição.')+
- `<div class="calc-layout"><form id="calcForm" class="calc-inputs">
+ `<div class="calc-layout"><form id="calcForm" class="calc-inputs" data-calc-owner="${esc(calcStorageKey()||'')}" novalidate>
  ${calcField('mass')}${calcField('volume')}${calcCapacity()}${calcField('dose')}
- <button class="secondary calc-submit" type="submit">Calcular volume</button></form>
+ <section class="card calc-saved" aria-labelledby="calc-saved-title">
+ <h2 id="calc-saved-title">Dosagens salvas</h2>
+ <p class="sub">Salvas neste navegador. As dosagens não são sincronizadas entre dispositivos.</p>
+ <div class="calc-saved-entry"><label for="calc-saved-name">Nome (opcional)<input id="calc-saved-name" maxlength="80"></label>
+ <button id="calc-save" type="button" class="primary" data-calc-saved-action="save">Salvar dosagem</button></div>
+ <p class="sub" id="calc-saved-status" role="status"></p><div id="calc-saved-list"></div></section></form>
  <section class="card calc-result"><h2>Resultado</h2><div id="result" role="status" aria-live="polite">${calcEmpty()}</div>
- <p class="sub calc-context">U-100 expressa uma graduação volumétrica: 100 UI correspondem a 1 mL. O cálculo não prescreve doses nem orienta preparo ou aplicação.</p></section>
+ <p class="sub calc-context">Na escala U-100, 100 unidades correspondem a 1 mL. Essa graduação mede volume e é distinta das unidades de atividade de outras substâncias. Um valor caber na escala não indica que seja prescrito ou seguro.</p></section>
  <section class="card calc-formula"><h2>Como o cálculo funciona</h2><ol>
  <li><strong>Concentração</strong><span>Massa total ÷ volume final</span></li>
  <li><strong>Volume</strong><span>Dose informada em mg ÷ concentração</span></li>
@@ -150,54 +291,74 @@ function calculator(){
 }
 function calcSliderConfig(id){
  if(id!=='dose')return calcFields[id];
- const multiplier=$('#doseUnit').value==='mcg'?1000:1;
- const selected=$('[data-calc-step][aria-pressed=true]');
- const step=Number(selected?.dataset.calcStep||.01)*multiplier;
- return {step,max:step*100,unit:$('#doseUnit').value};
+ const unit=$('#doseUnit').value,multiplier=unit==='mcg'?1000:1;
+ const step=unit==='mg'?.5:Number($('#calcDoseStep').value||.1)*multiplier;
+ const mass=Number($('#mass').value),volume=Number($('#volume').value);
+ const limit=(mass/volume)*calcCapacityValue*multiplier;
+ const known=mass>=calcMinimum&&volume>=calcMinimum&&Number.isFinite(limit)&&limit>0;
+ const steps=known?Math.min(Number.MAX_SAFE_INTEGER,Math.floor(limit/step+Number.EPSILON*(limit/step))):Math.round(10*multiplier/step);
+ return {unit,step,max:Number((steps*step).toPrecision(15)),limit:known?limit:null};
 }
-function syncCalcField(id,preserveRange){
- const field=$('#'+id),range=$('#calc-range-'+id),{max,step,unit}=calcSliderConfig(id);
+function syncCalcField(id,commit=false){
+ const field=$('#'+id),range=$('#calc-range-'+id),config=calcSliderConfig(id);
+ const {step,unit,limit}=config;
  const number=Number(field.value),valid=field.value!==''&&Number.isFinite(number)&&number>=calcMinimum;
- const rangeMax=Math.max(max,preserveRange?Number(range.max):0,valid?Math.ceil(Math.min(number,1e9)/step)*step:0);
- range.max=String(rangeMax);
+ const max=id==='dose'?config.max:Math.max(config.max,valid?Number((Math.ceil(Math.min(number,1e9)/step)*step).toPrecision(15)):0);
+ range.max=String(max);
  range.step=String(step);
- range.value=String(valid?Math.min(number,rangeMax):0);
- field.setAttribute('aria-invalid',String(!!field.validity?.badInput||field.value!==''&&!valid));
- range.setAttribute('aria-valuetext',valid?calcNumber(number)+' '+unit:'Não informado');
- $('[data-calc-max='+id+']').textContent=calcNumber(rangeMax)+' '+unit;
+ range.disabled=max<=0;
+ const thumb=valid?Math.min(max,Math.round(number/step)*step):0;
+ range.value=String(Number(thumb.toPrecision(15)));
+ field.setAttribute('aria-invalid',String((commit||field!==document.activeElement)&&(!!field.validity?.badInput||field.value!==''&&!valid)));
+ const value=valid?calcDisplay(number)+' '+unit:'Não informado';
+ range.setAttribute('aria-valuetext',value);
+ const bubble=$('[data-calc-bubble='+id+']');
+ bubble.textContent=valid?value:'—';
+ bubble.title=valid?value:'';
+ bubble.style.setProperty('--calc-position',(max?100*thumb/max:0)+'%');
+ $('[data-calc-max='+id+']').textContent=calcDisplay(max)+' '+unit;
  $('[data-calc-unit='+id+']').textContent='('+unit+')';
+ if(id==='dose')$('#calcDoseStep').disabled=unit==='mg';
+ if(id==='dose')$('#calc-dose-limit').textContent=limit===null?'':`Limite volumétrico calculado: ${calcDisplay(limit)} ${unit}. A entrada manual preserva valores entre passos ou fora da escala.`;
+ const multiplier=id==='dose'&&unit==='mcg'?1000:1;
  for(const chip of document.querySelectorAll('[data-calc-chip='+id+']')){
-  chip.setAttribute('aria-pressed',String(valid&&number===Number(chip.dataset.value)));
+  const amount=Number(chip.dataset.value)*multiplier;
+  chip.textContent=calcNumber(amount)+' '+unit;
+  chip.setAttribute('aria-pressed',String(valid&&number===amount));
  }
  const fill=$('[data-calc-fill='+id+']');
  if(fill){
-  const height=valid?Math.min(39,39*number/rangeMax):0;
+  const height=valid?Math.min(39,39*number/max):0;
   fill.setAttribute('y',85-height);fill.setAttribute('height',height);
  }
 }
-function calcInputChanged(id,preserveRange=false){
+function calcInputChanged(id,commit=false){
  if(!engagementCalcStarted){engagementCalcStarted=true;engagementTrack('calculator_started','calculadora');}
  formDirty=true;
- if(id)syncCalcField(id,preserveRange);
- updateCalc();
+ if(id&&id!=='dose')syncCalcField(id,commit);
+ syncCalcField('dose',commit);
+ updateCalc(commit);
 }
 document.addEventListener('click',event=>{
- const control=event.target.closest('[data-calc-chip],[data-calc-step]');
+ const control=event.target.closest('[data-calc-chip]');
  if(!control)return;
- const id=control.dataset.calcChip;
- if(id){$('#'+id).value=control.dataset.value;calcInputChanged(id);return;}
- for(const option of document.querySelectorAll('[data-calc-step]'))option.setAttribute('aria-pressed',String(option===control));
- calcInputChanged('dose');
+ const id=control.dataset.calcChip,multiplier=id==='dose'&&$('#doseUnit').value==='mcg'?1000:1;
+ $('#'+id).value=String(Number(control.dataset.value)*multiplier);
+ calcInputChanged(id,true);
 });
 document.addEventListener('change',event=>{
  const input=event.target;
- if(input.name==='capacity'&&input.closest('#calcForm'))calcInputChanged();
+ if(input.matches('input[name="capacity"][type="radio"]')&&input.closest('#calcForm')){
+  calcCapacityValue=Number(input.value);
+  calcInputChanged(null,true);return;
+ }
+ if(input.id==='calcDoseStep'){calcInputChanged('dose',true);return;}
  if(input.id!=='doseUnit')return;
  const field=$('#dose'),targetUnit=input.value;
  if(field.value!==''&&input.dataset.unit!==targetUnit){
   const [mantissa,exponent]=Number(field.value).toExponential().split('e');
   const converted=Number(mantissa+'e'+(Number(exponent)+(targetUnit==='mcg'?3:-3)));
-  if(Number.isFinite(converted))field.value=String(converted);
+  if(Number.isFinite(converted)&&converted!==0)field.value=String(converted);
   else {
    input.value=input.dataset.unit;
    $('#result').textContent='Valor fora do limite para a unidade selecionada.';
@@ -205,17 +366,128 @@ document.addEventListener('change',event=>{
   }
  }
  input.dataset.unit=targetUnit;
- const multiplier=targetUnit==='mcg'?1000:1;
- for(const option of document.querySelectorAll('[data-calc-step]'))option.textContent=fmt(Number(option.dataset.calcStep)*multiplier,3)+' '+targetUnit;
- calcInputChanged('dose');
+ calcInputChanged('dose',true);
 });
 document.addEventListener('input',event=>{
  const input=event.target;
  if(input.dataset.calcRange){
   const id=input.dataset.calcRange;
-  $('#'+id).value=input.value;
-  calcInputChanged(id,true);
+  $('#'+id).value=Number(input.value)===0?'':input.value;
+  calcInputChanged(id);
  }else if(input.matches('#mass,#volume,#dose'))calcInputChanged(input.id);
+});
+document.addEventListener('focusout',event=>{
+ if(event.target.matches?.('#mass,#volume,#dose'))calcInputChanged(event.target.id,true);
+});
+
+function calcStorageKey(){
+ if(demo)return 'neo-calc-saved-v1:demo';
+ if(mode!=='cloud')return 'neo-calc-saved-v1:local';
+ const owner=Cloud.user?.id;
+ return /^[a-f0-9-]{36}$/i.test(owner||'')?'neo-calc-saved-v1:'+owner:null;
+}
+function calcSnapshot(input){
+ if(!input||!['mg','mcg'].includes(input.unit)||![.3,.5,1].includes(input.capacity)||
+    ![input.mass,input.volume,input.dose].every(n=>Number.isFinite(n)&&n>=calcMinimum))return null;
+ const {mass,volume,dose,unit,capacity}=input;
+ try{
+  const {concentration,ml,units}=C.convertDose(mass,volume,dose,unit,capacity);
+  return {mass,volume,dose,unit,capacity,concentration,ml,units};
+ }catch{return null;}
+}
+function readCalcSaved(key){
+ if(!key)throw Error('A conta ainda não está disponível para salvar dosagens.');
+ const raw=localStorage.getItem(key);
+ if(raw===null)return {items:[],last:null};
+ const value=JSON.parse(raw);
+ if(!value||!Array.isArray(value.items))throw Error('Os dados locais de dosagens não puderam ser lidos.');
+ const items=value.items.flatMap(item=>{
+  const snapshot=calcSnapshot(item);
+  if(!snapshot||typeof item.id!=='string'||!/^[-a-z0-9]{1,100}$/i.test(item.id)||
+     typeof item.name!=='string'||item.name.length>80||typeof item.savedAt!=='string'||!Number.isFinite(Date.parse(item.savedAt)))return [];
+  return [{...snapshot,id:item.id,name:item.name,savedAt:item.savedAt}];
+ });
+ return {items,last:items.some(item=>item.id===value.last)?value.last:null};
+}
+function renderCalcSaved(saved){
+ const list=$('#calc-saved-list');
+ if(!list)return;
+ list.innerHTML=saved.items.map(item=>`<article class="calc-saved-row" data-saved-id="${esc(item.id)}">
+  <button type="button" class="calc-saved-summary" data-calc-saved-action="apply" aria-pressed="${item.id===saved.last}">
+   <strong>${esc(item.name||'Dosagem sem nome')}</strong>
+   <span>Dose: ${calcDisplay(item.dose)} ${item.unit} · Concentração: ${calcDisplay(item.concentration)} mg/mL</span>
+   <span>Volume: ${calcDisplay(item.ml)} mL · Escala: ${calcDisplay(item.units)} UI · Seringa: ${calcDisplay(item.capacity)} mL</span>
+   <small>${esc(new Date(item.savedAt).toLocaleString('pt-BR'))}</small>
+  </button>
+  <div class="calc-saved-actions">
+   <button type="button" class="secondary" data-calc-saved-action="apply">Aplicar</button>
+   <button type="button" class="text-btn" data-calc-saved-action="rename">Renomear</button>
+   <button type="button" class="text-btn" data-calc-saved-action="remove">Excluir</button>
+  </div>
+ </article>`).join('')||'<p class="sub">Nenhuma dosagem salva.</p>';
+}
+function applyCalcSaved(item){
+ calcCapacityValue=item.capacity;
+ for(const id of ['mass','volume','dose'])$('#'+id).value=String(item[id]);
+ const unit=$('#doseUnit');
+ for(const option of unit.querySelectorAll('option'))option.toggleAttribute('selected',option.value===item.unit);
+ const selected=unit.querySelector('[selected]');
+ if(selected)selected.selected=true;
+ unit.dataset.unit=item.unit;
+ for(const radio of document.querySelectorAll('#calcForm [name=capacity]')){
+  radio.checked=Number(radio.value)===item.capacity;
+  radio.toggleAttribute('checked',radio.checked);
+ }
+ for(const id of ['mass','volume','dose'])syncCalcField(id,true);
+ updateCalc(true,false);
+ formDirty=false;
+}
+function restoreCalcSaved(){
+ if(!$('#calc-saved-list'))return;
+ try{
+  const saved=readCalcSaved(calcStorageKey());
+  renderCalcSaved(saved);
+  const selected=saved.items.find(item=>item.id===saved.last);
+  if(selected)applyCalcSaved(selected);
+ }catch{$('#calc-saved-status').textContent='Não foi possível ler as dosagens neste navegador.';}
+}
+document.addEventListener('click',event=>{
+ const control=event.target.closest('[data-calc-saved-action]');
+ if(!control)return;
+ const status=$('#calc-saved-status'),key=calcStorageKey(),action=control.dataset.calcSavedAction;
+ if(!key||$('#calcForm').dataset.calcOwner!==key){
+  status.textContent='A sessão mudou. Reabra a calculadora para continuar.';
+  return;
+ }
+ let saved;
+ try{saved=readCalcSaved(key);}
+ catch{status.textContent='As dosagens locais estão indisponíveis neste navegador.';return;}
+ let item=saved.items.find(value=>value.id===control.closest('[data-saved-id]')?.dataset.savedId);
+ if(action==='save'){
+  const snapshot=calcSnapshot({mass:Number($('#mass').value),volume:Number($('#volume').value),dose:Number($('#dose').value),unit:$('#doseUnit').value,capacity:calcCapacityValue});
+  if(!snapshot){status.textContent='Preencha valores válidos antes de salvar.';return;}
+  item={...snapshot,id:uid(),name:$('#calc-saved-name').value.trim().slice(0,80),savedAt:new Date().toISOString()};
+  saved.items.unshift(item);saved.last=item.id;
+ }else if(!item)return;
+ else if(action==='apply')saved.last=item.id;
+ else if(action==='rename'){
+  const name=prompt('Nome da dosagem (opcional)',item.name);
+  if(name===null)return;
+  item.name=name.trim().slice(0,80);
+ }else if(action==='remove'){
+  if(!confirm('Excluir esta dosagem salva?'))return;
+  saved.items=saved.items.filter(value=>value.id!==item.id);
+  if(saved.last===item.id)saved.last=null;
+ }else return;
+ try{localStorage.setItem(key,JSON.stringify(saved));}
+ catch{status.textContent='Não foi possível salvar a alteração. O armazenamento local está cheio ou indisponível.';return;}
+ if(action==='apply')applyCalcSaved(item);
+ if(action==='save'){$('#calc-saved-name').value='';formDirty=false;}
+ renderCalcSaved(saved);
+ status.textContent={save:'Dosagem salva neste dispositivo.',apply:'Dosagem aplicada.',rename:'Nome atualizado.',remove:'Dosagem excluída.'}[action];
+ const focused=saved.items.some(value=>value.id===item.id)?
+  $('#calc-saved-list').querySelector('[data-saved-id="'+item.id+'"] [data-calc-saved-action="'+(action==='rename'?'rename':'apply')+'"]'):$('#calc-save');
+ focused?.focus({preventScroll:true});
 });
 
 function reports(){const rows=C.periodRows(state.weights,period),m=C.metrics(state);return head('Sua jornada, em perspectiva.','Relatórios descritivos para acompanhar e compartilhar.',`<button class="primary" id="csvPeriod">${icon('download')}<span>CSV do período</span></button>`)+stats(true)+`<div class="report-print-heading"><h2>NeoPep · Relatório pessoal</h2><p>${esc(state.profile.name)} · Emitido em ${date(C.today())}</p></div><div class="grid"><section class="card"><div class="card-head"><h2>Relatório de evolução</h2><button class="text-btn" id="print">PDF / Imprimir</button></div>${periods()}${chart(rows)}<p class="sub">${rows.length?'Período: '+date(rows[0].date)+' a '+date(rows.at(-1).date)+'. Variação: '+weight(rows.at(-1).value-rows[0].value)+' '+unit()+'.':'Nenhum peso no período selecionado.'}</p></section><section class="card"><h2>Comparação entre períodos</h2>${comparison()}<p class="sub space">Meta: ${weight(m.goal)} ${unit()} · Progresso: ${fmt(m.progress,0)}%.</p><p class="sub space">Os dados não estabelecem causa entre mudanças corporais e aplicações. IMC é um indicador descritivo, limitado e não diagnóstico.</p></section></div><section class="card space"><h2>Pesos no período</h2>${historyTable('weights',rows)}</section><section class="card space"><h2>Diário no período</h2>${historyTable('journal',C.periodRows(state.journal,period))}</section><section class="card space"><h2>Medidas no período</h2>${historyTable('measures',C.periodRows(state.measures,period))}</section><section class="card space"><h2>Aplicações no período</h2>${historyTable('doses',C.periodRows(state.doses,period))}</section><div class="notice">O CSV desta tela respeita o período escolhido e inclui os registros e o diário. Para exportar todo o histórico, use o CSV ou backup no Perfil. Filtros de texto afetam a visualização, não o CSV do período. Para PDF, use “PDF / Imprimir” e a opção de salvar ou compartilhar PDF do sistema. O CSV usa kg e cm; aplicações mantêm a unidade informada. Fotos são exportadas individualmente para preservar sua privacidade.</div>`}
@@ -1328,7 +1600,7 @@ function render(){applyTheme();void Promise.resolve().then(syncCampaign);void Pr
  return;
 }if(window.NeoInstall?.blocking){document.body.classList.add('auth-screen');document.body.classList.remove('community-route');document.querySelector('.app-header').hidden=true;$('#nav').hidden=true;document.querySelector('#app > footer').hidden=true;$('#banner').innerHTML='';$('#content').innerHTML=window.NeoInstall.screen();window.NeoArrival?.sync(false,false);window.NeoCaptcha?.remove();return;}window.NeoLibraryShelf?.session?.(mode==='cloud'&&!demo?Cloud.user:null);window.NeoCommunity?.materialSession?.(mode==='cloud'&&!demo?Cloud.user:null);if(page!=='comunidade')window.NeoCommunity?.closeMaterialEditor?.();window.NeoLibraryFiles?.session(mode==='cloud'&&!demo?Cloud.user:null);if(page!=='comunidade')window.NeoLibraryFiles?.close();if(page!=='comunidade')window.NeoSupport?.leave?.();window.NeoShop?.session(mode==='cloud'&&!demo?Cloud.user:null);window.NeoLibrary?.session(mode==='cloud'&&!demo?Cloud.user:null);window.NeoSupport?.session(mode==='cloud'&&!demo?Cloud.user:null);document.body.classList.toggle('community-route',page==='comunidade');const authScreen=['bemvindo','preparar','onboarding'].includes(page)||!(demo||(mode==='cloud'&&Cloud.user)||workspaceEntered);document.body.classList.toggle('auth-screen',authScreen);document.querySelector('.app-header').hidden=authScreen;const showAdmin=!authScreen&&mode==='cloud'&&!demo&&!!Cloud.user&&Cloud.admin===true;$('#adminShortcut').hidden=!showAdmin;renderSignupBadge($('#adminShortcut'),showAdmin?Cloud.user.id:null);document.querySelector('.app-header').classList.toggle('has-admin-shortcut',showAdmin);$('#nav').hidden=authScreen;document.querySelector('#app > footer').hidden=authScreen;const active=['peso','evolucao'].includes(page)?'evolucao':['aplicacoes','diario','protocolos','calculadora','relatorios','fotos','lembretes'].includes(page)?'registros':page;$('#nav').innerHTML=[['inicio','Início','home'],['evolucao','Evolução','trend'],['comunidade','Comunidade','community'],['registros','Registros','plus'],['loja','Loja','shop']].map(([p,t,i])=>`<button data-go="${p}" class="${p==='comunidade'?'nav-community ':''}${active===p?'active':''}" ${active===p?'aria-current="page"':''}>${icon(i)}<span>${t}</span>${p==='comunidade'?'<b class="nav-community-count" data-message-badge="all" hidden></b>':''}</button>`).join('');$('#bell').innerHTML=icon('bell');$('#connection').textContent=demo?'Demonstração':mode==='cloud'?(navigator.onLine?'Conta conectada':'Sem conexão'):'Neste dispositivo';$('#avatar').innerHTML=avatarURL&&!demo?`<img src="${esc(avatarURL)}" alt="Sua foto">`:esc(state.profile.name.slice(0,1).toUpperCase()||'N');let banner='';if(demo)banner+='<div class="banner demo-banner"><span>Demonstração · Dados fictícios, separados dos seus registros.</span><button class="text-btn" id="exitDemo">Sair</button></div>';else if(mode==='local'&&page!=='bemvindo')banner+='<div class="banner"><span>Modo local · Seus registros ficam neste dispositivo.</span><button class="text-btn" data-go="bemvindo">Minha conta</button></div>';if(!navigator.onLine)banner+='<div class="banner offline-banner">Sem conexão. '+(mode==='cloud'?'Os dados da conta não podem ser alterados agora.':'Seus registros locais continuam disponíveis.')+'</div>';if(localError)banner+='<div class="notice error">'+esc(localError)+'</div>';if(cloudError)banner+='<div class="notice error">'+esc(cloudError)+' <button class="text-btn" id="refresh">Tentar novamente</button></div>';if(window.NeoWaitingWorker)banner+='<div class="banner"><span>Atualização disponível. Salve os registros antes de atualizar.</span><button class="text-btn" id="applyUpdate">Atualizar agora</button></div>';$('#banner').innerHTML=banner;$('#content').innerHTML=sessionFailed
  ?'<div class="session-start" role="alert"><p>Não foi possível verificar sua sessão. Confira a conexão e tente novamente.</p><button class="primary" id="retrySession">Tentar novamente</button></div>'
- :(routes[page]||overview)();hydratePhotoImages();window.NeoArrival?.sync(arrivalReady&&page==='inicio'&&mode==='cloud'&&!demo&&Cloud.onboardingComplete===true,state.settings.showArrivalGuide!==false);scheduleDailyCheck();updateResetCooldown();document.title=(window.NEO_CONFIG?.appDisplayName||'NeoPep')+' — Sua evolução, em suas mãos.';if(page==='bemvindo')window.NeoCaptcha?.mount();else if(!document.querySelector('.deletion-choice #captcha'))window.NeoCaptcha?.remove();window.NeoCommunityAlerts?.refresh(mode==='cloud'&&!demo?Cloud.user:null);if(page==='inicio'&&mode==='cloud'&&!demo)window.NeoShop?.loadHome?.({cloud:true,user:Cloud.user,admin:Cloud.admin,sanitizePhoto});if(page==='inicio'&&mode==='cloud'&&!demo)window.NeoLibrary?.loadHome?.({cloud:true,user:Cloud.user,admin:Cloud.admin});if(page==='loja')window.NeoShop.load();if(page==='comunidade')window.NeoCommunity.load({cloud:mode==='cloud'&&!demo,user:Cloud.user,admin:Cloud.admin,demo,sanitizePhoto,profileName:state.profile.name,avatarURL});}
+ :(routes[page]||overview)();if(page==='calculadora')restoreCalcSaved();hydratePhotoImages();window.NeoArrival?.sync(arrivalReady&&page==='inicio'&&mode==='cloud'&&!demo&&Cloud.onboardingComplete===true,state.settings.showArrivalGuide!==false);scheduleDailyCheck();updateResetCooldown();document.title=(window.NEO_CONFIG?.appDisplayName||'NeoPep')+' — Sua evolução, em suas mãos.';if(page==='bemvindo')window.NeoCaptcha?.mount();else if(!document.querySelector('.deletion-choice #captcha'))window.NeoCaptcha?.remove();window.NeoCommunityAlerts?.refresh(mode==='cloud'&&!demo?Cloud.user:null);if(page==='inicio'&&mode==='cloud'&&!demo)window.NeoShop?.loadHome?.({cloud:true,user:Cloud.user,admin:Cloud.admin,sanitizePhoto});if(page==='inicio'&&mode==='cloud'&&!demo)window.NeoLibrary?.loadHome?.({cloud:true,user:Cloud.user,admin:Cloud.admin});if(page==='loja')window.NeoShop.load();if(page==='comunidade')window.NeoCommunity.load({cloud:mode==='cloud'&&!demo,user:Cloud.user,admin:Cloud.admin,demo,sanitizePhoto,profileName:state.profile.name,avatarURL});}
 function navigateBack(fallback='auto'){if(formDirty&&!confirm('Há alterações não salvas. Deseja voltar?'))return;if((history.state?.neoDepth||0)>0&&typeof history.back==='function'){history.back();return;}const target=fallback!=='auto'?fallback:['diario','aplicacoes','protocolos','fotos','calculadora','relatorios','lembretes'].includes(page)?'registros':'inicio';go(target,false);}
 const validSharedMaterial=value=>/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(String(value||''));
 function pendingLibraryMaterial(){let fromURL='';try{fromURL=new URL(location.href).searchParams.get('material')||'';}catch{}if(validSharedMaterial(fromURL)){try{if(typeof sessionStorage!=='undefined')sessionStorage.setItem('neo-library-destination',fromURL);}catch{}return fromURL;}try{const saved=typeof sessionStorage!=='undefined'?sessionStorage.getItem('neo-library-destination'):'';return validSharedMaterial(saved)?saved:'';}catch{return '';}}
