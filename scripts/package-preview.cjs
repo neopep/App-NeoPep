@@ -7,7 +7,7 @@ const inlineSvg=f=>'data:image/svg+xml;base64,'+fs.readFileSync(path.join('dist'
 const inlinePng=f=>'data:image/png;base64,'+fs.readFileSync(path.join('dist',f)).toString('base64');
 let css=read('style.css');for(const asset of ['background.svg','background-gold.svg'])css=css.replaceAll(`url('assets/${asset}')`,`url('${inlineSvg('assets/'+asset)}')`);
 html=html.replace('<link rel="stylesheet" href="style.css">',()=>'<style>'+css+'</style>');
-for(const name of ['config.js','core.js','cloud.js','captcha.js','push.js','community-alerts.js','shop-core.js','shop-promotions.js','shop.js','support.js','media-links.js','pdf-reader.js','library-files.js','library-shelf.js','community.js','library.js','gestures.js','arrival.js','install.js','app.js']){
+for(const name of ['config.js','core.js','cloud.js','captcha.js','push.js','community-alerts.js','shop-core.js','shop-promotions.js','shop.js','support.js','media-links.js','pdf-reader.js','library-video.js','library-files.js','library-shelf.js','community.js','library.js','gestures.js','arrival.js','install.js','app.js']){
  let code=read(name);
  if(name==='config.js')code='window.NEO_CONFIG = Object.freeze({});';
  if(name==='app.js')code=code.replace("if('serviceWorker'in navigator&&['https:','http:'].includes(location.protocol))",'if(false)');

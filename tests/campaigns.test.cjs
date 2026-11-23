@@ -150,5 +150,91 @@ test('campanhas protegem administração e recibos e aplicam agenda, prioridade,
   assert.equal(page.length,50);
   assert.ok(next.length>0&&!next.some(row=>page.some(first=>first.id===row.id)));
 
+
+ }finally{await db.close()}
+});
+
+test('destinatários sincronizados são atômicos, privados por titular e restritos à divulgação manual',async()=>{
+ const db=new PGlite();
+ try{
+  await db.exec(`create role anon; create role authenticated; create role service_role; create schema neo_private; create schema auth; create schema storage;
+   create table auth.users(id uuid primary key,created_at timestamptz default now(),raw_app_meta_data jsonb);
+   create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+   create function public.neo_admin_access() returns boolean language sql as $$select true$$;
+   create function public.neo_has_consent(text) returns boolean language sql as $$select true$$;
+   create table public.neo_profiles(user_id uuid primary key);
+   create table public.neo_consents(user_id uuid,purpose text,version text,granted boolean);
+   create table neo_private.admin_members(user_id uuid primary key);
+   create table neo_private.community_members(user_id uuid primary key);
+   create table neo_private.community_materials(id uuid primary key,title text);
+   create table neo_private.shop_products(id uuid primary key,name text,active boolean);
+   create table neo_private.shop_promotions(id uuid primary key,name text,active boolean,restricted_to_user boolean,restricted_user_id uuid,kind text,starts_at timestamptz,ends_at timestamptz);
+   create table neo_private.library_uploads(path text primary key,name text,mime text,allow_download boolean,material_id uuid,size integer);
+   create table neo_private.push_devices(id uuid primary key,user_id uuid,endpoint text,keys jsonb);
+   create table storage.buckets(id text primary key,name text,public boolean,file_size_limit int,allowed_mime_types text[]);
+   create table storage.objects(bucket_id text,name text,metadata jsonb); alter table storage.objects enable row level security;
+   insert into auth.users(id) values ('${admin}'),('${member}'),('${other}');
+   insert into neo_private.admin_members values ('${admin}'),('${other}');`);
+  const apply=file=>db.exec(fs.readFileSync(file,'utf8'));
+  const migrations=fs.readdirSync('supabase/migrations').sort();
+  for(const file of migrations.filter(file=>file>='20261121195231'&&file<='20261121233733_neopep_connect.sql'))await apply('supabase/migrations/'+file);
+  await apply('tests/fixtures/connect/whatsapp-grupos.sql');
+  await apply('docs/revisao/20261123100000-campaign-sync-recipients.sql');
+  const connections=['10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000012','10000000-0000-4000-8000-000000000013'];
+  const key=i=>connections[i]+':123@g.us';
+  await db.exec(`insert into neo_private.connect_devices(id,owner_id,label,secret_hash,state) values
+    ('${admin}','${admin}','PC A',decode('11','hex'),'approved'),('${other}','${other}','PC B',decode('22','hex'),'approved');
+   insert into neo_private.connect_wa_connections(id,owner_id,device_id,label,last_synced_at) values
+    ('${connections[0]}','${admin}','${admin}','Conta A',now()),('${connections[1]}','${other}','${other}','Conta B',now()),
+    ('${connections[2]}','${admin}','${admin}','Outra sessão A',now());
+   insert into neo_private.connect_wa_selected_groups(connection_id,group_jid,display_name) values
+    ('${connections[0]}','123@g.us','Grupo A'),('${connections[1]}','123@g.us','Grupo privado B'),('${connections[2]}','123@g.us','Mesmo grupo');`);
+  async function as(id){
+   await db.exec('reset role');
+   await db.query("select set_config('request.jwt.claim.sub',$1,false)",[id||'']);
+   await db.exec(id?'set role authenticated':'set role anon');
+  }
+  const rpc=async(name,action,id=null,data={})=>(await db.query('select public.'+name+'($1,$2,$3) as value',[action,id,JSON.stringify(data)])).rows[0].value;
+  const sync=rpc.bind(null,'neo_campaign_wa_sync'),wa=rpc.bind(null,'neo_campaign_wa'),campaign=rpc.bind(null,'neo_campaign_admin');
+  await as(null);await assert.rejects(sync('catalog'),{code:'42501'});
+  await as(member);await assert.rejects(sync('catalog'),{code:'42501'});
+  await as(admin);
+  assert.deepEqual((await sync('catalog')).map(row=>row.id),[key(0),key(2)]);
+  const draft={title:'Campanha sincronizada',popup_enabled:false,whatsapp_enabled:true};
+  await assert.rejects(sync('save',null,{...draft,recipients:[key(1)]}),{code:'42501'});
+  await assert.rejects(sync('save',null,{...draft,recipients:[key(0),key(2)]}),{code:'22023'});
+  assert.equal((await campaign('list')).length,0);
+  const saved=await sync('save',null,{...draft,recipients:[key(0)]});
+  assert.equal((await sync('recipients',saved.id))[0].id,key(0));
+  const manual=await wa('group_save',null,{name:'Cadastro legado'});
+  await wa('schedule',null,{campaign_id:saved.id,groups:[manual.id]});
+  await sync('schedule',saved.id,{recipients:[key(0)]});
+  await assert.rejects(sync('schedule',saved.id,{recipients:[key(2)]}),{code:'23505'});
+  assert.deepEqual((await wa('groups')).map(row=>row.id),[manual.id]);
+  const queued=await wa('queue'),synced=queued.find(row=>row.synced_target);
+  assert.equal(synced.group_name,'Grupo A');
+  await assert.rejects(wa('schedule',null,{campaign_id:saved.id,groups:[synced.group_id]}),{code:'42501'});
+  await as(other);
+  assert.equal((await sync('catalog'))[0].id,key(1));
+  assert.deepEqual(await sync('recipients',saved.id),[]);
+  assert.equal((await wa('queue')).length,1);
+  await assert.rejects(wa('prepare',saved.id,{publication:synced.id}),{code:'42501'});
+  await assert.rejects(wa('cancel',synced.id),{code:'42501'});
+  await db.exec(`reset role;update neo_private.connect_wa_connections set status='disconnected' where id='${connections[0]}';`);
+  await assert.rejects(db.query("insert into neo_private.connect_group_accounts(group_id,account_id) values ($1,$1)",[synced.group_id]),{code:'42501'});
+  await as(admin);
+  assert.equal((await sync('recipients',saved.id))[0].state,'disconnected');
+  await assert.rejects(sync('schedule',saved.id,{recipients:[key(0)]}),{code:'42501'});
+  await sync('save',saved.id,{...draft,title:'Editada',recipients:[key(0)]});
+  assert.equal((await campaign('list'))[0].title,'Editada');
+  assert.equal((await sync('recipients',saved.id)).length,1);
+  await sync('save',saved.id,{...draft,recipients:[]});
+  assert.deepEqual(await sync('recipients',saved.id),[]);
+  assert.equal((await wa('queue')).length,2);
+  await db.exec('reset role');
+  await apply('docs/revisao/20261123100000-campaign-sync-suspend.sql');
+  await as(admin);
+  await assert.rejects(sync('catalog'),{code:'42501'});
+  assert.equal((await wa('queue')).length,2);
  }finally{await db.close()}
 });

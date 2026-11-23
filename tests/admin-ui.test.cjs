@@ -280,6 +280,7 @@ test('central separa canais e oferece balões WhatsApp sem deslocar o formulári
   if(action==='queue')return [{id:'job',campaign_id:'wa',title:'Fictícia',group_name:'Grupo teste',state:'pending',timezone:'America/Sao_Paulo'}];
   return [];
  };
+ screen.cloud.campaignWhatsAppSync=async()=>[{id:'uuid:123@g.us',name:'Grupo sincronizado',connection:'Minha conexão',state:'eligible'}];
  screen.run("globalThis.setInterval=()=>1;globalThis.location={origin:'https://teste.app.neopep.com.br'};globalThis.URL=class {constructor(){this.href='https://teste.app.neopep.com.br/#loja';this.protocol='https:'}};window.innerWidth=320;window.innerHeight=600;");
  screen.run(fs.readFileSync('dist/admin/admin-whatsapp.js','utf8'));
  await screen.select('campaigns');await new Promise(setImmediate);
@@ -291,27 +292,14 @@ test('central separa canais e oferece balões WhatsApp sem deslocar o formulári
  assert.match(list.textContent,/Somente WhatsApp/);
  assert.equal(screen.document.querySelector('[data-wa-publication]'),null);
  screen.document.querySelector('[data-campaign-action=view_groups]').click();await new Promise(setImmediate);
- screen.document.querySelector('[data-wa=new_item]').click();
- const invite=screen.document.querySelector('[name=invite]');
- const select=screen.document.querySelector('[name=campaign_id]');assert.ok(select);
- invite.value='https://chat.whatsapp.com/abcdefghij';
- const help=screen.document.querySelector('[aria-controls=wa-group-invite]');
- const tip=screen.document.getElementById('wa-group-invite'),parent=tip.parentElement;
- help.getBoundingClientRect=()=>({width:44,top:50,bottom:94,right:318});
- tip.getBoundingClientRect=()=>({width:280,height:75});
- help.click();
- assert.equal(tip.parentElement,screen.document.body);
- assert.equal(tip.style.left,'32px');
- assert.equal(tip.style.top,'102px');
- assert.match(tip.textContent,/não permite publicação automática/);
- screen.document.querySelector('[data-wa=back_item]').click();
+ assert.match(screen.document.querySelector('[data-wa-sync-catalog]').textContent,/Grupo sincronizado.*Minha conexão/s);
+ assert.equal(screen.document.querySelector('[data-wa-group]').hidden,true);
+ assert.equal(screen.document.querySelector('[data-wa=new_item]').closest('.neo-campaign-actions').hidden,true);
  screen.document.querySelector('[data-campaign-action=view_publications]').click();
  screen.document.querySelector('[data-wa=prepare]').click();await new Promise(setImmediate);
- assert.equal(tip.parentElement,parent);
  for(const key of ['preview','title','message','link','share','copy_message','copy_link','confirm','cancel']){
   assert.ok(screen.document.querySelector('[aria-controls=wa-preview-'+key+']'),key+' '+screen.document.querySelector('[data-wa-status]').textContent);
  }
- assert.equal(invite.value,'https://chat.whatsapp.com/abcdefghij');
  assert.ok(calls.includes('prepare'));
  assert.ok(!calls.some(action=>['confirm','send'].includes(action)));
 });
@@ -328,16 +316,16 @@ test('barra compacta alterna App e WhatsApp com botões acessíveis e ação de 
  assert.deepEqual([...tabs.querySelectorAll('button')].map(button=>button.textContent.trim()),['App','WhatsApp']);
  const appButton=root.querySelector('[data-campaign-action="app"]');
  const waButton=root.querySelector('[data-campaign-action="whatsapp"]');
- const add=root.querySelector('[data-campaign-action="new"]');
+ const add=screen.document.querySelector('[data-campaign-action="new"]');
  const help=root.querySelector('[data-campaign-action="manual"]');
- assert.equal(add.getAttribute('aria-label'),'Criar nova campanha');
+ assert.equal(add.getAttribute('aria-label'),'Nova campanha');
  assert.equal(help.getAttribute('aria-label'),'Ajuda para campanhas');
  assert.equal(appButton.getAttribute('aria-pressed'),'true');
  assert.equal(waButton.getAttribute('aria-pressed'),'false');
  waButton.click();await new Promise(setImmediate);
  assert.equal(appButton.getAttribute('aria-pressed'),'false');
  assert.equal(waButton.getAttribute('aria-pressed'),'true');
- assert.equal(add.closest('.neo-campaign-toolbar-actions')!==null,true);
+ assert.equal(add.closest('.neo-campaign-actionbar')!==null,true);
  const css=fs.readFileSync('dist/admin/connect-ui.css','utf8');
  assert.match(css,/\.neo-campaign-switch button\[aria-pressed="true"\]/);
  assert.match(css,/@media\(max-width:460px\)/);
