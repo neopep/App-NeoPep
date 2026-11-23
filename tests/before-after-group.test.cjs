@@ -61,3 +61,30 @@ test('account deletion includes private comparison files and remains compatible 
  assert.match(edge,/status!=='404'/);
  assert.ok(edge.indexOf("storage.from('neo-comparisons').remove(")<edge.indexOf('admin.auth.admin.deleteUser(user.id)'), 'remove personal comparisons before deleting auth user');
 });
+
+test('saved comparison gallery allows private view and confirmed deletion',()=>{
+ const app=read('src/app.js');
+ assert.match(app,/data-saved-comparisons/);
+ assert.match(app,/async function showSavedComparisons\(trigger\)/);
+ assert.match(app,/Cloud\.savedBeforeAfter\(\)/);
+ assert.match(app,/Cloud\.beforeAfterURL\(item\)/);
+ assert.match(app,/Cloud\.deleteBeforeAfter\(item\)/);
+ assert.match(app,/window\.confirm\('Excluir permanentemente esta comparação privada/);
+ assert.match(app,/generation===loadGeneration&&mode==='cloud'&&Cloud\.user\?\.id===account/);
+ assert.equal(read('dist/app.js'),app,'build output must match frontend source');
+});
+test('comparison RLS requires explicit health photos and terms consent for both inserts',()=>{
+ const sql=read('release/before-after/prepare.sql');
+ for(const consent of ['health','photos','terms']){
+  assert.equal(sql.split("public.neo_has_consent('"+consent+"')").length-1,2,'both metadata and Storage must enforce '+consent);
+ }
+});
+test('consent revocation does not block user deletion of private comparisons',()=>{
+ const cloud=read('src/cloud.js');
+ const list=cloud.slice(cloud.indexOf('async savedBeforeAfter(){'),cloud.indexOf('async saveBeforeAfter('));
+ const removal=cloud.slice(cloud.indexOf('async deleteBeforeAfter(item){'),cloud.indexOf('async photos(){'));
+ assert.match(list,/\bneed\(\)/);
+ assert.doesNotMatch(list,/needsHealth\(\)/);
+ assert.match(removal,/\bneed\(\)/);
+ assert.doesNotMatch(removal,/needsHealth\(\)/);
+});
