@@ -195,7 +195,7 @@ test('rotação do agente Teste mantém pin do workflow, cofre e rollback',()=>{
  const {readFileSync}=require('node:fs');
  const script=readFileSync('release/connect/rotate-agent-trust.ps1','utf8');
  assert.ok(script.includes('9809901068336c37f8d42442d81c58304bc82a6b'));
- assert.ok(script.includes('d2894eb125d29ff5a3a95059c9fa6812c6e16da6'));
+ assert.ok(script.includes('3def75a277a54e9eda489e9068ea9ced42e5c723'));
  assert.match(script,/gh api 'repos\/neopep\/NeoPep-Connect-Build-Privado\/contents\/\.github\/workflows\/neopep-connect-release\.yml\?ref=main'/);
  assert.match(script,/Assert-Blob/);
  assert.match(script,/Import-Clixml/);
