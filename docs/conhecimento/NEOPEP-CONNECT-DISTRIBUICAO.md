@@ -22,3 +22,7 @@ A lista registra a evidência de build e verificação apenas após gravar o ras
 4. Ensaiar Teste com 0.2.4, 0.2.5 ou 0.2.6 autorizada, e depois dois logins e dois WhatsApps em 0.2.7. Em Produção validar em dispositivo explicitamente autorizado antes de qualquer distribuição.
 
 [Issue #30](https://github.com/neopep/App-NeoPep/issues/30)
+
+## Próximo candidato — 0.2.8
+
+A próxima solicitação revisada deve apontar para o SHA que contém a correção Turnstile da issue #33. O workflow verifica a instalação dos três arquivos WebView2 por hash. Mantenha a 0.2.7 existente e registre a nova versão em rascunho no ambiente destinatário. O login de Produção depende da confirmação interativa do widget em Windows e da autorização do computador no painel oficial.

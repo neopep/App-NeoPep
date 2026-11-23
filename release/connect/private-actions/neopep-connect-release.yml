@@ -97,6 +97,15 @@ jobs:
           $folder = Join-Path $env:LOCALAPPDATA 'NeoPep Connect'
           $app = Join-Path $folder 'NeoPepConnect.exe'
           if ((Get-FileHash $app).Hash -ne (Get-FileHash (Join-Path $output 'NeoPepConnect.exe')).Hash) { throw 'Instalação inconsistente.' }
+          if ([version]$env:RELEASE_VERSION -ge [version]'0.2.8') {
+            foreach ($dependency in @('Microsoft.Web.WebView2.Core.dll','Microsoft.Web.WebView2.WinForms.dll','WebView2Loader.dll')) {
+              $installedDependency = Join-Path $folder $dependency
+              if (!(Test-Path -LiteralPath $installedDependency) -or
+                  (Get-FileHash -LiteralPath $installedDependency).Hash -ne (Get-FileHash -LiteralPath (Join-Path $output $dependency)).Hash) {
+                throw 'Dependência do login Windows ausente ou alterada.'
+              }
+            }
+          }
           $client = Start-Process -FilePath $app -ArgumentList '--background' -PassThru
           try { if ($client.WaitForExit(2000)) { throw 'Cliente encerrou inesperadamente.' } }
           finally { if (!$client.HasExited) { $client.Kill(); $client.WaitForExit() } }
