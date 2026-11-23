@@ -27,3 +27,5 @@ Produção depende da homologação integrada no Teste, da confirmação do cat�
 - `node --test tests/campaigns.test.cjs` valida seleção, reabertura, gravação atômica, conta alheia, duplicidade por JID, conexão desconectada, compatibilidade histórica e proteção da fila fictícia em PGlite.
 - `node tests/campaign-admin-browser.cjs` usa Playwright/Chromium e RPCs simuladas da página para validar os dois canais, as oito abas, criação e edição, tentativa de fechar com alterações, escolha de grupo, agendamento manual e ausência de exceções JavaScript em 390×844 e 1440×900. O ensaio não cobre Safari em um iPhone físico.
 - A tentativa de alcançar o Supabase de Teste encontrou HTTP 403 no túnel da rede deste workspace. O banco remoto e o pareamento de um Windows real ainda exigem ensaio integrado.
+
+Build e check passaram. Os 32 testes focados de Campanhas, painel administrativo e Connect passaram. A suíte completa da candidata teve 347 aprovações e 55 falhas. A `main` em `1cadd8b` teve 346 aprovações e as mesmas 55 falhas por nome. A regressão adicional cobre o contrato SQL de destinatários sincronizados.
