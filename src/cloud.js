@@ -80,6 +80,20 @@ const api={configured,connectTestEnabled:connectEnabled,
  async uploadShopPhoto(blob){need();if(blob.type!=='image/jpeg'||blob.size>5242880)throw Error('Foto inválida.');const version=identityVersion;const reserved=await api.shop('reserve_photo');ok(await client.storage.from('neo-shop-products').upload(reserved.path,blob,{contentType:'image/jpeg',upsert:false}));if(version!==identityVersion)throw Error('A conta mudou.');return reserved.path},
  async shopPayment(orderId){need();const version=identityVersion;const response=await client.functions.invoke('mercadopago-create',{body:{order_id:orderId}});if(response.error){let message='Pagamento ainda indisponível. Confira a configuração do Mercado Pago.';try{const detail=await response.error.context.json();if(typeof detail.error==='string')message=detail.error}catch{}throw Error(message)}const result=response.data;if(version!==identityVersion)throw Error('A conta mudou.');return result},
  async shopPaymentIntegration(action='status',payload={}){need();const version=identityVersion,result=await client.functions.invoke('shop-integrations',{body:{...payload,action}});if(version!==identityVersion)throw Error('A conta mudou.');if(result.error){let code='failed';try{code=(await result.error.context?.json())?.error||code}catch{}const messages={access_token:'Informe um Access Token válido.',webhook_secret:'Informe a assinatura secreta do webhook.',provider_key_invalid:'O Mercado Pago recusou o Access Token.',environment_mismatch:'O Access Token não corresponde ao ambiente escolhido.',configuration_pending:'Salve o Access Token e a assinatura do webhook antes de testar.',forbidden:'Apenas o administrador pode configurar pagamentos.'};throw Error(messages[code]||'Não foi possível configurar o Mercado Pago.')}return result.data},
+ async shopVisibilityRevision(){
+  need();const version=identityVersion;
+  const current=ok(await client.from('neo_shop_visibility_events').select('revision').eq('singleton',true).single());
+  if(version!==identityVersion)throw Error('A conta mudou. Reabra a loja.');
+  return current.revision;
+ },
+ watchShopVisibility(onChange,onStatus){
+  need();const version=identityVersion,account=user.id;
+  const current=()=>version===identityVersion&&user?.id===account;
+  const channel=client.channel('neo-shop-visibility-'+account)
+   .on('postgres_changes',{event:'UPDATE',schema:'public',table:'neo_shop_visibility_events'},()=>{if(current())onChange();})
+   .subscribe(status=>{if(current())onStatus(status);});
+  return ()=>{client.removeChannel(channel);};
+ },
  watchMessages(onChange,onState=()=>{}){need();const account=user.id,version=identityVersion;const channel=client.channel('neo-messages-'+account).on('postgres_changes',{event:'*',schema:'public',table:'neo_message_events',filter:'user_id=eq.'+account},event=>{if(version===identityVersion&&user?.id===account)onChange(event.new)}).subscribe(state=>{if(version===identityVersion)onState(state)});return ()=>{client.removeChannel(channel)}},
  async communityMembers(action='list',payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_community_members',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou.');return data},
  async communityAvatarURL(path){need();return ok(await client.storage.from('neo-community-avatars').createSignedUrl(path,3600)).signedUrl},
