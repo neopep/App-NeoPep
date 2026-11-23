@@ -25,6 +25,13 @@ if($previous -cne $oldWorkflow -and $previous -cne $newWorkflow){
 function Assert-Blob([string]$file,[string]$expected){
     if(!(Test-Path -LiteralPath $file)){throw 'Script do agente ausente.'}
     $bytes=[IO.File]::ReadAllBytes($file)
+    # Git checkout no Windows pode converter LF em CRLF. Compare o blob normalizado
+    # somente quando todas as quebras forem uma sequência CRLF válida.
+    $source=[Text.Encoding]::UTF8.GetString($bytes)
+    if($source.Contains("`r")){
+        if($source.Replace("`r`n",'').Contains("`r")){throw 'Quebras de linha inesperadas no script.'}
+        $bytes=[Text.Encoding]::UTF8.GetBytes($source.Replace("`r`n","`n"))
+    }
     $prefix=[Text.Encoding]::ASCII.GetBytes("blob $($bytes.Length)`0")
     $payload=New-Object byte[] ($prefix.Length+$bytes.Length)
     [Array]::Copy($prefix,0,$payload,0,$prefix.Length)
