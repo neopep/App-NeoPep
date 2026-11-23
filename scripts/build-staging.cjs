@@ -70,12 +70,12 @@ async function prepare() {
   </style>`;
   const addWatermark = html => {
     if (html.includes('id="neo-staging-watermark-style"')) return html;
-    if (!/<\\/head>/i.test(html) || !/<body\\b/i.test(html)) {
+    if (!/<\/head>/i.test(html) || !/<body\b/i.test(html)) {
       throw new Error('Página sem estrutura esperada para marca d’água de Teste.');
     }
     return html
-      .replace(/<\\/head>/i, watermarkStyle + '</head>')
-      .replace(/(<body\\b[^>]*>)/i,
+      .replace(/<\/head>/i, watermarkStyle + '</head>')
+      .replace(/(<body\b[^>]*>)/i,
         '$1<div class="neo-staging-watermark" aria-hidden="true">TESTE</div>');
   };
   for (const path of ['dist/index.html', 'dist/admin/index.html', 'dist/excluir-conta/index.html']) {
