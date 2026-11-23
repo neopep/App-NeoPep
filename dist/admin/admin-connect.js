@@ -2,6 +2,8 @@
 
 function mountNeoConnect(root,cloud){
  const rpc=(action,data)=>cloud.connectAdmin(action,data);
+ const production=window.NEO_CONFIG?.supabaseUrl==='https://cpslafpzjtbpmoxxysaa.supabase.co';
+ const releaseEnvironment=production?'Produção':'Teste';
  const canManageUpdates=typeof cloud.connectUpdateAdmin==='function';
  const downloadable=release=>!release.distribution_state||['legacy','approved'].includes(release.distribution_state);
  let snapshot,groups=[],queue=[],loadVersion=0,savingRelease=false;
@@ -87,8 +89,8 @@ function mountNeoConnect(root,cloud){
    <p class="sub">SHA-256 <code>${esc(r.sha256)}</code></p><button class="secondary" type="button" data-connect="download" data-version="${esc(r.version)}">Preparar download privado</button></article>`).join('')||'<p>Nenhuma versão aprovada disponível.</p>'}
    <div data-connect-link></div>
    ${canManageUpdates?`<div data-connect-updates>
-    <h4>Atualizações de Teste</h4>
-    ${releaseInfo?`<form data-connect-form="update_import" class="space">
+    <h4>Atualizações de ${releaseEnvironment}</h4>
+    ${releaseInfo?`${production?'':`<form data-connect-form="update_import" class="space">
      <label>Manifesto assinado<input name="manifest" type="file" accept=".json,application/json" required></label>
      <button type="submit" class="secondary">Importar como rascunho</button>
     </form>
@@ -102,15 +104,15 @@ function mountNeoConnect(root,cloud){
      <label>Notas da atualização<textarea name="notes" maxlength="4000"></textarea></label>
      <button type="submit" class="secondary">Cadastrar rascunho</button>
     </form>
-    </details>
-    ${releaseInfo.approval_policy===1?'':'<p>Aprovação e bloqueio aguardam a atualização do servidor de Teste.</p>'}
+    </details>`}
+    ${releaseInfo.approval_policy===1?'':'<p>Aprovação e bloqueio aguardam a atualização do servidor deste ambiente.</p>'}
     ${releaseInfo.releases.map(r=>{const e=evidenceFor(r);return `<article class="monitor-block">
      <p>Versão ${esc(r.version)} · ${esc(releaseStates[r.distribution_state]||r.distribution_state)}</p>
      <p class="sub">Artefato ${esc(r.artifact||'—')} · ${Number(r.bytes).toLocaleString('pt-BR')} bytes</p>
      <p>SHA-256 <code style="overflow-wrap:anywhere">${esc(r.sha256)}</code></p>
      <p>${esc(r.notes||'Sem notas da atualização.')}</p>
      <p>Cadastro ${esc(time(r.created_at))} · Aprovação ${esc(time(r.distribution_state==='draft'?null:r.approved_at))}</p>
-     ${e?`<p>${r.distribution_state==='draft'?'Pronto para aprovar · ':''}assinatura e arquivo privado verificados · ${esc(time(e.verified_at))}</p>
+     ${e?`<p>BUILD_VALIDADO · STORAGE_VERIFICADO${r.distribution_state==='draft'?' · DRAFT_PRONTO':r.distribution_state==='approved'?' · APROVADO':''} · ${esc(time(e.verified_at))}</p>
       <p>Commit <code>${esc(e.commit_sha)}</code> · <a href="https://github.com/neopep/NeoPep-Connect-Build-Privado/actions/runs/${esc(e.run_id)}">Execução e testes de CI</a></p>`:
       r.distribution_state==='draft'&&needsEvidence(r)?'<p>Aguardando evidências de CI, assinatura e arquivo privado verificado.</p>':''}
      ${r.distribution_state==='draft'&&(!needsEvidence(r)||e)?`<form class="space" data-connect-form="update_approve" data-version="${esc(r.version)}">
@@ -176,7 +178,7 @@ function mountNeoConnect(root,cloud){
   if(savingRelease||releaseInfo?.approval_policy!==1||
      !releaseInfo.releases.some(r=>r.version===version&&r.distribution_state===expected))return;
   const message=action==='approve'
-   ?`Aprovar a versão ${version} como ${required?'obrigatória':'opcional'} no canal de Teste? Confirme que você conferiu o SHA-256 do EXE e a assinatura do manifesto fora do painel.`
+   ?`Aprovar a versão ${version} como ${required?'obrigatória':'opcional'} no canal de ${releaseEnvironment}? Confirme que você conferiu o SHA-256 do EXE e a assinatura do manifesto fora do painel.`
    :`Bloquear a versão ${version} para novas ofertas e autorizações de instalação?`;
   if(!confirm(message))return;
   savingRelease=true;
@@ -217,6 +219,7 @@ function mountNeoConnect(root,cloud){
    return;
   }
   if(action==='update_import'){
+   if(production)return;
    if(!canManageUpdates||!cloud.importConnectRelease||savingRelease)return;
    const button=form.querySelector('button[type="submit"]');
    savingRelease=true;button.disabled=true;
@@ -241,6 +244,7 @@ function mountNeoConnect(root,cloud){
    return;
   }
   if(action==='update_register'){
+   if(production)return;
    if(!canManageUpdates||savingRelease)return;
    const signature=data.signature.trim();
    if(!/^[A-Za-z0-9+/]+={0,2}$/.test(signature)||signature.length<344||signature.length>1024||signature.length%4){

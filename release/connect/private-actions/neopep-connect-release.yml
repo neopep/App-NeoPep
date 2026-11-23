@@ -1,11 +1,16 @@
 # Instalar em .github/workflows no repositório privado de builds.
-name: Connect Windows Teste Release Candidate
-run-name: Connect Teste ${{ github.event.client_payload.version || inputs.version }} ${{ github.event.client_payload.source_sha || inputs.source_sha }}
+name: Connect Windows Release Candidate
+run-name: Connect ${{ (github.event.client_payload.profile || inputs.profile) == 'production' && 'Producao' || 'Teste' }} ${{ github.event.client_payload.version || inputs.version }} ${{ github.event.client_payload.source_sha || inputs.source_sha }}
 on:
   repository_dispatch:
     types: [connect-release-reviewed]
   workflow_dispatch:
     inputs:
+      profile:
+        description: Ambiente do candidato
+        type: choice
+        options: [staging, production]
+        default: staging
       source_sha:
         description: SHA completo revisado no App-NeoPep
         required: true
@@ -19,6 +24,9 @@ permissions:
 jobs:
   build:
     if: github.repository == 'neopep/NeoPep-Connect-Build-Privado' && github.event.repository.private
+    concurrency:
+      group: connect-${{ github.event.client_payload.profile || inputs.profile || 'staging' }}-${{ github.event.client_payload.version || inputs.version }}
+      cancel-in-progress: false
     runs-on: windows-2022
     timeout-minutes: 15
     steps:
@@ -26,14 +34,16 @@ jobs:
         shell: powershell
         env:
           SOURCE_SHA: ${{ github.event.client_payload.source_sha || inputs.source_sha }}
+          RELEASE_PROFILE: ${{ github.event.client_payload.profile || inputs.profile || 'staging' }}
           RELEASE_VERSION: ${{ github.event.client_payload.version || inputs.version }}
         run: |
-          if ($env:SOURCE_SHA -cnotmatch '\A[a-f0-9]{40}\z' -or $env:RELEASE_VERSION -notmatch '\A(0|[1-9][0-9]{0,4})(\.(0|[1-9][0-9]{0,4})){2}\z') { throw 'Entradas inválidas.' }
+          if ($env:RELEASE_PROFILE -cnotin @('staging','production') -or $env:SOURCE_SHA -cnotmatch '\A[a-f0-9]{40}\z' -or $env:RELEASE_VERSION -notmatch '\A(0|[1-9][0-9]{0,4})(\.(0|[1-9][0-9]{0,4})){2}\z') { throw 'Entradas inválidas.' }
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
         with:
           repository: neopep/App-NeoPep
           ref: ${{ github.event.client_payload.source_sha || inputs.source_sha }}
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '24.22.1'
@@ -52,10 +62,17 @@ jobs:
         shell: powershell
         env:
           SOURCE_SHA: ${{ github.event.client_payload.source_sha || inputs.source_sha }}
+          RELEASE_PROFILE: ${{ github.event.client_payload.profile || inputs.profile || 'staging' }}
           RELEASE_VERSION: ${{ github.event.client_payload.version || inputs.version }}
           PUBLIC_XML: ${{ vars.CONNECT_PUBLISHER_PUBLIC_XML }}
         run: |
           if ((git rev-parse HEAD).Trim() -cne $env:SOURCE_SHA -or !$env:PUBLIC_XML) { throw 'Origem ou chave pública indisponível.' }
+          if ($env:RELEASE_PROFILE -ceq 'production') {
+            git fetch origin refs/heads/main:refs/remotes/origin/main
+            if ($LASTEXITCODE) { throw 'Nao foi possivel verificar main.' }
+            git merge-base --is-ancestor $env:SOURCE_SHA refs/remotes/origin/main
+            if ($LASTEXITCODE) { throw 'Origem de Producao ainda nao aprovada na main.' }
+          }
           $output = Join-Path $env:RUNNER_TEMP 'connect'
           $public = Join-Path $env:RUNNER_TEMP 'public.xml'
           [IO.File]::WriteAllText($public,$env:PUBLIC_XML)
@@ -69,7 +86,9 @@ jobs:
               $m.platform -cne 'win-x64' -or $item.VersionInfo.FileVersion -ne "$env:RELEASE_VERSION.0" -or
               $m.bytes -ne $item.Length -or $m.bytes -gt 52428800 -or
               $m.sha256 -cne (Get-FileHash -LiteralPath $setup).Hash.ToLowerInvariant()) { throw 'Manifesto inconsistente.' }
-          $artifact = "connect-teste-$env:RELEASE_VERSION-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          if ($env:RELEASE_PROFILE -ceq 'production' -and ('production' -notin $m.supported_profiles)) { throw 'Build sem o perfil de Produção.' }
+          $prefix=if($env:RELEASE_PROFILE -ceq 'production'){'connect-producao'}else{'connect-teste'}
+          $artifact = "$prefix-$env:RELEASE_VERSION-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
           function Invoke-Setup([string]$arguments) {
             $p = Start-Process -FilePath $setup -ArgumentList $arguments -Wait -PassThru
             if ($p.ExitCode) { throw "Falha no instalador: $($p.ExitCode)" }

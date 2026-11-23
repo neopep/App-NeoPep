@@ -2,6 +2,10 @@ param([Parameter(Mandatory=$true)][string]$ConfigPath)
 $ErrorActionPreference='Stop'
 $agent = Import-Clixml -LiteralPath $ConfigPath
 $folder = Split-Path -Parent $ConfigPath
+$profile=if($agent.profile){[string]$agent.profile}else{'staging'}
+if($profile -cnotin @('staging','production')){throw 'Perfil inválido.'}
+$label=if($profile -ceq 'production'){'Producao'}else{'Teste'}
+$titlePattern='\AConnect '+$label+' ((?:0|[1-9][0-9]{0,7})(?:\.(?:0|[1-9][0-9]{0,7})){2}) ([a-f0-9]{40})\z'
 $repo = 'neopep/NeoPep-Connect-Build-Privado'
 # Garante acesso ao GitHub CLI mesmo quando instalado depois da abertura do terminal.
 $ghDirectory=Join-Path $env:ProgramFiles 'GitHub CLI'
@@ -30,7 +34,7 @@ catch { Write-Receipt (Join-Path $folder 'agent.json') 'AGUARDANDO_GITHUB'; exit
 $waiting=$false
 $prepared=$false
 foreach ($run in $runs) {
-    if ($run.display_title -cnotmatch '\AConnect Teste ((?:0|[1-9][0-9]{0,7})(?:\.(?:0|[1-9][0-9]{0,7})){2}) ([a-f0-9]{40})\z') { continue }
+    if ($run.display_title -cnotmatch $titlePattern) { continue }
     $version=$Matches[1]
     $sha=$Matches[2]
     $allowedBootstrap = ([string]$agent.bootstrapRunId -ceq [string]$run.id -and
@@ -43,12 +47,15 @@ foreach ($run in $runs) {
     if ($run.conclusion -ne 'success') { Write-Receipt $path 'BUILD_ERROR'; $hasFailure=$true; continue }
     if (Test-Path -LiteralPath $path) {
         $receipt = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
-        if ($receipt.state -eq 'RASCUNHO_PRONTO') { $prepared=$true; continue }
+        if ($receipt.state -in @('DRAFT_PRONTO','RASCUNHO_PRONTO')) { $prepared=$true; continue }
     }
     try {
-        Write-Receipt $path 'AGUARDANDO_ASSINATURA'
-        & (Join-Path $PSScriptRoot 'prepare-release.ps1') -RunId ([string]$run.id) -SourceSha $sha -Version $version -SigningThumbprint $agent.thumbprint -WorkflowBlob $agent.workflowBlob -AgentToken $agent.token
-        Write-Receipt $path 'RASCUNHO_PRONTO'
+        Write-Receipt $path 'BUILD_VALIDADO'
+        Write-Receipt $path 'AGUARDANDO_ASSINATURA_LOCAL'
+        $options=@{Profile=$profile}
+        if($profile -ceq 'production'){$options.AuthenticodeThumbprint=$agent.authenticodeThumbprint}
+        & (Join-Path $PSScriptRoot 'prepare-release.ps1') -RunId ([string]$run.id) -SourceSha $sha -Version $version -SigningThumbprint $agent.thumbprint -WorkflowBlob $agent.workflowBlob -AgentToken $agent.token @options
+        Write-Receipt $path 'DRAFT_PRONTO'
         $prepared=$true
     } catch {
         $phase = $_.Exception.Message
@@ -57,6 +64,6 @@ foreach ($run in $runs) {
         $hasFailure=$true
     }
 }
-$summary = if($hasFailure){'ERROR'}elseif($waiting){'AGUARDANDO_BUILD'}elseif($prepared){'RASCUNHO_PRONTO'}else{'AGUARDANDO_BUILD'}
+$summary = if($hasFailure){'ERROR'}elseif($waiting){'AGUARDANDO_BUILD'}elseif($prepared){'DRAFT_PRONTO'}else{'AGUARDANDO_BUILD'}
 Write-Receipt (Join-Path $folder 'agent.json') $summary
 if($hasFailure){exit 1}
