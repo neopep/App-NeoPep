@@ -483,8 +483,18 @@ legend>.campaign-field-help{display:inline-grid;grid-template-columns:auto;verti
 .calc-chips{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.7rem}
 .calc-chips button{min-height:44px;padding:.4rem .65rem}
 .calc-chips button[aria-pressed=true]{color:var(--ink);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--soft)}
-.calc-capacity{display:grid;grid-template-columns:1fr minmax(9rem,1fr);align-items:center;gap:.6rem;margin:0}
-.calc-capacity select{margin:0}
+.calc-capacity{display:grid;gap:.7rem;margin:0}
+.calc-capacities{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.6rem}
+.calc-capacity-choice{position:relative;display:block;min-width:0;cursor:pointer}
+.calc-capacity-choice input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.calc-capacity-content{display:grid;align-content:center;justify-items:center;gap:.22rem;min-height:112px;padding:.65rem .35rem;border:1px solid var(--border);border-radius:14px;background:var(--surface);text-align:center;transition:border-color .15s,background-color .15s,box-shadow .15s}
+.calc-capacity-content svg{display:block;width:100%;max-width:158px;height:48px;overflow:visible}
+.calc-capacity-content b{font-size:1rem;font-weight:650;color:var(--ink)}
+.calc-capacity-content small{font-size:.75rem;color:var(--muted)}
+.calc-capacity-choice input:checked+.calc-capacity-content{border-color:var(--accent);background:var(--soft);box-shadow:inset 0 0 0 1px var(--accent)}
+.calc-capacity-choice input:focus-visible+.calc-capacity-content{outline:3px solid var(--accent);outline-offset:3px}
+@media(hover:hover){.calc-capacity-choice:hover .calc-capacity-content{border-color:var(--accent)}}
+@media(max-width:380px){.calc-capacities{gap:.35rem}.calc-capacity-content{padding:.5rem .2rem}.calc-capacity-content b{font-size:.92rem}.calc-capacity-content small{font-size:.7rem}}
 .calc-vial{display:block;width:clamp(92px,19vw,132px);height:clamp(112px,23vw,162px);margin:.3rem auto .65rem}
 .calc-vial .calc-glass{fill:var(--gold,#c9a462);fill-opacity:.14;stroke:var(--gold,#c9a462)}
 .calc-vial .calc-hardware,.calc-vial .calc-liquid{fill:var(--gold,#c9a462)}
@@ -514,7 +524,6 @@ legend>.campaign-field-help{display:inline-grid;grid-template-columns:auto;verti
 @media(max-width:760px){
  .calc-layout,.calc-inputs,.calc-formula ol{grid-template-columns:minmax(0,1fr)}
  .calc-card-mass,.calc-card-volume{display:block}
- .calc-capacity{grid-template-columns:1fr}
  .calc-layout{padding-bottom:calc(5rem + env(safe-area-inset-bottom))}
 }
 
