@@ -3,32 +3,67 @@
   "buildCommand": "node scripts/build-staging.cjs && npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/neo", "destination": "/index.html" },
-    { "source": "/neo/", "destination": "/index.html" },
-    { "source": "/neo/sw.js", "destination": "/sw.js" },
-    { "source": "/neo/:path*", "destination": "/:path*" }
+    {
+      "source": "/neo",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/neo/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/neo/sw.js",
+      "destination": "/sw.js"
+    },
+    {
+      "source": "/neo/:path*",
+      "destination": "/:path*"
+    }
   ],
   "headers": [
     {
       "source": "/sw.js",
       "headers": [
-        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
       ]
     },
     {
       "source": "/neo/sw.js",
       "headers": [
-        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
       ]
     },
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(self), microphone=(self), geolocation=()" }
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(self), geolocation=()"
+        }
       ]
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "desenvolvimento/calculadora-ajustes-lote": false
+    }
+  }
 }
