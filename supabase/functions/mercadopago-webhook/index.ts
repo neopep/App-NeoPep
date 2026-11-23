@@ -23,22 +23,7 @@ Deno.serve(async(req:Request)=>{
  const response=await fetch('https://api.mercadopago.com/v1/orders/'+id,{headers:{Authorization:'Bearer '+access},signal:AbortSignal.timeout(15000)});if(!response.ok)throw Error('provider');const providerOrder=await response.json();
  if(String(providerOrder.id)!==id||String(providerOrder.user_id)!==collector||providerOrder.currency!=='BRL'||(typeof providerOrder.live_mode==='boolean'&&providerOrder.live_mode!==(mode==='production'))||!/^[a-f0-9-]{36}$/.test(providerOrder.external_reference))return out(400,{error:'payment_mismatch'});
  const cents=Math.round(Number(providerOrder.total_amount)*100);if(!Number.isSafeInteger(cents)||cents<=0)return out(400,{error:'amount'});
- const payments=Array.isArray(providerOrder.transactions?.payments)?providerOrder.transactions.payments:[];
- const transaction=payments.find((p:any)=>['processed','approved'].includes(String(p.status).toLowerCase()))||payments[0]||{};
- const state=(value:unknown)=>String(value??'').toLowerCase();
- const providerStatus=state(providerOrder.status),transactionStatus=state(transaction.status);
- const detail=state(providerOrder.status_detail||transaction.status_detail);
- const partial=state(providerOrder.status_detail)==='partially_refunded'||payments.some((p:any)=>
-  state(p.status)==='partially_refunded'||state(p.status_detail)==='partially_refunded'||
-  (Number.isFinite(Number(p.refunded_amount))&&Number(p.refunded_amount)>0));
- let status='pending';
- if(providerStatus==='charged_back')status='charged_back';
- else if(providerStatus==='refunded')status='refunded';
- else if(partial)status='partially_refunded';
- else if((['processed','approved'].includes(providerStatus)||['processed','approved'].includes(transactionStatus))&&
-  (!detail||['accredited','approved','processed'].includes(detail)))status='approved';
- else if(providerStatus==='cancelled')status='cancelled';
- else if(providerStatus==='failed'||transactionStatus==='rejected')status='rejected';
+ const transaction=providerOrder.transactions?.payments?.find((p:any)=>['processed','approved'].includes(String(p.status).toLowerCase()))||providerOrder.transactions?.payments?.[0]||{},detail=String(providerOrder.status_detail||transaction.status_detail||'').toLowerCase(),providerStatus=String(providerOrder.status||'').toLowerCase(),transactionStatus=String(transaction.status||'').toLowerCase();let status=(['processed','approved'].includes(providerStatus)||['processed','approved'].includes(transactionStatus))&&(!detail||['accredited','approved','processed'].includes(detail))?'approved':providerStatus==='cancelled'?'cancelled':providerStatus==='refunded'?'refunded':providerStatus==='failed'||transactionStatus==='rejected'?'rejected':'pending';
  const type=transaction.payment_method?.type,idMethod=transaction.payment_method?.id,method=idMethod==='pix'?'pix':type==='credit_card'?'credit_card':type==='ticket'?'boleto':'other',args={p_order:providerOrder.external_reference,p_payment:await paymentID(String(transaction.id||id)),p_status:status,p_amount:cents,p_environment:mode};let saved=await admin.rpc('neo_shop_payment_event_v2',{...args,p_method:method});if(saved.error&&['PGRST202','42883'].includes(saved.error.code))saved=await admin.rpc('neo_shop_payment_event',args);if(saved.error){console.error('payment event rejected',saved.error.code,saved.error.message,saved.error.details);return out(409,{error:'order_mismatch'})}
  return out(200,{received:true});
  }catch{return out(503,{error:'verification_pending'})}
