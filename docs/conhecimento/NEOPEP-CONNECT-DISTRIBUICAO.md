@@ -16,7 +16,7 @@ A lista registra a evidência de build e verificação apenas após gravar o ras
 
 ## Rodízio obrigatório do hash de confiança após atualização do workflow privado
 
-A esteira privada revisada mudou o **Git blob SHA-1** do arquivo `.github/workflows/neopep-connect-release.yml`: `9809901068336c37f8d42442d81c58304bc82a6b` (antigo) → `d2894eb125d29ff5a3a95059c9fa6812c6e16da6` (novo).
+A esteira privada revisada mudou o **Git blob SHA-1** do arquivo `.github/workflows/neopep-connect-release.yml`: `9809901068336c37f8d42442d81c58304bc82a6b` (antigo) → `3def75a277a54e9eda489e9068ea9ced42e5c723` (novo).
 
 O agente **já instalado** em Windows tem `agent.xml.workflowBlob` fixado ao SHA antigo. Ele não deve ser recriado nem aceitar automaticamente qualquer hash que vier do GitHub. Caso o run privado de 0.2.8 esteja verde e não apareça rascunho no Supabase Teste, conferir o estado do assinador local: `%LOCALAPPDATA%\\NeoPep Connect Release Agent\\agent.json`. Um problema possível é `ERROR_PROVENIENCIA`, mas o arquivo local ainda não foi inspecionado.
 
