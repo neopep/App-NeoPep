@@ -2,6 +2,7 @@
 
 function mountNeoConnect(root,cloud){
  const rpc=(action,data)=>cloud.connectAdmin(action,data);
+ const tabs=[['overview','Visão geral'],['computers','Computadores'],['updates','Atualizações'],['accounts','Contas'],['links','Vínculos'],['simulation','Simulação'],['history','Histórico'],['help','Ajuda']];
  const canManageUpdates=typeof cloud.connectUpdateAdmin==='function';
  const downloadable=release=>!release.distribution_state||['legacy','approved'].includes(release.distribution_state);
  let snapshot,groups=[],queue=[],loadVersion=0,savingRelease=false;
@@ -14,20 +15,44 @@ function mountNeoConnect(root,cloud){
  const job=id=>queue.find(row=>row.id===id)?.title||id;
  const releaseStates={draft:'Rascunho',approved:'Aprovada',blocked:'Bloqueada',legacy:'Legada'};
  const events={update_approve:'Aprovação de atualização',update_block:'Bloqueio de atualização',update_register:'Cadastro de rascunho de atualização',register:'Registro',approved:'Aprovado',approve:'Aprovação',revoke:'Revogação',priority:'Prioridade',leased:'Reserva',started:'Início',simulated:'Simulado',uncertain:'Incerto',queued:'Em fila',cancelled:'Cancelado'};
- root.innerHTML=`<nav class="neo-connect-tabs" role="tablist" aria-label="NeoPep Connect">${[['overview','Visão geral'],['computers','Computadores'],['updates','Atualizações'],['accounts','Contas'],['links','Vínculos'],['simulation','Simulação'],['history','Histórico'],['help','Ajuda']].map(([id,label])=>`<button type="button" role="tab" data-connect-tab="${id}" aria-selected="${id==='overview'}">${label}</button>`).join('')}</nav><section data-connect-pane="overview"><article class="monitor-block"><h4>Estado do NeoPep Connect</h4><p data-connect-health>Consultando estado…</p></article><article class="monitor-block"><h4>Grupos sincronizados</h4><div data-connect-group-slot></div></article></section><section data-connect-pane="help" hidden><p class="sub">Cliente Windows 10/11 x64. Instale a versão aprovada, entre com a conta administrativa e aprove o computador abaixo. Confira o SHA-256 antes de executar o instalador.</p>
+ root.innerHTML=`<nav class="neo-connect-tabs" role="tablist" aria-label="NeoPep Connect">${tabs.map(([id,label])=>`<button type="button" role="tab" data-connect-tab="${id}" id="connect-tab-${id}" aria-controls="connect-panel-${id}">${label}</button>`).join('')}</nav>
  <p role="status" data-connect-status></p><div class="neo-campaign-actions"><button type="button" class="secondary" data-connect="refresh">Atualizar diagnóstico</button></div>
- <details data-wa-selected open><summary>Meus grupos WhatsApp sincronizados</summary>
+ <section data-connect-pane="overview"><article class="monitor-block"><h4>Estado do sistema</h4><p data-connect-health>Consultando estado…</p></article>
+ <article class="monitor-block"><h4>Computadores</h4><div data-connect-devices></div></article>
+ <article class="monitor-block"><h4>Contas WhatsApp</h4><ul data-connect-connections></ul></article>
+ <article class="monitor-block"><h4>Grupos sincronizados</h4><div data-wa-selected>
  <p role="status" data-wa-selected-status></p>
- <label>Conexão<select data-wa-connection aria-label="Conexão WhatsApp"></select></label>
- <ul data-wa-selected-groups></ul>
- <button type="button" class="secondary" data-wa-more hidden>Carregar mais</button>
- </details><div data-connect-content></div></section>`;
- root.querySelector('[data-connect-group-slot]').append(root.querySelector('[data-wa-selected]'));
- root.append(root.querySelector('[data-connect-content]'));
+ <label>Conexão<select data-wa-connection></select></label><ul data-wa-selected-groups></ul>
+ <button type="button" class="secondary" data-wa-more hidden>Carregar mais</button></div></article></section>
+ <section data-connect-pane="help"><p class="sub">Cliente Windows 10/11 x64. Consulte Atualizações para obter uma versão aprovada. Entre com a conta administrativa e aprove o dispositivo em Computadores. Confira o SHA-256 antes de executar o instalador.</p></section>
+ <div data-connect-content></div>`;
  let activeTab='overview';
- const connectStyle=document.createElement('style');connectStyle.textContent=".neo-connect-tabs{display:flex;gap:.3rem;overflow-x:auto;white-space:nowrap;margin-bottom:1rem}.neo-connect-tabs button{flex:0 0 auto;background:transparent;border:0;border-bottom:2px solid transparent;color:inherit;padding:.65rem .85rem;opacity:.7}.neo-connect-tabs button[aria-selected=true]{border-bottom-color:currentColor;opacity:1;font-weight:700}[data-connect-pane][hidden]{display:none!important}";root.prepend(connectStyle);
- function switchConnectTab(next){activeTab=next;for(const tab of root.querySelectorAll('[data-connect-tab]'))tab.setAttribute('aria-selected',String(tab.dataset.connectTab===next));for(const pane of root.querySelectorAll('[data-connect-pane]'))pane.hidden=pane.dataset.connectPane!==next;}
- root.addEventListener('click',event=>{const tab=event.target.closest?.('[data-connect-tab]');if(tab){switchConnectTab(tab.dataset.connectTab);if(tab.dataset.connectTab==='overview')void loadWaConnections();}});
+ const connectStyle=document.createElement('style');
+ connectStyle.textContent='.neo-connect-tabs{display:flex;gap:.3rem;overflow-x:auto;white-space:nowrap;margin-bottom:1rem}.neo-connect-tabs button{flex:0 0 auto;background:transparent;border:0;border-bottom:2px solid transparent;color:inherit;padding:.65rem .85rem}.neo-connect-tabs button[aria-selected=true]{border-bottom-color:currentColor;font-weight:700}[data-connect-pane][hidden]{display:none!important}';
+ root.prepend(connectStyle);
+ function switchConnectTab(next){
+  activeTab=next;
+  for(const tab of root.querySelectorAll('[data-connect-tab]')){
+   const selected=tab.dataset.connectTab===next;
+   tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;
+  }
+  for(const pane of root.querySelectorAll('[data-connect-pane]')){
+   const id=pane.dataset.connectPane;
+   pane.id='connect-panel-'+id;pane.setAttribute('role','tabpanel');
+   pane.setAttribute('aria-labelledby','connect-tab-'+id);pane.hidden=id!==next;
+  }
+ }
+ switchConnectTab(activeTab);
+ root.querySelector('.neo-connect-tabs').addEventListener('click',event=>{
+  const tab=event.target.closest('[data-connect-tab]');if(tab)switchConnectTab(tab.dataset.connectTab);
+ });
+ root.querySelector('.neo-connect-tabs').addEventListener('keydown',event=>{
+  if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+  event.preventDefault();
+  const index=tabs.findIndex(([id])=>id===activeTab);
+  const next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
+  switchConnectTab(tabs[next][0]);root.querySelector('[aria-selected=true]').focus();
+ });
  let releaseInfo;
  const status=root.querySelector('[data-connect-status]'),body=root.querySelector('[data-connect-content]');
  const wa=root.querySelector('[data-wa-selected]'),waStatus=wa.querySelector('[data-wa-selected-status]');
@@ -45,7 +70,7 @@ function mountNeoConnect(root,cloud){
    if(request!==waRevision||!wa.isConnected)return;
    for(const row of rows){
     const li=document.createElement('li');
-    li.textContent=row.display_name+(row.participant_count==null?'':' · '+row.participant_count+' participantes');
+    li.textContent=row.display_name+(row.participant_count==null?'':' · '+row.participant_count+' participantes')+' · '+time(row.updated_at);
     waGroups.append(li);
    }
    waAfter=rows.at(-1)?.group_jid??waAfter;
@@ -60,6 +85,7 @@ function mountNeoConnect(root,cloud){
   try{
    const rows=await cloud.connectWaConnections();
    if(request!==waRevision||!wa.isConnected)return;
+   root.querySelector('[data-connect-connections]').innerHTML=rows.map(row=>`<li>${esc(row.label)} · ${esc(({connected:'Conectada',disconnected:'Desconectada',revoked:'Revogada'})[row.status]||'Estado desconhecido')} · ${esc(time(row.last_synced_at))}</li>`).join('')||'<li>Nenhuma conexão sincronizada.</li>';
    for(const row of rows){
     const option=document.createElement('option');
     option.value=row.id;option.textContent=row.label+' · '+time(row.last_synced_at);waConnection.append(option);
@@ -69,12 +95,12 @@ function mountNeoConnect(root,cloud){
    await loadWaGroups();
   }catch{if(request===waRevision)waStatus.textContent="Sincronização de grupos indisponível neste ambiente.";}
  }
- wa.addEventListener('toggle',()=>{if(wa.open)void loadWaConnections();});
+
  waConnection.addEventListener('change',()=>{void loadWaGroups();});
  waMore.addEventListener('click',()=>{void loadWaGroups(true);});
  function note(text){status.textContent=text}
  async function load(){
-  if(wa.open)void loadWaConnections();
+  void loadWaConnections();
   const version=++loadVersion;
   const result=await Promise.all([rpc('snapshot'),cloud.campaignWhatsApp('groups'),cloud.campaignWhatsApp('queue'),
    canManageUpdates?cloud.connectUpdateAdmin('list').catch(()=>null):null]);
@@ -88,7 +114,11 @@ function mountNeoConnect(root,cloud){
     /^[a-f0-9]{40}$/.test(e.commit_sha)&&/^\d+$/.test(e.run_id)&&e.verified_at?e:null;
   };
   const needsEvidence=r=>{const [major,minor,patch]=r.version.split('.').map(Number);return major>0||minor>2||minor===2&&patch>=5;};
-  root.querySelector('[data-connect-health]').textContent=`${snapshot.devices.filter(d=>d.state!=='revoked'&&d.last_seen&&Date.now()-new Date(d.last_seen)<70000).length} computador(es) online · ${snapshot.devices.length} registrado(s) · ${snapshot.accounts.filter(a=>a.enabled).length} conta(s) simulada(s) habilitada(s).`;
+  const online=d=>d.state==='approved'&&d.last_seen&&Date.now()-new Date(d.last_seen)<70000;
+  const connected=snapshot.devices.filter(online).length;
+  root.querySelector('[data-connect-health]').textContent=`Diagnóstico disponível · Simulação ${snapshot.paused?'pausada':'habilitada'}. Consulte o histórico para ver ocorrências.`;
+  root.querySelector('[data-connect-devices]').innerHTML=`<p>${snapshot.devices.length} registrados · ${connected} online · ${snapshot.devices.length-connected} offline</p>`+
+   (snapshot.devices.map(d=>`<p>${esc(d.label)} · ${esc(d.version||'Versão desconhecida')} · ${esc(time(d.last_seen))}</p>`).join('')||'<p>Nenhum computador registrado.</p>');
   html(body,`<section data-connect-pane="updates"><h4>Instaladores aprovados</h4>
    ${snapshot.releases.filter(downloadable).map(r=>`<article class="monitor-block"><p>Versão ${esc(r.version)} · ${esc(time(r.approved_at))} · ${Number(r.bytes).toLocaleString('pt-BR')} bytes</p>
    <p class="sub">SHA-256 <code>${esc(r.sha256)}</code></p><button class="secondary" type="button" data-connect="download" data-version="${esc(r.version)}">Preparar download privado</button></article>`).join('')||'<p>Nenhuma versão aprovada disponível.</p>'}
@@ -134,8 +164,7 @@ function mountNeoConnect(root,cloud){
     </details>`:
     '<p>Canal de atualizações indisponível para esta sessão.</p>'}
    </div>`:''}
-   </section><section data-connect-pane="computers"><h4>Computadores</h4><p>Simulação ${snapshot.paused?'pausada':'habilitada'}. O painel registra apenas resultados fictícios.</p>
-   <button type="button" class="secondary" data-connect="pause">${snapshot.paused?'Retomar simulação':'Pausar simulação'}</button>
+   </section><section data-connect-pane="computers"><h4>Computadores</h4>
    ${snapshot.devices.map(d=>{
     const online=d.state!=='revoked'&&d.last_seen&&Date.now()-new Date(d.last_seen)<70000;
     const sessions=snapshot.sessions.filter(s=>s.device_id===d.id);
@@ -163,7 +192,7 @@ function mountNeoConnect(root,cloud){
     <button class="secondary">Salvar vínculo</button>
    </form>
    ${snapshot.groups.map(g=>`<p>${esc(group(g.group_id))} · ${esc(actor(g.account_id))} · ${g.verified&&g.may_publish?'Elegível':'Sem autorização'} · Prioridade ${Number(g.priority)}</p>`).join('')}
-   </section><section data-connect-pane="simulation"><h4>Fila de simulação</h4>
+   </section><section data-connect-pane="simulation"><h4>Fila de simulação</h4><p>O painel registra resultados fictícios.</p><button type="button" class="secondary" data-connect="pause">${snapshot.paused?'Retomar simulação':'Pausar simulação'}</button>
    <form data-connect-form="queue" class="space">
     <label>Divulgação por grupo<select name="id" required><option value="">Selecione</option>${opt(queue.filter(x=>x.scheduled_at&&['scheduled','late'].includes(x.state)),x=>x.title+' · '+x.group_name)}</select></label>
     <label>Conta preferencial<select name="account" required><option value="">Selecione</option>${opt(enabled,x=>x.identity)}</select></label>
@@ -173,7 +202,7 @@ function mountNeoConnect(root,cloud){
    ${snapshot.tasks.map(t=>`<p>${esc(job(t.publication_id))} · ${esc(events[t.state]||t.state)} · ${esc(actor(t.account_id))} · ${esc(computer(t.device_id))} · ${esc(time(t.occurrence))}</p>`).join('')}
    </section><section data-connect-pane="history"><details><summary>Tentativas e auditoria</summary>${snapshot.audit.map(a=>`<p>${esc(time(a.created_at))} · ${esc(events[a.event]||a.event)} · ${esc(computer(a.device_id))} · ${esc(actor(a.account_id))}</p>`).join('')}</details></section>`);
   switchConnectTab(activeTab);
-  if(typeof installNeoConnectNavigation==='function')installNeoConnectNavigation(root);
+  switchConnectTab(activeTab);
  }
  async function perform(action){
   try{note('Consultando NeoPep Connect…');await action();note('Atualizado.');}

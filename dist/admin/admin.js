@@ -1028,20 +1028,36 @@ async function mountCampaigns(root){
  const options=(values,value)=>Object.entries(values).map(([key,label])=>`<option value="${key}" ${value===key?'selected':''}>${label}</option>`).join('');
  const field=(row,key,label,attrs,fallback='')=>input(key,label,row[key]??fallback,attrs);
  let offset=0,rows=[],editing=null,busy=false,loadingPage=false,done=false,area='app',observer,whatsapp;
- root.innerHTML='<section class="card"><div class="neo-campaign-toolbar"><nav class="neo-campaign-switch" aria-label="Canal de campanha"><button type="button" class="primary" data-campaign-action="app" aria-pressed="true">App</button><button type="button" class="secondary" data-campaign-action="whatsapp" aria-pressed="false">WhatsApp</button></nav><div class="neo-campaign-toolbar-actions"><button type="button" class="secondary campaign-manual" aria-label="Ajuda para campanhas" title="Como criar uma campanha" data-campaign-action="manual"><span aria-hidden="true">?</span></button><button type="button" class="primary neo-campaign-new" data-campaign-action="new" aria-label="Criar nova campanha" title="Criar nova campanha"><span aria-hidden="true">+</span><span class="neo-campaign-new-label"> Nova</span></button></div></div><nav class="neo-campaign-crumbs" aria-label="Localização" data-campaign-breadcrumb></nav><nav class="neo-campaign-sections" aria-label="Seção" data-campaign-sections></nav><div class="neo-campaign-actionbar" data-campaign-actionbar></div><button type="button" class="secondary" data-campaign-action="back" hidden>← Voltar à lista</button><p role="status" data-campaign-status></p><details class="space" hidden><summary>Vincular plano a uma conta</summary><form data-campaign-plan class="space"><label>ID da conta<input name="account" required pattern="[a-fA-F0-9-]{36}"></label><label>Código do plano (vazio para desvincular)<input name="plan" pattern="[a-z0-9_-]{1,40}" maxlength="40"></label><button class="secondary" type="submit">Salvar vínculo</button></form></details><div data-campaign-edit></div><div data-campaign-wa hidden></div><div data-campaign-filters class="neo-campaign-filters"><label>Pesquisar campanhas<input type="search"></label><label>Status<select><option value="">Todos</option><option value="draft">Rascunho</option><option value="active">Ativa</option><option value="scheduled">Agendada</option><option value="paused">Pausada</option><option value="archived">Arquivada</option><option value="expired">Encerrada</option></select></label><label>Canal da campanha<select><option value="">Todos neste canal</option><option value="shared">App e WhatsApp</option><option value="single">Só neste canal</option></select></label></div><div data-campaign-list></div><div data-campaign-results hidden></div><div data-campaign-more aria-live="polite"></div></section>';
- const campaignStyle=document.createElement('style');campaignStyle.textContent="\n/* Campaign administration navigation: responsive, single-row tabs and semantic breadcrumbs. */
+ root.innerHTML='<section class="card"><div class="neo-campaign-toolbar"><nav class="neo-campaign-switch" aria-label="Canal de campanha"><button type="button" class="primary" data-campaign-action="app" aria-pressed="true">App</button><button type="button" class="secondary" data-campaign-action="whatsapp" aria-pressed="false">WhatsApp</button></nav><div class="neo-campaign-toolbar-actions"><button type="button" class="secondary campaign-manual" aria-label="Ajuda para campanhas" title="Como criar uma campanha" data-campaign-action="manual"><span aria-hidden="true">?</span></button><button type="button" class="primary neo-campaign-new" data-campaign-action="new" aria-label="Criar nova campanha" title="Criar nova campanha"><span aria-hidden="true">+</span><span class="neo-campaign-new-label"> Nova</span></button></div></div><nav class="neo-campaign-crumbs" aria-label="Localização" data-campaign-breadcrumb></nav><nav class="neo-campaign-sections" aria-label="Seção" data-campaign-sections></nav><div class="neo-campaign-actionbar" data-campaign-actionbar></div><button type="button" class="secondary" data-campaign-action="back" hidden>← Voltar à lista</button><p role="status" data-campaign-status></p><details class="space" hidden><summary>Vincular plano a uma conta</summary><form data-campaign-plan class="space"><label>ID da conta<input name="account" required pattern="[a-fA-F0-9-]{36}"></label><label>Código do plano (vazio para desvincular)<input name="plan" pattern="[a-z0-9_-]{1,40}" maxlength="40"></label><button class="secondary" type="submit">Salvar vínculo</button></form></details><dialog data-campaign-edit hidden></dialog><div data-campaign-wa hidden></div><div data-campaign-filters class="neo-campaign-filters"><label>Pesquisar campanhas<input type="search"></label><label>Status<select><option value="">Todos</option><option value="draft">Rascunho</option><option value="active">Ativa</option><option value="scheduled">Agendada</option><option value="paused">Pausada</option><option value="archived">Arquivada</option><option value="expired">Encerrada</option></select></label><label>Canal da campanha<select><option value="">Todos neste canal</option><option value="shared">App e WhatsApp</option><option value="single">Só neste canal</option></select></label></div><div data-campaign-list></div><div data-campaign-results hidden></div><div data-campaign-more aria-live="polite"></div></section>';
+ const campaignStyle=document.createElement('style');campaignStyle.textContent=`\n/* Campaign administration navigation: responsive, single-row tabs and semantic breadcrumbs. */
 /* Dedicated full-screen campaign editor; no new browser window or popup blockers. */
-[data-campaign-edit][role=dialog]:not([hidden]){position:fixed!important;inset:0!important;z-index:10000!important;overflow-y:auto!important;overscroll-behavior:contain;background:var(--surface,#18191b)!important;color:inherit;padding:max(20px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));box-sizing:border-box;max-width:none!important;max-height:none!important;}
+[data-campaign-edit][role=dialog]:not([hidden]){position:fixed!important;inset:0!important;z-index:10000!important;overflow-y:auto!important;overscroll-behavior:contain;background:var(--card,#fff)!important;color:var(--text,CanvasText);background:var(--card,Canvas)!important;padding:max(20px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));box-sizing:border-box;width:100%;height:100%;margin:0;border:0;max-width:none!important;max-height:none!important;}
 [data-campaign-edit][role=dialog]>form{max-width:980px;margin:0 auto;padding:0 0 3rem}
-[data-campaign-edit][role=dialog] .neo-campaign-editor-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.75rem 0;background:var(--surface,#18191b)}
+[data-campaign-edit][role=dialog] .neo-campaign-editor-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.75rem 0;background:var(--card,#fff)}
 [data-campaign-edit][role=dialog] .neo-campaign-editor-head-actions{display:flex;align-items:center;gap:.5rem}
 @media(max-width:600px){[data-campaign-edit][role=dialog] .neo-campaign-editor-head h3{font-size:1.2rem}[data-campaign-edit][role=dialog]>form{max-width:100%}}
-\n.neo-campaign-crumbs{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem;font-size:.82rem;opacity:.82}\n.neo-campaign-crumb-link{appearance:none;border:0!important;background:transparent!important;box-shadow:none!important;padding:0!important;color:inherit!important;font:inherit;cursor:pointer;text-decoration:underline;text-decoration-color:transparent}\n.neo-campaign-crumb-link:hover,.neo-campaign-crumb-link:focus-visible{text-decoration-color:currentColor}\n.neo-campaign-crumb-separator{opacity:.55;font-size:1.15em}\n.neo-campaign-sections[role=tablist]{display:flex;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;gap:.25rem;align-items:stretch;max-width:100%;padding-bottom:.35rem;-webkit-overflow-scrolling:touch}\n.neo-campaign-sections[role=tablist] .neo-campaign-tab{flex:0 0 auto;white-space:nowrap;appearance:none;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:inherit;opacity:.75;padding:.75rem .9rem;font:inherit;cursor:pointer}\n.neo-campaign-sections[role=tablist] .neo-campaign-tab[aria-selected=true]{opacity:1;border-bottom-color:currentColor;font-weight:700}\n.neo-campaign-sections[role=tablist] .neo-campaign-tab:focus-visible{outline:2px solid currentColor;outline-offset:-2px}\n.neo-campaign-actionbar{display:flex;justify-content:flex-end;align-items:center;margin:.6rem 0}\n.neo-campaign-actionbar:empty{display:none}\n";root.prepend(campaignStyle);
+\n.neo-campaign-crumbs{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem;font-size:.82rem;opacity:.82}\n.neo-campaign-crumb-link{appearance:none;border:0!important;background:transparent!important;box-shadow:none!important;padding:0!important;color:inherit!important;font:inherit;cursor:pointer;text-decoration:underline;text-decoration-color:transparent}\n.neo-campaign-crumb-link:hover,.neo-campaign-crumb-link:focus-visible{text-decoration-color:currentColor}\n.neo-campaign-crumb-separator{opacity:.55;font-size:1.15em}\n.neo-campaign-sections[role=tablist]{display:flex;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;gap:.25rem;align-items:stretch;max-width:100%;padding-bottom:.35rem;-webkit-overflow-scrolling:touch}\n.neo-campaign-sections[role=tablist] .neo-campaign-tab{flex:0 0 auto;white-space:nowrap;appearance:none;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:inherit;opacity:.75;padding:.75rem .9rem;font:inherit;cursor:pointer}\n.neo-campaign-sections[role=tablist] .neo-campaign-tab[aria-selected=true]{opacity:1;border-bottom-color:currentColor;font-weight:700}\n.neo-campaign-sections[role=tablist] .neo-campaign-tab:focus-visible{outline:2px solid currentColor;outline-offset:-2px}\n.neo-campaign-actionbar{display:flex;justify-content:flex-end;align-items:center;margin:.6rem 0}\n.neo-campaign-actionbar:empty{display:none}\n`;root.prepend(campaignStyle);
  const find=selector=>root.querySelector(selector);
  const status=find('[data-campaign-status]'),editor=find('[data-campaign-edit]'),list=find('[data-campaign-list]');
  addCampaignHelp(find('[data-campaign-plan]'));
  const views={app:[['campaigns','Campanhas'],['results','Resultados'],['plans','Públicos e planos']],whatsapp:[['campaigns','Campanhas'],['publications','Publicações'],['groups','Grupos'],['connect','NeoPep Connect']]};
  const filterValues={app:[],whatsapp:[]};
+ const statusHome=status.parentElement,statusAnchor=status.nextSibling;
+ sectionNavKeyboard();
+ function sectionNavKeyboard(){
+  root.addEventListener('keydown',event=>{
+   const tab=event.target.closest?.('.neo-campaign-tab');
+   if(!tab||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+   const tabs=[...tab.parentElement.querySelectorAll('.neo-campaign-tab')];
+   const index=event.key==='Home'?0:event.key==='End'?tabs.length-1:
+    (tabs.indexOf(tab)+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
+   event.preventDefault();
+   const action=tabs[index].dataset.campaignAction;
+   tabs[index].click();
+   root.querySelector(`.neo-campaign-tab[data-campaign-action="${action}"]`)?.focus();
+  });
+ }
+ editor.addEventListener('cancel',event=>{event.preventDefault();if(!busy)backToList();});
  let view='campaigns',screen='',editorTab='content',wizard=0,unsaved=false,lastScroll=0,openedBy,stopPreview,previewRefresh,appObjectUrl;
  const draftOkay=()=>!unsaved||confirm('Descartar as alterações não salvas nesta campanha?');
  const query=()=>new URL(location.href);
@@ -1064,7 +1080,8 @@ async function mountCampaigns(root){
  function updateScreen(){
   const from=area==='app'?'App':'WhatsApp',selected=views[area].find(([key])=>key===view)?.[1]||'Campanhas';
   bread.replaceChildren();
-  const crumbs=['Administração','Campanhas',from,selected];
+  const crumbs=['Administração','Campanhas',from];
+  if(view!=='campaigns')crumbs.push(selected);
   if(screen)crumbs.push(editor.querySelector('[name=title]')?.value||(screen==='new'?'Nova campanha':'Campanha'));
   crumbs.forEach((name,index)=>{
    const last=index===crumbs.length-1,item=document.createElement(last?'span':'button');
@@ -1078,7 +1095,7 @@ async function mountCampaigns(root){
    if(index){const sep=document.createElement('span');sep.className='neo-campaign-crumb-separator';sep.textContent='›';sep.setAttribute('aria-hidden','true');bread.append(sep);}
    bread.append(item);
   });
-  sectionNav.innerHTML=views[area].map(([key,label])=>`<button type="button" role="tab" class="neo-campaign-tab" aria-selected="${key===view}" data-campaign-action="view_${key}">${label}</button>`).join('');
+  sectionNav.innerHTML=views[area].map(([key,label])=>`<button type="button" role="tab" class="neo-campaign-tab" aria-selected="${key===view}" tabindex="${key===view?0:-1}" data-campaign-action="view_${key}">${label}</button>`).join('');
   sectionNav.setAttribute('role','tablist');
   const lists=view==='campaigns'&&!screen;
   list.hidden=filters.hidden=!lists;sentinel.hidden=!lists&&!(area==='app'&&view==='results'&&!screen);
@@ -1103,6 +1120,8 @@ async function mountCampaigns(root){
  function closeEditor(){
   stopPreview?.();stopPreview=null;previewRefresh?.();previewRefresh=null;
   if(appObjectUrl){URL.revokeObjectURL(appObjectUrl);appObjectUrl=null;}
+  if(editor.open)editor.close();
+  if(editor.contains(status))statusHome.insertBefore(status,statusAnchor);
   editor.replaceChildren();editor.removeAttribute('role');editor.removeAttribute('aria-modal');editor.removeAttribute('aria-labelledby');editing=null;screen='';unsaved=false;
  }
  function showArea(next,id){
@@ -1235,7 +1254,9 @@ async function mountCampaigns(root){
    const section=event.target.closest('[data-campaign-panel]')?.dataset.campaignPanel;
    if(section&&event.target.closest('[hidden]'))setEditorTab(section);
   },true);
+  form.querySelector('header').after(status);
   setEditorTab('content');updateScreen();if(push)writeRoute();
+  editor.showModal?.();
   form.elements.title.focus();
   form.addEventListener('submit',async event=>{
    event.preventDefault();
