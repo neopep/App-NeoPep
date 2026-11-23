@@ -122,3 +122,31 @@ test('IPC exige JPEG limitado e envia uma imagem apenas ao grupo solicitado',asy
  assert.equal(JSON.stringify(messages).includes(request.image),false);
  await bridge.close();
 });
+
+test('duas bridges isolam QR, cofre, o mesmo ID de grupo e desconexão',async()=>{
+ const fixture=name=>{
+  const events=[];let hooks;
+  const bridge=createBridge({emit:event=>events.push(event),renderQr:async qr=>qr,
+   providerFactory:async options=>{
+    hooks=options;
+    return {async start(){await hooks.onQr('QR '+name);hooks.onState('conectado');},
+     close(){},async forget(){return true;},async listGroups(){return [{id:'123@g.us',name,members:1}];}};
+   }});
+  return {bridge,events,get hooks(){return hooks;}};
+ };
+ const test=fixture('TESTE'),production=fixture('PRODUÇÃO');
+ await Promise.all([test.bridge.receive({action:'connect',vault:'cofre-teste'}),production.bridge.receive({action:'connect',vault:'cofre-producao'})]);
+ assert.equal(test.hooks.serialized,'cofre-teste');
+ assert.equal(production.hooks.serialized,'cofre-producao');
+ assert.ok(test.events.some(e=>e.type==='qr'&&e.value==='QR TESTE'));
+ assert.ok(production.events.some(e=>e.type==='qr'&&e.value==='QR PRODUÇÃO'));
+ await Promise.all([test.bridge.receive({action:'groups'}),production.bridge.receive({action:'groups'})]);
+ assert.deepEqual(test.events.at(-1).value,[{id:'123@g.us',name:'TESTE',members:1}]);
+ assert.deepEqual(production.events.at(-1).value,[{id:'123@g.us',name:'PRODUÇÃO',members:1}]);
+ const previous=production.events.length;
+ await test.bridge.receive({action:'disconnect'});
+ assert.equal(production.events.length,previous);
+ await production.bridge.receive({action:'groups'});
+ assert.equal(production.events.at(-1).type,'groups');
+ await Promise.all([test.bridge.close(),production.bridge.close()]);
+});

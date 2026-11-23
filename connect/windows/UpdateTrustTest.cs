@@ -19,17 +19,38 @@ internal static class UpdateTrustTest {
             using(var altered=new MemoryStream(Encoding.ASCII.GetBytes("abd")))Require(!UpdateTrust.Matches(altered,m));
             m.Artifact="other";Require(!UpdateTrust.Verify(m,"0.2.2","staging",key));
             const string version="0.2.2";
-            var url=ConnectProfile.SupabaseUrl+"/storage/v1/object/sign/neo-connect-releases/"+version+"/NeoPepConnectSetup.exe";
+            var url=ConnectProfile.Teste.SupabaseUrl+"/storage/v1/object/sign/neo-connect-releases/"+version+"/NeoPepConnectSetup.exe";
             const string token="?token=header.payload.signature";
-            Require(UpdateTrust.TrustedDownload(new Uri(url+token),version));
-            Require(!UpdateTrust.TrustedDownload(new Uri(url),version));
-            Require(!UpdateTrust.TrustedDownload(new Uri(url+token),"0.2.1"));
-            Require(!UpdateTrust.TrustedDownload(new Uri(url+token+"&extra=1"),version));
-            Require(!UpdateTrust.TrustedDownload(new Uri(url+token+"#other"),version));
-            Require(!UpdateTrust.TrustedDownload(new Uri(url.Replace("https:","http:")+token),version));
-            Require(!UpdateTrust.TrustedDownload(new Uri(url.Replace(new Uri(ConnectProfile.SupabaseUrl).Host,"example.invalid")+token),version));
-            Require(!UpdateTrust.TrustedDownload(new Uri(url.Replace("neo-connect-releases","public")+token),version));
+            Require(UpdateTrust.TrustedDownload(new Uri(url+token),version,ConnectProfile.Teste));
+            Require(!UpdateTrust.TrustedDownload(new Uri(url),version,ConnectProfile.Teste));
+            Require(!UpdateTrust.TrustedDownload(new Uri(url+token),"0.2.1",ConnectProfile.Teste));
+            Require(!UpdateTrust.TrustedDownload(new Uri(url+token+"&extra=1"),version,ConnectProfile.Teste));
+            Require(!UpdateTrust.TrustedDownload(new Uri(url+token+"#other"),version,ConnectProfile.Teste));
+            Require(!UpdateTrust.TrustedDownload(new Uri(url.Replace("https:","http:")+token),version,ConnectProfile.Teste));
+            Require(!UpdateTrust.TrustedDownload(new Uri(url.Replace(new Uri(ConnectProfile.Teste.SupabaseUrl).Host,"example.invalid")+token),version,ConnectProfile.Teste));
+            Require(!UpdateTrust.TrustedDownload(new Uri(url.Replace("neo-connect-releases","public")+token),version,ConnectProfile.Teste));
+            var prodUrl=new Uri(ConnectProfile.Producao.SupabaseUrl+new Uri(url+token).PathAndQuery);
+            Require(UpdateTrust.TrustedDownload(prodUrl,version,ConnectProfile.Producao));
+            Require(!UpdateTrust.TrustedDownload(prodUrl,version,ConnectProfile.Teste));
+            Require(!UpdateTrust.TrustedDownload(new Uri(url+token),version,ConnectProfile.Producao));
+            m.Artifact="runner-fixture";m.Profile="production";
+            Require(!UpdateTrust.Verify(m,"0.2.2","production",key));
+            m.Signature=Convert.ToBase64String(rsa.SignData(Encoding.UTF8.GetBytes(m.Canonical()),CryptoConfig.MapNameToOID("SHA256")));
+            Require(UpdateTrust.Verify(m,"0.2.2","production",key));
         }
+        var test=ConnectProfile.Teste;var prod=ConnectProfile.Producao;
+        var account=Guid.NewGuid();var other=Guid.NewGuid();
+        Require(test.LocalFolder==ConnectProfile.InstallFolder&&prod.LocalFolder!=test.LocalFolder);
+        Require(test.AccountFolder(account,account)==test.LocalFolder);
+        Require(test.AccountFolder(other,account)!=prod.AccountFolder(other,account));
+        Require(prod.AccountFolder(account,account)!=prod.AccountFolder(other,account));
+        Require(test.Endpoint("/auth/v1/token").Host=="qnuluspqfazdppciermw.supabase.co");
+        Require(prod.Endpoint("/auth/v1/token").Host=="cpslafpzjtbpmoxxysaa.supabase.co");
+        Require(ConnectProfile.FromCode("outside")==null);
+        var legacy=ProtectedData.Protect(Encoding.UTF8.GetBytes("fixture"),test.Entropy,DataProtectionScope.CurrentUser);
+        Require(Encoding.UTF8.GetString(ProtectedData.Unprotect(legacy,test.Entropy,DataProtectionScope.CurrentUser))=="fixture");
+        bool isolated=false;try{ProtectedData.Unprotect(legacy,prod.Entropy,DataProtectionScope.CurrentUser);}catch(CryptographicException){isolated=true;}
+        Require(isolated);
         Console.WriteLine("Assinatura, integridade, downgrade e origem: aprovados.");
         return 0;
     }
