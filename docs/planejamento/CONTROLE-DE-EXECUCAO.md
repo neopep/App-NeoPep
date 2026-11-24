@@ -23,7 +23,7 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 |---|---|---|---|---|
 | #014 | Preservação e governança | AUDITANDO | Leitura Git + metadata Vercel/Supabase | Fechar matriz de paridade e testes antes de codificar |
 | #007 | Melhorias Loja | PLANEJADO | Texto atual verificado em dist/shop.js | 007.01 |
-| #006 | Prévia PDF Biblioteca | PLANEJADO | canvas/fallback PDF verificado | 006.01 |
+| #006 | Prévia PDF Biblioteca | EM_TESTE (local) | branch desenvolvimento/ajuste-006-miniatura-pdf @ 0087a15; testes reportados, sem deploy de Teste | 006.03 |
 | #005 | Modal de comparações | PLANEJADO | PR36 registra comparações; operação atual remota não verificada | 005.01 |
 | #001 | Localização onboarding | PLANEJADO | Preferência e prompt nativo já no código | 001.01 |
 | #002 | Consentimento personalização | PLANEJADO | Quatro preferências existentes | 002.01 |
@@ -50,9 +50,9 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 | 007.01 | Conferir textos, layout e suporte existente | PLANEJADO | Baseline visível |
 | 007.02 | Mudar copy e CTA sem alterar checkout | PLANEJADO | Link suporte e mensagem de pagamento corretos |
 | 007.03 | Validar responsividade e regressão da Loja | PLANEJADO | Teste e aprovação |
-| 006.01 | Reproduzir erro no destaque PDF | PLANEJADO | iPhone, primeiro PDF, dados de destaque |
-| 006.02 | Corrigir capa/cache/fallback no componente existente | PLANEJADO | Nenhuma alteração destrutiva no leitor |
-| 006.03 | Validar Biblioteca/reader/carrossel | PLANEJADO | URLs privadas e device |
+| 006.01 | Reproduzir erro no destaque PDF | VERIFICADO_LOCALMENTE | Chromium iPhone 13 emulado; rótulo PDF 91px/capa 52px; real pendente |
+| 006.02 | Corrigir capa/cache/fallback no componente existente | IMPLEMENTADO_LOCALMENTE | commit 0087a15; PDF primeira página, fallback e cancelamento; homologação real pendente |
+| 006.03 | Validar Biblioteca/reader/carrossel | EM_TESTE | build/check/22 testes reportados; pendente Teste autenticado, Safari e PWA físico |
 | 005.01 | Auditar origem das fotos e fluxo do Grupo | PLANEJADO | Storage/autorizações |
 | 005.02 | Construir modal maior com galeria | PLANEJADO | 0/1/N fotos, CTA |
 | 005.03 | Confirmar publicação de cópia e retorno ao chat | PLANEJADO | sem vazar original |
@@ -147,3 +147,10 @@ Somente o agente em trabalho ativo atualiza os documentos após cada subetapa. N
 | 2026-11-24 | Diretriz geral | #001–#014 | Proprietário pode alterar ordem e publicar cada item isoladamente ou em conjunto | Protocolo de prioridades aprovado como regra de trabalho; nenhuma etapa funcional aceita/publicada por esta mensagem |
 
 O agente responsável por **cada entrega real** registra a atualização documental na mesma atividade; não existe processamento em background de etapas ou mudanças de estado.
+
+### Registro #006 — 24/11/2026 (verificado no GitHub)
+- Branch: `desenvolvimento/ajuste-006-miniatura-pdf`; SHA `0087a15d27dc4c48c1cae675fae86c9e59199a8a`.
+- Base: `staging/permanente@0970ae6`; comparação GitHub: **1 commit à frente, 0 atrás**, 9 arquivos modificados/criados. Arquivos: `dist/library-files.js`, `dist/library.js`, `dist/style.css`, `dist/sw.js`, `scripts/build-staging.cjs`, `tests/library-pdf-cover-browser.cjs`, `tests/library-ui.test.cjs`, `tests/staging-pwa.test.cjs` e registro `docs/planejamento/EXEC-2026-11-24-006.md`.
+- Evidência: [registro da execução](https://github.com/neopep/App-NeoPep/blob/desenvolvimento/ajuste-006-miniatura-pdf/docs/planejamento/EXEC-2026-11-24-006.md). O Codex reportou build/check e 22 testes dirigidos; execução dos testes não foi repetida por este agente.
+- Bloqueios: PR de código não criado (403 informado pelo Codex); sem publicação em Teste; falta validar PDF real com usuário autorizado, Safari/PWA em iPhone físico e Android físico. **Não aprovar ou publicar** por inferência.
+- Desenvolvimento: EM_TESTE; aceite: NÃO_CONCEDIDO; publicação: NÃO_REALIZADA; próximo: criar PR isolada para staging/permanente, homologar em Teste e solicitar aceite.
