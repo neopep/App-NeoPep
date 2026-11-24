@@ -86,7 +86,7 @@ async function scenario(browser, options) {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.locator('[data-shop="manage"]').first().click();
     const panel=page.locator('[data-shop-financial]');
-    await panel.locator('summary').click();
+    await panel.locator(':scope > summary').click();
     await panel.getByText('Indicadores atualizados.').waitFor();
     assert.match(await panel.textContent(),/Estoque disponível hoje5/);
     assert.match(await panel.textContent(),/Lucro bruto estimadoIndisponível/);

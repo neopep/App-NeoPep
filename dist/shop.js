@@ -96,6 +96,132 @@ window.NeoShop=(()=>{
  function orderStats(){const paid=orders.filter(o=>['paid','test_paid','paid_review'].includes(o.status)),processing=paid.filter(o=>o.fulfillment==='processing'),dispatched=paid.filter(o=>o.fulfillment==='dispatched'),delivered=paid.filter(o=>o.fulfillment==='delivered'),pending=orders.filter(o=>['awaiting_payment','pending'].includes(o.status)),cancel=orders.filter(o=>o.cancellation_status==='requested');return {total:orders.length,paid:paid.length,processing:processing.length,dispatched:dispatched.length,delivered:delivered.length,pending:pending.length,cancel:cancel.length}}
  function newOrderCount(){let seen='';try{seen=localStorage.getItem('neo-shop-orders-seen:'+owner)||''}catch{}return orders.filter(o=>!seen||o.created_at>seen).length}
  const financialStates={...statusNames,partially_refunded:'Reembolso parcial'};
+ function reconciliationPanel(){
+  return `<details data-shop-reconciliation>
+   <summary>Conciliação e auditoria</summary>
+   <form data-reconciliation-filter>
+    <div class="form-grid">
+     ${field('from','Eventos desde','date','','')}
+     ${field('to','Eventos até','date','','')}
+     ${field('order_id','ID completo do pedido','text','','maxlength="36"')}
+     <label>Produto<select name="product_id"><option value="">Todos</option>${data.products.map(p=>`<option value="${e(p.id)}">${e(p.name)}</option>`).join('')}</select></label>
+    </div>
+    <button class="secondary" type="submit">Consultar auditoria</button>
+   </form>
+   <p class="sub" role="status" data-reconciliation-status></p>
+   <div data-reconciliation-results></div>
+   <button class="secondary" type="button" data-reconciliation-next hidden>Eventos anteriores</button>
+   <form class="space" data-reconciliation-evidence hidden>
+    <h3>Registrar total comprovado do pedido</h3>
+    <p class="sub">Cada lançamento substitui o total vigente da mesma categoria no cálculo e preserva o anterior no histórico.</p>
+    <div class="form-grid">
+     <label>Tipo<select name="kind"><option value="fee">Taxa</option><option value="shipping_cost">Frete próprio</option><option value="tax">Imposto</option><option value="other">Outras despesas</option><option value="refund">Valor devolvido</option></select></label>
+     ${field('amount','Total em BRL','text','','required inputmode="decimal" maxlength="16"')}
+     ${field('effective_on','Data do comprovante','date','','required')}
+     ${field('source_ref','Referência interna do comprovante','text','','required maxlength="160"')}
+    </div>
+    <button class="secondary" type="submit">Registrar comprovante</button>
+   </form>
+   <form class="space" data-reconciliation-return hidden>
+    <h3>Confirmar devolução física</h3>
+    <p class="sub">Use para itens recebidos de volta e aptos à venda. A confirmação soma unidades ao saldo disponível.</p>
+    <div class="form-grid">
+     ${field('line_position','Posição do item no pedido','number','','required min="1" step="1"')}
+     ${field('units','Unidades recebidas','number','','required min="1" step="1"')}
+     ${field('source_ref','Referência interna do recebimento','text','','required maxlength="160"')}
+    </div>
+    <button class="secondary" type="submit">Confirmar recebimento</button>
+   </form>
+  </details>`;
+ }
+ const reconciliationNames={order:'Estado do pedido',payment:'Evento de pagamento',financial_evidence:'Comprovante',
+  physical_return:'Devolução física',stock_event_missing:'Movimento sem correspondência',
+  legacy_refund_release:'Liberação legada sem devolução física comprovada'};
+ const evidenceNames={fee:'Taxa',shipping_cost:'Frete próprio',tax:'Imposto',other:'Outras despesas',refund:'Valor devolvido'};
+ const stockMovementNames={reserve:'Reserva',release:'Liberação',acquisition:'Aquisição',return:'Devolução física',unclassified:'Variação sem vínculo'};
+ function reconciliationResults(result,order){
+  return `${order?`<p>Despesas comprovadas: ${e(financialMoney(result.known_expense_cents))} · ${e(result.expense_coverage)}/4 categorias</p>
+    <p>Reembolso comprovado: ${e(financialMoney(result.known_refund_cents))} · Resultado líquido estimado: ${e(financialMoney(result.estimated_net_cents))}</p>
+    ${result.evidence.length?`<ul>${result.evidence.map(row=>`<li>${e(evidenceNames[row.kind])} · ${e(financialMoney(row.amount_cents))} · ${e(row.effective_on)} · ${e(row.source_ref)}</li>`).join('')}</ul>`:''}`:''}
+   <h3>Movimentações recentes do estoque</h3>
+   ${result.stock.length?`<ul>${result.stock.map(row=>`<li>${e(row.name)} · ${e(stockMovementNames[row.movement_kind])} · ${e(row.balance_before)} → ${e(row.balance_after)} · ${e(new Date(row.recorded_at).toLocaleString('pt-BR'))}</li>`).join('')}</ul>`:'<p class="sub">Nenhuma movimentação no recorte.</p>'}
+   <h3>Eventos de conciliação</h3>
+   ${result.events.length?`<ul>${result.events.map(row=>`<li><strong>${e(reconciliationNames[row.event_type]||row.event_type)}</strong>
+    · ${e(new Date(row.recorded_at).toLocaleString('pt-BR'))} · pedido ${e(row.order_id)}
+    ${row.state.status?' · '+e(financialStates[row.state.status]||row.state.status):''}
+    ${row.state.kind?' · '+e(evidenceNames[row.state.kind]||stockMovementNames[row.state.kind]||row.state.kind):''}
+    ${row.state.reference?' · '+e(row.state.reference):''}</li>`).join('')}</ul>`:'<p class="sub">Nenhum evento no recorte.</p>'}`;
+ }
+ const reconciliationPanels=new WeakSet();
+ function mountReconciliation(host){
+  const token=generation,filter=host.querySelector('[data-reconciliation-filter]');
+  const status=host.querySelector('[data-reconciliation-status]'),results=host.querySelector('[data-reconciliation-results]');
+  const next=host.querySelector('[data-reconciliation-next]');
+  const evidence=host.querySelector('[data-reconciliation-evidence]'),physical=host.querySelector('[data-reconciliation-return]');
+  const controls=Array.from(host.querySelectorAll('button'));
+  let filters={},cursor,working=false,request;
+  const current=()=>host.isConnected&&generation===token;
+  function setBusy(value){
+   working=value;
+   controls.forEach(button=>{button.disabled=value;});
+   results.setAttribute('aria-busy',String(value));
+  }
+  async function read(before){
+   if(working||!current())return;
+   setBusy(true);results.replaceChildren();next.hidden=true;evidence.hidden=physical.hidden=true;
+   status.textContent='Consultando conciliação…';
+   try{
+    const result=await window.NeoCloud.shopReconciliation('read',{...filters,before_event:before});
+    if(!current())return;
+    cursor=result.next;next.hidden=!cursor;
+    results.innerHTML=reconciliationResults(result,filters.order_id);
+    evidence.hidden=physical.hidden=!result.order_found;
+    status.textContent=filters.order_id&&!result.order_found?'Pedido não encontrado.':'Conciliação atualizada.';
+   }catch(err){
+    if(!current())return;
+    if(err.code==='42501')host.hidden=true;
+    else status.textContent=['PGRST202','42883'].includes(err.code)?'Conciliação indisponível neste ambiente.':'Não foi possível consultar. Confira os filtros.';
+   }finally{setBusy(false);}
+  }
+  filter.addEventListener('submit',event=>{
+   event.preventDefault();
+   if(working)return;
+   filters=Object.fromEntries(new FormData(filter));void read();
+  });
+  next.addEventListener('click',()=>read(cursor));
+  for(const [form,action] of [[evidence,'record_evidence'],[physical,'confirm_return']]){
+   form.addEventListener('submit',async event=>{
+    event.preventDefault();
+    if(working||!current()||!filters.order_id)return;
+    const payload={...Object.fromEntries(new FormData(form)),order_id:filters.order_id};
+    if(action==='record_evidence'){
+     try{payload.amount_cents=C.cents(payload.amount,true);}catch(err){status.textContent=err.message;return;}
+     delete payload.amount;
+    }
+    const signature=JSON.stringify([action,payload]);
+    if(!request||request.signature!==signature){
+     if(action==='confirm_return'&&!window.confirm('Confirma o recebimento físico destas unidades para revenda?'))return;
+     request={signature,key:crypto.randomUUID()};
+    }
+    setBusy(true);
+    status.textContent='Registrando conciliação…';
+    try{
+     await window.NeoCloud.shopReconciliation(action,{...payload,request_key:request.key});
+     if(!current())return;
+     request=null;form.reset();setBusy(false);await read();
+    }catch(err){
+     if(current())status.textContent=err.code?.startsWith('22')?'Dados recusados. Confira o pedido, o comprovante e as unidades.':'Registro não confirmado. Repita os mesmos dados.';
+    }finally{setBusy(false);}
+   });
+  }
+  void read();
+ }
+ document.addEventListener('toggle',event=>{
+  const host=event.target;
+  if(host.open&&host.matches?.('[data-shop-reconciliation]')&&!reconciliationPanels.has(host)){
+   reconciliationPanels.add(host);mountReconciliation(host);
+  }
+ },true);
  function financialPanel(){
   if(!data?.can_manage)return '';
   const options=(dict)=>Object.entries(dict).map(([value,label])=>`<option value="${e(value)}">${e(label)}</option>`).join('');
@@ -125,6 +251,7 @@ window.NeoShop=(()=>{
     <span class="sub" data-financial-page></span>
     <button class="secondary" type="button" data-financial-next>Próxima</button>
    </div>
+   ${reconciliationPanel()}
   </details>`;
  }
  function financialMoney(value){

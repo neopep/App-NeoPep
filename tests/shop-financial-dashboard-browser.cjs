@@ -20,6 +20,13 @@ async function run(browser, options, dark) {
             {id:'example',name:'Produto A',category:'Categoria A',price_cents:100,stock:3,active:true}
           ]
         }:[],
+        shopReconciliation: async (action,input)=>{
+          if(action==='record_evidence'){
+            window.evidence=input;
+            return {ok:true};
+          }
+          return {order_found:!!input.order_id,expense_coverage:0,events:[],evidence:[],stock:[],next:null};
+        },
         shopFinancial: async filters=>{
           window.requests.push(filters);
           if(window.denied)throw Object.assign(new Error('denied'),{code:window.denied});
@@ -42,7 +49,7 @@ async function run(browser, options, dark) {
     await page.getByRole('button',{name:'Gerenciar',exact:true}).click();
     const panel=page.locator('[data-shop-financial]');
     assert.equal(await page.evaluate(() => requests.length),0);
-    await panel.locator('summary').focus();
+    await panel.locator(':scope > summary').focus();
     await page.keyboard.press('Enter');
     await panel.getByText('Indicadores atualizados.').waitFor();
     assert.match(await panel.textContent(),/R\$ 23,97/);
@@ -58,9 +65,22 @@ async function run(browser, options, dark) {
     assert.equal(await page.evaluate(() => requests.at(-1).category),'Categoria A');
     assert.equal(await page.evaluate(() => requests.at(-1).group_by),'product');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),true);
+    const reconciliation=panel.locator('[data-shop-reconciliation]');
+    await reconciliation.locator('summary').click();
+    await reconciliation.getByText('Conciliação atualizada.').waitFor();
+    await reconciliation.locator('[name=order_id]').fill('00000000-0000-0000-0000-000000000001');
+    await reconciliation.getByRole('button',{name:'Consultar auditoria'}).click();
+    const evidence=reconciliation.locator('[data-reconciliation-evidence]');
+    await evidence.locator('[name=amount]').fill('0,00');
+    await evidence.locator('[name=effective_on]').fill('2026-01-01');
+    await evidence.locator('[name=source_ref]').fill('Comprovante sintético');
+    await evidence.getByRole('button',{name:'Registrar comprovante'}).click();
+    await reconciliation.getByText('Conciliação atualizada.').waitFor();
+    assert.equal(await page.evaluate(()=>window.evidence.amount_cents),0);
+    assert.match(await reconciliation.textContent(),/Resultado líquido estimado: Indisponível/);
     await page.evaluate(async () => {window.denied='42501'; await openShop('moderator');});
     await page.getByRole('button',{name:'Gerenciar',exact:true}).click();
-    await panel.locator('summary').click();
+    await panel.locator(':scope > summary').click();
     await panel.waitFor({state:'hidden'});
     assert.doesNotMatch(await page.locator('main').textContent(),/R\$ 23,97/);
     await page.evaluate(async () => {window.admin=false; await openShop('member');});
