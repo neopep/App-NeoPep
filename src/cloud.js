@@ -71,6 +71,15 @@ const api={configured,
   if(version!==identityVersion)throw Error('A conta mudou. Reabra suas preferências.');
   return result;
  },
+ async personalizationConsent(granted=null){
+  const sdk=need(),version=identityVersion,controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),8000);
+  try{
+   const result=ok(await sdk.rpc('neo_personalization_consent',{p_granted:granted}).abortSignal(controller.signal));
+   if(version!==identityVersion)throw Error('A conta mudou. Reabra suas preferências.');
+   return result;
+  }finally{clearTimeout(timeout);}
+ },
  async campaignPushPreference(enabled=null){return ok(await need().rpc('neo_campaign_push_preference',{p_enabled:enabled}));},
  async campaignVisit(action,impression=null){return ok(await need().rpc('neo_campaign_visit',{p_action:action,p_impression:impression}));},get remember(){return rememberSession},get persistenceLimited(){return persistenceLimited},
  async pushDevice(action,subscription,timezone){need();return ok(await client.rpc("neo_push_device",{p_action:action,p_subscription:subscription,p_timezone:timezone||"UTC"}))},

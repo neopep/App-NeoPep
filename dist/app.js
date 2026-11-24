@@ -1494,6 +1494,68 @@ const privacyOptions=[
  ['campaigns','Notificações de campanhas'],
  ['location','Localização aproximada']
 ];
+function personalizationPanel(initial){
+ return `<section class="card privacy-preferences personalization-panel" data-personalization hidden aria-labelledby="personalizationTitle">
+  <h2 id="personalizationTitle" tabindex="-1">Personalize sua experiência</h2>
+  <p>Permita que o NeoPep personalize sua experiência e melhore nossas comunicações.</p>
+  <p class="sub">Sua escolha é opcional. Estatísticas, campanhas e permissões do aparelho têm controles próprios.</p>
+  <div class="personalization-actions">
+   <button type="button" class="primary" data-personalization-choice="allow">Permitir personalização</button>
+   <button type="button" class="text-btn" data-personalization-choice="deny">${initial?'Agora não':'Revogar personalização'}</button>
+  </div><p role="status" data-personalization-status></p>
+ </section>`;
+}
+function mountPersonalization(form,initial,current){
+ const panel=$('[data-personalization]');
+ if(!panel||!Cloud.personalizationConsent)return async()=>{};
+ const allow=panel.querySelector('[data-personalization-choice=allow]');
+ const deny=panel.querySelector('[data-personalization-choice=deny]');
+ const status=panel.querySelector('[data-personalization-status]');
+ const notice=form.querySelector('[data-privacy-notice]');
+ let busy=false;
+ function revealPreferences(message){
+  panel.hidden=true;
+  form.hidden=false;
+  if(message)notice.textContent=message;
+  form.querySelector('button.primary').focus();
+ }
+ function paint(result){
+  if(initial&&result.decided)return;
+  panel.hidden=false;
+  if(initial){
+   form.hidden=true;
+   panel.querySelector('h2').focus();
+  }else{
+   allow.hidden=result.granted===true;
+   deny.hidden=result.granted!==true;
+   status.textContent=result.granted?'Personalização autorizada.':'Personalização desativada.';
+  }
+ }
+ panel.addEventListener('click',async event=>{
+  const choice=event.target.closest('[data-personalization-choice]')?.dataset.personalizationChoice;
+  if(!choice||busy||panel.hidden||!current())return;
+  busy=true;allow.disabled=deny.disabled=true;
+  status.textContent='Salvando sua escolha…';
+  try{
+   const result=await Cloud.personalizationConsent(choice==='allow');
+   if(!current())return;
+   if(initial)revealPreferences();else paint(result);
+  }catch{
+   if(!current())return;
+   const message='Não foi possível confirmar a escolha. Você pode revisá-la em Privacidade e permissões.';
+   if(initial)revealPreferences(message);else status.textContent=message;
+  }finally{
+   busy=false;
+   if(current())allow.disabled=deny.disabled=false;
+  }
+ });
+ return async function showPersonalization(){
+  try{
+   const result=await Cloud.personalizationConsent();
+   if(current())paint(result);
+  }catch{/* Older deployments and network failures leave this optional step closed. */}
+ };
+}
 function privacyPreferencesPage(){
  if(mode!=='cloud'||demo||!Cloud.user)return head('Privacidade e permissões','Entre na sua conta para configurar suas preferências.');
  const initial=page==='permissoes-iniciais';
@@ -1553,6 +1615,7 @@ function mountPrivacyPreferences(){
  const intro=initial?$('[data-location-intro]'):null;
  const current=()=>Cloud.user?.id===account&&form.isConnected;
  let baseline=null,saving=false;
+ const showPersonalization=mountPersonalization(form,initial,()=>current()&&!saving);
  function apply(values){
   baseline=values;
   for(const [key] of privacyOptions){
