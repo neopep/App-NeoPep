@@ -171,16 +171,33 @@ Deno.serve(async (request: Request) => {
               throw new Error("endpoint");
             }
 
-            // Notifications must never disclose private message content or names.
-            const payload: { tag: string; kind?: string } = { tag: job.id };
-            if ([
-              "community",
-              "support",
-              "library",
-              "shop",
-              "campaign",
-            ].includes(job.kind || "")) {
+            const payload: {
+              tag: string;
+              kind?: string;
+              title?: string;
+              body?: string;
+            } = {
+              tag: job.id,
+            };
+
+            if (
+              [
+                "community",
+                "support",
+                "library",
+                "shop",
+                "campaign",
+              ].includes(job.kind || "")
+            ) {
               payload.kind = job.kind;
+
+              if (job.title) {
+                payload.title = job.title;
+              }
+
+              if (job.body) {
+                payload.body = job.body;
+              }
             }
 
             await webpush.sendNotification(
