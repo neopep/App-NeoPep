@@ -1,0 +1,112 @@
+const assert=require('node:assert/strict');
+const path=require('node:path');
+const {chromium,devices}=require('playwright');
+const dist=path.resolve(__dirname,'../dist');
+async function scenario(browser,options){
+ const page=await browser.newPage(options);
+ try{
+  await page.route('https://editor.test/',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><button id="start">Abrir</button>'}));
+  await page.goto('https://editor.test/');
+  await page.addStyleTag({path:path.join(dist,'style.css')});
+  await page.addScriptTag({path:path.join(dist,'admin/campaign-editor.js')});
+  await page.evaluate(()=>{
+   window.confirm=()=>true;window.calls=[];window.failed=false;window.failSave=true;
+   window.cloud={
+    user:{id:'admin'},
+    campaignWhatsAppSync:async action=>{
+     window.calls.push([action]);
+     if(window.failed)throw Error('offline');
+     return [{id:'connection:g1',state:'eligible',name:'Grupo um',connection:'Conta A'},
+      {id:'connection:g2',state:'disconnected',name:'Grupo dois',connection:'Conta B'}];
+    },
+    campaignDispatch:async(action,input)=>{
+     window.calls.push([action,input]);
+     if(action==='diagnostics')return {whatsapp_enabled:false,app_enabled:true,devices:[]};
+     if(action==='publish_app')return {batch_id:'batch-app'};
+     if(action==='app_status')return [{id:'batch-app',title:'App',status:'active',starts_at:'2099-01-01',push_requested:false}];
+     throw Error('Ação inesperada');
+    },
+    campaignEditor:async(action,payload)=>{
+     window.calls.push([action,payload]);
+     if(action==='catalog')return [{id:'catalog-1',label:'Material autorizado'}];
+     if(action==='save'){
+      if(window.failSave){window.failSave=false;throw Error('resposta perdida');}
+      return {revision:payload.revision+1,campaign_id:'remote'};
+     }
+     throw Error('Operação inesperada '+action);
+    }
+   };
+   document.querySelector('#start').onclick=()=>NeoCampaignEditor.open({cloud,trigger:document.querySelector('#start')});
+  });
+  await page.locator('#start').click();
+  const dialog=page.locator('dialog');
+  await dialog.getByLabel('Título administrativo').fill('Campanha de revisão');
+  await dialog.getByLabel('Compor texto').fill('Olá mundo');
+  await dialog.locator('[name=message]').evaluate(el=>{el.focus();el.setSelectionRange(4,9);el.dispatchEvent(new Event('select'));});
+  await dialog.getByRole('button',{name:'Negrito'}).click();
+  await dialog.getByRole('button',{name:'Adicionar texto'}).click();
+  assert.equal(await dialog.locator('.neo-structured-text strong').textContent(),'mundo');
+  await dialog.getByRole('button',{name:'Duplicar'}).click();
+  assert.equal(await dialog.locator('.neo-structured-bubble').count(),2);
+  await dialog.getByRole('button',{name:'Excluir'}).last().click();
+  await dialog.getByRole('button',{name:'Desfazer exclusão'}).click();
+  assert.equal(await dialog.locator('.neo-structured-bubble').count(),2);
+  await dialog.getByText('Anexos e referências',{exact:true}).click();
+  await dialog.locator('[name=media]').setInputFiles({
+   name:'imagem.png',mimeType:'image/png',
+   buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR8sAAAAASUVORK5CYII=','base64')
+  });
+  await dialog.locator('[data-editor-image]:not([hidden])').waitFor();
+  await dialog.getByRole('button',{name:'Buscar na Biblioteca'}).click();
+  await dialog.getByRole('button',{name:'Material autorizado'}).click();
+  await dialog.getByText('Grupos sincronizados',{exact:true}).click();
+  await dialog.getByLabel(/Grupo um/).check();
+  assert.equal(await dialog.getByLabel(/Grupo dois/).isDisabled(),true);
+  await dialog.getByRole('button',{name:'Voltar',exact:true}).click();
+  await dialog.waitFor({state:'detached'});
+  await page.locator('#start').click();
+  assert.equal(await dialog.getByLabel('Título administrativo').inputValue(),'Campanha de revisão');
+  assert.equal(await dialog.locator('.neo-structured-bubble').count(),4);
+  await dialog.locator('[data-editor-image]:not([hidden])').waitFor();
+  await dialog.getByText('Grupos sincronizados',{exact:true}).click();
+  await dialog.getByLabel(/Grupo um/).waitFor();
+  assert.equal(await dialog.getByLabel(/Grupo um/).isChecked(),true);
+  await page.evaluate(()=>{window.failed=true;});
+  await dialog.getByRole('button',{name:'Atualizar grupos e diagnóstico'}).click();
+  await dialog.getByText('Diagnóstico indisponível. Despacho bloqueado.').waitFor();
+  assert.equal(await dialog.getByRole('button',{name:'Publicar agora'}).isDisabled(),true);
+  assert.equal(await dialog.getByRole('button',{name:'Programar',exact:true}).isDisabled(),true);
+  await dialog.getByRole('button',{name:'Registrar rascunho na Central'}).click();
+  await dialog.getByText(/Não foi possível confirmar o registro/).waitFor();
+  await dialog.getByRole('button',{name:'Registrar rascunho na Central'}).click();
+  await dialog.getByText(/Versão 1 registrada/).waitFor();
+  const writes=await page.evaluate(()=>calls.filter(([action])=>action==='save').map(([,data])=>data));
+  assert.equal(writes[0].request_id,writes[1].request_id);
+  assert.deepEqual(writes[0].draft.groups,['connection:g1']);
+  await dialog.getByRole('button',{name:'Criar versão App'}).click();
+  await dialog.getByRole('heading',{name:'Rascunho App'}).waitFor();
+  await dialog.getByLabel('Público App').selectOption('premium');
+  await dialog.getByRole('button',{name:'Registrar rascunho na Central'}).click();
+  await dialog.getByText(/Versão 1 registrada/).waitFor();
+  const app=await page.evaluate(()=>calls.filter(([action])=>action==='save').at(-1)[1]);
+  assert.equal(app.channel,'app');assert.equal(app.draft.audience,'premium');assert.deepEqual(app.draft.groups,[]);
+  await dialog.getByRole('button',{name:'Publicar agora'}).click();
+  // The mock must receive only the App dispatch and no external notification.
+  await dialog.getByText('Campanha App registrada.').waitFor();
+  assert.equal(await page.evaluate(()=>calls.find(([action])=>action==='publish_app')[1].push),false);
+  await dialog.getByText('Acompanhar destinos',{exact:true}).click();
+  await dialog.getByRole('button',{name:'Atualizar tentativas'}).click();
+  await dialog.getByText('App · Programada').waitFor();
+
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ }finally{await page.close();}
+}
+(async()=>{
+ const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',args:['--no-sandbox']});
+ try{
+  await scenario(browser,{viewport:{width:1280,height:800}});
+  await scenario(browser,devices['iPhone 13']);
+  await scenario(browser,devices['Pixel 7']);
+  console.log('OK: editor desktop, iPhone 13 e Pixel 7 emulados');
+ }finally{await browser.close();}
+})().catch(error=>{console.error(error);process.exitCode=1;});

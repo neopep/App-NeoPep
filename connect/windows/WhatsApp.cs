@@ -18,6 +18,7 @@ sealed partial class WhatsApp : Form {
     readonly byte[] entropy;
     readonly string draftPath;
     readonly string sendAuditPath;
+    readonly string diagnosticPath;
     string draftGroupId="";
     readonly TabControl tabs=new TabControl();
     readonly Label connection=new Label(),summary=new Label(),diagnostic=new Label();
@@ -40,6 +41,8 @@ sealed partial class WhatsApp : Form {
     readonly Label sendStatus=new Label(),previewText=new Label();
     Guid pendingSend=Guid.Empty;
     bool sendingText;
+    TaskCompletionSource<Tuple<string,string>> automatedSend;
+    Guid automatedRequest;
     readonly HashSet<string> sentRequests=new HashSet<string>(StringComparer.Ordinal);
     Dictionary<string,object> localVault;
     readonly JavaScriptSerializer json=new JavaScriptSerializer { MaxJsonLength=16*1024*1024 };
@@ -61,6 +64,7 @@ sealed partial class WhatsApp : Form {
         runtime=Path.Combine(ConnectProfile.InstallFolder,ConnectVersion.Runtime);
         draftPath=Path.Combine(profile,"whatsapp-message-draft.dat");
         sendAuditPath=Path.Combine(profile,"whatsapp-send-audit.log");
+        diagnosticPath=Path.Combine(profile,"whatsapp-diagnostico.log");
         Text=environment.AppName+" • WhatsApp"; Size=new Size(1024,700); MinimumSize=new Size(800,570); AutoScaleMode=AutoScaleMode.Dpi;
         BackColor=ConnectTheme.Background; ForeColor=ConnectTheme.Text; Font=new Font("Segoe UI",10);
         tabs.Dock=DockStyle.Fill;
@@ -105,7 +109,7 @@ sealed partial class WhatsApp : Form {
         if(environment.IsProduction)sendStatus.Text="Produção: envio bloqueado até a homologação controlada.";
         if(showComposer)tabs.SelectedTab=compose;else if(showGroups)tabs.SelectedTab=listing;
         Shown+=delegate{LoadDraft();if(!environment.IsProduction&&File.Exists(vault))ConnectSession();};
-        FormClosing+=delegate{if(ready)ReportStatus("disconnected");closing=true;StopBridge();ClearQr();};
+        FormClosing+=delegate{if(ready)ObserveStatus(ReportStatus("disconnected"));closing=true;StopBridge();ClearQr();};
     }
     FlowLayoutPanel Page(string name) {
         var page=new TabPage(name){BackColor=ConnectTheme.Background,ForeColor=ConnectTheme.Text};tabs.TabPages.Add(page);
@@ -123,6 +127,33 @@ sealed partial class WhatsApp : Form {
         pair.Enabled=process==null&&!forgetting;
         disconnect.Enabled=!forgetting;
     }
+
+    // Never log raw exception messages, vault JSON, WhatsApp identifiers, QR codes, phone
+    // numbers or file paths. Only locally-defined phases and coarse error classes are stored.
+    static string SafeDiagnosticKind(Exception error){
+        if(error is CryptographicException)return "DPAPI";
+        if(error is UnauthorizedAccessException)return "PERMISSAO";
+        if(error is IOException)return "ARQUIVO";
+        if(error is InvalidOperationException||error is ArgumentException||error is FormatException)return "FORMATO";
+        return "PROCESSAMENTO";
+    }
+    string RecordSafeDiagnostic(string phase,Exception error){
+        string code="WA-"+phase+"-"+SafeDiagnosticKind(error);
+        try{
+            string entry=DateTime.UtcNow.ToString("u")+" "+code+Environment.NewLine;
+            if(File.Exists(diagnosticPath)&&new FileInfo(diagnosticPath).Length>32768)
+                File.WriteAllText(diagnosticPath,"");
+            File.AppendAllText(diagnosticPath,entry);
+        }catch{} // Diagnostic failure must never mutate the session or mask the original error.
+        return code;
+    }
+    void ShowSafeFailure(string code){
+        Notify("Falha ao processar a conexão protegida ("+code+"). Não use Desconectar. Consulte Diagnóstico.");
+        diagnostic.Text=code+" • "+DateTime.Now.ToString("g")+
+            "\nO diagnóstico não apaga o cofre. Não use Desconectar nem refaça o QR Code."+
+            "\nRegistro local restrito: whatsapp-diagnostico.log (apenas data e código).";
+    }
+
     DateTime? groupReadAt;
     void RefreshGroups(){
         if(ready&&!syncing){groupReadAt=null;sync.Enabled=false;Send("groups",null);}
@@ -214,7 +245,7 @@ sealed partial class WhatsApp : Form {
         }catch{}
     }
     void PublishManualText(){
-        if(environment.IsProduction||!ready||sendingText||!groupReadAt.HasValue||pendingSend!=Guid.Empty||canPublish==null||!canPublish())return;
+        if(environment.IsProduction||!ready||sendingText||automatedSend!=null||!groupReadAt.HasValue||pendingSend!=Guid.Empty||canPublish==null||!canPublish())return;
         var choice=targetGroup.SelectedItem as GroupChoice;
         string text=CampaignText();
         if(choice==null||!selected.Contains(choice.Id)||(campaignImage==null&&String.IsNullOrEmpty(text))||text.Length>2000)return;
@@ -237,6 +268,24 @@ sealed partial class WhatsApp : Form {
             pendingSend=Guid.Empty;sendingText=false;UpdateComposer();
             sendStatus.Text="Conexão interrompida. Resultado incerto: confira o grupo antes de reenviar.";
         }
+    }
+    public Guid CampaignConnection { get { return connectionId; } }
+    public bool CampaignSessionReady {
+        get { return !environment.IsProduction&&!closing&&!forgetting&&ready&&pipe!=null&&process!=null
+            &&connectionId!=Guid.Empty&&groupReadAt.HasValue&&DateTime.Now-groupReadAt.Value<TimeSpan.FromHours(24); }
+    }
+    public async Task<Tuple<string,string>> DispatchCampaignTextAsync(Guid request,string group,string text) {
+        if(!CampaignSessionReady||pendingSend!=Guid.Empty||automatedSend!=null||!selected.Contains(group)
+            ||String.IsNullOrWhiteSpace(text)||text.Length>2000||request==Guid.Empty
+            ||canPublish==null||!canPublish())return Tuple.Create("refused",(string)null);
+        var completion=new TaskCompletionSource<Tuple<string,string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        automatedSend=completion;automatedRequest=request;sendingText=true;UpdateComposer();
+        try {
+            pipe.WriteLine(json.Serialize(new {action="send_text",request_id=request.ToString(),group_jid=group,text=text}));
+            return await Task.WhenAny(completion.Task,Task.Delay(TimeSpan.FromSeconds(25)))==completion.Task
+                ? await completion.Task : Tuple.Create("uncertain",(string)null);
+        }catch{return Tuple.Create("uncertain",(string)null);}
+        finally{automatedSend=null;automatedRequest=Guid.Empty;sendingText=false;UpdateComposer();}
     }
     void ClearGroups(){
         sync.Enabled=false;
@@ -266,6 +315,13 @@ sealed partial class WhatsApp : Form {
             syncing=false;
             if(!closing){groups.Enabled=true;sync.Enabled=ready&&groupReadAt.HasValue&&saveSelection!=null;}
         }
+    }
+    // ReportStatus handles remote failures itself. Observe background completion without
+    // awaiting UI teardown or connection-state transitions (C# 5 compatible).
+    static void ObserveStatus(Task operation){
+        operation.ContinueWith(completed=>{
+            if(completed.Exception!=null)completed.Exception.Handle(error=>true);
+        },TaskContinuationOptions.OnlyOnFaulted);
     }
     async Task ReportStatus(string status){
         if(selectionRevision==0||reportStatus==null||connectionId==Guid.Empty)return;
@@ -298,8 +354,10 @@ sealed partial class WhatsApp : Form {
     }
     void ConnectSession(){
         if(forgetting||ready||process!=null)return;
+        string phase="LEITURA";
         try{
             string existing=OpenVault();
+            phase="INICIALIZACAO";
             var start=new ProcessStartInfo(Path.Combine(runtime,"node.exe"),"windows-bridge.mjs") {
                 WorkingDirectory=Path.Combine(runtime,"bridge"),UseShellExecute=false,CreateNoWindow=true,
                 RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Utf8
@@ -320,7 +378,11 @@ sealed partial class WhatsApp : Form {
             child.BeginOutputReadLine();child.BeginErrorReadLine();
             ClearQr();Notify("Iniciando conexão experimental…");
             Send("connect",existing);
-        }catch{StopBridge();Notify("Não foi possível iniciar ou ler a sessão protegida. Confira a instalação ou use Desconectar.");}
+        }catch(Exception error){
+            string code=RecordSafeDiagnostic(phase,error);
+            try{StopBridge();}catch{}
+            ShowSafeFailure(code);
+        }
     }
     void Dispatch(System.Action action){
         if(closing||IsDisposed)return;
@@ -332,7 +394,7 @@ sealed partial class WhatsApp : Form {
     }
     void Disconnect(){
         if(forgetting)return;
-        ReportStatus("revoked");
+        ObserveStatus(ReportStatus("revoked"));
         forgetting=true;ready=false;ClearQr();ClearGroups();
         try{
             WriteVault(null);
@@ -343,13 +405,17 @@ sealed partial class WhatsApp : Form {
     static string TextValue(Dictionary<string,object> values,string key){object value;return values.TryGetValue(key,out value)?Convert.ToString(value):"";}
     void Receive(string line){
         if(closing||line.Length>16*1024*1024)return;
+        string phase="ENVELOPE";
         try{
             var message=json.Deserialize<Dictionary<string,object>>(line);
+            if(message==null)throw new InvalidOperationException();
             string type=TextValue(message,"type"),value=TextValue(message,"value");
             if(type=="vault"){
-                if(message["value"]==null){if(!forgetting)ReportStatus("revoked");WriteVault(null);}
+                phase="CREDENCIAL";
+                if(message["value"]==null){if(!forgetting)ObserveStatus(ReportStatus("revoked"));WriteVault(null);}
                 else if(!forgetting)WriteVault(value);
             }else if(type=="state"){
+                phase="ESTADO";
                 ready=value=="conectado";
                 if(value!="aguardando_qr")ClearQr();
                 if(!ready){
@@ -359,7 +425,7 @@ sealed partial class WhatsApp : Form {
                 switch(value){
                     case "conectando": Notify("Conectando…");break;
                     case "aguardando_qr": Notify("Escaneie o QR Code no telefone de teste.");break;
-                    case "conectado": Notify("WhatsApp conectado. Consulte os grupos na aba Grupos.");RefreshGroups();ReportStatus("connected");break;
+                    case "conectado": Notify("WhatsApp conectado. Consulte os grupos na aba Grupos.");RefreshGroups();ObserveStatus(ReportStatus("connected"));break;
                     case "reconectando": Notify("Rede interrompida. Reconectando…");break;
                     case "desconectando": break;
                     case "desconectado": StopBridge();Notify("Sessão desconectada e removida.");break;
@@ -369,24 +435,36 @@ sealed partial class WhatsApp : Form {
                     default: StopBridge();Notify("Conexão indisponível. Confira a rede e tente novamente.");break;
                 }
             }else if(type=="qr"&&!forgetting&&!ready&&value.Length<500000){
+                phase="QR";
                 using(var data=new MemoryStream(Convert.FromBase64String(value)))
                 using(var image=Image.FromStream(data)){ClearQr();qr.Image=new Bitmap(image);}
             }else if(type=="account"&&ready&&!forgetting){
+                phase="CONTA";
                 var account=message["value"] as Dictionary<string,object>;
                 if(account!=null){
                     string name=TextValue(account,"name"),number=TextValue(account,"number");
                     accountStatus.Text=(name+(number.Length==0?"":" +"+number)).Trim();
                 }
             }else if(type=="groups_loading"&&ready){
+                phase="GRUPOS_ESPERA";
                 groupStatus.Text="Consultando grupos…";
             }else if(type=="groups"&&ready&&!forgetting){
+                phase="GRUPOS";
                 groupRows.Clear();
                 var rows=message["value"] as IEnumerable;
                 if(rows!=null)foreach(Dictionary<string,object> item in rows)groupRows.Add(item);
                 selected.IntersectWith(groupRows.ConvertAll(item=>TextValue(item,"id")));
                 groupReadAt=DateTime.Now;RenderGroups();ShowGroupStatus();RefreshComposerGroups();
             }else if(type=="send_result"){
+                phase="RESULTADO";
                 var result=message["value"] as Dictionary<string,object>;
+                if(result!=null&&automatedSend!=null&&TextValue(result,"request_id")==automatedRequest.ToString()){
+                    var outcome=TextValue(result,"status");
+                    var receipt=TextValue(result,"message_id");
+                    var accepted=outcome=="accepted"&&!String.IsNullOrWhiteSpace(receipt);
+                    automatedSend.TrySetResult(Tuple.Create(accepted?"accepted":outcome=="rejected"?"refused":"uncertain",
+                        accepted?receipt:null));
+                }
                 if(result!=null&&pendingSend!=Guid.Empty&&TextValue(result,"request_id")==pendingSend.ToString()){
                     var status=TextValue(result,"status");
                     if(status=="accepted"){
@@ -402,12 +480,18 @@ sealed partial class WhatsApp : Form {
                     pendingSend=Guid.Empty;sendingText=false;UpdateComposer();
                 }
             }else if(type=="error"&&value=="grupos_indisponiveis"){
+                phase="GRUPOS_ERRO";
                 groupStatus.Text="Não foi possível consultar grupos. Use Atualizar grupos para tentar novamente.";
             }
-        }catch{StopBridge();Notify("Não foi possível processar a sessão local protegida.");}
+        }catch(Exception error){
+            string code=RecordSafeDiagnostic(phase,error);
+            try{StopBridge();}catch{}
+            ShowSafeFailure(code);
+        }
     }
     void StopBridge(){
         ++generation;ready=false;forgetting=false;
+        if(automatedSend!=null)automatedSend.TrySetResult(Tuple.Create("uncertain",(string)null));
         if(pendingSend!=Guid.Empty){
             AuditSend("uncertain");
             sendStatus.Text="Conexão encerrada durante envio: resultado incerto. Consulte o grupo antes de tentar novamente.";
