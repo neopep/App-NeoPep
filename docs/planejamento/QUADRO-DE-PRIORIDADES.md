@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #013 — diagnóstico não destrutivo da sessão WhatsApp Produção na PR #59, versão candidata Connect 0.2.10; inspeção por fase DPAPI/Bridge/credenciais/estado/grupos. Testes Windows em execução. Release 0.2.9 instalado; Prod sem alteração; Vercel e envios automáticos OFF.
-**ÚLTIMA_DECISÃO:** proprietário pediu «Então faça» para corrigir diagnóstico da sessão protegida Produção. Criada branch desenvolvimento/ajuste-013-diagnostico-sessao e PR draft #59. Mudança preserva cripto, pastas, cofre e bloqueio de envios, adiciona códigos locais seguros sem dados sensíveis. CI candidato 0.2.10 pendente; nenhum deploy/distribuição autorizada até validação.
+**FOCO_ATUAL:** #013 — diagnóstico seguro de sessão via PR #59, Windows CI 0.2.10 aprovada no run 45480809973; build privado Teste 45481286448 em preparação, sem aprovação/distribuição. Erro de Produção ainda não classificado; Prod e Vercel intocados.
+**ÚLTIMA_DECISÃO:** usuário ordenou corrigir diagnóstico da sessão protegida em Produção. PR #59 final c/ CI Windows validada; candidato Connect Teste 0.2.10 solicitado no build privado. Preservar sessões, não ativar despachos ou atualização automática.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
