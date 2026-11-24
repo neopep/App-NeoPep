@@ -88,3 +88,43 @@ test('Antes/Depois salvo só é anexado por escolha e não publica se confirmaç
  assert.equal(uploaded,0);
  assert.equal(published,0);
 });
+
+test('comparação Antes/Depois confirmada usa cópia de foto no Grupo e não expõe caminho privado',async()=>{
+ const state={member:true,chat_ready:true,alias:'Teste',posts:[],pending:[],materials:[]};
+ const {ui,document,window,ctx}=setup(async()=>state);
+ const item={id:'00000000-0000-4000-8000-000000000111',user_id:'A',
+  path:'A/00000000-0000-4000-8000-000000000111.jpg',before_date:'2026-11-02',after_date:'2026-11-22'};
+ const uploaded=[],posted=[];
+ window.NeoCloud.communityChat=async(action,payload)=>{
+  if(action==='read')return state;
+  if(action==='post'){posted.push(payload);return {ok:true}};
+ };
+ window.NeoCloud.savedBeforeAfter=async()=>[item];
+ window.NeoCloud.beforeAfterBlob=async()=>new Blob(['fixture-jpeg'],{type:'image/jpeg'});
+ window.NeoCloud.uploadCommunityPhoto=async blob=>{
+  assert.equal(blob.type,'image/jpeg');
+  uploaded.push(blob);
+  return 'A/community-copy.jpg';
+ };
+ window.confirm=()=>true;
+ ctx.crypto=require('node:crypto').webcrypto;
+ ctx.FormData=class extends Map{constructor(form){super();for(const field of form.querySelectorAll('textarea[name],input[name]'))this.set(field.name,field.value)}};
+ const context={cloud:true,user:{id:'A'},admin:false};
+ document.querySelector('main').innerHTML=ui.view(context);
+ await ui.load(context);
+ document.querySelector('[data-community="attachments"]').click();
+ document.querySelector('[data-community="choose_comparison"]').click();
+ await new Promise(setImmediate);
+ document.querySelector('[data-before-after-picker] [data-community="pick_comparison"]').click();
+ await new Promise(setImmediate);
+ assert.equal(uploaded.length,0);
+ const form=document.querySelector('[data-community-form="post"]');
+ form.reportValidity=()=>true;
+ form.dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));
+ await new Promise(setImmediate);
+ assert.equal(uploaded.length,1);
+ assert.equal(posted.length,1);
+ assert.equal(posted[0].photo_path,'A/community-copy.jpg');
+ assert.equal(posted[0].photo_share,'on');
+ assert.ok(!JSON.stringify(posted).includes(item.path));
+});
