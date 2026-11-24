@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #011 — migração shop_bulk aplicada e verificada em Supabase Teste; PR #55 draft, frontend ainda sem deploy por decisão do proprietário. Homologação com sessões reais e aceite pendentes.
-**ÚLTIMA_DECISÃO:** proprietário autorizou expressamente aplicar somente migração #011 no Supabase Teste; `shop_bulk` aplicada com sucesso, tabela e RPC verificadas, estoque 100 preservado, acesso não administrador negado. Zero deploys Vercel, Produção intacta.
+**FOCO_ATUAL:** #013 — Central de Campanhas / WhatsApp / NeoPep Connect, iniciar 013.01 inventário de contratos reais e implementar por lotes locais, sem deploy Vercel e sem SQL remoto. #010.06/#011 aguardam homologação visual conjunta.
+**ÚLTIMA_DECISÃO:** proprietário solicitou «Vamos pra 013». Priorizar #013, manter política de zero deploys Vercel durante desenvolvimento; preservar #010/#011 no estado de Teste e PRs draft. Nenhum envio real WhatsApp ou automação sem autorização específica.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
