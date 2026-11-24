@@ -16,10 +16,10 @@ test('consolidação preserva onboarding localização + personalização sem pu
 
 test('Home mantém tema, seringa e atendimento da Loja',()=>{
  const app=read('src/app.js'),css=read('dist/style.css');
- assert.match(app,/Um novo dia para acompanhar sua evolução\.',appearanceControl\(\)/);
+ assert.match(read('dist/index.html'),/id="headerAppearance"/);
  assert.match(app,/NeoShop\?\.home\?\.\(\{cloud:mode==='cloud'&&!demo,user:Cloud\.user\}\)/);
  assert.match(app,/\+homeCalculatorCard\(\)/);
- for(const k of ['.home-appearance{','.home-calculator{','.shop-home-support{'])assert.ok(css.includes(k),k);
+ for(const k of ['.header-appearance{','.home-calculator{','.shop-home-support{'])assert.ok(css.includes(k),k);
 });
 
 test('Biblioteca e Grupo preservam pins, comparações e seleção independente',()=>{

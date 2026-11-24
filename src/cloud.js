@@ -114,6 +114,13 @@ const api={configured,
  async communityAvatarURL(path){need();return ok(await client.storage.from('neo-community-avatars').createSignedUrl(path,3600)).signedUrl},
  async supportMediaURL(file){need();return ok(await client.storage.from('neo-support').createSignedUrl(file.path,60)).signedUrl},
  async uploadSupportMedia(file,thread_id){need();const account=user.id,version=identityVersion;const mime=file.type.split(';')[0];if(!['image/jpeg','application/pdf','text/plain','audio/webm','audio/mp4','audio/ogg'].includes(mime)||!file.size||file.size>10485760)throw Error('Anexo inválido. O limite é 10 MB.');if(mime==='application/pdf'&&await file.slice(0,5).text()!=='%PDF-')throw Error('PDF inválido.');if(mime==='text/plain'&&(await file.text()).includes('\0'))throw Error('Arquivo de texto inválido.');const name=String(file.name||('audio-'+Date.now())).replace(/[\\/\x00-\x1f]/g,'').slice(0,120);const reserved=await api.support('reserve',{thread_id,name,mime,size:file.size});if(version!==identityVersion)throw Error('A conta mudou.');ok(await client.storage.from('neo-support').upload(reserved.path,file,{contentType:mime,upsert:false}));if(version!==identityVersion||account!==user?.id)throw Error('A conta mudou.');return reserved},
+ async supportInbox(){
+  need();const version=identityVersion;
+  const result=await client.rpc('neo_support_inbox_v1');
+  if(version!==identityVersion)throw Error('A conta mudou durante a consulta.');
+  if(['PGRST202','42883'].includes(result.error?.code))return this.support('list');
+  return ok(result);
+ },
  async support(action,payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_support',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou. Reabra a conversa.');return data},
  async communitySettings(action='read',payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_community_settings',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou.');return data},
  async communityActivity(action='status',payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_community_activity',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou.');return data},

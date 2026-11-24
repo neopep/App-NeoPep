@@ -485,9 +485,9 @@ test('aparência usa o sistema na abertura, preserva a escolha manual e permite 
  assert.equal(a.data.has('neo-appearance'),false);
  await a.run("go('inicio',false)");
  const choose=value=>{
-  const select=a.document.querySelector('#homeAppearance');
-  for(const option of select.querySelectorAll('option'))option.toggleAttribute('selected',option.value===value);
-  select.dispatchEvent(new a.ctx.Event('change',{bubbles:true}));
+  const button=a.document.querySelector('#headerAppearance [data-appearance="'+value+'"]');
+  button.dispatchEvent(new a.ctx.Event('click',{bubbles:true}));
+  assert.equal(button.getAttribute('aria-pressed'),'true');
  };
  choose('light');assert.equal(theme(a),'light');
  assert.equal(a.data.get('neo-appearance'),'light');

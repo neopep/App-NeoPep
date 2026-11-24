@@ -87,3 +87,12 @@ O cliente preserva o consentimento e a revogação pelas RPCs autenticadas. O ba
 2. Capturar o ledger e o DDL oficial, com fingerprints de funções e ACL, e inventariar dados e objetos privados sem copiá-los para Teste. Gerar backup protegido de banco, Auth e Storage e restaurar em destino isolado, verificando contagens, hashes de objetos, RLS e integridade de pedidos.
 3. Confrontar cada SQL com o catálogo restaurado. Ensaiar #002/#008 separadamente. Na Loja, Fundação → Editor → Dashboard → Conciliação → Gerenciamento em massa. Em Campanhas, validar a infraestrutura oficial existente antes de Editor → Despacho. Manter flags de despacho desligadas e Connect pausado.
 4. Ensaiar pós-verificação e rollback na cópia restaurada. Só aplicar o delta aprovado após homologação e autorização específica. Ter a versão web anterior pronta para recuperação e preservar o histórico dos registros aditivos.
+
+### Refinamento pós-homologação
+
+- Loja · título da vitrine alinhado ao título aprovado na Home.
+- Aparência · controle de três ícones no cabeçalho, preferências existentes e identificação TESTE harmonizada no tema claro.
+- Conversas · miniatura local mantém compositor e foco durante seleção; JPEG validado antes do envio. HEIC/HEIF usa os decodificadores do navegador e apresenta erro acionável se o formato não estiver disponível. A RPC aditiva `neo_support_inbox_v1` retorna somente texto curto, tipo e nome dos anexos autorizados, sem expor paths ou URLs. O cliente mantém fallback para a listagem anterior.
+- Campanhas · composição, edição e prévia compartilham o diálogo de conversa. Configurações e catálogo aparecem em painéis inferiores. A simulação segue a estrutura de blocos e sinaliza anexos fora do despacho automático. As flags de despacho e a autorização do servidor permanecem obrigatórias.
+- Banco de Teste · conferir `neo_support(text,jsonb)`, `neo_support_access(uuid)`, RLS de anexos e ausência da nova RPC antes de aplicar `20261124235500_support_inbox_previews.sql`. O SQL adiciona uma função. O artefato anterior é compatível com essa função presente. A reversão de schema, se autorizada e necessária, consiste em remover exclusivamente `public.neo_support_inbox_v1()` e recarregar o PostgREST.
+- Verificação física em Safari/iPhone PWA, sessão autenticada e envio real permanecem separados dos ensaios automatizados.
