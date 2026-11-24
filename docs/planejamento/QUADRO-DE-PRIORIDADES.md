@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #010 — editor 010.04 validado localmente; homologação no Supabase de Teste pendente.
-**ÚLTIMA_DECISÃO:** implementar e versionar 010.04 em branch independente. Aceite pendente e sem publicação.
+**FOCO_ATUAL:** #010 — 010.04 implementada em branch independente e PR #51 draft, com contrato SQL ainda não aplicado em Teste; segurança e homologação pendentes.
+**ÚLTIMA_DECISÃO:** Codex apresentou commit 1e3292e para 010.04; conferida branch, criada PR #51 em rascunho. Os testes foram reportados como aprovados; sem migração adicional remota, aceite, merge ou deploy.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -77,6 +77,8 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | 2026-11-24 | Proprietário / verificação Supabase | «Pode avançar sem backup» — execução 010.03-B somente no Teste | #010 / 010.03-B | Migração `shop_cost_foundation` aplicada em Teste (ledger `20261124164148`), objetos e ACL conferidos; QA/aceite/Produção pendentes; risco de não haver backup registrado | [PR #50](https://github.com/neopep/App-NeoPep/pull/50) |
 
 | 2026-11-24 | Proprietário / consulta Supabase | «Vamos avançar» — sequência do #010 | #010 / 010.03-B e 010.04 | ACL, objetos e ledger novamente conferidos em Teste; planejada 010.04 sem novas migrações/deploy. QA real e aceite pendentes | [Plano 010.04](PLANO-IMPLEMENTACAO-010-04.md) |
+
+| 2026-11-24 | Codex / verificação GitHub | 010.04 implementada em 1e3292e e PR #51 draft aberta | #010 / 010.04 | UI/contrato criados; 33 testes reportados; API administrativa ainda não aplicada no Teste. Sem aceite/publicação | [PR #51](https://github.com/neopep/App-NeoPep/pull/51) |
 
 ## 4. Fila de aprovados aguardando publicação
 **Nenhum item deste ciclo aprovado ainda.** Inserir aqui um registro por ID/sub-ID: ID, versão/commit, aceite, data, opções individual/conjunto, dependências e release vinculado.
