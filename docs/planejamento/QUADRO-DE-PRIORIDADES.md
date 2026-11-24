@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #010.04 — correção financeira retestada localmente; aplicação e homologação em Teste pendentes.
-**ÚLTIMA_DECISÃO:** preparar somente o contrato 010.04 para Teste, após conferir o ledger existente e a autorização. Sem aceite ou publicação.
+**FOCO_ATUAL:** #010.04 — migração do contrato financeiro aplicada somente no Supabase de Teste, homologação funcional pendente.
+**ÚLTIMA_DECISÃO:** proprietário autorizou avançar sem novo backup, informando possuir cópia anterior no computador. Preflight real passou; contrato 010.04 foi aplicado somente em Teste (ledger 20261124170927 / shop_cost_editor), pós-verificação de objetos/grants concluída. Sem homologação real, aceite, merge, frontend deploy ou alteração em Produção.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -81,6 +81,8 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | 2026-11-24 | Codex / verificação GitHub | 010.04 implementada em 1e3292e e PR #51 draft aberta | #010 / 010.04 | UI/contrato criados; 33 testes reportados; API administrativa ainda não aplicada no Teste. Sem aceite/publicação | [PR #51](https://github.com/neopep/App-NeoPep/pull/51) |
 
 | 2026-11-24 | Proprietário / revisão de segurança | «Vamos seguir» — verificar contrato #010.04 | #010 / 010.04 | Achado de autorização financeira excessiva; commit 14a335d restringiu para admin_members e criou teste de moderador. Reteste e SQL em Teste pendentes; sem deploy/aceite | [PR #51](https://github.com/neopep/App-NeoPep/pull/51) |
+
+| 2026-11-24 | Proprietário / aplicação autorizada | «Vamos avançar sem esse backup, eu já tenho um backup anterior no computador» | #010 / 010.04 | Preflight real OK; migração `shop_cost_editor` aplicada só em Teste sob ledger `20261124170927`; RPC/ACL verificadas; backup novo e restauração não comprovados; QA/autorização de produção pendentes | [PR #51](https://github.com/neopep/App-NeoPep/pull/51) |
 
 ## 4. Fila de aprovados aguardando publicação
 **Nenhum item deste ciclo aprovado ainda.** Inserir aqui um registro por ID/sub-ID: ID, versão/commit, aceite, data, opções individual/conjunto, dependências e release vinculado.
