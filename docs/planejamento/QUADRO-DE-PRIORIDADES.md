@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #010.05 — implementada no Git (commit 2785404, PR #52 em rascunho), sem migração remota nem homologação/aceite da própria 010.05; próximo passo preflight em Teste.
-**ÚLTIMA_DECISÃO:** #010.04 possui aceite expresso do proprietário, mas permanece sem publicação final. #010.05 concluída tecnicamente pelo Codex em branch independente e PR #52 draft criada; aguarda verificação SQL em Teste, aplicação autorizada da RPC e QA real. Mercado Pago intacto.
+**FOCO_ATUAL:** #010.05 — RPC do dashboard financeiro aplicada apenas em Supabase Teste (ledger 20261124172822), frontend/homologação real/aceite 010.05 pendentes.
+**ÚLTIMA_DECISÃO:** proprietário autorizou expressamente aplicar exclusivamente o SQL 010.05 no Supabase de Teste. Preflight confirmado, migração aplicada com sucesso e ACL estrutural verificada; sem merge/deploy, sem aceite funcional de 010.05, sem alteração em Produção ou Mercado Pago. #010.04 possui aceite independente.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -18,7 +18,7 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | Em espera | #008 | Fixar posts da Biblioteca | EM_TESTE (local; SQL não aplicado em Teste) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 008.03 |
 | Em espera | #009 | Seringa no card da Home | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 009.03 |
 | Em espera | #003 | Tema claro/escuro | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 003.05 |
-| 1 (foco atual) | #010 | Estoque, custos e lucro | 010.05 IMPLEMENTADA NO GIT / PR #52 draft; migração não aplicada | 010.04 APROVADA PELO PROPRIETÁRIO; 010.05 sem aceite | Não publicada | 010.05 preflight e homologação em Teste |
+| 1 (foco atual) | #010 | Estoque, custos e lucro | 010.05 SQL_APLICADO_TESTE / FRONTEND_NÃO_PUBLICADO / QA_PENDENTE | 010.04 aprovada; 010.05 aceite pendente | Não publicada | 010.05 QA de sessão real + frontend Teste controlado |
 | 10 | #011 | Edição em massa | NÃO_INICIADO | Não solicitado | Não preparado | 011.01 |
 | 11 | #013 | Campanhas e Connect | NÃO_INICIADO | Não solicitado | Não preparado | 013.01 |
 | 12 | #012 | Planos/assinaturas | NÃO_INICIADO | Não solicitado | Não preparado | 012.01 |
@@ -85,6 +85,8 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | 2026-11-24 | Proprietário / aplicação autorizada | «Vamos avançar sem esse backup, eu já tenho um backup anterior no computador» | #010 / 010.04 | Preflight real OK; migração `shop_cost_editor` aplicada só em Teste sob ledger `20261124170927`; RPC/ACL verificadas; backup novo e restauração não comprovados; QA/autorização de produção pendentes | [PR #51](https://github.com/neopep/App-NeoPep/pull/51) |
 
 | 2026-11-24 | Codex / conferência GitHub | 010.05 commit `2785404`; PR criada manualmente após 403 | #010 / 010.05 | PR [#52](https://github.com/neopep/App-NeoPep/pull/52) em rascunho; 13 arquivos; código pronto para revisão, SQL ainda não aplicado em Teste, sem homologação nem aceite; 010.04 segue aprovado separadamente | [PR #52](https://github.com/neopep/App-NeoPep/pull/52) |
+
+| 2026-11-24 | Proprietário / Supabase | «Autorizo» — aplicar migração SQL 010.05 somente em Teste | #010 / 010.05 | Preflight somente leitura passou; SQL exato do Git (blob `1d3e756f`) aplicado em `qnuluspqfazdppciermw`; ledger remoto `20261124172822 / shop_financial_dashboard`, diferente do prefixo local `20261124200000`. RPC e grants verificados. Sem deploy/QA real/aceite 010.05 | [PR #52](https://github.com/neopep/App-NeoPep/pull/52) |
 
 ## 4. Fila de aprovados aguardando publicação
 **#010.04 aprovada pelo proprietário em 24/11/2026**, aguardando validação funcional real e decisão de publicação. Versão: PR #51, commit `0e0faaf`; migração somente Teste ledger `20261124170927`. Não inclui a etapa #010.05 nem autoriza Produção. Demais subetapas deste ciclo não foram aprovadas. Registrar futuras liberações individualmente.
