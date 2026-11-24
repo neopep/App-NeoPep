@@ -31,7 +31,7 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 | #009 | Seringa na Home | PLANEJADO | syringeSymbol existente | 009.01 |
 | #003 | Tema claro/escuro | PLANEJADO | light/dark/system existente no código | 003.01 |
 | #010 | Estoque, custos e lucro | EM_TESTE (Supabase staging) | 010.03-B: schema aplicado somente em Teste, sem backup por opção expressa do proprietário; sem homologação funcional ou aceite | 010.03-B QA |
-| #011 | Gestão em massa | PLANEJADO | Gerenciar Loja e estoque por produto existentes | 011.01 |
+| #011 | Gestão em massa | VALIDADO LOCALMENTE | Candidata 77fe00c; homologação e aceite pendentes | 011.05 QA em Teste |
 | #013 | Central de Campanhas | PLANEJADO | Campanhas/Connect/grupos presentes, sem confirmação de envio automático | 013.01 |
 | #012 | Assinaturas | PLANEJADO | Segmentação por plano existente, billing recorrente não verificado | 012.01 |
 | #004 | Alimentação | PLANEJADO | Card Em breve documentado | 004.01 |
@@ -82,11 +82,11 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 | 010.05.4 | Ensaios de regressão e filtragem | VALIDADO LOCALMENTE | 33 testes, PostgreSQL isolado e emulações |
 | 010.05.5 | Aplicação controlada e QA em Teste | SQL INSTALADO; FRONTEND VALIDADO LOCALMENTE | Ledger 20261124172822; deploy e QA real pendentes |
 | 010.06 | Testar concorrência e reconciliação | EM_PREPARAÇÃO / NÃO_IMPLEMENTADO | Plano #010.06 aprovado como foco pelo proprietário; integração futura deve preservar webhook e operar primeiro no Teste |
-| 011.01 | Contrato e UX preview em massa | PLANEJADO | tabela e filtros |
-| 011.02 | RPC admin atomizada/idempotente | PLANEJADO | ACL e transações |
-| 011.03 | Operações preços + câmbio + arredondamento | PLANEJADO | preview idêntica ao commit |
-| 011.04 | Operações estoque e auditoria | PLANEJADO | sem negativar/sobrescrever |
-| 011.05 | QA lotes e conflitos | PLANEJADO | falha parcial informada |
+| 011.01 | Contrato e UX preview em massa | VALIDADO LOCALMENTE | tabela e filtros |
+| 011.02 | RPC admin atomizada/idempotente | VALIDADO LOCALMENTE | ACL e transações |
+| 011.03 | Operações preços + câmbio + arredondamento | VALIDADO LOCALMENTE | preview idêntica ao commit |
+| 011.04 | Operações estoque e auditoria | VALIDADO LOCALMENTE | sem negativar/sobrescrever |
+| 011.05 | QA lotes e conflitos | VALIDADO LOCALMENTE | falha parcial informada |
 | 013.01 | Auditar Connect/Windows/RPCs e PR35 | PLANEJADO | capacidades reais |
 | 013.02 | Preservar e ajustar navegação das duas abas | PLANEJADO | não quebrar App, esteira e grupos |
 | 013.03 | Editor visual full-screen e autosave | PLANEJADO | mobile, retorno e persistência |
@@ -381,3 +381,9 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - Novo foco: **#011 — Gerenciamento em massa de preços e estoque**, conforme `ESPECIFICACAO-LOJA-010-011.md`, local `Loja → Gerenciar → Gerenciamento em massa`. Implementar em branch própria derivada da integração financeira (incluindo #010.06 se dependência técnica for necessária), sem merge de PRs não relacionados.
 - Gate econômico: **zero deploys Vercel** durante desenvolvimento, revisão e testes locais; nenhum push em branch que dispare preview automático sem bloqueio verificado. Não reaplicar migrações 010.01–010.06; eventual SQL #011 deve ser testado isoladamente e só aplicado remotamente mediante decisão específica.
 - UX: abas Preços, Estoque, Ambos; tabela/cards, filtros e seleção deliberada; prévia server-side; confirmação, idempotência, concorrência, auditoria, feedback por item; preservar regras de visibilidade de produto, checkout, Mercado Pago e reembolso legado.
+
+### Entrega #011 — 24/11/2026
+
+- Branch `desenvolvimento/ajuste-011-gerenciamento-massa`, sobre a candidata 010.06 `5a53489` (PR #54), commit [`77fe00c`](https://github.com/neopep/App-NeoPep/commit/77fe00c5a14d9a2bf0b58e50c41045ae6def658a).
+- 011.01–011.04 implementadas: seleção paginada e linha a linha, prévia/execução/histórico administrativos, preços/estoque e sinal de cache. Lote atômico e idempotente; reversão por revisão somente de preços. SQL dirigido `20261124230000`, preflight read-only e rollback de acesso preservando a auditoria. 011.05: build, check, 33 testes Loja/PWA, PostgreSQL 17 concorrente e Chromium desktop/iPhone/Pixel emulados passaram. [Matriz e arquivos](https://github.com/neopep/App-NeoPep/blob/77fe00c5a14d9a2bf0b58e50c41045ae6def658a/docs/planejamento/EXEC-2026-11-24-011.md).
+- Preservados checkout, Mercado Pago, contrato legado de reembolso, visibilidade e integrações 010.04/05/06. Nenhuma aplicação remota ou deploy. Homologar com sessões e catálogo de Teste após autorização e validar o comportamento com dispositivos reais. Aceite e publicação pendentes. [Comparação para PR](https://github.com/neopep/App-NeoPep/compare/desenvolvimento/ajuste-010-06-conciliacao...desenvolvimento/ajuste-011-gerenciamento-massa?expand=1).
