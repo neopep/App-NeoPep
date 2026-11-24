@@ -173,3 +173,10 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - Codex reportou build/check/empacotamento e 64 testes direcionados aprovados, incluindo exclusão, troca de contas, três capacidades e emulações. Estes testes **não foram repetidos por este agente**.
 - Pendências: revisão dirigida de código; homologação com sessão autenticada em Teste, Safari/PWA e dispositivos físicos; aceite explícito. PR criada, mas não mesclada; nenhum deploy realizado por este agente. #006/PR #41 e #008/PR #42 continuam independentes.
 - Estado: EM_TESTE (local), ACEITE_NAO_CONCEDIDO, PUBLICACAO_NAO_REALIZADA.
+
+### Registro #003 — 24/11/2026 (conferência GitHub)
+- Branch `desenvolvimento/ajuste-003-tema-claro`, commit principal `00ef2d4e7be01bb19261a8cdc5987439a7888299`, [PR #44](https://github.com/neopep/App-NeoPep/pull/44) criada em rascunho para `staging/permanente`.
+- Comparação: 2 commits à frente, 0 atrás de `staging/permanente@0970ae6`; 17 arquivos no diff (app, CSS, appearance, admin, SW, scripts, testes e evidências).
+- Codex reportou build/check/empacotamento, rodadas de 81 e 110 testes (não somar como 191 testes distintos) e 21 comparações visuais do escuro sem diferença, exceto novo seletor. Este agente não repetiu os testes.
+- Pendências: revisão dirigida, homologação autenticada no Teste, Safari/PWA/dispositivos físicos, aceite explícito. Nenhum merge ou deploy efetuado. PRs #41, #42 e #43 permanecem separadas.
+- Estados: EM_TESTE (local), ACEITE_NAO_CONCEDIDO, PUBLICACAO_NAO_REALIZADA.
