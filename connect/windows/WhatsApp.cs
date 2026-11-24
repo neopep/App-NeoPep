@@ -107,7 +107,7 @@ sealed partial class WhatsApp : Form {
         if(environment.IsProduction)sendStatus.Text="Produção: envio bloqueado até a homologação controlada.";
         if(showComposer)tabs.SelectedTab=compose;else if(showGroups)tabs.SelectedTab=listing;
         Shown+=delegate{LoadDraft();if(!environment.IsProduction&&File.Exists(vault))ConnectSession();};
-        FormClosing+=delegate{if(ready)ReportStatus("disconnected");closing=true;StopBridge();ClearQr();};
+        FormClosing+=delegate{if(ready)ObserveStatus(ReportStatus("disconnected"));closing=true;StopBridge();ClearQr();};
     }
     FlowLayoutPanel Page(string name) {
         var page=new TabPage(name){BackColor=ConnectTheme.Background,ForeColor=ConnectTheme.Text};tabs.TabPages.Add(page);
@@ -287,6 +287,13 @@ sealed partial class WhatsApp : Form {
             if(!closing){groups.Enabled=true;sync.Enabled=ready&&groupReadAt.HasValue&&saveSelection!=null;}
         }
     }
+    // ReportStatus handles remote failures itself. Observe background completion without
+    // awaiting UI teardown or connection-state transitions (C# 5 compatible).
+    static void ObserveStatus(Task operation){
+        operation.ContinueWith(completed=>{
+            if(completed.Exception!=null)completed.Exception.Handle(error=>true);
+        },TaskContinuationOptions.OnlyOnFaulted);
+    }
     async Task ReportStatus(string status){
         if(selectionRevision==0||reportStatus==null||connectionId==Guid.Empty)return;
         try{await reportStatus(connectionId,status);}catch{}
@@ -352,7 +359,7 @@ sealed partial class WhatsApp : Form {
     }
     void Disconnect(){
         if(forgetting)return;
-        ReportStatus("revoked");
+        ObserveStatus(ReportStatus("revoked"));
         forgetting=true;ready=false;ClearQr();ClearGroups();
         try{
             WriteVault(null);
@@ -367,7 +374,7 @@ sealed partial class WhatsApp : Form {
             var message=json.Deserialize<Dictionary<string,object>>(line);
             string type=TextValue(message,"type"),value=TextValue(message,"value");
             if(type=="vault"){
-                if(message["value"]==null){if(!forgetting)ReportStatus("revoked");WriteVault(null);}
+                if(message["value"]==null){if(!forgetting)ObserveStatus(ReportStatus("revoked"));WriteVault(null);}
                 else if(!forgetting)WriteVault(value);
             }else if(type=="state"){
                 ready=value=="conectado";
@@ -379,7 +386,7 @@ sealed partial class WhatsApp : Form {
                 switch(value){
                     case "conectando": Notify("Conectando…");break;
                     case "aguardando_qr": Notify("Escaneie o QR Code no telefone de teste.");break;
-                    case "conectado": Notify("WhatsApp conectado. Consulte os grupos na aba Grupos.");RefreshGroups();ReportStatus("connected");break;
+                    case "conectado": Notify("WhatsApp conectado. Consulte os grupos na aba Grupos.");RefreshGroups();ObserveStatus(ReportStatus("connected"));break;
                     case "reconectando": Notify("Rede interrompida. Reconectando…");break;
                     case "desconectando": break;
                     case "desconectado": StopBridge();Notify("Sessão desconectada e removida.");break;

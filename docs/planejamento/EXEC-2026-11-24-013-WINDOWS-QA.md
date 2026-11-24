@@ -31,3 +31,7 @@ A migração `campaign_dispatch` está instalada SOMENTE no Supabase Teste, com 
 - Houve quatro avisos `CS4014` no `WhatsApp.cs` atual (chamadas assíncronas sem `await`) e avisos preexistentes em baselines; build foi aprovado, mas os avisos merecem revisão antes de publicação.
 - Nenhum artefato de instalador foi enviado ao GitHub: passo `upload-artifact` intencionalmente **skipped** (repositório público, candidato não assinado). Sem emissão de instalador distribuível, atualização automática, instalação em PC do proprietário, sessão WhatsApp real ou envio real.
 - **Ainda pendente**: decidir versão e assinatura do instalador para release, compilar/instalar/validar no Windows real, verificar compatibilidade com sessão WhatsApp autorizada, homologação e autorização de ativação. Server gates permanecem desativados.
+
+## Ajuste da continuação — avisos de compilação CS4014
+
+Foram detectadas quatro chamadas `ReportStatus(...)` sem observação explícita de tarefa no WinForms. Corrigidas em `WhatsApp.cs` por um observador de conclusão em segundo plano que **não aguarda e não atrasa** a desmontagem da interface, preservando a ordem e comportamento de conexão/revogação anteriores. O observador consome eventual exceção de tarefa; `ReportStatus` já absorve falhas de rede. Não modifica credenciais nem envia mensagens. O build de `NeoPepConnect.exe` passa a tratar **CS4014 como erro** no código candidato, sem modificar as verificações de baselines legadas. Reexecutar Windows CI na própria branch.
