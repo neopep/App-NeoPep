@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #010 — Estoque, custos e lucros da Loja; iniciar 010.1 diagnóstico, sem alterações financeiras; selecionado pelo proprietário em 24/11/2026.
-**ÚLTIMA_DECISÃO:** proprietário escolheu #010. Executar somente 010.1 (inventário de código/bancos/estoque/pagamentos), sem modificar webhook Mercado Pago, schema remoto ou produção. PRs #41–#48 seguem sem aceite e sem publicação.
+**FOCO_ATUAL:** #010 — 010.03-A validada localmente; 010.03-B aguarda homologação autorizada.
+**ÚLTIMA_DECISÃO:** versionar a 010.03-A e registrar a evidência local. Aceite pendente; nenhuma migração remota ou publicação autorizada.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -18,7 +18,7 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | Em espera | #008 | Fixar posts da Biblioteca | EM_TESTE (local; SQL não aplicado em Teste) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 008.03 |
 | Em espera | #009 | Seringa no card da Home | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 009.03 |
 | Em espera | #003 | Tema claro/escuro | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 003.05 |
-| 1 (foco atual) | #010 | Estoque, custos e lucro | NÃO_INICIADO | Não solicitado | Não preparado | 010.01 |
+| 1 (foco atual) | #010 | Estoque, custos e lucro | EM_TESTE (local) | Pendente | Não realizada | 010.03-B |
 | 10 | #011 | Edição em massa | NÃO_INICIADO | Não solicitado | Não preparado | 011.01 |
 | 11 | #013 | Campanhas e Connect | NÃO_INICIADO | Não solicitado | Não preparado | 013.01 |
 | 12 | #012 | Planos/assinaturas | NÃO_INICIADO | Não solicitado | Não preparado | 012.01 |

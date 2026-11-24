@@ -30,7 +30,7 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 | #008 | Fixar publicações | EM_TESTE (local) | PR #42 draft; commit d76ae73; SQL não aplicado em Teste | 008.03 |
 | #009 | Seringa na Home | PLANEJADO | syringeSymbol existente | 009.01 |
 | #003 | Tema claro/escuro | PLANEJADO | light/dark/system existente no código | 003.01 |
-| #010 | Estoque, custos e lucro | PLANEJADO | shop_products.stock e price_cents confirmados nos dois bancos | 010.01 |
+| #010 | Estoque, custos e lucro | EM_TESTE (local) | 010.03-A versionada e validada em PostgreSQL isolado, sem aceite ou publicação | 010.03-B |
 | #011 | Gestão em massa | PLANEJADO | Gerenciar Loja e estoque por produto existentes | 011.01 |
 | #013 | Central de Campanhas | PLANEJADO | Campanhas/Connect/grupos presentes, sem confirmação de envio automático | 013.01 |
 | #012 | Assinaturas | PLANEJADO | Segmentação por plano existente, billing recorrente não verificado | 012.01 |
@@ -71,9 +71,10 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 | 003.01 | Inventariar tokens light/dark/system | PLANEJADO | screenshots baseline dark |
 | 003.02 | Implementar tema claro paleta e switch | PLANEJADO | sem flash e opção system |
 | 003.03 | Revisar todas telas e acessibilidade | PLANEJADO | dark preservado |
-| 010.01 | Auditar estoque, pedido, Edge e transições | PLANEJADO | sem alterar MP |
-| 010.02 | Decidir custo/câmbio/CMV e política estoque | PLANEJADO | regras explícitas |
-| 010.03 | Schema aditivo custos e movimentações | PLANEJADO | RLS, snapshot, rollback |
+| 010.01 | Auditar estoque, pedido, Edge e transições | DIAGNÓSTICO REGISTRADO | PR #49 |
+| 010.02 | Decidir custo/câmbio/CMV e política estoque | POLÍTICA-BASE REGISTRADA | Arquitetura 010.02; critérios contábeis finais pendentes |
+| 010.03-A | Preparar schema aditivo de custos e movimentações | EM_TESTE (local) | PostgreSQL 17 isolado, check e 32 testes da Loja |
+| 010.03-B | Homologar migração no Supabase de Teste | PENDENTE | Catálogo e ledger, ensaio de restauração e autorização |
 | 010.04 | UI de aquisição no produto atual | PLANEJADO | sem segundo stock |
 | 010.05 | Dashboard de lucro/margem no Gerenciar | PLANEJADO | cálculos e custos unknown |
 | 010.06 | Testar concorrência e reconciliação | PLANEJADO | webhook preservado |
@@ -209,3 +210,11 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - **Risco de integração documental:** a branch #007 adiciona `docs/planejamento/CONTROLE-DE-EXECUCAO.md` e `QUADRO-DE-PRIORIDADES.md`, enquanto a branch do Plano Mestre mantém versões canônicas mais recentes. Antes do merge, reconciliar as duas versões preservando todo histórico, sem sobrescrever registros.
 - Pendências: revisão dirigida de código, homologação de atendimento com sessão real em Teste, aceite explícito. Nenhum merge, migração ou deploy realizado. PRs #41–#47 permanecem separadas.
 - Estado: EM_TESTE (local), ACEITE_NAO_CONCEDIDO, PUBLICACAO_NAO_REALIZADA.
+
+
+### Registro 010.03-A — 24/11/2026
+
+- Desenvolvimento: implementado e validado localmente. Aceite do proprietário: pendente. Publicação: não realizada.
+- Base `staging/permanente@0970ae6`, branch `desenvolvimento/ajuste-010-03a-estrutura-loja`, commit de implementação [`07fd513`](https://github.com/neopep/App-NeoPep/commit/07fd5134457e861886be4383065d0cb80638e167). [Registro do ensaio e arquivos](https://github.com/neopep/App-NeoPep/blob/07fd5134457e861886be4383065d0cb80638e167/docs/planejamento/EXEC-2026-11-24-010-03A.md).
+- Migração `20261124160000`: câmbio, aquisições, movimentos auditáveis e snapshots privados. Ensaio local aprovou RLS e grants, concorrência, retentativas idempotentes, precisão decimal e reversão. `npm run check` e 32 testes direcionados da Loja passaram. Checkout, webhook, saldo e pedidos antigos preservados.
+- 010.03-B: comparar catálogo, ledger e contratos em Teste; registrar e ensaiar recuperação; após autorização, aplicar somente esta migração e validar permissões, checkout, reserva e cancelamento com dados sintéticos. Nenhuma aplicação remota ou ativação automática nesta etapa.
