@@ -59,7 +59,8 @@
   ],
   "git": {
     "deploymentEnabled": {
-      "release/preparacao-paridade-producao-20261122": true
+      "release/preparacao-paridade-producao-20261122": true,
+      "docs/plano-mestre-ajustes-2026-11-24": false
     }
   }
 }
