@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #007 — Loja: textos e atendimento; implementado pelo Codex no commit facee60 e PR #48 draft criada; homologação autenticada e aceite pendentes.
-**ÚLTIMA_DECISÃO:** PR #48 criada para #007; 26 testes reportados, sem homologação real. Atenção: branch #007 inclui arquivos de planejamento duplicados em relação à branch documental canônica; conciliar antes do merge. Nenhum aceite/deploy.
+**FOCO_ATUAL:** #010 — Estoque, custos e lucros da Loja; iniciar 010.1 diagnóstico, sem alterações financeiras; selecionado pelo proprietário em 24/11/2026.
+**ÚLTIMA_DECISÃO:** proprietário escolheu #010. Executar somente 010.1 (inventário de código/bancos/estoque/pagamentos), sem modificar webhook Mercado Pago, schema remoto ou produção. PRs #41–#48 seguem sem aceite e sem publicação.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -10,7 +10,7 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | Prioridade sugerida | ID | Trabalho | Desenvolvimento do ciclo | Aceite proprietário | Publicação | Próximo sub-ID |
 |---|---|---|---|---|---|---|
 | Pré-requisito dirigido | #014 | Preservação, baseline e controle incremental | AUDITANDO | Não solicitado | Não aplicável diretamente | 014.01, conforme impacto |
-| 1 (foco atual) | #007 | Loja: texto e atendimento | NÃO_INICIADO | Não solicitado | Não preparado | 007.01 |
+| Em espera | #007 | Loja: texto e atendimento | NÃO_INICIADO | Não solicitado | Não preparado | 007.01 |
 | Em espera | #006 | Prévia de PDF na Home/Biblioteca | EM_TESTE (local concluído; Teste real pendente) | AGUARDANDO_ACEITE (não solicitado formalmente) | NAO_PREPARADO (sem deploy) | 006.03 |
 | Em espera | #005 | Modal de comparações no Grupo | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 005.05 |
 | Em espera | #001 | Localização opcional no onboarding | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 001.03 |
@@ -18,7 +18,7 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | Em espera | #008 | Fixar posts da Biblioteca | EM_TESTE (local; SQL não aplicado em Teste) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 008.03 |
 | Em espera | #009 | Seringa no card da Home | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 009.03 |
 | Em espera | #003 | Tema claro/escuro | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 003.05 |
-| 9 | #010 | Estoque, custos e lucro | NÃO_INICIADO | Não solicitado | Não preparado | 010.01 |
+| 1 (foco atual) | #010 | Estoque, custos e lucro | NÃO_INICIADO | Não solicitado | Não preparado | 010.01 |
 | 10 | #011 | Edição em massa | NÃO_INICIADO | Não solicitado | Não preparado | 011.01 |
 | 11 | #013 | Campanhas e Connect | NÃO_INICIADO | Não solicitado | Não preparado | 013.01 |
 | 12 | #012 | Planos/assinaturas | NÃO_INICIADO | Não solicitado | Não preparado | 012.01 |
@@ -71,6 +71,8 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | 2026-11-24 | Proprietário | Correção: «Desculpe é o 007» | #007 / 007.01 | Substitui a seleção #004 antes de execução confirmada; #004 permanece no backlog. Sem aceite/deploy | PR #40 |
 
 | 2026-11-24 | Codex / conferência GitHub | #007 implementado em facee60; PR #48 draft criada | #007 / 007.01–007.03 | 26 testes reportados; atendimento autenticado e conciliação documental pendentes; sem aceite/publicação | [PR #48](https://github.com/neopep/App-NeoPep/pull/48) |
+
+| 2026-11-24 | Proprietário | «010» | #010 / 010.1 | Iniciar diagnóstico documental; não alterar pagamentos, migrações ou Produção; PRs #41–#48 preservadas | [Especificação Loja](ESPECIFICACAO-LOJA-010-011.md) |
 
 ## 4. Fila de aprovados aguardando publicação
 **Nenhum item deste ciclo aprovado ainda.** Inserir aqui um registro por ID/sub-ID: ID, versão/commit, aceite, data, opções individual/conjunto, dependências e release vinculado.
