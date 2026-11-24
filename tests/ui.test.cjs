@@ -478,6 +478,37 @@ test('seringas têm comprimento comum, diâmetros diversos e recorte externo da 
  }
 });
 
+test('aparência usa o sistema na abertura, preserva a escolha manual e permite voltar ao automático',async()=>{
+ const a=setup({}, {darkSystem:true});
+ const theme=app=>app.document.documentElement.dataset.theme;
+ assert.equal(theme(a),'dark');
+ assert.equal(a.data.has('neo-appearance'),false);
+ await a.run("go('inicio',false)");
+ const choose=value=>{
+  const select=a.document.querySelector('#homeAppearance');
+  for(const option of select.querySelectorAll('option'))option.toggleAttribute('selected',option.value===value);
+  select.dispatchEvent(new a.ctx.Event('change',{bubbles:true}));
+ };
+ choose('light');assert.equal(theme(a),'light');
+ assert.equal(a.data.get('neo-appearance'),'light');
+ a.setSystem(false);a.setSystem(true);assert.equal(theme(a),'light');
+ const reopened=setup(Object.fromEntries(a.data),{darkSystem:true});
+ assert.equal(theme(reopened),'light');
+ a.ctx.NeoCloud.user={id:'account-a'};
+ await a.run("mode='cloud';go('inicio',false)");
+ a.ctx.NeoCloud.user={id:'account-b'};
+ await a.run("go('inicio',false)");
+ assert.equal(theme(a),'light');
+ choose('dark');assert.equal(theme(a),'dark');
+ choose('system');a.setSystem(false);assert.equal(theme(a),'light');
+ a.setSystem(true);assert.equal(theme(a),'dark');
+ assert.equal(a.data.get('neo-appearance'),'system');
+ const html=fs.readFileSync('dist/index.html','utf8'),admin=fs.readFileSync('dist/admin/index.html','utf8');
+ for(const file of [html,admin])assert.ok(file.indexOf('appearance.js')>=0&&file.indexOf('appearance.js')<file.indexOf('style.css'));
+});
+
+
+// Testes de regressão do ajuste #43 integrados ao ciclo de lançamento.
 test('card da Home mostra somente o último cálculo salvo da conta e abre a calculadora existente',async()=>{
  const a=setup(),q=s=>a.document.querySelector(s);
  const owner='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',other='bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
@@ -519,4 +550,138 @@ test('card da Home mostra somente o último cálculo salvo da conta e abre a cal
  assert.match(card().textContent,/Seringa de 0,5 mL/);
  a.run("mode='local'");home();
  assert.doesNotMatch(card().textContent,/Último cálculo salvo/);
+});
+
+
+// Testes de regressão do ajuste #45 integrados ao ciclo de lançamento.
+test('onboarding oferece localização antes das preferências, grava somente após permissão e permite revogar',async()=>{
+ const account='account-a';
+ const calls=[];
+ const options={cloud:{user:{id:account},onboardingComplete:true,privacyPreferences:async(choices=null,complete=false)=>{
+  calls.push([choices,complete]);return {...preferences,...choices,pending:!complete&&preferences.pending};
+ }}};
+ let nativeCalls=0,preferences={pending:true,location:false,statistics:false,usage:false,campaigns:false};
+ const a=setup({},options),q=selector=>a.document.querySelector(selector),tick=()=>new Promise(setImmediate);
+ a.ctx.NEO_CONFIG.stagingGeoEnabled=true;
+ a.ctx.navigator.geolocation={getCurrentPosition(success){nativeCalls++;success({coords:{get latitude(){throw Error('coordenadas lidas');}}});}};
+ await a.run("mode='cloud';openAccountDestination()");await tick();
+ assert.equal(nativeCalls,0);
+ assert.equal(q('[data-location-intro]').hidden,false);
+ assert.equal(q('#privacyPreferences').hidden,true);
+ q('[data-location-choice=allow]').click();await tick();
+ assert.equal(nativeCalls,1);
+ assert.ok(calls.some(([choice,complete])=>choice?.location===true&&!complete));
+ assert.equal(q('[data-location-intro]').hidden,true);
+ assert.equal(q('#privacyPreferences').hidden,false);
+ assert.equal(q('#privacyPreferences [name=location]'),null);
+ assert.equal(a.data.get('neo-location-onboarding-v1:'+account),'allow');
+
+ const reopened=setup(Object.fromEntries(a.data),options);
+ reopened.ctx.NEO_CONFIG.stagingGeoEnabled=true;
+ await reopened.run("mode='cloud';openAccountDestination()");await tick();
+ assert.equal(reopened.document.querySelector('[data-location-intro]').hidden,true);
+ reopened.ctx.NeoCloud.user={id:'account-b'};
+ await reopened.run("render()");await tick();
+ assert.equal(reopened.document.querySelector('[data-location-intro]').hidden,false);
+ reopened.document.querySelector('[data-location-choice=skip]').click();await tick();
+ assert.equal(reopened.data.get('neo-location-onboarding-v1:account-b'),'skip');
+ assert.equal(nativeCalls,1);
+
+ preferences={...preferences,pending:false,location:true};
+ await a.run("go('permissoes',false)");await tick();
+ const field=q('[name=location]');assert.equal(field.checked,true);
+ field.checked=false;
+ q('#privacyPreferences').dispatchEvent(new a.ctx.Event('submit',{bubbles:true,cancelable:true}));await tick();
+ assert.ok(calls.some(([choice])=>choice?.location===false));
+ assert.equal(nativeCalls,1);
+});
+
+test('onboarding continua com recusa, ausência da API, timeout e recurso desligado',async()=>{
+ for(const outcome of ['denied','unsupported','timeout','disabled']){
+  const calls=[];
+  const a=setup({}, {cloud:{user:{id:'current'},onboardingComplete:true,privacyPreferences:async(choices=null,complete=false)=>{
+   calls.push([choices,complete]);return {pending:!complete,location:false,statistics:false,usage:false,campaigns:false};
+  }}});
+  const q=selector=>a.document.querySelector(selector),tick=()=>new Promise(setImmediate);
+  a.ctx.NEO_CONFIG.stagingGeoEnabled=outcome!=='disabled';
+  let native=0,fallback;
+  if(outcome!=='unsupported')a.ctx.navigator.geolocation={getCurrentPosition(_success,error){native++;if(outcome==='denied')error({code:1});}};
+  a.ctx.setTimeout=(cb,ms)=>{if(ms===8000)fallback=cb;return 1;};
+  await a.run("mode='cloud';openAccountDestination()");await tick();
+  if(outcome!=='disabled'){
+   q('[data-location-choice=allow]').click();
+   if(outcome==='timeout')fallback();
+   await tick();
+  }
+  assert.equal(q('[data-location-intro]').hidden,true,outcome);
+  assert.equal(q('#privacyPreferences').hidden,false,outcome);
+  assert.equal(native,['denied','timeout'].includes(outcome)?1:0);
+  const submit=new a.ctx.Event('submit',{bubbles:true,cancelable:true});
+  Object.defineProperty(submit,'submitter',{value:q('[name=skip]')});
+  q('#privacyPreferences').dispatchEvent(submit);
+  await tick();
+  assert.equal(a.run('page'),'inicio',outcome);
+  assert.equal(calls.some(([choice])=>choice?.location===true),false);
+ }
+});
+
+test('autorização nativa iniciada por outra conta não é aplicada à sessão atual',async()=>{
+ const writes=[];
+ const a=setup({}, {cloud:{user:{id:'account-a'},onboardingComplete:true,privacyPreferences:async choices=>{
+  if(choices)writes.push(choices);
+  return {pending:true,location:false,statistics:false,usage:false,campaigns:false};
+ }}});
+ const tick=()=>new Promise(setImmediate);
+ a.ctx.NEO_CONFIG.stagingGeoEnabled=true;
+ let grant;
+ a.ctx.navigator.geolocation={getCurrentPosition(success){grant=success;}};
+ await a.run("mode='cloud';openAccountDestination()");await tick();
+ a.document.querySelector('[data-location-choice=allow]').click();
+ a.ctx.NeoCloud.user={id:'account-b'};
+ a.run('render()');await tick();
+ grant({coords:{latitude:0}});await tick();
+ assert.deepEqual(writes,[]);
+ assert.equal(a.data.has('neo-location-onboarding-v1:account-a'),false);
+ assert.equal(a.data.has('neo-location-onboarding-v1:account-b'),false);
+ assert.equal(a.document.querySelector('[data-location-intro]').hidden,false);
+});
+
+
+// Testes de regressão do ajuste #46 integrados ao ciclo de lançamento.
+test('personalização é independente, opcional e revisável por conta',async()=>{
+ const decisions=new Map(),calls=[];
+ let account='a',shouldFail=false;
+ const options={cloud:{
+  user:{id:account},onboardingComplete:true,
+  privacyPreferences:async(choices,complete)=>{calls.push(['privacy',choices,complete]);return {pending:!complete,statistics:false,usage:false,campaigns:false,location:false};},
+  personalizationConsent:async choice=>{
+   if(choice!==undefined){calls.push(['personalization',account,choice]);if(shouldFail)throw Error('rede');decisions.set(account,choice);}
+   return {decided:decisions.has(account),granted:decisions.get(account)===true};
+  }
+ }};
+ const a=setup({},options),tick=()=>new Promise(setImmediate),q=sel=>a.document.querySelector(sel);
+ const start=async()=>{await a.run("mode='cloud';openAccountDestination()");await tick();};
+ const choose=async value=>{q('[data-personalization-choice='+value+']').click();await tick();};
+ await start();
+ assert.equal(q('#personalizationTitle').textContent,'Personalize sua experiência');
+ assert.match(q('[data-personalization]').textContent,/Permita que o NeoPep personalize sua experiência e melhore nossas comunicações\./);
+ assert.equal(q('[data-personalization]').hidden,false);
+ assert.equal(q('#privacyPreferences').hidden,true);
+ assert.equal(decisions.size,0);
+ await choose('allow');
+ assert.equal(decisions.get('a'),true);
+ assert.equal(q('#privacyPreferences').hidden,false);
+ assert.equal(calls.some(([action,value])=>action==='privacy'&&value),false);
+ await start();assert.equal(q('[data-personalization]').hidden,true);
+ await a.run("go('permissoes',false)");await tick();
+ assert.equal(q('[data-personalization-choice=deny]').hidden,false);
+ await choose('deny');assert.equal(decisions.get('a'),false);
+ account='b';a.ctx.NeoCloud.user={id:account};
+ await start();assert.equal(q('[data-personalization]').hidden,false);
+ await choose('deny');assert.equal(decisions.get('b'),false);
+ account='c';a.ctx.NeoCloud.user={id:account};shouldFail=true;
+ await start();await choose('allow');
+ assert.equal(decisions.has('c'),false);
+ assert.equal(q('#privacyPreferences').hidden,false);
+ assert.match(q('[data-privacy-notice]').textContent,/Não foi possível confirmar/);
 });
