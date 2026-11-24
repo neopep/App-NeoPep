@@ -83,5 +83,10 @@ A reconciliação PR #37 é uma pré-condição importante de publicação geral
 ## 9. Definition of Done do ciclo
 Todos os IDs #001–#013 e suas subetapas marcados validados com evidências, #014 encerrado com release e preservação, ausência de bloqueios críticos desconhecidos, cadastros/dados históricos mantidos, Teste/Produção rastreáveis, feedback do proprietário e documentação navegável na main aprovada. O menu «Planejamento / Evolução» dentro do painel é proposta futura separada: não afirmar que exista por os arquivos estarem no GitHub.
 
-## 10. Limites desta revisão
+## 10. Autonomia de prioridades e publicação (decisão de 24/11/2026)
+A lista de fases acima é uma sugestão, **não uma trava de ordem**. O proprietário pode selecionar qualquer item a qualquer momento. Aplicar [protocolo de prioridades, aceite e publicação](PROTOCOLO-DE-PRIORIDADES-ACEITE-E-PUBLICACAO.md): estados separados para desenvolvimento, aceite do proprietário e publicação; publicação isolada ou conjunta somente por escolha expressa; aprovação não implica deploy automático. O [Quadro de Prioridades](QUADRO-DE-PRIORIDADES.md) acompanha o foco ativo e a fila; [Registro de Publicações](REGISTRO-DE-PUBLICACOES.md) mantém cada release; [Marco Zero](MARCO-ZERO-2026-11-24.md) delimita a referência inicial.
+
+**Revisão por diferença:** não refazer auditoria ampla das funcionalidades anteriores já aprovadas; conferir os arquivos, contratos e testes **que a alteração nova efetivamente toca**. Em lançamento, continuar respeitando gates de segurança, isolamento de banco, login/pagamentos quando impactados e compatibilidade de Produção. Marcar o que foi validado e o que não foi; não inferir que todo o legado esteja homologado porque a alteração nova passou.
+
+## 11. Limites desta revisão
 A presente operação só documenta e verifica metadados em leitura. Não compila o app Windows, não abre sessão WhatsApp, não faz transações Mercado Pago, não implementa recursos nem executa migrations/deploys. A PR documental continua rascunho até aprovação, e a main não será alterada automaticamente.

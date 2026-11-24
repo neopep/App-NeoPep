@@ -13,7 +13,7 @@ A numeração #001–#013 mantém integralmente os requisitos funcionais definid
 **Verificação adicional em 24/11/2026 (somente leitura):** Main/Produção Vercel READY fc0ae22 (09:37 UTC); Staging/ambiente Teste Vercel READY 0970ae6 (01:15 UTC); projetos Supabase ativos e saudáveis; ledger de 22 migrações em Teste e 15 em Produção, com IDs diferentes. Isto **não** constitui homologação funcional dos serviços, Windows, pagamentos ou domínios. Ver [Governança #014](GOVERNANCA-014.md).
 
 ## 0. Diretrizes e decisões transversais
-- Executar do mais simples ao mais complexo, em lotes pequenos e verificáveis.
+- Ordem padrão sugerida: do mais simples ao mais complexo. **O proprietário pode inverter a prioridade a qualquer momento**, por ID ou subetapa, sem perder histórico ou aprovações. Ver [Protocolo de Prioridades e Publicação](PROTOCOLO-DE-PRIORIDADES-ACEITE-E-PUBLICACAO.md).
 - Antes de modificar, auditar branch ativa, PRs, implementações recentes, Supabase (schemas, RLS, migrations), Vercel, Teste/Produção, integração Windows e automações.
 - Preservar a última versão aprovada, dados reais e as funcionalidades já operacionais. Evitar duplicar módulos ou campos.
 - Mercado Pago da loja/webhook de produção está funcionando segundo relato do responsável; **não alterar esse fluxo** sem evidência de necessidade e autorização específica.
@@ -22,7 +22,7 @@ A numeração #001–#013 mantém integralmente os requisitos funcionais definid
 - UI responsiva mobile/PWA, visual NeoPep, acessibilidade, loading/empty/error states, segurança e LGPD.
 - Acesso ao app, biblioteca, comunidade, pagamentos e notificações deve respeitar as permissões reais.
 - Novas funcionalidades podem exigir programação inicial; **depois** devem ser atribuíveis a planos sem mudar código.
-- Para cada lote: inventário do existente → proposta de delta → implementação em Teste → QA → evidência → aprovação → publicação em Produção → monitoramento.
+- Para cada lote: baseline **direcionado ao delta** → alteração mínima → testes em Teste → evidência → **aceite explícito do proprietário** → publicação individual ou conjunta **somente quando solicitada**, com gates → monitoramento. «Aceito» e «Publicado» são estados distintos.
 - Criar documentação consultável no painel administrativo futuramente (menu «Planejamento / Evolução»), com filtros por fase, status, prioridade e histórico. Este arquivo é a fonte versionada inicial, não a tela implantada.
 
 ## 1. Catálogo de ajustes
@@ -196,3 +196,7 @@ Este documento mantém os **13 ajustes funcionais**. A pedido do responsável, a
 
 ## 8. Especificação V2 e atualização cumulativa
 As regras gerais acima permanecem aprovadas. Para execução, consultar obrigatoriamente os detalhamentos por ID e os sub-IDs correspondentes em CONTROLE-DE-EXECUCAO.md. Na dúvida, preservar a implementação existente, classificar o achado como DESCONHECIDO e obter evidência antes de propor troca. As atualizações de execução e testes devem ser commitadas no GitHub pelo agente que realizar a atividade; não há acompanhamento automático em background.
+
+## 9. Política adicional de execução de prioridade variável (24/11/2026)
+O proprietário escolhe qual ajuste fazer agora, sem necessidade de seguir a ordem das fases acima; cada mudança de foco fica registrada no [Quadro de Prioridades](QUADRO-DE-PRIORIDADES.md). Após a finalização técnica, o proprietário confirma a aprovação da etapa. Ela passa a **aprovada/aguardando publicação**, não publicada. Ele decide publicar individualmente ou guardar para um lote final. Cada publicação registra versão e evidência no [Registro de Publicações](REGISTRO-DE-PUBLICACOES.md).
+[Marco Zero](MARCO-ZERO-2026-11-24.md) registra as versões de partida por ambiente. As próximas revisões devem examinar apenas o código novo e a compatibilidade com contratos anteriores diretamente afetados, mantendo verificações de segurança de release quando exigidas. Não reauditar a história completa por padrão nem desfazer trabalhos anteriores ao incorporar melhorias. A PR #37 permanece uma questão de compatibilidade para releases, não uma autorização para merge de tudo automaticamente.

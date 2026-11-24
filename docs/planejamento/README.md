@@ -17,13 +17,20 @@ Este é o ponto inicial para qualquer conversa, agente ou Codex que trabalhe na 
 | [Governança #014](GOVERNANCA-014.md) | Não regressão, evidência, release gates, segurança e atualizações por agente |
 | [Levantamento Técnico](LEVANTAMENTO-TECNICO-2026-11-24.md) | Inventário do código e riscos frente a Teste e Produção |
 | [Auditoria da Revisão V2](AUDITORIA-REVISAO-2026-11-24.md) | O que foi corrigido da V1, evidências e limites da verificação |
-| [Controle de Execução](CONTROLE-DE-EXECUCAO.md) | Status de cada frente e subetapa; registro append-only com PR/commit/testes |
+| [Controle de Execução](CONTROLE-DE-EXECUCAO.md) | Evidência técnica e resultado por subetapa, append-only |
+| [Quadro de prioridades](QUADRO-DE-PRIORIDADES.md) | Foco escolhido pelo proprietário, ordem dinâmica e aceite separado da publicação |
+| [Protocolo de prioridades/aceite/publicação](PROTOCOLO-DE-PRIORIDADES-ACEITE-E-PUBLICACAO.md) | Como executar em qualquer ordem, aprovar e publicar isolado ou em lote |
+| [Marco Zero](MARCO-ZERO-2026-11-24.md) | Sha e deploys de partida de Teste e Produção, sem reabrir todo o legado |
+| [Registro de publicações](REGISTRO-DE-PUBLICACOES.md) | Releases seletivos, mudanças em produção, rollback e novos marcos |
 | [Início para Agentes](INICIO-PARA-AGENTES.md) | Checklist de handoff e retomada segura |
 
-## Como retomar em outra conversa
-Pedido recomendado: «No repositório neopep/App-NeoPep, abra a PR #40 e leia docs/planejamento/README.md, AGENTS.md, o Plano Mestre e o Controle de Execução. Identifique a próxima subetapa planejada, confirme o SHA implantado de Teste/Produção, preserve todas as funcionalidades atuais e proponha/execute apenas a subetapa autorizada. Atualize o controle com evidências no mesmo PR.»
+## Regra do proprietário (prioridade máxima)
+O responsável poderá escolher qualquer ID/sub-ID para desenvolver agora; a ordem do backlog é **alterável**. Somente a confirmação dele marca um ajuste funcional como **aprovado/concluído**. A publicação é decisão independente: pode sair isolada, aguardar ou ser agrupada a outras etapas aprovadas. Todo o processo atualiza este GitHub com evidências e preserva a linha de base. Ler [protocolo de prioridade/aceite/publicação](PROTOCOLO-DE-PRIORIDADES-ACEITE-E-PUBLICACAO.md).
 
-## Ordem de execução atual
+## Como retomar em outra conversa
+Pedido recomendado: «No repositório neopep/App-NeoPep, abra a PR #40 e leia docs/planejamento/README.md, QUADRO-DE-PRIORIDADES.md, MARCO-ZERO-2026-11-24.md e CONTROLE-DE-EXECUCAO.md. Quero fazer o ID/sub-ID que eu escolher agora, mesmo fora da ordem sugerida. Preserve o legado, revise só o delta e contratos afetados, atualize o GitHub e aguarde minha decisão de aceite/publicação. Não faça merge nem deploy de itens não autorizados.»
+
+## Ordem de execução sugerida — pode ser substituída pelo proprietário a qualquer momento
 0. #014: baseline de Git, Supabase, Vercel, Windows, histórico de decisões e PR #37; fechar o que está implementado e não publicado.
 1. Melhorias de menor risco: #007, #006, #005, #001, #002.
 2. Biblioteca/seringa/tema: #008, #009, #003.

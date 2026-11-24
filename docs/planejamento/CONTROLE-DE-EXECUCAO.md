@@ -3,6 +3,9 @@ Versão 2.0 | 24/11/2026 | Branch documental PR #40 | **NÃO É uma lista de fun
 Acompanhar em cada entrega com commit na branch de trabalho e atualizar este controle. Não apagar registros históricos.
 Leia o README e o protocolo #014 antes de editar.
 
+## 0. Decisão transversal — prioridade dinâmica e três trilhas
+O proprietário pode mandar executar qualquer ID/sub-ID sem seguir as prioridades sugeridas. **Não converter automaticamente status de desenvolvimento em aceite ou publicação.** Registrar três estados independentes: (1) desenvolvimento, (2) aceite do proprietário, (3) publicação. O snapshot dessa decisão está em [QUADRO-DE-PRIORIDADES](QUADRO-DE-PRIORIDADES.md); o procedimento em [PROTOCOLO-DE-PRIORIDADES-ACEITE-E-PUBLICACAO](PROTOCOLO-DE-PRIORIDADES-ACEITE-E-PUBLICACAO.md). Usar [MARCO-ZERO](MARCO-ZERO-2026-11-24.md) e, depois de cada release, [REGISTRO-DE-PUBLICACOES](REGISTRO-DE-PUBLICACOES.md) para baselines. A palavra CONCLUÍDO pelo usuário representa somente o aceite e não se confunde com PUBLICADO.
+
 ## 1. Modelo de estado
 PLANEJADO = requisitos consolidados, implementação futura;
 AUDITANDO = confirmando código/ambiente;
@@ -137,3 +140,10 @@ GitHub main SHA fc0ae22; staging referenciada na PR #37 em 0970ae6. Vercel dois 
 
 ## 7. Política de execução e atualização
 Somente o agente em trabalho ativo atualiza os documentos após cada subetapa. Não há atualização automática em background por este registro. Em outro chat, iniciar por docs/planejamento/README.md, AGENTS.md e o último evento deste tracker. Nunca sobrescrever informações já existentes para simplificar a história; adicionar correções datadas. A cada PR de implementação, incluir mudança de tracker no mesmo PR, sem misturar PR #37 com funções novas sem reconciliação.
+
+## 8. Eventos de prioridade e conclusão (a partir de 24/11/2026)
+| Data | Tipo | Identificadores | Decisão | Evidência / efeito |
+|---|---|---|---|---|
+| 2026-11-24 | Diretriz geral | #001–#014 | Proprietário pode alterar ordem e publicar cada item isoladamente ou em conjunto | Protocolo de prioridades aprovado como regra de trabalho; nenhuma etapa funcional aceita/publicada por esta mensagem |
+
+O agente responsável por **cada entrega real** registra a atualização documental na mesma atividade; não existe processamento em background de etapas ou mudanças de estado.
