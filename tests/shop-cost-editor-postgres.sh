@@ -27,7 +27,16 @@ for sql in supabase/migrations/*.sql; do
   "${db[@]}" < "$sql"
 done
 "${db[@]}" < "$foundation"
+"${db[@]}" <<'SQL'
+create schema supabase_migrations;
+create table supabase_migrations.schema_migrations (version text primary key, name text);
+insert into supabase_migrations.schema_migrations values ('20261124164148', 'shop_cost_foundation');
+SQL
+preflight=release/shop-costs/preflight-010-04.sql
+"${db[@]}" < "$preflight"
 "${db[@]}" < "$migration"
+if "${db[@]}" < "$preflight" >"$scratch/post-preflight" 2>&1; then exit 1; fi
+grep -q 'já instalado ou parcialmente presente' "$scratch/post-preflight"
 "${db[@]}" -f - < tests/shop-cost-editor.sql
 
 # Start two actual connections with the same revision and request.
