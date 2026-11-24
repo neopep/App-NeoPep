@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #013 — diagnóstico seguro de sessão via PR #59, Windows CI 0.2.10 aprovada no run 45480809973; build privado Teste 45481286448 em preparação, sem aprovação/distribuição. Erro de Produção ainda não classificado; Prod e Vercel intocados.
-**ÚLTIMA_DECISÃO:** usuário ordenou corrigir diagnóstico da sessão protegida em Produção. PR #59 final c/ CI Windows validada; candidato Connect Teste 0.2.10 solicitado no build privado. Preservar sessões, não ativar despachos ou atualização automática.
+**FOCO_ATUAL:** #013 — Connect 0.2.10 diagnóstico Prod, CI Windows e build privado Teste aprovados (45480809973 / 45481286448); assinatura RSA/registro draft pelo agente ainda pendentes. Atualização 0.2.9 instalada e preservada; sem Produção, Vercel ou envios.
+**ÚLTIMA_DECISÃO:** proprietário autorizou correção diagnóstica da sessão protegida Produção. PR #59 e CI Windows aprovadas; build privado Teste 0.2.10 gerado e aguardando registro draft no Supabase. Nenhuma distribuição automática, sessão apagada ou envio autorizado.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
