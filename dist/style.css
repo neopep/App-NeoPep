@@ -607,3 +607,10 @@ html.library-video-open,html.library-video-open body{overflow:hidden;overscroll-
 
 .library-home-symbol :is(img,video,canvas){width:100%;height:100%;object-fit:contain;display:block}
 .library-home-symbol [data-pdf-thumb]{display:block;width:100%;height:100%}
+
+.library-pin{font-size:.85em}
+[data-library-pins]{width:min(36rem,calc(100% - 2rem));max-height:85dvh;overflow:auto}
+[data-pin-order]{padding-inline-start:1.5rem}
+[data-pin-id]{display:grid;grid-template-columns:minmax(0,1fr) 44px 44px;align-items:center;gap:.5rem;margin-block:.5rem}
+[data-pin-id] span{overflow-wrap:anywhere}
+[data-pin-id] button{min-height:44px;padding:0}

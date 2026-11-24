@@ -39,3 +39,44 @@ test('usuário comum não vê números de acesso e mantém ordem popular recebid
 test('YouTube já aparece com player nativo e mantém o mesmo iframe durante atualização',async()=>{const s=setup();s.rows.push({id:'video',title:'YouTube direto',body:'Descrição',url:'https://youtu.be/dQw4w9WgXcQ',attachments:[]});await s.ui.load(s.context);assert.equal(s.document.querySelector('[data-community=play_external]'),null);const iframe=s.document.querySelector('[data-library-youtube]');assert.ok(iframe);assert.equal(iframe.src,'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ');assert.ok(!iframe.src.includes('autoplay=1'));assert.ok(iframe.closest('.library-external-media'));assert.doesNotMatch(iframe.closest('.library-external-media').textContent,/YouTube|Abrir original/);await s.ui.load(s.context);assert.equal(s.document.querySelector('[data-library-youtube]'),iframe);});
 
 test('play do YouTube abre visualizador imersivo e fechar remove o player sem alterar a prévia',async()=>{const s=setup();s.rows.push({id:'yt-player',title:'Vídeo da biblioteca',body:'Descrição',url:'https://youtu.be/dQw4w9WgXcQ',attachments:[]});await s.ui.load(s.context);const preview=s.document.querySelector('[data-library-youtube]');assert.equal(s.document.querySelector('.library-video-dialog iframe'),null);s.document.querySelector('[data-community=open_youtube]').click();await tick();const dialog=s.document.querySelector('.library-video-dialog'),player=dialog.querySelector('iframe');assert.ok(player);assert.equal(player.src,'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&playsinline=1');assert.match(player.getAttribute('allow'),/autoplay/);assert.match(dialog.textContent,/Vídeo da biblioteca/);assert.ok(s.calls.some(c=>c[0]==='view'&&c[1].id==='yt-player'));await s.ui.load(s.context);assert.equal(s.document.querySelector('.library-video-dialog iframe'),player);dialog.querySelector('[data-video-action=close]').click();assert.equal(s.document.querySelector('.library-video-dialog'),null);assert.equal(s.document.querySelector('[data-library-youtube]'),preview);await s.window.NeoLibraryFiles.open({external_url:'https://youtu.be/dQw4w9WgXcQ',display_name:'YouTube',allow_download:false});s.window.NeoLibraryFiles.session({id:'other'});assert.equal(s.document.querySelector('.library-video-dialog iframe'),null);await assert.rejects(s.window.NeoLibraryFiles.open({external_url:'https://evil.test/embed',allow_download:false}),/Não foi possível abrir/);});
+
+test('admin fixa, reordena por botões e arraste, recarrega e desafixa sem mover o destaque',async()=>{
+ const s=setup(),base=s.api.library;
+ s.rows.push({id:'a',title:'Primeiro',body:'A',featured:true,attachments:[]},{id:'b',title:'Segundo',body:'B',attachments:[]});
+ let order=[];
+ s.api.library=async(action,payload)=>{
+  const pins=()=>order.map(id=>({id,title:s.rows.find(row=>row.id===id).title}));
+  if(action==='pins_list')return {pins:pins()};
+  if(action==='pins_save'){
+   assert.deepEqual(Array.from(payload.expected),order);order=Array.from(payload.order);
+   return {pins:pins()};
+  }
+  const result=await base(action,payload);
+  return action==='read'?{...result,pins_ready:true,materials:s.rows.map(row=>({...row,pin_position:order.indexOf(row.id)+1||null}))}:result;
+ };
+ const q=selector=>s.document.querySelector(selector);
+ const click=async selector=>{q(selector).click();await tick();};
+ await s.ui.load(s.context);
+ await click('[data-community=toggle_pin][data-id=a]');
+ await click('[data-community=toggle_pin][data-id=b]');
+ assert.deepEqual(order,['a','b']);
+ assert.equal(q('[data-material-id=a] .library-pin').getAttribute('aria-label'),'Fixada');
+ await click('[data-community=organize_pins]');
+ await click('[data-pin-id=b] [data-pin-command=up]');
+ await click('[data-pin-command=save]');
+ const first=()=>q('[data-library-list] [data-material-id]').dataset.materialId;
+ assert.equal(first(),'b');
+ await s.ui.load(s.context);assert.equal(first(),'b');
+ await click('[data-community=organize_pins]');
+ q('[data-pin-id=b]').dispatchEvent(new s.window.Event('dragstart',{bubbles:true}));
+ q('[data-pin-id=a]').dispatchEvent(new s.window.Event('drop',{bubbles:true,cancelable:true}));
+ await click('[data-pin-command=save]');
+ assert.equal(first(),'a');
+ await click('[data-community=toggle_pin][data-id=a]');
+ assert.deepEqual(order,['b']);assert.equal(first(),'b');
+ assert.equal(s.rows[0].featured,true);
+ await s.ui.load({...s.context,admin:false});
+ assert.equal(q('[data-community=organize_pins]'),null);
+ assert.equal(q('[data-community=toggle_pin]'),null);
+ assert.equal(first(),'b');
+});
