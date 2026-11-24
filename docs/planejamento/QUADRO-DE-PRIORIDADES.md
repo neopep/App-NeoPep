@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #010.04 — migração do contrato financeiro aplicada somente no Supabase de Teste, homologação funcional pendente.
-**ÚLTIMA_DECISÃO:** proprietário autorizou avançar sem novo backup, informando possuir cópia anterior no computador. Preflight real passou; contrato 010.04 foi aplicado somente em Teste (ledger 20261124170927 / shop_cost_editor), pós-verificação de objetos/grants concluída. Sem homologação real, aceite, merge, frontend deploy ou alteração em Produção.
+**FOCO_ATUAL:** #010.05 — Dashboard financeiro existente em Loja → Gerenciar; desenvolvimento ainda NÃO_INICIADO. #010.04 aceito explicitamente pelo proprietário, com QA real e publicação pendentes.
+**ÚLTIMA_DECISÃO:** proprietário declarou «Está aceitado e pode avançar» para 010.04. Aceite registrado para escopo #010.04 (PR #51 / commit 0e0faaf e contrato Teste ledger 20261124170927), sem dispensar homologação real e sem autorizar publicação em Produção. Próximo foco #010.05; não alterar webhook.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -18,7 +18,7 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | Em espera | #008 | Fixar posts da Biblioteca | EM_TESTE (local; SQL não aplicado em Teste) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 008.03 |
 | Em espera | #009 | Seringa no card da Home | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 009.03 |
 | Em espera | #003 | Tema claro/escuro | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 003.05 |
-| 1 (foco atual) | #010 | Estoque, custos e lucro | 010.04 validada localmente após correção de ACL | Pendente | Não realizada | Preflight e homologação em Teste após autorização |
+| 1 (foco atual) | #010 | Estoque, custos e lucro | 010.04 implementada em Teste (SQL) e aceita; 010.05 NÃO_INICIADA | 010.04 APROVADA PELO PROPRIETÁRIO; 010.05 não solicitada | 010.04 aguardando homologação final/publicação; 010.05 não preparado | 010.05 |
 | 10 | #011 | Edição em massa | NÃO_INICIADO | Não solicitado | Não preparado | 011.01 |
 | 11 | #013 | Campanhas e Connect | NÃO_INICIADO | Não solicitado | Não preparado | 013.01 |
 | 12 | #012 | Planos/assinaturas | NÃO_INICIADO | Não solicitado | Não preparado | 012.01 |
@@ -85,4 +85,4 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | 2026-11-24 | Proprietário / aplicação autorizada | «Vamos avançar sem esse backup, eu já tenho um backup anterior no computador» | #010 / 010.04 | Preflight real OK; migração `shop_cost_editor` aplicada só em Teste sob ledger `20261124170927`; RPC/ACL verificadas; backup novo e restauração não comprovados; QA/autorização de produção pendentes | [PR #51](https://github.com/neopep/App-NeoPep/pull/51) |
 
 ## 4. Fila de aprovados aguardando publicação
-**Nenhum item deste ciclo aprovado ainda.** Inserir aqui um registro por ID/sub-ID: ID, versão/commit, aceite, data, opções individual/conjunto, dependências e release vinculado.
+**#010.04 aprovada pelo proprietário em 24/11/2026**, aguardando validação funcional real e decisão de publicação. Versão: PR #51, commit `0e0faaf`; migração somente Teste ledger `20261124170927`. Não inclui a etapa #010.05 nem autoriza Produção. Demais subetapas deste ciclo não foram aprovadas. Registrar futuras liberações individualmente.
