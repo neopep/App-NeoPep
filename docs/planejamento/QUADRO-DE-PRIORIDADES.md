@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #013 — Connect Teste 0.2.10 diagnóstico da sessão Prod: CI+build privado+assinatura verificados, release DRAFT no Supabase Teste (fonte 148f68f, SHA 57693a75). Aguardando aprovação administrativa e instalação voluntária; produção e Vercel intocados, envio OFF.
-**ÚLTIMA_DECISÃO:** proprietário «Então faça» para diagnosticar erro Prod. Correção em PR #59, CI e private build aprovados, release 0.2.10 assinado/registrado em DRAFT com approved_at NULL. Aprovação/instalação e novo ensaio no Windows exigem ação voluntária; nenhuma sessão apagada ou mensagem enviada.
+**FOCO_ATUAL:** #013 — Connect 0.2.10 conectado e grupos sincronizados em Teste (1) e Produção (2), heartbeats e sessão confirmados em 24/11 às 17:44 BRT. Infra de despacho em Teste ainda bloqueada; PRs #56/#57/#58/#59 sem deploy web; próxima homologação: publicar versão consolidada em Vercel Teste só com autorização específica, testar UI e depois envio controlado com autorização.
+**ÚLTIMA_DECISÃO:** solicitado «Verifique». Auditoria read-only confirma sessão/grupos sincronizados em ambos os Supabase na versão 0.2.10. Teste com 1 grupo sync 20:44:17Z; Produção 2 grupos sync 20:43:53Z. Flags whatsapp_enabled/app_enabled OFF, connect_config.paused true, 0 lotes e 0 auditorias; presença worker 0. Vercel Teste latest READY sha 43e31df, anterior à #013; nenhum deploy efetuado.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
