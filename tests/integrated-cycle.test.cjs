@@ -31,7 +31,7 @@ test('Biblioteca e Grupo preservam pins, comparações e seleção independente'
 
 test('editor 013 preservado e gates automáticos não são ativados por interface',()=>{
  const c=read('dist/admin/admin.js'),css=read('dist/style.css'),sw=read('dist/sw.js'),v=JSON.parse(read('vercel.json'));
- assert.match(c,/campaign-editor\.js/);
+ assert.match(read('dist/admin/index.html'),/campaign-editor\.js\?v=2/);
  assert.match(css,/dialog\.neo-structured-editor\[open\]/);
  assert.ok(sw.includes("'appearance.js'"));
  assert.equal(v.git.deploymentEnabled['homologacao/ciclo-completo-2026-11-24'],false);
