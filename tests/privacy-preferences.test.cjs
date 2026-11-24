@@ -127,7 +127,7 @@ test('consulta nativa pede localização aproximada e descarta as coordenadas',a
  const app=readFileSync('src/app.js','utf8');
  const source=app.slice(app.indexOf('function requestDeviceLocation()'),app.indexOf('function mountPrivacyPreferences()'));
  const native=async geolocation=>vm.runInNewContext(source+'\nrequestDeviceLocation()',{
-  navigator:{geolocation}
+  navigator:{geolocation},setTimeout,clearTimeout
  });
  let calls=0;
  assert.equal(await native({getCurrentPosition(success,_error,options){
