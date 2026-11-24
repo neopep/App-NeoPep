@@ -51,3 +51,40 @@ test('feed conectado reage ao sinal sem aguardar polling e reutiliza a assinatur
  await new Promise(setImmediate);
  assert.deepEqual([feeds,signatures],[3,1]);
 });
+
+
+test('Antes/Depois salvo só é anexado por escolha e não publica se confirmação for cancelada',async()=>{
+ const {ui,document,window,ctx}=setup(async()=>({member:true,chat_ready:true,alias:'Usuário',posts:[],pending:[],materials:[]}));
+ const row={id:'00000000-0000-4000-8000-000000000100',user_id:'A',path:'A/00000000-0000-4000-8000-000000000100.jpg',before_date:'2026-11-01',after_date:'2026-11-21'};
+ let published=0,uploaded=0,confirmations=0;
+ window.NeoCloud.communityChat=async(action)=>{if(action==='read')return {member:true,chat_ready:true,alias:'Usuário',posts:[],pending:[],materials:[]};if(action==='post'){published++;return {ok:true}}};
+ window.NeoCloud.savedBeforeAfter=async()=>[row];
+ window.NeoCloud.beforeAfterBlob=async item=>{assert.equal(item.id,row.id);return new Blob(['comparison'],{type:'image/jpeg'})};
+ window.NeoCloud.uploadCommunityPhoto=async()=>{uploaded++;return 'A/post-copy.jpg'};
+ window.confirm=()=>{confirmations++;return false};
+ ctx.crypto=require('node:crypto').webcrypto;
+ ctx.FormData=class extends Map{constructor(form){super();for(const field of form.querySelectorAll('textarea[name],input[name]'))this.set(field.name,field.value)}};
+ const context={cloud:true,user:{id:'A'},admin:false};
+ document.querySelector('main').innerHTML=ui.view(context);
+ await ui.load(context);
+ document.querySelector('[data-community="attachments"]').click();
+ const choose=document.querySelector('[data-community="choose_comparison"]');
+ assert.ok(choose);
+ choose.click();
+ await new Promise(setImmediate);
+ const pick=document.querySelector('[data-before-after-picker] [data-community="pick_comparison"]');
+ assert.ok(pick);
+ assert.equal(uploaded,0);
+ assert.equal(published,0);
+ pick.click();
+ await new Promise(setImmediate);
+ assert.ok(document.querySelector('.compact-photo'));
+ assert.equal(published,0);
+ const form=document.querySelector('[data-community-form="post"]');
+ form.reportValidity=()=>true;
+ form.dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));
+ await new Promise(setImmediate);
+ assert.equal(confirmations,1);
+ assert.equal(uploaded,0);
+ assert.equal(published,0);
+});
