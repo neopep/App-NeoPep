@@ -32,7 +32,7 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 | #003 | Tema claro/escuro | PLANEJADO | light/dark/system existente no código | 003.01 |
 | #010 | Estoque, custos e lucro | EM_TESTE (Supabase staging) | 010.03-B: schema aplicado somente em Teste, sem backup por opção expressa do proprietário; sem homologação funcional ou aceite | 010.03-B QA |
 | #011 | Gestão em massa | VALIDADO LOCALMENTE | Candidata 77fe00c; homologação e aceite pendentes | 011.05 QA em Teste |
-| #013 | Central de Campanhas | PLANEJADO | Campanhas/Connect/grupos presentes, sem confirmação de envio automático | 013.01 |
+| #013 | Central de Campanhas | IMPLEMENTAÇÃO LOCAL PARCIAL | Editor e revisão versionada; despacho real bloqueado | 013.09–014 conforme matriz |
 | #012 | Assinaturas | PLANEJADO | Segmentação por plano existente, billing recorrente não verificado | 012.01 |
 | #004 | Alimentação | PLANEJADO | Card Em breve documentado | 004.01 |
 
@@ -87,20 +87,20 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 | 011.03 | Operações preços + câmbio + arredondamento | VALIDADO LOCALMENTE | preview idêntica ao commit |
 | 011.04 | Operações estoque e auditoria | VALIDADO LOCALMENTE | sem negativar/sobrescrever |
 | 011.05 | QA lotes e conflitos | VALIDADO LOCALMENTE | falha parcial informada |
-| 013.01 | Auditar Connect/Windows/RPCs e PR35 | PLANEJADO | capacidades reais |
-| 013.02 | Preservar e ajustar navegação das duas abas | PLANEJADO | não quebrar App, esteira e grupos |
-| 013.03 | Editor visual full-screen e autosave | PLANEJADO | mobile, retorno e persistência |
-| 013.04 | Formatação precisa e seleção de texto | PLANEJADO | prévia corresponde ao payload |
-| 013.05 | Imagens, anexos e compatibilidade de mídia | PLANEJADO | legenda versus separado |
-| 013.06 | Seletores Produto/Biblioteca/Comunidade | PLANEJADO | links e autorizações |
-| 013.07 | Grupos sincronizados e estado real Connect | PLANEJADO | heartbeat, sessão e elegibilidade |
-| 013.08 | Criar/agendar na esteira sem despacho falso | PLANEJADO | status por grupo/canal |
-| 013.09 | Homologar Bridge para envio imediato real | PLANEJADO | envio só após autorização |
-| 013.10 | Agendamento automático com fila/offline/retries | PLANEJADO | canal e execução autorizados |
-| 013.11 | Cross-post App → WhatsApp | PLANEJADO | prévia e personalização |
-| 013.12 | Cross-post WhatsApp → App e push | PLANEJADO | opt-in e versões independentes |
-| 013.13 | Testes reais Windows/ambientes controlados | PLANEJADO | autorização de testes |
-| 013.14 | Rollout seguro e monitoramento | PLANEJADO | gates Produção |
+| 013.01 | Auditar Connect/Windows/RPCs e PR35 | AUDITADO NO GIT | capacidades reais |
+| 013.02 | Preservar e ajustar navegação das duas abas | VALIDADO LOCALMENTE | não quebrar App, esteira e grupos |
+| 013.03 | Editor visual full-screen e autosave | VALIDADO LOCALMENTE | mobile, retorno e persistência |
+| 013.04 | Formatação precisa e seleção de texto | VALIDADO LOCALMENTE | prévia corresponde ao payload |
+| 013.05 | Imagens, anexos e compatibilidade de mídia | PRÉVIA LOCAL | legenda versus separado |
+| 013.06 | Seletores Produto/Biblioteca/Comunidade | REFERÊNCIAS PROTEGIDAS | links e autorizações |
+| 013.07 | Grupos sincronizados e estado real Connect | CATÁLOGO INTEGRADO / QA REAL PENDENTE | heartbeat, sessão e elegibilidade |
+| 013.08 | Criar/agendar na esteira sem despacho falso | REVISÃO BLOQUEADA / SEM DESPACHO | status por grupo/canal |
+| 013.09 | Homologar Bridge para envio imediato real | BLOQUEADO PARA ENVIO REAL | envio só após autorização |
+| 013.10 | Agendamento automático com fila/offline/retries | ARQUITETURA PROPOSTA / WORKER PENDENTE | canal e execução autorizados |
+| 013.11 | Cross-post App → WhatsApp | RASCUNHO VINCULADO LOCAL | prévia e personalização |
+| 013.12 | Cross-post WhatsApp → App e push | RASCUNHO VINCULADO / PUSH BLOQUEADO | opt-in e versões independentes |
+| 013.13 | Testes reais Windows/ambientes controlados | QA LOCAL / WINDOWS REAL PENDENTE | autorização de testes |
+| 013.14 | Rollout seguro e monitoramento | PREPARADO / SEM ROLLOUT | gates Produção |
 | 012.01 | Inventariar Premium e plano de campanhas | PLANEJADO | sem duplicar acesso |
 | 012.02 | Criar catálogo/versões de plano | PLANEJADO | regras dinâmicas |
 | 012.03 | Entitlements e quotas no servidor | PLANEJADO | RLS/concorrência |
@@ -399,3 +399,9 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - Iniciar pela auditoria dos contratos reais de App/WhatsApp/Connect/Windows/PR #35, identificando envio manual, estado de heartbeat, grupos sincronizados, RPCs, filas e capacidades efetivamente implementadas. Não confundir prévia ou agendamento com entrega.
 - Desenvolvimento incremental em branch isolada, testes locais e documentação de cada subetapa; preservar abas App/WhatsApp, Connect e fluxos existentes. Nenhum deploy Vercel, SQL remoto, envio real WhatsApp, push ou publicação Produção sem autorização específica. Economizar previews e builds automáticos.
 - #010.06 e #011 permanecem com migrações aplicadas em Supabase Teste e interfaces aguardando homologação; PRs #54/#55 draft. Não misturar mudanças financeiras nas branches de #013.
+
+### Entrega local #013 — 24/11/2026
+
+- Base `staging/permanente@0970ae6`; PR #35 auditada em `d1a3a66`. Branch `desenvolvimento/ajuste-013-central-campanhas`, commits `e23505b` (contrato de revisão) e [`f0ed98a`](https://github.com/neopep/App-NeoPep/commit/f0ed98a4aa06652329d236a108f6be824f41ac6e) (editor e integração).
+- Editor WhatsApp, prévia, grupos, anexos locais e versões vinculadas App ↔ WhatsApp. A revisão usa campanhas existentes em quarentena. App, push e divulgação manual legados preservados. Publicar/Programar bloqueados, worker automático e resultados por grupo pendentes.
+- Build/check, 24 regressões, 5 testes de Bridge com mocks, PostgreSQL 17 e Chromium desktop/mobile emulados passaram. Nenhuma publicação, SQL remoto, deploy, push ou envio WhatsApp. Teste com serviço/conta Windows real, consentimento e aceite continuam pendentes. [Matriz 013.01–013.14 e evidências](https://github.com/neopep/App-NeoPep/blob/f0ed98a4aa06652329d236a108f6be824f41ac6e/docs/planejamento/EXEC-2026-11-24-013.md).

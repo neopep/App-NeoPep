@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #013 — Central de Campanhas / WhatsApp / NeoPep Connect, iniciar 013.01 inventário de contratos reais e implementar por lotes locais, sem deploy Vercel e sem SQL remoto. #010.06/#011 aguardam homologação visual conjunta.
-**ÚLTIMA_DECISÃO:** proprietário solicitou «Vamos pra 013». Priorizar #013, manter política de zero deploys Vercel durante desenvolvimento; preservar #010/#011 no estado de Teste e PRs draft. Nenhum envio real WhatsApp ou automação sem autorização específica.
+**FOCO_ATUAL:** #013 — editor e rascunhos vinculados validados localmente; despacho, worker e QA real pendentes.
+**ÚLTIMA_DECISÃO:** avançar localmente na #013, com bloqueio de operações externas, zero deploys e nenhuma migração remota.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -20,7 +20,7 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | Em espera | #003 | Tema claro/escuro | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 003.05 |
 | 1 (foco atual) | #010 | Estoque, custos e lucro | 010.04+010.05 ACEITAS; 010.06 CANDIDATA LOCAL / PR #54 DRAFT | 010.04 e 010.05 aprovadas; 010.06 pendente | Somente Teste da integração anterior; 010.06 não publicada | Reembolso legado mantido por decisão do proprietário; autorizar migração 010.06 somente Teste e QA |
 | 1 (foco atual) | #011 | Edição em massa | VALIDADO LOCALMENTE | Pendente | Não publicada | 011.05 QA em Teste após autorização |
-| 11 | #013 | Campanhas e Connect | NÃO_INICIADO | Não solicitado | Não preparado | 013.01 |
+| 1 (foco atual) | #013 | Central de Campanhas | Editor e revisão validados localmente; despacho pendente | Pendente | Não publicada | Homologar ACL, Connect e preparar worker sem ativar envio |
 | 12 | #012 | Planos/assinaturas | NÃO_INICIADO | Não solicitado | Não preparado | 012.01 |
 | Em espera | #004 | Minha alimentação | NÃO_INICIADO | Não solicitado | Não preparado | 004.01 |
 
