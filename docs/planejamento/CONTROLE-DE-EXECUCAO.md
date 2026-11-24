@@ -29,21 +29,8 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 | #003 | Tema claro/escuro | PLANEJADO | light/dark/system existente no código | 003.01 |
 | #010 | Estoque, custos e lucro | PLANEJADO | shop_products.stock e price_cents confirmados nos dois bancos | 010.01 |
 | #011 | Gestão em massa | PLANEJADO | Gerenciar Loja e estoque por produto existentes | 011.01 |
-| #013 | Central de Campanhas | PLANEJADO | Campanhas/Connect/grupos presentes, sem confirmação de envio automático | 013.01 | Auditar Connect/Windows/RPCs e PR35 | PLANEJADO | capacidades reais |
-| 013.02 | Preservar e ajustar navegação das duas abas | PLANEJADO | não quebrar App, esteira e grupos |
-| 013.03 | Editor visual full-screen e autosave | PLANEJADO | mobile, retorno e persistência |
-| 013.04 | Formatação precisa e seleção de texto | PLANEJADO | prévia corresponde ao payload |
-| 013.05 | Imagens, anexos e compatibilidade de mídia | PLANEJADO | legenda versus separado |
-| 013.06 | Seletores Produto/Biblioteca/Comunidade | PLANEJADO | links e autorizações |
-| 013.07 | Grupos sincronizados e estado real Connect | PLANEJADO | heartbeat, sessão e elegibilidade |
-| 013.08 | Criar/agendar na esteira sem despacho falso | PLANEJADO | status por grupo/canal |
-| 013.09 | Homologar Bridge para envio imediato real | PLANEJADO | envio só após autorização |
-| 013.10 | Agendamento automático com fila/offline/retries | PLANEJADO | canal e execução autorizados |
-| 013.11 | Cross-post App → WhatsApp | PLANEJADO | prévia e personalização |
-| 013.12 | Cross-post WhatsApp → App e push | PLANEJADO | opt-in e versões independentes |
-| 013.13 | Testes reais Windows/ambientes controlados | PLANEJADO | autorização de testes |
-| 013.14 | Rollout seguro e monitoramento | PLANEJADO | gates Produção |
-| 012.01 |
+| #013 | Central de Campanhas | PLANEJADO | Campanhas/Connect/grupos presentes, sem confirmação de envio automático | 013.01 |
+| #012 | Assinaturas | PLANEJADO | Segmentação por plano existente, billing recorrente não verificado | 012.01 |
 | #004 | Alimentação | PLANEJADO | Card Em breve documentado | 004.01 |
 
 ## 3. Backlog por microetapa (cada ID tem aceite e prova no documento detalhado)
@@ -93,17 +80,19 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 | 011.04 | Operações estoque e auditoria | PLANEJADO | sem negativar/sobrescrever |
 | 011.05 | QA lotes e conflitos | PLANEJADO | falha parcial informada |
 | 013.01 | Auditar Connect/Windows/RPCs e PR35 | PLANEJADO | capacidades reais |
-| 013.02 | Manter abas e criar editor full-screen | PLANEJADO | preserva App e esteira |
-| 013.03 | Autosave/preview/formatação | PLANEJADO | texto fiel ao envio |
-| 013.04 | Imagens, anexos e formatos do Bridge | PLANEJADO | legenda vs separado |
-| 013.05 | Produto/Biblioteca/Comunidade | PLANEJADO | links e autorizações |
-| 013.06 | Grupos e estado real da conexão | PLANEJADO | heartbeat, sync e elegíveis |
-| 013.07 | Criar/agendar na esteira, sem despacho falso | PLANEJADO | por grupo e canal |
-| 013.08 | Confirmar envio imediato real, se autorizado | PLANEJADO | seguro/sem duplicidade |
-| 013.09 | Agenda automática e offline, se autorizada | PLANEJADO | job e retry |
-| 013.10 | Cross-post App→WhatsApp | PLANEJADO | prévia editável |
-| 013.11 | Cross-post WhatsApp→App/push | PLANEJADO | opt-in, versões independentes |
-| 013.12 | Testes Windows/teste/Produção controlados | PLANEJADO | autorização específica |
+| 013.02 | Preservar e ajustar navegação das duas abas | PLANEJADO | não quebrar App, esteira e grupos |
+| 013.03 | Editor visual full-screen e autosave | PLANEJADO | mobile, retorno e persistência |
+| 013.04 | Formatação precisa e seleção de texto | PLANEJADO | prévia corresponde ao payload |
+| 013.05 | Imagens, anexos e compatibilidade de mídia | PLANEJADO | legenda versus separado |
+| 013.06 | Seletores Produto/Biblioteca/Comunidade | PLANEJADO | links e autorizações |
+| 013.07 | Grupos sincronizados e estado real Connect | PLANEJADO | heartbeat, sessão e elegibilidade |
+| 013.08 | Criar/agendar na esteira sem despacho falso | PLANEJADO | status por grupo/canal |
+| 013.09 | Homologar Bridge para envio imediato real | PLANEJADO | envio só após autorização |
+| 013.10 | Agendamento automático com fila/offline/retries | PLANEJADO | canal e execução autorizados |
+| 013.11 | Cross-post App → WhatsApp | PLANEJADO | prévia e personalização |
+| 013.12 | Cross-post WhatsApp → App e push | PLANEJADO | opt-in e versões independentes |
+| 013.13 | Testes reais Windows/ambientes controlados | PLANEJADO | autorização de testes |
+| 013.14 | Rollout seguro e monitoramento | PLANEJADO | gates Produção |
 | 012.01 | Inventariar Premium e plano de campanhas | PLANEJADO | sem duplicar acesso |
 | 012.02 | Criar catálogo/versões de plano | PLANEJADO | regras dinâmicas |
 | 012.03 | Entitlements e quotas no servidor | PLANEJADO | RLS/concorrência |
