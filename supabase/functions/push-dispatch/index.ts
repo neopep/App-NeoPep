@@ -173,7 +173,13 @@ Deno.serve(async (request: Request) => {
 
             // Notifications must never disclose private message content or names.
             const payload: { tag: string; kind?: string } = { tag: job.id };
-            if (["community", "support", "library", "shop", "campaign"].includes(job.kind || "")) {
+            if ([
+              "community",
+              "support",
+              "library",
+              "shop",
+              "campaign",
+            ].includes(job.kind || "")) {
               payload.kind = job.kind;
             }
 
