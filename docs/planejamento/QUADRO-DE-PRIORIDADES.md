@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #013 — editor e rascunhos vinculados validados localmente; despacho, worker e QA real pendentes.
-**ÚLTIMA_DECISÃO:** avançar localmente na #013, com bloqueio de operações externas, zero deploys e nenhuma migração remota.
+**FOCO_ATUAL:** #013 — editor e versões de revisão implementados localmente PR #56; migração campaign_editor_versions aplicada e verificada em Supabase Teste. Sem deploy; envios reais e agendamento automático continuam bloqueados; homologação real pendente.
+**ÚLTIMA_DECISÃO:** proprietário autorizou migração #013 somente Supabase Teste, sem deploy Vercel e sem ativar envios WhatsApp/push. Aplicada e verificada; zero alterações Produção e zero envios.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
