@@ -88,3 +88,22 @@ test('consent revocation does not block user deletion of private comparisons',()
  assert.match(removal,/\bneed\(\)/);
  assert.doesNotMatch(removal,/needsHealth\(\)/);
 });
+
+test('deployment rebuilds client bundle from tracked source, preventing stale dist/cloud.js',()=>{
+ const config=JSON.parse(read('vercel.json'));
+ const scripts=JSON.parse(read('package.json')).scripts;
+ const build=read('scripts/build.cjs');
+ assert.match(config.buildCommand,/npm run build/);
+ assert.match(scripts.build,/scripts\/build\.cjs/);
+ assert.match(build,/entryPoints: \['src\/cloud\.js'\]/);
+ assert.match(build,/outfile: 'dist\/cloud\.js'/);
+ assert.match(build,/fs\.copyFileSync\('src\/app\.js', 'dist\/app\.js'\)/);
+ const ci=read('.github/workflows/staging-ci.yml');
+ assert.match(ci,/npm run build/);
+ assert.match(ci,/npm run check/);
+});
+test('post-build bundle contains private comparison client APIs',()=>{
+ const compiled=read('dist/cloud.js');
+ assert.match(compiled,/neo_saved_comparisons/);
+ assert.match(compiled,/neo-comparisons/);
+});
