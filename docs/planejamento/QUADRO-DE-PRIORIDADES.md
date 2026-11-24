@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** nenhum ajuste funcional selecionado após esta revisão documental.
-**ÚLTIMA_DECISÃO:** registrar regras de escolha livre, aceite pelo proprietário e publicação individual/conjunta. Nenhum aceite funcional novo foi concedido nesta mensagem.
+**FOCO_ATUAL:** #006 — Miniatura real de PDF no destaque Biblioteca; primeira subetapa 006.01; selecionado pelo proprietário em 24/11/2026; execução pelo Codex ainda não confirmada.
+**ÚLTIMA_DECISÃO:** proprietário escolheu #006 como primeiro ajuste a implementar. Prioridade 1 operacional; desenvolvimento ainda NÃO_INICIADO até o Codex registrar evidência. Sem aceite ou autorização de publicação.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -10,8 +10,8 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | Prioridade sugerida | ID | Trabalho | Desenvolvimento do ciclo | Aceite proprietário | Publicação | Próximo sub-ID |
 |---|---|---|---|---|---|---|
 | Pré-requisito dirigido | #014 | Preservação, baseline e controle incremental | AUDITANDO | Não solicitado | Não aplicável diretamente | 014.01, conforme impacto |
-| 1 | #007 | Loja: texto e atendimento | NÃO_INICIADO | Não solicitado | Não preparado | 007.01 |
-| 2 | #006 | Prévia de PDF na Home/Biblioteca | NÃO_INICIADO | Não solicitado | Não preparado | 006.01 |
+| 2 | #007 | Loja: texto e atendimento | NÃO_INICIADO | Não solicitado | Não preparado | 007.01 |
+| 1 | #006 | Prévia de PDF na Home/Biblioteca | NÃO_INICIADO | Não solicitado | Não preparado | 006.01 |
 | 3 | #005 | Modal de comparações no Grupo | NÃO_INICIADO | Não solicitado | Não preparado | 005.01 |
 | 4 | #001 | Localização opcional no onboarding | NÃO_INICIADO | Não solicitado | Não preparado | 001.01 |
 | 5 | #002 | Personalização/consentimento | NÃO_INICIADO | Não solicitado | Não preparado | 002.01 |
@@ -38,6 +38,7 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | Data | Ator | Pedido ou decisão | IDs afetados | Efeito | Documento/PR |
 |---|---|---|---|---|---|
 | 2026-11-24 | Proprietário | Ajustes podem ser executados em ordem livre; marcar concluído somente após sua aprovação; permitir publicação individual ou conjunta; proteger o que existia | #001–#014 | Criado protocolo de prioridades/aceite/release; sem alteração funcional | PR #40 |
+| 2026-11-24 | Proprietário | «Vamos fazer o zero zero meia. Primeiro» | #006 / 006.01 | Definido como FOCO_ATUAL e prioridade operacional 1; aguarda início pelo Codex, sem aceite ou deploy | PR #40 |
 
 ## 4. Fila de aprovados aguardando publicação
 **Nenhum item deste ciclo aprovado ainda.** Inserir aqui um registro por ID/sub-ID: ID, versão/commit, aceite, data, opções individual/conjunto, dependências e release vinculado.
