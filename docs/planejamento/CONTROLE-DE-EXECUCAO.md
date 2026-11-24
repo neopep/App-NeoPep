@@ -75,7 +75,7 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 | 010.02 | Decidir custo/câmbio/CMV e política estoque | POLÍTICA-BASE REGISTRADA | Arquitetura 010.02; critérios contábeis finais pendentes |
 | 010.03-A | Preparar schema aditivo de custos e movimentações | EM_TESTE (local) | PostgreSQL 17 isolado, check e 32 testes da Loja |
 | 010.03-B | Homologar migração no Supabase de Teste | EM_TESTE (SQL aplicada; QA funcional pendente) | Migração shop_cost_foundation aplicada em Teste 20261124164148; usuário dispensou backup/restauração; leitura de estrutura/RLS/grants positiva; testes reais pendentes |
-| 010.04 | UI de aquisição no produto atual | PLANEJADO | sem segundo stock |
+| 010.04 | UI de aquisição no produto atual | VALIDADO LOCALMENTE | Contrato privado, editor e QA isolado; aceite e homologação pendentes |
 | 010.05 | Dashboard de lucro/margem no Gerenciar | PLANEJADO | cálculos e custos unknown |
 | 010.06 | Testar concorrência e reconciliação | PLANEJADO | webhook preservado |
 | 011.01 | Contrato e UX preview em massa | PLANEJADO | tabela e filtros |
@@ -237,3 +237,11 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - Localização no código: `dist/shop.js` função `productForm()` já mostra `price` e `stock` existentes; o novo editor deve estender o formulário, sem duplicar saldo. O servidor não expõe ainda a API de custos: é necessário contrato admin controlado antes de conectar a UI.
 - Plano operacional detalhado: [PLANO-IMPLEMENTACAO-010-04.md](PLANO-IMPLEMENTACAO-010-04.md). 010.04 **PREPARADO PARA IMPLEMENTAÇÃO EM BRANCH**; nenhuma função de UI/backend foi implementada por esta atualização.
 - Desenvolvimento #010: **EM_DESENVOLVIMENTO / QA PARCIAL**. Aceite: NÃO CONCEDIDO. Publicação: NÃO REALIZADA. Produção e webhook Mercado Pago preservados.
+
+
+### Registro 010.04 — 24/11/2026
+
+- Branch `desenvolvimento/ajuste-010-04-editor-custos`, base `staging/permanente@0970ae6`, commit [`1e3292e`](https://github.com/neopep/App-NeoPep/commit/1e3292e6516639abcc09e5ae3bea93dcf7612731). [Registro 010.04.1–010.04.6, arquivos, testes e homologação](https://github.com/neopep/App-NeoPep/blob/1e3292e6516639abcc09e5ae3bea93dcf7612731/docs/planejamento/EXEC-2026-11-24-010-04.md).
+- Admin pode registrar custo histórico sem alterar saldo ou aquisição com entrada atômica. BRL/USD, câmbio histórico, valores decimais exatos, histórico, revisão e idempotência. Produto duplicado não herda custos.
+- Local: build, check, 33 testes de Loja/PWA, PostgreSQL 17 isolado e Chromium desktop/iPhone 13/Pixel 7 emulado. A aquisição concorrente foi exercitada em duas sessões SQL. Checkout, reserva, webhook e vendas antigas preservados. Custo médio não ativado.
+- Fundação 010.03 segue registrada em Teste no ledger `20261124164148`. A 010.04 adiciona somente o SQL dirigido `20261124180000_shop_cost_editor.sql`, ainda sem aplicação remota. Desenvolvimento validado localmente; QA real e aceite pendentes; sem publicação. PR de código em rascunho solicitada para `staging/permanente`; [comparação de revisão](https://github.com/neopep/App-NeoPep/compare/staging/permanente...desenvolvimento/ajuste-010-04-editor-custos?expand=1).

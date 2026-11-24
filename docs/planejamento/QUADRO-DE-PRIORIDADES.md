@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #010 — iniciar 010.04 (editor de custos e aquisições) em branch independente; 010.03-B possui schema aplicado em Supabase Teste, inspeção de ACL concluída e QA funcional ainda pendente.
-**ÚLTIMA_DECISÃO:** proprietário solicitou «Vamos avançar». Conferência de leitura confirmou isolamento das quatro tabelas de custo e ledger no Supabase Teste; preparado plano seguro 010.04, sem alteração adicional no banco nem publicação.
+**FOCO_ATUAL:** #010 — editor 010.04 validado localmente; homologação no Supabase de Teste pendente.
+**ÚLTIMA_DECISÃO:** implementar e versionar 010.04 em branch independente. Aceite pendente e sem publicação.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -18,7 +18,7 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | Em espera | #008 | Fixar posts da Biblioteca | EM_TESTE (local; SQL não aplicado em Teste) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 008.03 |
 | Em espera | #009 | Seringa no card da Home | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 009.03 |
 | Em espera | #003 | Tema claro/escuro | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 003.05 |
-| 1 (foco atual) | #010 | Estoque, custos e lucro | EM_DESENVOLVIMENTO (010.04 planejada; 010.03-B QA parcial) | Pendente | Não publicada em Produção | 010.04.1 |
+| 1 (foco atual) | #010 | Estoque, custos e lucro | 010.04 validada localmente | Pendente | Não realizada | Homologar 010.04 em Teste após autorização |
 | 10 | #011 | Edição em massa | NÃO_INICIADO | Não solicitado | Não preparado | 011.01 |
 | 11 | #013 | Campanhas e Connect | NÃO_INICIADO | Não solicitado | Não preparado | 013.01 |
 | 12 | #012 | Planos/assinaturas | NÃO_INICIADO | Não solicitado | Não preparado | 012.01 |
