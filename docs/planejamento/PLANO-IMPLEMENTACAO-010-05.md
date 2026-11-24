@@ -36,3 +36,16 @@ Versão 1.0 · 24/11/2026 · **Não iniciado** · referência: PR #40, especific
 
 ## Entrega solicitada ao Codex
 Executar `010.05.1` primeiro, com inventário e contrato proposto **sem mudar dados nem migrações remotas**. Depois implementar em branch isolada o menor conjunto seguro de `010.05.2–010.05.4` quando compatível; não registrar homologação real por simulação. PR draft em Teste; sem merge ou publicação de Produção. Parar e documentar bloqueio se depender de snapshots de #010.06 não implementados.
+
+
+## Execução registrada em 24/11/2026
+
+| Subetapa | Evidência | Estado |
+|---|---|---|
+| 010.05.1 | Inventário de pedidos, pagamentos, custos e estoque no commit `18b88cc` | Registrada |
+| 010.05.2 | Contrato de leitura com ACL e SQL isolados, commit `2785404` | Validada localmente |
+| 010.05.3 | Indicadores em Gerenciar e Pedidos da loja, commit `2785404` | Validada localmente |
+| 010.05.4 | 33 testes, PostgreSQL 17 e três cenários de navegador, commit `2785404` | Validada localmente |
+| 010.05.5 | Migração dirigida, verificação de catálogo e ACL, sessões reais, latência e recuperação | Pendente de autorização e QA |
+
+[Registro de execução](https://github.com/neopep/App-NeoPep/blob/27854048c64b61ad7fa041e3cc5c86c7e797d1d6/docs/planejamento/EXEC-2026-11-24-010-05.md). Aceite 010.05 pendente, nenhuma aplicação ou publicação.

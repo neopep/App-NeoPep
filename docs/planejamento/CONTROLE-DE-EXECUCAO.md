@@ -76,7 +76,11 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 | 010.03-A | Preparar schema aditivo de custos e movimentações | EM_TESTE (local) | PostgreSQL 17 isolado, check e 32 testes da Loja |
 | 010.03-B | Homologar migração no Supabase de Teste | EM_TESTE (SQL aplicada; QA funcional pendente) | Migração shop_cost_foundation aplicada em Teste 20261124164148; usuário dispensou backup/restauração; leitura de estrutura/RLS/grants positiva; testes reais pendentes |
 | 010.04 | UI de aquisição no produto atual | IMPLEMENTAÇÃO_LOCAL_VALIDADA / SQL_APLICADO_TESTE / ACEITO_PELO_PROPRIETÁRIO | PR #51 @0e0faaf; migração Supabase Teste 20261124170927; QA real e publicação pendentes |
-| 010.05 | Dashboard de lucro/margem no Gerenciar | FOCO_ATUAL / NÃO_INICIADO | Reutilizar dashboard existente; consulta agregada no servidor, custos sem dados = indisponível; ver PLANO-IMPLEMENTACAO-010-05.md |
+| 010.05.1 | Inventário de fontes e cobertura de CMV | REGISTRADO | commit 18b88cc |
+| 010.05.2 | RPC administrativa de leitura | VALIDADO LOCALMENTE | commit 2785404, ACL financeira e agregações |
+| 010.05.3 | Integração com Loja → Gerenciar | VALIDADO LOCALMENTE | commit 2785404, interface e cache PWA |
+| 010.05.4 | Ensaios de regressão e filtragem | VALIDADO LOCALMENTE | 33 testes, PostgreSQL isolado e emulações |
+| 010.05.5 | Aplicação controlada e QA em Teste | PENDENTE | autorização, ledger, sessões reais e latência |
 | 010.06 | Testar concorrência e reconciliação | PLANEJADO | webhook preservado |
 | 011.01 | Contrato e UX preview em massa | PLANEJADO | tabela e filtros |
 | 011.02 | RPC admin atomizada/idempotente | PLANEJADO | ACL e transações |
@@ -282,3 +286,10 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - Leitura adicional somente leitura em Supabase Teste: função `public.neo_shop_costs_v1(text,jsonb)` existe, ledger da migração está presente; contagem de `shop_sale_cost_snapshots=0` e `shop_acquisitions=0` durante essa leitura. Nenhuma compra ou gravação de teste foi realizada. **Não existe ainda cobertura histórica comprovada de CMV**, portanto o dashboard #010.05 não pode inventar lucro ou usar custo zero por omissão.
 - **Novo foco:** #010.05, dashboard financeiro em Loja → Gerenciar, conforme [plano de implementação](PLANO-IMPLEMENTACAO-010-05.md). Nenhuma linha de código foi implementada nesta abertura. Evitar duplicar dashboard, apurar no servidor por período e distinguir modo teste/real e estados financeiros; snapshots de custo só podem ser considerados quando realmente populados. Mapear dependência com #010.06 antes de apresentar lucro histórico.
 - Status #010.04: aceito pelo proprietário / homologação funcional ainda pendente / Produção não publicada. #010.05: planejada para execução pelo Codex, aguardando branch e testes, aceite não concedido.
+
+### Implementação #010.05 — 24/11/2026
+
+- Branch independente `desenvolvimento/ajuste-010-05-dashboard-financeiro` em `staging/permanente@0970ae6`, diagnóstico `18b88cc`, código e evidências [`2785404`](https://github.com/neopep/App-NeoPep/commit/27854048c64b61ad7fa041e3cc5c86c7e797d1d6). PR #51 preservada como dependência documental da política de acesso e histórico de custos.
+- `neo_shop_financial_dashboard_v1` somente leitura, com autorização exclusiva por `admin_members`. Agrega receita, desconto, frete cobrado, vendas, unidades, CMV conhecido e cobertura, lucro bruto e margem quando completos, estado do pagamento e alertas de estoque. Evolução paginada por dia, produto ou categoria atual. Dados de devoluções, taxas e despesas são exibidos somente quando comprovados; nesta etapa o valor financeiro dessas parcelas segue indisponível.
+- Build, check, 33 regressões de Loja/PWA, PostgreSQL 17 isolado e navegador Chromium em desktop/iPhone 13/Pixel 7 emulados aprovados. [Matriz de fontes, evidências e aplicação dirigida](https://github.com/neopep/App-NeoPep/blob/27854048c64b61ad7fa041e3cc5c86c7e797d1d6/docs/planejamento/EXEC-2026-11-24-010-05.md).
+- 010.05.5 aguarda autorização, aplicação isolada do novo SQL em Teste, comparação de catálogo/ACL, QA de sessões reais, latência e dispositivos físicos. 010.06 concentra snapshots, política de custo e conciliação das despesas, estornos e datas financeiras. Nenhuma migração remota, merge ou publicação. Aceite 010.05 pendente. [Comparação para revisão](https://github.com/neopep/App-NeoPep/compare/staging/permanente...desenvolvimento/ajuste-010-05-dashboard-financeiro?expand=1).

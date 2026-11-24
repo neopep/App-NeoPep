@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #010.05 — Dashboard financeiro existente em Loja → Gerenciar; desenvolvimento ainda NÃO_INICIADO. #010.04 aceito explicitamente pelo proprietário, com QA real e publicação pendentes.
-**ÚLTIMA_DECISÃO:** proprietário declarou «Está aceitado e pode avançar» para 010.04. Aceite registrado para escopo #010.04 (PR #51 / commit 0e0faaf e contrato Teste ledger 20261124170927), sem dispensar homologação real e sem autorizar publicação em Produção. Próximo foco #010.05; não alterar webhook.
+**FOCO_ATUAL:** #010.05 — dashboard financeiro validado localmente, homologação em Teste pendente.
+**ÚLTIMA_DECISÃO:** avançar na 010.05 após o aceite da 010.04. Implementação isolada para revisão, sem publicação.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -18,7 +18,7 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | Em espera | #008 | Fixar posts da Biblioteca | EM_TESTE (local; SQL não aplicado em Teste) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 008.03 |
 | Em espera | #009 | Seringa no card da Home | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 009.03 |
 | Em espera | #003 | Tema claro/escuro | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 003.05 |
-| 1 (foco atual) | #010 | Estoque, custos e lucro | 010.04 implementada em Teste (SQL) e aceita; 010.05 NÃO_INICIADA | 010.04 APROVADA PELO PROPRIETÁRIO; 010.05 não solicitada | 010.04 aguardando homologação final/publicação; 010.05 não preparado | 010.05 |
+| 1 (foco atual) | #010 | Estoque, custos e lucro | 010.04 aceita; 010.05 validada localmente | 010.05 pendente | Não realizada | 010.05.5: aplicação autorizada e QA em Teste |
 | 10 | #011 | Edição em massa | NÃO_INICIADO | Não solicitado | Não preparado | 011.01 |
 | 11 | #013 | Campanhas e Connect | NÃO_INICIADO | Não solicitado | Não preparado | 013.01 |
 | 12 | #012 | Planos/assinaturas | NÃO_INICIADO | Não solicitado | Não preparado | 012.01 |
