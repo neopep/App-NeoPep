@@ -1,5 +1,5 @@
 -- NeoPep: preserve server-side order idempotency across shipping recalculations.
--- No Mercado Pago Edge Function changes. Deploy only after CI and staging validation.
+-- This migration only handles existing-order retries; the webhook refund guard is separately tested.
 CREATE OR REPLACE FUNCTION public.neo_shop_v36(p_action text, p_payload jsonb DEFAULT '{}'::jsonb)
  RETURNS jsonb
  LANGUAGE plpgsql
