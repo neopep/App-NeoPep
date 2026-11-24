@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
 **FOCO_ATUAL:** #010.06 — candidata implementada localmente em `5a53489` / PR #54 draft, pendente de SQL em Teste, QA real e decisão sobre reembolso integral legado. #010.04+#010.05 aceitas em Teste; deploys Vercel preservados.
-**ÚLTIMA_DECISÃO:** Codex entregou candidata #010.06 (`5a53489`) com testes locais reportados e bloqueio de liberação de estoque por reembolso integral legado. Assistente confirmou Git diff (17 arquivos, branch 1 commit à frente de PR #53), abriu PR #54 draft e verificou em leitura no Supabase Teste dependências instaladas e objetos 010.06 ausentes. Nenhuma migração/deploy/Produção alterada; preservar cotas Vercel.
+**ÚLTIMA_DECISÃO:** proprietário determinou «Mantém como está» sobre o contrato de reembolso/estoque legado. Manter liberação automática existente em reembolso integral pré-expedição, sem alterar checkout ou webhook; documentar como comportamento conhecido e aceito, exigindo testes de não duplicidade. 010.06 continua pendente de migração Teste, QA real e aceite da implementação; economizar deploys.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -18,7 +18,7 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | Em espera | #008 | Fixar posts da Biblioteca | EM_TESTE (local; SQL não aplicado em Teste) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 008.03 |
 | Em espera | #009 | Seringa no card da Home | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 009.03 |
 | Em espera | #003 | Tema claro/escuro | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 003.05 |
-| 1 (foco atual) | #010 | Estoque, custos e lucro | 010.04+010.05 ACEITAS; 010.06 CANDIDATA LOCAL / PR #54 DRAFT | 010.04 e 010.05 aprovadas; 010.06 pendente | Somente Teste da integração anterior; 010.06 não publicada | Decidir reembolso legado, autorizar migração 010.06 somente Teste e QA |
+| 1 (foco atual) | #010 | Estoque, custos e lucro | 010.04+010.05 ACEITAS; 010.06 CANDIDATA LOCAL / PR #54 DRAFT | 010.04 e 010.05 aprovadas; 010.06 pendente | Somente Teste da integração anterior; 010.06 não publicada | Reembolso legado mantido por decisão do proprietário; autorizar migração 010.06 somente Teste e QA |
 | 10 | #011 | Edição em massa | NÃO_INICIADO | Não solicitado | Não preparado | 011.01 |
 | 11 | #013 | Campanhas e Connect | NÃO_INICIADO | Não solicitado | Não preparado | 013.01 |
 | 12 | #012 | Planos/assinaturas | NÃO_INICIADO | Não solicitado | Não preparado | 012.01 |
