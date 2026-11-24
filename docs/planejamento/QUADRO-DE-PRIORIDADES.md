@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #002 — Consentimento para personalização; primeira subetapa 002.01; escolhido pelo proprietário em 24/11/2026; Codex ainda não iniciou.
-**ÚLTIMA_DECISÃO:** proprietário escolheu iniciar #002. #001 (PR #45), #003 (#44), #006 (#41), #008 (#42) e #009 (#43) permanecem sem aceite e sem publicação; #002 deve permanecer independente e prever integração futura com #001.
+**FOCO_ATUAL:** #002 — Consentimento para personalização; implementado pelo Codex na PR #46; homologação Supabase/Teste e aceite pendentes.
+**ÚLTIMA_DECISÃO:** Codex implementou #002 (bd0c64d) e PR #46 foi criada em rascunho. 75 testes reportados; migração aplicada apenas em banco isolado. Sem aceite ou deploy. Integração futura com #001 permanece pendente.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -59,6 +59,8 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | 2026-11-24 | Codex / conferência GitHub | #001 implementado em cf3483f; PR #45 draft criada | #001 / 001.01–001.03 | 76 testes reportados; Teste real/Safari/PWA pendentes; sem aceite/publicação | [PR #45](https://github.com/neopep/App-NeoPep/pull/45) |
 
 | 2026-11-24 | Proprietário | «002» | #002 / 002.01 | Novo foco, sem execução/aceite/deploy; #001 e demais PRs permanecem isoladas | PR #40 |
+
+| 2026-11-24 | Codex / conferência GitHub | #002 implementado em bd0c64d; PR #46 draft criada | #002 / 002.01–002.03 | 75 testes reportados; migração e QA reais pendentes; sem aceite/publicação | [PR #46](https://github.com/neopep/App-NeoPep/pull/46) |
 
 ## 4. Fila de aprovados aguardando publicação
 **Nenhum item deste ciclo aprovado ainda.** Inserir aqui um registro por ID/sub-ID: ID, versão/commit, aceite, data, opções individual/conjunto, dependências e release vinculado.

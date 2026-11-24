@@ -187,3 +187,10 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - Codex reportou build/check/empacotamento e 76 testes direcionados aprovados, incluindo emulações e RPC simulada. Testes **não repetidos por este agente**.
 - Pendências: revisão dirigida do código, homologação de cadastro/login reais no Teste, Safari/PWA e dispositivos físicos, aceite explícito. Nenhum merge, migração ou deploy efetuado. PRs #41–#44 seguem separadas.
 - Estado: EM_TESTE (local), ACEITE_NAO_CONCEDIDO, PUBLICACAO_NAO_REALIZADA.
+
+### Registro #002 — 24/11/2026 (conferência GitHub)
+- Branch `desenvolvimento/ajuste-002-personalizacao`, commit `bd0c64df2cbad3088e9f9d9ea4932df44efaf2ad`; [PR #46](https://github.com/neopep/App-NeoPep/pull/46) aberta em rascunho para `staging/permanente`.
+- Comparação: 1 commit à frente, 0 atrás da base `0970ae6`; 12 arquivos (app, cloud, CSS, SW, build, testes, migração `20261124150000_personalization_consent.sql` e registro).
+- Codex reportou build/check/empacotamento e 75 testes direcionados aprovados, migração reaplicada em banco isolado; testes **não repetidos por este agente**.
+- Bloqueio: Supabase Teste não acessível ao Codex; migração não aplicada em Teste ou Produção. Revisar SQL/RLS, aplicar em Teste por fluxo seguro, validar sessão autenticada, Safari/PWA/dispositivos físicos e integração com #001 após aprovação de ambos.
+- Nenhum merge ou deploy realizado. PRs #41–#45 seguem separadas. Estado: EM_TESTE (local), ACEITE_NAO_CONCEDIDO, PUBLICACAO_NAO_REALIZADA.
