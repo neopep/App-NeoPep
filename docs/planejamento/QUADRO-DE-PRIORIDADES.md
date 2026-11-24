@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #010 — 010.03-A validada localmente; 010.03-B aguarda homologação autorizada.
-**ÚLTIMA_DECISÃO:** versionar a 010.03-A e registrar a evidência local. Aceite pendente; nenhuma migração remota ou publicação autorizada.
+**FOCO_ATUAL:** #010 — 010.03-B com migração aplicada exclusivamente em Supabase Teste; validação funcional, autorização de avanço e aceite pendentes.
+**ÚLTIMA_DECISÃO:** proprietário autorizou seguir sem backup; schema shop_cost_foundation aplicado no projeto Teste e confirmado por consultas de leitura (ledger 20261124164148). Sem merge, deploy web, migração Produção ou aceite.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -18,7 +18,7 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | Em espera | #008 | Fixar posts da Biblioteca | EM_TESTE (local; SQL não aplicado em Teste) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 008.03 |
 | Em espera | #009 | Seringa no card da Home | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 009.03 |
 | Em espera | #003 | Tema claro/escuro | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 003.05 |
-| 1 (foco atual) | #010 | Estoque, custos e lucro | EM_TESTE (local) | Pendente | Não realizada | 010.03-B |
+| 1 (foco atual) | #010 | Estoque, custos e lucro | EM_TESTE (SQL aplicada em Supabase Teste; QA real pendente) | Pendente | Não publicada em Produção | 010.03-B QA |
 | 10 | #011 | Edição em massa | NÃO_INICIADO | Não solicitado | Não preparado | 011.01 |
 | 11 | #013 | Campanhas e Connect | NÃO_INICIADO | Não solicitado | Não preparado | 013.01 |
 | 12 | #012 | Planos/assinaturas | NÃO_INICIADO | Não solicitado | Não preparado | 012.01 |
@@ -73,6 +73,8 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | 2026-11-24 | Codex / conferência GitHub | #007 implementado em facee60; PR #48 draft criada | #007 / 007.01–007.03 | 26 testes reportados; atendimento autenticado e conciliação documental pendentes; sem aceite/publicação | [PR #48](https://github.com/neopep/App-NeoPep/pull/48) |
 
 | 2026-11-24 | Proprietário | «010» | #010 / 010.1 | Iniciar diagnóstico documental; não alterar pagamentos, migrações ou Produção; PRs #41–#48 preservadas | [Especificação Loja](ESPECIFICACAO-LOJA-010-011.md) |
+
+| 2026-11-24 | Proprietário / verificação Supabase | «Pode avançar sem backup» — execução 010.03-B somente no Teste | #010 / 010.03-B | Migração `shop_cost_foundation` aplicada em Teste (ledger `20261124164148`), objetos e ACL conferidos; QA/aceite/Produção pendentes; risco de não haver backup registrado | [PR #50](https://github.com/neopep/App-NeoPep/pull/50) |
 
 ## 4. Fila de aprovados aguardando publicação
 **Nenhum item deste ciclo aprovado ainda.** Inserir aqui um registro por ID/sub-ID: ID, versão/commit, aceite, data, opções individual/conjunto, dependências e release vinculado.

@@ -30,7 +30,7 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 | #008 | Fixar publicações | EM_TESTE (local) | PR #42 draft; commit d76ae73; SQL não aplicado em Teste | 008.03 |
 | #009 | Seringa na Home | PLANEJADO | syringeSymbol existente | 009.01 |
 | #003 | Tema claro/escuro | PLANEJADO | light/dark/system existente no código | 003.01 |
-| #010 | Estoque, custos e lucro | EM_TESTE (local) | 010.03-A versionada e validada em PostgreSQL isolado, sem aceite ou publicação | 010.03-B |
+| #010 | Estoque, custos e lucro | EM_TESTE (Supabase staging) | 010.03-B: schema aplicado somente em Teste, sem backup por opção expressa do proprietário; sem homologação funcional ou aceite | 010.03-B QA |
 | #011 | Gestão em massa | PLANEJADO | Gerenciar Loja e estoque por produto existentes | 011.01 |
 | #013 | Central de Campanhas | PLANEJADO | Campanhas/Connect/grupos presentes, sem confirmação de envio automático | 013.01 |
 | #012 | Assinaturas | PLANEJADO | Segmentação por plano existente, billing recorrente não verificado | 012.01 |
@@ -74,7 +74,7 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 | 010.01 | Auditar estoque, pedido, Edge e transições | DIAGNÓSTICO REGISTRADO | PR #49 |
 | 010.02 | Decidir custo/câmbio/CMV e política estoque | POLÍTICA-BASE REGISTRADA | Arquitetura 010.02; critérios contábeis finais pendentes |
 | 010.03-A | Preparar schema aditivo de custos e movimentações | EM_TESTE (local) | PostgreSQL 17 isolado, check e 32 testes da Loja |
-| 010.03-B | Homologar migração no Supabase de Teste | PENDENTE | Catálogo e ledger, ensaio de restauração e autorização |
+| 010.03-B | Homologar migração no Supabase de Teste | EM_TESTE (SQL aplicada; QA funcional pendente) | Migração shop_cost_foundation aplicada em Teste 20261124164148; usuário dispensou backup/restauração; leitura de estrutura/RLS/grants positiva; testes reais pendentes |
 | 010.04 | UI de aquisição no produto atual | PLANEJADO | sem segundo stock |
 | 010.05 | Dashboard de lucro/margem no Gerenciar | PLANEJADO | cálculos e custos unknown |
 | 010.06 | Testar concorrência e reconciliação | PLANEJADO | webhook preservado |
@@ -218,3 +218,13 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - Base `staging/permanente@0970ae6`, branch `desenvolvimento/ajuste-010-03a-estrutura-loja`, commit de implementação [`07fd513`](https://github.com/neopep/App-NeoPep/commit/07fd5134457e861886be4383065d0cb80638e167). [Registro do ensaio e arquivos](https://github.com/neopep/App-NeoPep/blob/07fd5134457e861886be4383065d0cb80638e167/docs/planejamento/EXEC-2026-11-24-010-03A.md).
 - Migração `20261124160000`: câmbio, aquisições, movimentos auditáveis e snapshots privados. Ensaio local aprovou RLS e grants, concorrência, retentativas idempotentes, precisão decimal e reversão. `npm run check` e 32 testes direcionados da Loja passaram. Checkout, webhook, saldo e pedidos antigos preservados.
 - 010.03-B: comparar catálogo, ledger e contratos em Teste; registrar e ensaiar recuperação; após autorização, aplicar somente esta migração e validar permissões, checkout, reserva e cancelamento com dados sintéticos. Nenhuma aplicação remota ou ativação automática nesta etapa.
+
+### Registro 010.03-B — 24/11/2026 — Aplicação controlada em Teste
+- **Autorização do proprietário:** «Pode avançar sem backup». A ausência de backup ensaiado é **risco conscientemente aceito** para o ambiente de Teste, não uma evidência de recuperabilidade e não vale como autorização para Produção.
+- **Ambiente exclusivo:** Supabase `neopep-staging` projeto `qnuluspqfazdppciermw`, PostgreSQL 17.12. Produção `cpslafpzjtbpmoxxysaa` não alterada.
+- **Fonte:** `supabase/migrations/20261124160000_shop_cost_foundation.sql`, commit da branch `desenvolvimento/ajuste-010-03a-estrutura-loja` / PR [#50](https://github.com/neopep/App-NeoPep/pull/50). Nenhuma alteração no arquivo de webhook ou checkout.
+- **Preflight somente leitura:** `neo_private.shop_products` e `shop_orders` presentes; colunas exigidas e funções `public.neo_admin_access()`, `auth.uid()` existentes; novos objetos ausentes; ledger não continha shop_cost_foundation.
+- **Migração aplicada com ferramenta Supabase:** resultado `success=true`, ledger `supabase_migrations.schema_migrations` registra `20261124164148 / shop_cost_foundation`. **Observação:** o identificador do ledger remoto foi gerado pela ferramenta, distinto do prefixo `20261124160000` do arquivo Git. Futura reconciliação do histórico CLI precisa mapear essa equivalência antes de novas migrações.
+- **Verificação pós-aplicação:** 4 tabelas privadas criadas (shop_fx_rates, shop_acquisitions, shop_stock_movements, shop_sale_cost_snapshots), 1 view security_invoker shop_acquisition_costs, triggers de append-only e de validação, três funções sem SECURITY DEFINER; quatro tabelas com RLS habilitada, nenhum grant direto a anon/authenticated/service_role. Contagens iniciais todas zero. Auditor de segurança Supabase executado; lints informativas de RLS sem políticas em várias tabelas privadas, consistente com ausência de grants, não foi feita alteração extra.
+- **Limitações:** sem backup/restauração; sem testes autenticados por role real, concorrência multi-sessão integrada, checkout/pagamentos simulados contra staging, nem ativação da captura de snapshots (não existe ligação com o fluxo legado). Não marcar 010.03-B como totalmente homologada até esses testes. A migração não significa que custos/lucros já apareçam na interface.
+- **Próximo passo:** revisar SQL e ACLs em sessão autenticada, fixtures isoladas sem comprometer saldo/pedidos, confirmar equivalência do ledger Git/remoto, continuar 010.04 apenas após decisão do proprietário. Aceite NÃO_CONCEDIDO; Produção NÃO_PUBLICADA; não alterar Mercado Pago.
