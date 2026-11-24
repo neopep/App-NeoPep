@@ -180,3 +180,10 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - Codex reportou build/check/empacotamento, rodadas de 81 e 110 testes (não somar como 191 testes distintos) e 21 comparações visuais do escuro sem diferença, exceto novo seletor. Este agente não repetiu os testes.
 - Pendências: revisão dirigida, homologação autenticada no Teste, Safari/PWA/dispositivos físicos, aceite explícito. Nenhum merge ou deploy efetuado. PRs #41, #42 e #43 permanecem separadas.
 - Estados: EM_TESTE (local), ACEITE_NAO_CONCEDIDO, PUBLICACAO_NAO_REALIZADA.
+
+### Registro #001 — 24/11/2026 (conferência GitHub)
+- Branch `desenvolvimento/ajuste-001-localizacao`, commit `cf3483f97c1b877643d22d0bdf98997363ef9b31`; [PR #45](https://github.com/neopep/App-NeoPep/pull/45) criada em rascunho para `staging/permanente`.
+- Comparação GitHub: 1 commit à frente, 0 atrás de `staging/permanente@0970ae6`; 11 arquivos (app, cloud, CSS, SW, build, testes e `docs/planejamento/EXEC-2026-11-24-001.md`).
+- Codex reportou build/check/empacotamento e 76 testes direcionados aprovados, incluindo emulações e RPC simulada. Testes **não repetidos por este agente**.
+- Pendências: revisão dirigida do código, homologação de cadastro/login reais no Teste, Safari/PWA e dispositivos físicos, aceite explícito. Nenhum merge, migração ou deploy efetuado. PRs #41–#44 seguem separadas.
+- Estado: EM_TESTE (local), ACEITE_NAO_CONCEDIDO, PUBLICACAO_NAO_REALIZADA.
