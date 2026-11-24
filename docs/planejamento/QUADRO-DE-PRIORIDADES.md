@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #010.05 — RPC do dashboard financeiro aplicada apenas em Supabase Teste (ledger 20261124172822), frontend/homologação real/aceite 010.05 pendentes.
-**ÚLTIMA_DECISÃO:** proprietário autorizou expressamente aplicar exclusivamente o SQL 010.05 no Supabase de Teste. Preflight confirmado, migração aplicada com sucesso e ACL estrutural verificada; sem merge/deploy, sem aceite funcional de 010.05, sem alteração em Produção ou Mercado Pago. #010.04 possui aceite independente.
+**FOCO_ATUAL:** #010.04 + #010.05 — integração validada localmente; configuração Vercel/Supabase Teste e QA reais pendentes.
+**ÚLTIMA_DECISÃO:** preparar e publicar a versão integrada somente após verificar ambiente Teste. Bloqueio remoto 403 nesta execução; versão de referência preservada.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -18,7 +18,7 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | Em espera | #008 | Fixar posts da Biblioteca | EM_TESTE (local; SQL não aplicado em Teste) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 008.03 |
 | Em espera | #009 | Seringa no card da Home | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 009.03 |
 | Em espera | #003 | Tema claro/escuro | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 003.05 |
-| 1 (foco atual) | #010 | Estoque, custos e lucro | 010.05 SQL_APLICADO_TESTE / FRONTEND_NÃO_PUBLICADO / QA_PENDENTE | 010.04 aprovada; 010.05 aceite pendente | Não publicada | 010.05 QA de sessão real + frontend Teste controlado |
+| 1 (foco atual) | #010 | Estoque, custos e lucro | SQL em Teste e frontend integrado validado localmente | 010.04 aceita; 010.05 pendente | Frontend integrado sem deploy | Verificar projeto, publicar em Teste e homologar |
 | 10 | #011 | Edição em massa | NÃO_INICIADO | Não solicitado | Não preparado | 011.01 |
 | 11 | #013 | Campanhas e Connect | NÃO_INICIADO | Não solicitado | Não preparado | 013.01 |
 | 12 | #012 | Planos/assinaturas | NÃO_INICIADO | Não solicitado | Não preparado | 012.01 |

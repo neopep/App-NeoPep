@@ -80,7 +80,7 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 | 010.05.2 | RPC administrativa de leitura | VALIDADO LOCALMENTE | commit 2785404, ACL financeira e agregações |
 | 010.05.3 | Integração com Loja → Gerenciar | VALIDADO LOCALMENTE | commit 2785404, interface e cache PWA |
 | 010.05.4 | Ensaios de regressão e filtragem | VALIDADO LOCALMENTE | 33 testes, PostgreSQL isolado e emulações |
-| 010.05.5 | Aplicação controlada e QA em Teste | PENDENTE | autorização, ledger, sessões reais e latência |
+| 010.05.5 | Aplicação controlada e QA em Teste | SQL INSTALADO; FRONTEND VALIDADO LOCALMENTE | Ledger 20261124172822; deploy e QA real pendentes |
 | 010.06 | Testar concorrência e reconciliação | PLANEJADO | webhook preservado |
 | 011.01 | Contrato e UX preview em massa | PLANEJADO | tabela e filtros |
 | 011.02 | RPC admin atomizada/idempotente | PLANEJADO | ACL e transações |
@@ -315,3 +315,10 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - Vercel: equipe `neo-pep`; projeto **Teste** `app-neopep-staging` ID `prj_ksWxwsJyKhdR2nW2OiZkwx8hlkdq`; projeto **Produção** `app-neopep` ID `prj_Qd8luBAEbXtJgk5dIwwoSbnrBIki`. Último deploy de alvo production do projeto de **Teste** estava READY em `staging/permanente@0970ae6`, `dpl_F7crpVWtyrBkc7ZpddMNb7XjpMRg`; preservado nesta sessão. Os deploys de previews automáticos recentes estavam CANCELED. `vercel.json` de #010.05 possui `git.deploymentEnabled[desenvolvimento/ajuste-010-05-dashboard-financeiro]=false`, requer liberação controlada para branch de integração. Configurações de ambiente de Teste Vercel `production` incluem variáveis da conta de Teste; nenhuma variável correspondente foi localizada para preview genérico. Não inferir que um preview teria configurações corretas; conferir explicitamente sem expor segredos.
 - Supabase Teste: função `public.neo_shop_financial_dashboard_v1(jsonb)` instalada no ledger `20261124172822`; teste somente leitura com identidade `auth.uid() IS NULL` comprovou rejeição via SQLSTATE `42501`; usuários autenticados admin/moderador/usuário comum **ainda não foram testados com sessões reais**. Nenhuma movimentação de dados foi realizada.
 - **Não foi feito deploy ou merge** nesta sessão, a fim de preservar a UI da 010.04 e os ambientes. Próximo fluxo: integrar somente os dois escopos em branch separada, resolver conflitos e dependências SQL remotas já presentes, build/testes, publicar somente no projeto Vercel de Teste quando pronto, validar login/ACL/layout em dispositivo real; registrar SHA/URL; não mexer em Produção, checkout ou Mercado Pago.
+
+### Integração frontend 010.04 + 010.05 — 24/11/2026
+
+- Branch `homologacao/loja-010-04-010-05` em `staging/permanente@0970ae6`; somente deltas #51 e #52. SHA [`43e31df`](https://github.com/neopep/App-NeoPep/commit/43e31dfcc703e08192acc93d596c566cfd783260).
+- Build/check, 33 testes Loja/PWA, PostgreSQL 17 com ambos os contratos e Chromium em desktop/iPhone 13/Pixel 7 emulados passaram. Editor e indicadores coexistem, o saldo da aquisição aparece no dashboard, custos zero e ausente são distintos, moderador/membro não acessam dados financeiros. Nenhuma regressão de pedidos/reserva no ensaio.
+- Supabase Teste: nenhuma reaplicação do ledger `20261124164148`, `20261124170927` ou `20261124172822`. Verificação ao vivo e confirmação de configuração Vercel retornaram 403 no proxy. O deploy `dpl_F7crpVWtyrBkc7ZpddMNb7XjpMRg` é a referência READY anterior do projeto Teste, sem alteração nesta execução. Sem novo deploy, URL ou READY. QA real, latência, aceite 010.05 e 010.06 pendentes.
+- [Evidências e roteiro de publicação e recuperação](https://github.com/neopep/App-NeoPep/blob/43e31dfcc703e08192acc93d596c566cfd783260/docs/planejamento/EXEC-2026-11-24-INTEGRACAO-010-04-010-05.md) · [Comparação para PR de homologação](https://github.com/neopep/App-NeoPep/compare/staging/permanente...homologacao/loja-010-04-010-05?expand=1).
