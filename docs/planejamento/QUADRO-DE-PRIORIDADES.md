@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #013 — Connect 0.2.10 conectado e grupos sincronizados em Teste (1) e Produção (2), heartbeats e sessão confirmados em 24/11 às 17:44 BRT. Infra de despacho em Teste ainda bloqueada; PRs #56/#57/#58/#59 sem deploy web; próxima homologação: publicar versão consolidada em Vercel Teste só com autorização específica, testar UI e depois envio controlado com autorização.
-**ÚLTIMA_DECISÃO:** solicitado «Verifique». Auditoria read-only confirma sessão/grupos sincronizados em ambos os Supabase na versão 0.2.10. Teste com 1 grupo sync 20:44:17Z; Produção 2 grupos sync 20:43:53Z. Flags whatsapp_enabled/app_enabled OFF, connect_config.paused true, 0 lotes e 0 auditorias; presença worker 0. Vercel Teste latest READY sha 43e31df, anterior à #013; nenhum deploy efetuado.
+**FOCO_ATUAL:** Publicação consolidada do ciclo 24/11 concluída no Vercel TESTE (PR #61, commit 4158d4e, deploy dpl_En1Luqb4Tz5GrBxH6eK4MJY1VENw READY, domínio teste.app.neopep.com.br). Etapas 001/002/003/005/006/007/008/009/010/011/013 incluídas. Banco Teste com SQL #002/#008 aplicados e ACL verificadas. Próximo: QA autenticada/mobile Teste e plano Produção separado; envios automáticos bloqueados.
+**ÚLTIMA_DECISÃO:** proprietário pediu publicar desde a primeira etapa de hoje, não apenas #013. PR #61 consolidou as 11 frentes; GitHub Actions 45487246843 e 45487260307 success; duas migrações #002/#008 instaladas no Supabase Teste; um único deploy Vercel de Teste 4158d4e READY e arquivos verificados HTTP 200. Produção intocada.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
