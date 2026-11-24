@@ -34,5 +34,6 @@ test('editor 013 preservado e gates automáticos não são ativados por interfac
  assert.match(read('dist/admin/index.html'),/campaign-editor\.js\?v=2/);
  assert.match(css,/dialog\.neo-structured-editor\[open\]/);
  assert.ok(sw.includes("'appearance.js'"));
+ assert.ok(sw.includes("'admin/campaign-editor.js'"));
  assert.equal(v.git.deploymentEnabled['homologacao/ciclo-completo-2026-11-24'],false);
 });
