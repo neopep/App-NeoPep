@@ -35,3 +35,13 @@ A migração `campaign_dispatch` está instalada SOMENTE no Supabase Teste, com 
 ## Ajuste da continuação — avisos de compilação CS4014
 
 Foram detectadas quatro chamadas `ReportStatus(...)` sem observação explícita de tarefa no WinForms. Corrigidas em `WhatsApp.cs` por um observador de conclusão em segundo plano que **não aguarda e não atrasa** a desmontagem da interface, preservando a ordem e comportamento de conexão/revogação anteriores. O observador consome eventual exceção de tarefa; `ReportStatus` já absorve falhas de rede. Não modifica credenciais nem envia mensagens. O build de `NeoPepConnect.exe` passa a tratar **CS4014 como erro** no código candidato, sem modificar as verificações de baselines legadas. Reexecutar Windows CI na própria branch.
+
+## Nova execução CI após correção do status assíncrono — APROVADA
+
+- Run **45472598828**, https://github.com/neopep/App-NeoPep/actions/runs/45472598828, checkout do código **`c5f2237449c9005eecc98c1d83475da087b0cc32`**.
+- Resultado da job Windows: **success**, 13 etapas aprovadas, nenhuma falha. Compilação principal com `/warnaserror:4014` passou.
+- No código atual não houve avisos CS4014; as únicas ocorrências no log referem-se aos baselines de atualização **0.2.6** e **0.2.7**, compilados pelos scripts antigos e mantidos deliberadamente intactos.
+- Hash SHA-256 do instalador efêmero desta execução: **`68d9defb3ae734ab132badf351dedf9526aff47b971343bd02f4a49702a0dcaa`**; `Authenticode NotSigned`. O artefato **não foi publicado ou disponibilizado**.
+- Baselines `0.1.1`, `0.1.2`, `0.2.6`, `0.2.7`: verificação de preservação dos cofres aprovada.
+- Guia de execução em Windows físico preparado em `docs/planejamento/GUIA-HOMOLOGACAO-CONNECT-013-WINDOWS.md`, **ainda não executado**.
+- Repositório privado `neopep/NeoPep-Connect-Build-Privado` revisado **somente leitura**: última execução de build de Teste 0.2.8 registrada em 23/11. Nunca reutilizar identidade 0.2.8 para alterações posteriores; candidato seguinte sugerido 0.2.9, sujeito à conferência do canal privado e autorização. Nenhum workflow privado foi disparado.
