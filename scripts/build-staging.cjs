@@ -4,7 +4,7 @@ const { staging, verifyStagingKey, writeConfig } = require('../release/multiagen
 
 async function prepare() {
   const branch = process.env.VERCEL_GIT_COMMIT_REF;
-  const integratedBranch = ['homologacao/loja-010-04-010-05','desenvolvimento/ajuste-010-06-conciliacao','desenvolvimento/ajuste-011-gerenciamento-massa'].includes(branch);
+  const integratedBranch = ['homologacao/loja-010-04-010-05','desenvolvimento/ajuste-010-06-conciliacao','desenvolvimento/ajuste-011-gerenciamento-massa','homologacao/ciclo-completo-2026-11-24'].includes(branch);
   if (integratedBranch && (process.env.VERCEL_PROJECT_ID !== 'prj_ksWxwsJyKhdR2nW2OiZkwx8hlkdq'
       || !/^[a-f0-9]{40}$/.test(process.env.VERCEL_GIT_COMMIT_SHA || ''))) {
     throw new Error('A integração financeira exige o projeto Vercel de Teste e um SHA Git.');
