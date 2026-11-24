@@ -25,6 +25,16 @@ test('staging installs at the root and keeps the former launch and worker routes
       NEO_STAGING_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_fixture'
     }
   });
+  const integrated = {
+    ...process.env, VERCEL: '1', VERCEL_GIT_COMMIT_REF: 'homologacao/loja-010-04-010-05',
+    VERCEL_GIT_COMMIT_SHA: 'a'.repeat(40), NEO_STAGING_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_fixture'
+  };
+  const build = (env) => execFileSync(process.execPath, ['--require', './fetch.cjs', 'scripts/build-staging.cjs'], {
+    cwd: work, env, stdio: 'pipe'
+  });
+  assert.throws(() => build({...integrated, VERCEL_PROJECT_ID:'prj_Qd8luBAEbXtJgk5dIwwoSbnrBIki'}), /projeto Vercel de Teste/);
+  assert.throws(() => build({...integrated, VERCEL_PROJECT_ID:'prj_ksWxwsJyKhdR2nW2OiZkwx8hlkdq', VERCEL_GIT_COMMIT_SHA:''}), /SHA Git/);
+  build({...integrated, VERCEL_PROJECT_ID:'prj_ksWxwsJyKhdR2nW2OiZkwx8hlkdq'});
   const read = (file) => fs.readFileSync(path.join(work, 'dist', file), 'utf8');
   assert.doesNotMatch(fs.readFileSync('dist/style.css','utf8'), /content:"TESTE"/);
   assert.match(read('style.css'), /content:"TESTE";position:fixed/);
@@ -39,6 +49,8 @@ test('staging installs at the root and keeps the former launch and worker routes
   const window = {};
   vm.runInNewContext(read('config.js'), { window });
   assert.equal(window.NEO_CONFIG.supabaseUrl, 'https://qnuluspqfazdppciermw.supabase.co');
+  assert.equal(window.NEO_CONFIG.stagingBuild.commit, 'a'.repeat(40));
+  assert.equal(window.NEO_CONFIG.stagingBuild.branch, 'homologacao/loja-010-04-010-05');
   assert.equal(window.NEO_CONFIG.authRedirectPath, '/neo/');
   assert.equal(window.NEO_CONFIG.legacyPushScope, '/neo/');
   const cache = (scope) => vm.runInNewContext(read('sw.js') + '\nCACHE', {

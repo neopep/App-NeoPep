@@ -3,6 +3,7 @@ insert into neo_private.community_moderators(user_id) values ('00000000-0000-000
 insert into neo_private.admin_members(user_id) values ('00000000-0000-0000-0000-000000000001');
 insert into neo_private.shop_products(id,name,description,category,price_cents,stock)
 values ('00000000-0000-0000-0000-000000000010','Produto teste','','Teste',1000,3);
+update neo_private.shop_products set active=true where id='00000000-0000-0000-0000-000000000010';
 insert into neo_private.shop_orders(id,request_key,items,address,subtotal_cents,shipping_cents,total_cents,status,environment)
 values ('00000000-0000-0000-0000-000000000020','00000000-0000-0000-0000-000000000021',
   '[{"product_id":"00000000-0000-0000-0000-000000000010","quantity":3,"unit_price_cents":1000}]','{}',3000,0,3000,'paid','production');

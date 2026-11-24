@@ -35,6 +35,7 @@ SQL
 preflight=release/shop-costs/preflight-010-04.sql
 "${db[@]}" < "$preflight"
 "${db[@]}" < "$migration"
+"${db[@]}" < release/shop-finance/20261124200000_shop_financial_dashboard.sql
 if "${db[@]}" < "$preflight" >"$scratch/post-preflight" 2>&1; then exit 1; fi
 grep -q 'já instalado ou parcialmente presente' "$scratch/post-preflight"
 "${db[@]}" -f - < tests/shop-cost-editor.sql
@@ -62,3 +63,10 @@ test "$("${db[@]}" -c 'select count(*) from neo_private.shop_acquisitions')" = 2
 test "$("${db[@]}" -c 'select total_cents from neo_private.shop_orders')" = 3000
 test "$("${db[@]}" -c 'select unit_cost_brl_cents from neo_private.shop_sale_cost_snapshots')" = 20
 echo 'OK: concurrent replay writes one USD acquisition, stale revision is rejected, legacy sale and snapshot unchanged'
+
+"${db[@]}" <<'SQL'
+insert into supabase_migrations.schema_migrations values
+ ('20261124170927','shop_cost_editor'), ('20261124172822','shop_financial_dashboard');
+SQL
+"${db[@]}" < release/shop-finance/verify-test-integration.sql
+"${db[@]}" -f - < tests/shop-finance-integration.sql

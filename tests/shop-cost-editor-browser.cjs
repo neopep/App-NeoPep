@@ -27,6 +27,13 @@ async function scenario(browser, options) {
           ? {products:[{...item, stock:window.stock}], cart:[], settings:{}, can_manage:window.admin,
             promotions_ready:true, shop_extensions:{gallery:true}}
           : [],
+        shopFinancial: async () => ({
+          from:'2026-01-01',to:'2026-01-31',page:1,detail_pages:0,
+          sales:{orders:1,units:2,covered_units:0,gross_cents:'100',discount_cents:'0',
+            commercial_cents:'100',shipping_cents:'0',known_cmv_cents:null,profit_cents:null,margin_percent:null},
+          stock:{units:window.stock,alert_count:1,alerts:[{name:item.name,stock:window.stock}]},
+          states:[],details:[]
+        }),
         shopCosts: async (action,payload) => {
           if (action === 'register') {
             window.writes.push(payload);
@@ -77,6 +84,12 @@ async function scenario(browser, options) {
     assert.deepEqual(writes[0], writes[1]);
     assert.equal(writes[1].unit_cost, '1.00');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.locator('[data-shop="manage"]').first().click();
+    const panel=page.locator('[data-shop-financial]');
+    await panel.locator('summary').click();
+    await panel.getByText('Indicadores atualizados.').waitFor();
+    assert.match(await panel.textContent(),/Estoque disponível hoje5/);
+    assert.match(await panel.textContent(),/Lucro bruto estimadoIndisponível/);
     await page.evaluate(async () => {window.admin = false; await openShop('member');});
     assert.equal(await page.locator('[data-shop-cost]').count(), 0);
     assert.equal(await page.getByRole('button',{name:'Gerenciar',exact:true}).count(), 0);
