@@ -63,7 +63,8 @@
   ],
   "git": {
     "deploymentEnabled": {
-      "desenvolvimento/calculadora-ajustes-lote": false
+      "desenvolvimento/calculadora-ajustes-lote": false,
+      "desenvolvimento/ajuste-013-central-campanhas": false
     }
   }
 }
