@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #013 — concluir infraestrutura de despacho e agendamento por destino, integração segura NeoPep Connect, publicação cruzada App↔WhatsApp e testes locais; PR #56 é base, SQL de revisão já em Supabase Teste. Sem deploy ou envio real.
-**ÚLTIMA_DECISÃO:** proprietário ordenou finalizar desenvolvimento da #013, preservando restrição de zero deploys Vercel e zero envios reais WhatsApp/push. Implementar pendências em branch derivada da #56, com testes locais e gates de ativação; homologação Windows/sessão real requer etapa separada.
+**FOCO_ATUAL:** #013 — migração campaign_dispatch aplicada em Supabase Teste com flags WhatsApp/App desativadas; PRs #56/#57 draft. Sem deploy; homologação Windows, sessão WhatsApp, contas reais e anexos pendentes.
+**ÚLTIMA_DECISÃO:** proprietário autorizou explicitamente apenas a migração #013 de despacho em Supabase Teste; aplicada e verificada, flags whatsapp_enabled=false e app_enabled=false. Zero deploys Vercel, zero envios reais e Produção intocada.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
