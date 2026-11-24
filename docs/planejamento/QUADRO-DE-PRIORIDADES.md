@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #010.06 — migração shop_reconciliation aplicada e verificada em Supabase Teste; PR #54 draft, frontend ainda não publicado; QA de sessões reais, Teste READY e aceite da 010.06 pendentes. Regra legada de reembolso mantida.
-**ÚLTIMA_DECISÃO:** após «Vamos avançar e concluir essa etapa agora», foi aplicada apenas a migração 010.06 no Supabase Teste `qnuluspqfazdppciermw` com preflight aprovado; 4 triggers, RPC e ledger confirmados, estoque preservado em 100 unidades. Sem deploy Vercel, sem Produção e sem mudanças no Mercado Pago. QA real e aceite ainda pendentes.
+**FOCO_ATUAL:** #011 — Gerenciamento em massa de preços e estoque da Loja, iniciando implementação Codex sem deploy. #010.06 migração aplicada em Supabase Teste, frontend e aceite ainda pendentes; não publicar Vercel.
+**ÚLTIMA_DECISÃO:** proprietário ordenou «Deixe deploy ainda, vamos pra próxima etapa». Suspender deploy de Teste da #010.06; manter banco de Teste migrado e PR #54 draft; avançar #011 em branch isolada com testes locais, sem Vercel nem Produção.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
