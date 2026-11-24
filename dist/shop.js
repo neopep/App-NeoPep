@@ -13,7 +13,7 @@ window.NeoShop=(()=>{
  const photoPaths=p=>[...new Set((p.photo_paths?.length?p.photo_paths:p.photo_path?[p.photo_path]:[]).filter(x=>typeof x==='string'&&x))];
  async function hydratePhotos(p,all=false){const paths=photoPaths(p),token=generation;const photos=await Promise.all(paths.slice(0,all?6:1).map(async path=>{const cached=photoCache.get(path);if(cached&&cached.expires>Date.now())return {path,url:cached.url};try{const url=await window.NeoCloud.shopPhotoURL(path);if(token===generation)photoCache.set(path,{url,expires:Date.now()+120000});return {path,url}}catch{return {path,url:''}}}));if(token!==generation)return;p.photos=photos;p.photo_url=photos[0]?.url||'';}
  const trash='<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 10v7m4-7v7"/></svg>';
- function session(user){window.NeoShopPromotions?.session(user);const key=user?.id||'';if(key===owner)return;visibilityUnsubscribe?.();visibilityUnsubscribe=null;clearTimeout(visibilityTimer);if(visibilityPoll)clearInterval(visibilityPoll);visibilityPoll=0;visibilityTimer=0;owner=key;generation++;data=null;homeProducts=[];homeLast=0;homeBusy=false;homeIndex=0;pendingProduct=null;homeRequest++;busy=false;error='';mode='catalog';selected=null;search='';category='';cart=[];quote=null;orders=[];orderFilter='all';orderSearch='';orderID=null;requestKey='';address={};savedAddresses=[];addressError='';addressEditing=false;product={};clearPhoto();photoCache.clear();duplicateRequests.clear();lastLoad=0;
+ function session(user){window.NeoShopPromotions?.session(user);const key=user?.id||'';if(key===owner)return;visibilityUnsubscribe?.();visibilityUnsubscribe=null;clearTimeout(visibilityTimer);if(visibilityPoll)clearInterval(visibilityPoll);visibilityPoll=0;visibilityTimer=0;owner=key;generation++;data=null;homeProducts=[];homeLast=0;homeBusy=false;homeIndex=0;pendingProduct=null;homeRequest++;busy=false;error='';mode='catalog';selected=null;search='';category='';cart=[];quote=null;orders=[];orderFilter='all';orderSearch='';orderID=null;requestKey='';address={};savedAddresses=[];addressError='';addressEditing=false;product={};clearPhoto();photoCache.clear();duplicateRequests.clear();costRetries.clear();lastLoad=0;
   if(owner&&window.NeoCloud.watchShopVisibility){
    const token=generation;
    let revision=null,reading=false;
@@ -201,7 +201,171 @@ window.NeoShop=(()=>{
   const host=summary?.parentElement;
   if(host&&!visibilityPanels.has(host))visibilityPanels.set(host,mountVisibility(host));
  },true);
- function productForm(){const max=data.shop_extensions?.gallery?6:1,categories=[...new Set(data.products.map(p=>p.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));return `${button('manage','‹ Voltar')}<section class="card space"><div class="shop-product-form-head"><h2>${product.id?'Editar produto':'Adicionar produto'}</h2>${product.id?button('delete_product',trash,`data-id="${e(product.id)}" aria-label="Excluir produto" title="Excluir produto" ${data.shop_extensions?.delete_product?'':'disabled'}`,'icon-btn shop-delete-product'):''}</div>${visibilityEditor()}<form data-shop-form="product" class="space"><fieldset class="shop-editor-photos"><legend>Fotos do produto <small>${productImages.length}/${max}</small></legend><p class="sub">${max>1?'Adicione até 6 fotos. A primeira será a capa do produto.':'Foto de capa. Outras fotos ficam disponíveis após atualizar a estrutura da loja.'}</p><div class="shop-photo-editor-grid">${productImages.map((image,index)=>`<div class="shop-editor-photo">${image.url?`<img src="${e(image.url)}" alt="Foto ${index+1} do produto" width="150" height="150">`:'<span class="sub">Prévia indisponível</span>'}<div>${index===0?'<span class="tag">Capa</span>':button('photo_cover','Usar como capa',`type="button" data-index="${index}"`,'text-btn')}${button('photo_remove',trash,`type="button" data-index="${index}" aria-label="Remover foto ${index+1}"`,'icon-btn shop-delete-product')}</div></div>`).join('')}</div><label class="secondary file-label shop-add-photos">${mediaBusy?'Preparando fotos…':'＋ Adicionar '+(max>1?'fotos':'foto')}<input name="photo" type="file" accept="image/jpeg,image/png,image/webp" ${max>1?'multiple':''} data-shop-photo ${mediaBusy||productImages.length>=max?'disabled':''} hidden></label><p class="sub">As alterações nas fotos só entram no catálogo ao salvar o produto.</p></fieldset>${field('name','Nome do produto','text',product.name||'','required minlength="3" maxlength="120"')}${field('payment_name','Nome no pagamento','text',product.payment_name||product.name||'','required minlength="2" maxlength="120" placeholder="Ex.: Protocolo"')}<p class="sub">Este segundo nome aparece no checkout e no comprovante do Mercado Pago.</p><label>Descrição<textarea name="description" rows="5" maxlength="5000">${e(product.description||'')}</textarea></label><div class="form-grid">${field('category','Categoria','text',product.category||'','required maxlength="40" list="shop-category-list" autocomplete="off" placeholder="Selecione ou escreva uma nova"')}<datalist id="shop-category-list">${categories.map(c=>`<option value="${e(c)}"></option>`).join('')}</datalist>${field('price','Preço em reais','text',product.price??(product.price_cents?String(product.price_cents/100).replace('.',','):''),'required inputmode="decimal"')}${field('stock','Estoque disponível','number',product.stock??0,'required min="0" max="1000000" step="1"')}</div><label class="shop-featured-choice"><input name="featured" type="checkbox" ${product.featured?'checked':''}><span aria-hidden="true">★</span><span>Destacar na tela inicial</span></label><label class="shop-accept"><input name="active" type="checkbox" ${product.active?'checked':''}> Publicar no catálogo</label><button class="primary full space" ${mediaBusy?'disabled':''}>Salvar produto</button></form></section>`}
+ function costEditor(){
+  if(!data.can_manage)return '';
+  return `<details class="shop-cost-editor" data-shop-cost="${e(product.id||'')}"><summary>Custos e aquisições</summary>
+   ${product.id?`<p role="status" class="sub" data-cost-status></p>
+   <form class="space" data-cost-form hidden>
+    <fieldset class="space" data-cost-fields>
+     <label>Tipo de lançamento<select name="entry_kind" required><option value="">Selecione</option><option value="cost_only">Informar custo sem alterar estoque</option><option value="acquisition">Registrar aquisição e aumentar estoque</option></select></label>
+     <div class="form-grid">
+      <label>Moeda<select name="currency"><option value="BRL">Real (BRL)</option><option value="USD">Dólar (USD)</option></select></label>
+      ${field('unit_cost','Custo unitário','text','','required inputmode="decimal" maxlength="20"')}
+      ${field('quantity','Quantidade de referência ou adquirida','number','','required min="1" max="1000000" step="1"')}
+      ${field('acquired_on','Data de referência ou aquisição','date','','required')}
+     </div>
+     <fieldset class="form-grid" data-cost-fx hidden disabled><legend>Câmbio histórico</legend>
+      ${field('fx_rate','Reais por dólar','text','','required inputmode="decimal" maxlength="18"')}
+      ${field('fx_source','Fonte do câmbio','text','','required maxlength="160"')}
+      ${field('fx_on','Data do câmbio','date','','required')}
+     </fieldset>
+    </fieldset>
+    <output class="sub" data-cost-preview></output>
+    <button type="submit" class="secondary" data-cost-save>Registrar lançamento</button>
+   </form>
+   <button type="button" class="secondary" data-cost-refresh hidden>Atualizar dados</button>
+   <ul class="shop-cost-history" data-cost-history></ul>
+   <button type="button" class="secondary" data-cost-more hidden>Ver lançamentos anteriores</button>`:'<p class="sub">Salve o produto para registrar custos e aquisições.</p>'}
+   </details>`;
+ }
+ function costDecimal(value,integer,fraction){
+  const text=value.trim().replace(',','.');
+  if(!new RegExp(`^[0-9]{1,${integer}}(?:\\.[0-9]{1,${fraction}})?$`).test(text))throw Error('Informe um valor decimal sem separador de milhar.');
+  return text;
+ }
+ function costMoney(value){
+  const [whole,fraction='']=String(value).split('.');
+  return 'R$ '+whole.replace(/\B(?=(\d{3})+(?!\d))/g,'.')+','+fraction.padEnd(2,'0');
+ }
+ function costPreview(unit,rate,quantity){
+  const parts=[unit,rate].map(value=>value.split('.'));
+  const scale=parts.reduce((sum,p)=>sum+(p[1]?.length||0),0);
+  const amount=parts.reduce((total,p)=>total*BigInt(p.join('')),1n);
+  const decimal=value=>{
+   const digits=value.toString().padStart(scale+1,'0');
+   return scale?digits.slice(0,-scale)+'.'+digits.slice(-scale).replace(/0+$/,''):digits;
+  };
+  return [costMoney(decimal(amount)),costMoney(decimal(amount*BigInt(quantity)))];
+ }
+ function mountCosts(host){
+  const token=generation,id=host.dataset.shopCost;
+  const form=host.querySelector('[data-cost-form]'),fields=host.querySelector('[data-cost-fields]');
+  const fx=host.querySelector('[data-cost-fx]'),status=host.querySelector('[data-cost-status]');
+  const history=host.querySelector('[data-cost-history]'),preview=host.querySelector('[data-cost-preview]');
+  const save=host.querySelector('[data-cost-save]'),refresh=host.querySelector('[data-cost-refresh]');
+  const more=host.querySelector('[data-cost-more]');
+  const field=name=>form.querySelector('[name='+name+']');
+  const sameEditor=()=>token===generation&&mode==='product'&&product.id===id;
+  const current=()=>sameEditor()&&host.isConnected;
+  let latest,next,working=false;
+  function syncStock(stock){
+   const input=document.querySelector('[data-shop-form=product] [name=stock]');
+   const row=data.products.find(row=>row.id===id);
+   if(input&&row&&input.value!==''&&Number(input.value)===row.stock){
+    input.value=String(stock);
+    product.stock=stock;
+   }
+   if(row)row.stock=stock;
+  }
+  function render(result,append=false){
+   if(!append){latest=result;syncStock(result.stock);history.replaceChildren();}
+   next=result.next;
+   more.hidden=!next;
+   for(const row of result.history){
+    const item=document.createElement('li');
+    const original=row.currency==='USD'?` · USD ${row.unit_cost.replace('.',',')} · câmbio ${row.fx_rate.replace('.',',')} · ${row.fx_on} · ${row.fx_source}`:'';
+    item.textContent=`${row.acquired_on} · ${row.entry_kind==='acquisition'?'Entrada de estoque':'Somente custo'} · ${row.quantity} un. · ${costMoney(row.brl_unit)} / un. · ${costMoney(row.brl_total)} total${original}`;
+    history.append(item);
+   }
+  }
+  async function read(append=false){
+   if(working||!current())return;
+   working=true;refresh.hidden=true;more.disabled=true;
+   status.textContent='Consultando custos…';
+   try{
+    const result=await window.NeoCloud.shopCosts('read',{product_id:id,...(append?{before:next}:{})});
+    if(!current())return;
+    render(result,append);
+    form.hidden=false;
+    status.textContent=history.childElementCount?'Histórico de lançamentos':'Custo não informado.';
+   }catch(err){
+    if(current()){
+     status.textContent=['PGRST202','42883'].includes(err.code)?'Custos indisponíveis neste ambiente.':'Não foi possível consultar os custos.';
+     refresh.hidden=false;
+    }
+   }finally{working=false;more.disabled=false;}
+  }
+  function updatePreview(){
+   const usd=field('currency').value==='USD';
+   fx.hidden=!usd;fx.disabled=!usd;
+   try{
+    const quantity=field('quantity').value;
+    if(!/^[1-9][0-9]{0,6}$/.test(quantity))return void(preview.textContent='');
+    const [unit,total]=costPreview(costDecimal(field('unit_cost').value,11,8),usd?costDecimal(field('fx_rate').value,7,10):'1',quantity);
+    preview.textContent=`Prévia · ${unit} por unidade · ${total} total`;
+   }catch{preview.textContent='';}
+  }
+  async function register(event){
+   event.preventDefault();
+   if(working||busy||mediaBusy||!latest||!current())return;
+   let request=costRetries.get(id);
+   if(!request){
+    const mode=field('entry_kind').value,currency=field('currency').value;
+    const stockInput=document.querySelector('[data-shop-form=product] [name=stock]');
+    if(mode==='acquisition'&&Number(stockInput?.value)!==latest.stock){
+     status.textContent='Resolva a alteração de estoque no formulário do produto antes de registrar uma entrada.';
+     return;
+    }
+    try{
+     request={
+      product_id:id,request_key:crypto.randomUUID(),revision:latest.revision,expected_stock:latest.stock,
+      entry_kind:mode,currency,quantity:field('quantity').value,acquired_on:field('acquired_on').value,
+      unit_cost:costDecimal(field('unit_cost').value,11,8),
+      ...(currency==='USD'?{fx_rate:costDecimal(field('fx_rate').value,7,10),fx_source:field('fx_source').value,fx_on:field('fx_on').value}:{})
+     };
+    }catch(err){status.textContent=err.message;return;}
+    costRetries.set(id,request);
+   }
+   busy=true;working=true;save.disabled=true;fields.disabled=true;refresh.hidden=true;
+   status.textContent='Registrando lançamento…';
+   try{
+    const result=await window.NeoCloud.shopCosts('register',request);
+    if(token!==generation)return;
+    costRetries.delete(id);
+    if(!current()){
+     if(sameEditor())syncStock(result.stock);
+     return;
+    }
+    render(result);
+    form.reset();updatePreview();
+    status.textContent='Lançamento registrado.';
+   }catch(err){
+    if(!current())return;
+    const rejected=/^(22|23)/.test(err.code||'')||['40001','42501','PGRST202','42883'].includes(err.code);
+    if(rejected)costRetries.delete(id);
+    if(err.code==='40001'){latest=null;refresh.hidden=false;}
+    status.textContent=err.code==='40001'?'O custo ou estoque mudou. Atualize os dados antes de registrar.':rejected?'Lançamento recusado. Confira os campos e as permissões.':'Não foi possível confirmar. Repita o mesmo envio para consultar o resultado sem duplicar a entrada.';
+   }finally{
+    if(token===generation)busy=false;
+    working=false;save.disabled=false;fields.disabled=costRetries.has(id);
+    save.textContent=fields.disabled?'Repetir envio':'Registrar lançamento';
+   }
+  }
+  for(const type of ['input','change'])form.addEventListener(type,updatePreview);
+  form.addEventListener('submit',register);
+  refresh.addEventListener('click',()=>read());
+  more.addEventListener('click',()=>read(true));
+  if(costRetries.has(id)){fields.disabled=true;save.textContent='Repetir envio';}
+  void read();
+ }
+ const costPanels=new WeakSet(),costRetries=new Map();
+ document.addEventListener('toggle',event=>{
+  const host=event.target;
+  if(host.open&&host.matches?.('[data-shop-cost]')&&host.dataset.shopCost&&!costPanels.has(host)){
+   costPanels.add(host);mountCosts(host);
+  }
+ },true);
+ function productForm(){const max=data.shop_extensions?.gallery?6:1,categories=[...new Set(data.products.map(p=>p.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));return `${button('manage','‹ Voltar')}<section class="card space"><div class="shop-product-form-head"><h2>${product.id?'Editar produto':'Adicionar produto'}</h2>${product.id?button('delete_product',trash,`data-id="${e(product.id)}" aria-label="Excluir produto" title="Excluir produto" ${data.shop_extensions?.delete_product?'':'disabled'}`,'icon-btn shop-delete-product'):''}</div>${visibilityEditor()}<form data-shop-form="product" class="space"><fieldset class="shop-editor-photos"><legend>Fotos do produto <small>${productImages.length}/${max}</small></legend><p class="sub">${max>1?'Adicione até 6 fotos. A primeira será a capa do produto.':'Foto de capa. Outras fotos ficam disponíveis após atualizar a estrutura da loja.'}</p><div class="shop-photo-editor-grid">${productImages.map((image,index)=>`<div class="shop-editor-photo">${image.url?`<img src="${e(image.url)}" alt="Foto ${index+1} do produto" width="150" height="150">`:'<span class="sub">Prévia indisponível</span>'}<div>${index===0?'<span class="tag">Capa</span>':button('photo_cover','Usar como capa',`type="button" data-index="${index}"`,'text-btn')}${button('photo_remove',trash,`type="button" data-index="${index}" aria-label="Remover foto ${index+1}"`,'icon-btn shop-delete-product')}</div></div>`).join('')}</div><label class="secondary file-label shop-add-photos">${mediaBusy?'Preparando fotos…':'＋ Adicionar '+(max>1?'fotos':'foto')}<input name="photo" type="file" accept="image/jpeg,image/png,image/webp" ${max>1?'multiple':''} data-shop-photo ${mediaBusy||productImages.length>=max?'disabled':''} hidden></label><p class="sub">As alterações nas fotos só entram no catálogo ao salvar o produto.</p></fieldset>${field('name','Nome do produto','text',product.name||'','required minlength="3" maxlength="120"')}${field('payment_name','Nome no pagamento','text',product.payment_name||product.name||'','required minlength="2" maxlength="120" placeholder="Ex.: Protocolo"')}<p class="sub">Este segundo nome aparece no checkout e no comprovante do Mercado Pago.</p><label>Descrição<textarea name="description" rows="5" maxlength="5000">${e(product.description||'')}</textarea></label><div class="form-grid">${field('category','Categoria','text',product.category||'','required maxlength="40" list="shop-category-list" autocomplete="off" placeholder="Selecione ou escreva uma nova"')}<datalist id="shop-category-list">${categories.map(c=>`<option value="${e(c)}"></option>`).join('')}</datalist>${field('price','Preço em reais','text',product.price??(product.price_cents?String(product.price_cents/100).replace('.',','):''),'required inputmode="decimal"')}${field('stock','Estoque disponível','number',product.stock??0,'required min="0" max="1000000" step="1"')}</div><label class="shop-featured-choice"><input name="featured" type="checkbox" ${product.featured?'checked':''}><span aria-hidden="true">★</span><span>Destacar na tela inicial</span></label><label class="shop-accept"><input name="active" type="checkbox" ${product.active?'checked':''}> Publicar no catálogo</label><button class="primary full space" ${mediaBusy?'disabled':''}>Salvar produto</button></form>${costEditor()}</section>`}
  const states=['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
  function shippingRules(){const rules=data.settings.shipping_by_state||{},available=states.filter(state=>!Object.hasOwn(rules,state));return `<section class="shop-shipping-rules"><div><h3>Frete por estado</h3><p class="sub">Cadastre somente as exceções. Nos demais estados será usado o frete padrão do Brasil.</p></div><div class="form-grid shop-shipping-add"><label>Estado<select data-shipping-state><option value="">Selecione</option>${available.map(state=>`<option>${state}</option>`).join('')}</select></label>${field('shipping_state_value','Valor do frete (R$)','text','','inputmode="decimal" placeholder="0,00"')}<button type="button" class="secondary" data-shop="add_shipping_rule" ${available.length?'':'disabled'}>Adicionar estado</button></div><div class="shop-shipping-list">${Object.entries(rules).sort().map(([state,cents])=>`<div class="shop-shipping-row"><strong>${e(state)}</strong><span>${Number(cents)===0?'Grátis':C.money(Number(cents))}</span>${button('remove_shipping_rule','Remover',`type="button" data-state="${e(state)}"`,'text-btn')}</div>`).join('')||'<p class="sub">Nenhuma exceção cadastrada.</p>'}</div></section>`}
  function preserveSettingsForm(){const form=document.querySelector('[data-shop-form=settings]');if(!form)return;const values=Object.fromEntries(new FormData(form)),s=data.settings;for(const key of ['seller_name','seller_document','business_address','support_email','returns_policy'])if(Object.hasOwn(values,key))s[key]=values[key];if(values.shipping!==undefined)try{s.shipping_cents=C.cents(values.shipping,true)}catch{}if(values.delivery_min)s.delivery_min=Number(values.delivery_min);if(values.delivery_max)s.delivery_max=Number(values.delivery_max);s.shipping_ready=values.shipping_ready==='on';}
@@ -235,7 +399,7 @@ window.NeoShop=(()=>{
   }else if(action==='edit'||action==='new'){if(!data.can_manage)throw Error('Sem permissão para gerenciar.');clearPhoto();product=action==='edit'?{...data.products.find(p=>p.id===b.dataset.id)}:{active:true,stock:0};if(action==='edit'){await hydratePhotos(product,true);if(token!==generation)return;productImages=(product.photos||[]).map(image=>({...image}))}mode='product'}else if(action==='orders'||action==='manage_orders'){orders=await rpc(action==='manage_orders'?'manage_orders':'orders');mode=action;if(action==='manage_orders')try{localStorage.setItem('neo-shop-orders-seen:'+owner,new Date().toISOString())}catch{}}else if(action==='select_address'){const saved=savedAddresses.find(a=>a.id===b.dataset.id);if(saved)address={...saved};addressEditing=false;addressError=''}else if(action==='edit_address'){const saved=savedAddresses.find(a=>a.id===b.dataset.id);if(saved)address={...saved};addressEditing=true;addressError=''}else if(action==='new_address'){address=freshAddress();addressEditing=true;addressError=''}else if(action==='use_address'){address=C.address(address);await getQuote();mode='payment';window.NeoEngagement?.track('checkout_step_completed','loja')}else if(action==='address'){await loadAddresses();await getQuote();addressEditing=false;mode='address';window.NeoEngagement?.track('checkout_started','loja')}else if(action==='payment'){address=C.address(address);await getQuote();mode='payment';window.NeoEngagement?.track('checkout_step_completed','loja')}else if(action==='export_orders'){await exportOrders()}else if(action==='cancel_order'||action==='request_cancel'){const paid=action==='request_cancel',reason=window.prompt(paid?'Informe o motivo da solicitação de cancelamento:':'Deseja cancelar este pedido? Você pode informar o motivo:','');if(reason===null)return;await rpc('cancel_order',{id:b.dataset.id,reason});orders=await rpc('orders')}else if(action==='cancel_approve'||action==='cancel_reject'){const note=document.querySelector('[data-cancel-note="'+b.dataset.id+'"]')?.value||'';if(!window.confirm(action==='cancel_approve'?'Aprovar esta solicitação? O reembolso ainda deve ser conferido no Mercado Pago.':'Recusar esta solicitação?'))return;await rpc('cancellation_decision',{id:b.dataset.id,decision:action==='cancel_approve'?'approved':'rejected',note});orders=await rpc('manage_orders')}else if(action==='resume'){orderID=b.dataset.id;await pay(orderID)}else if(action==='manage'){orders=await rpc('manage_orders');mode='manage';if(visibilityDirty){visibilityDirty=false;setTimeout(()=>{lastLoad=0;void load(true)},0)}}else if(action==='cart'){if(!address.state)await loadAddresses();await getQuote();mode='cart'}else if(['catalog','settings'].includes(action))mode=action;}catch(err){if(token===generation)error=err.message}finally{if(token===generation){busy=false;draw()}}});
  document.addEventListener('input',event=>{if(event.target.matches('[data-order-search]')){orderSearch=event.target.value;const position=event.target.selectionStart;draw();const next=document.querySelector('[data-order-search]');next?.focus({preventScroll:true});if(position!==null)next?.setSelectionRange(position,position);return;}const f=event.target.closest('[data-shop-form]');if(f?.dataset.shopForm==='address'){const input=event.target,name=input.name;let value=input.type==='checkbox'?input.checked:input.value;if(name==='phone'){value=formatPhone(value);input.value=value}else if(name==='postal_code'){value=formatCEP(value);input.value=value;clearTimeout(cepTimer);if(digits(value,8).length===8)cepTimer=setTimeout(()=>lookupCEP(value),250)}else if(name==='document_number'){value=address.document_type==='CNPJ'?formatCNPJ(value):formatCPF(value);input.value=value}address[name]=value;addressError='';requestKey=''}if(f?.dataset.shopForm==='product'&&event.target.type!=='file')product[event.target.name]=event.target.type==='checkbox'?event.target.checked:event.target.value;if(event.target.closest('[data-shop-search]')){clearTimeout(searchTimer);const input=event.target;searchTimer=setTimeout(()=>{search=document.querySelector('#shopQuery')?.value||'';sort=document.querySelector('[data-shop-search] select')?.value||'recent';const position=input.selectionStart;draw();const next=document.querySelector('#shopQuery');if(input.name==='q'&&next){next.focus({preventScroll:true});if(position!==null)next.setSelectionRange(position,position)}},180)}});
  document.addEventListener('change',async event=>{if(event.target.matches('[data-shop-form=address] [name=document_type]')){address.document_type=event.target.value;address.document_number='';const documentInput=document.querySelector('[data-shop-form=address] [name=document_number]');if(documentInput){documentInput.value='';documentInput.placeholder=event.target.value==='CNPJ'?'00.000.000/0000-00':'000.000.000-00';documentInput.maxLength=18;}return;}if(event.target.matches('[data-shop-form=address] [name=phone_country]')){address.phone_country=event.target.value;return;}if(event.target.matches('[data-shop-form=discount_options] [name=payment_method]')){if(busy)return;const token=generation;busy=true;try{await rpc('discount_options',{coupon_code:document.querySelector('[data-shop-form=discount_options] [name=coupon_code]')?.value||'',payment_method:event.target.value});if(token!==generation)return;requestKey='';orderID=null;await getQuote();}catch(err){if(token===generation)error=err.message;}finally{if(token===generation){busy=false;draw();}}return;}if(!event.target.matches('[data-shop-photo]'))return;const files=Array.from(event.target.files||[]);event.target.value='';if(!files.length||busy||mediaBusy)return;const token=generation,request=++mediaVersion,max=data?.shop_extensions?.gallery?6:1;try{if(!data?.can_manage||mode!=='product')throw Error('Sem permissão para gerenciar.');if(productImages.length+files.length>max)throw Error('Use no máximo '+max+' foto(s) por produto. Remova uma foto para adicionar outra.');mediaBusy=true;draw();const clean=[];for(const file of files){clean.push(await context.sanitizePhoto(file));if(token!==generation||request!==mediaVersion)return;}for(const blob of clean)productImages.push({blob,url:URL.createObjectURL(blob),local:true});}catch(err){if(token===generation&&request===mediaVersion)error=err.message;}finally{if(token===generation&&request===mediaVersion){mediaBusy=false;draw()}}});
- document.addEventListener('submit',async event=>{const form=event.target;if(form.matches('[data-shop-search]')){event.preventDefault();return}if(!form.matches('[data-shop-form]'))return;event.preventDefault();if(busy||mediaBusy)return;if(!form.reportValidity()){if(form.dataset.shopForm==='address'){addressError='Preencha os campos obrigatórios destacados para continuar.';const status=form.querySelector('[data-address-error]');if(status)status.textContent=addressError;}return;}const action=form.dataset.shopForm,values=Object.fromEntries(new FormData(form)),token=generation;let failed=false;busy=true;const submit=form.querySelector('button[type=submit],button:not([type])');if(submit)submit.disabled=true;try{error='';if(action==='discount_options'){await rpc('discount_options',{coupon_code:values.coupon_code,payment_method:values.payment_method});requestKey='';orderID=null;await getQuote();}else if(action==='address'){const clean=C.address(values);address=await window.NeoCloud.shopAddress('save',{...clean,id:address.id||null,label:values.label,is_default:values.is_default==='on'});savedAddresses=await window.NeoCloud.shopAddress('list');addressEditing=false;addressError='';await getQuote();mode='payment';window.NeoEngagement?.track('checkout_step_completed','loja')}else if(action==='pay'){if(!values.accept)throw Error('Confirme os dados da compra.');requestKey=requestKey||crypto.randomUUID();if(!orderID){const created=await rpc('order',{request_key:requestKey,address,expected_total_cents:quote.total_cents,...(data.promotions_ready?{quote_token:quote.quote_token}:{}),accept_terms:true});if(token!==generation)return;orderID=created.id;window.NeoEngagement?.track('order_created','loja');cart=[]}await pay(orderID)}else if(action==='product'){const price=C.cents(values.price);for(const image of productImages){if(image.blob&&!image.path){const path=await window.NeoCloud.uploadShopPhoto(image.blob);if(token!==generation)return;image.path=path;}}const paths=productImages.map(image=>image.path).filter(Boolean);if(paths.length>1&&!data.shop_extensions?.gallery)throw Error('Atualize a estrutura da loja no Supabase para salvar várias fotos.');await rpc('product',{id:product.id||null,name:values.name,payment_name:values.payment_name,description:values.description,category:values.category,price_cents:price,stock:Number(values.stock),active:values.active==='on',featured:values.featured==='on',photo_path:paths[0]||null,...(data.shop_extensions?.gallery?{photo_paths:paths}:{})});if(token!==generation)return;clearPhoto();homeLast=0;mode='manage';busy=false;await load(true)}else if(action==='settings'){await rpc('settings',{...values,shipping_cents:C.cents(values.shipping,true),shipping_by_state:data.settings.shipping_by_state||{},shipping_ready:values.shipping_ready==='on',delivery_min:Number(values.delivery_min),delivery_max:Number(values.delivery_max)});mode='manage';busy=false;await load(true)}else if(action==='fulfill'){await rpc('fulfill',{id:form.dataset.id,...values});orders=await rpc('manage_orders')}}catch(err){failed=true;if(token===generation){if(action==='pay'&&orderID){try{orders=await rpc('orders');if(token===generation){mode='orders';error='Pedido salvo, mas o pagamento continua pendente. '+err.message;draw()}}catch{report(err.message)}}else if(action==='pay'&&data?.promotions_ready){try{await getQuote()}catch{}error=err.message;draw();}else if(action==='address'){addressError=err.message;draw()}else report(err.message)}}finally{if(token===generation){busy=false;if(submit)submit.disabled=false;if(!failed||action==='pay'||action==='address')draw()}}});
+ document.addEventListener('submit',async event=>{const form=event.target;if(form.matches('[data-shop-search]')){event.preventDefault();return}if(!form.matches('[data-shop-form]'))return;event.preventDefault();if(busy||mediaBusy)return;if(!form.reportValidity()){if(form.dataset.shopForm==='address'){addressError='Preencha os campos obrigatórios destacados para continuar.';const status=form.querySelector('[data-address-error]');if(status)status.textContent=addressError;}return;}const action=form.dataset.shopForm,values=Object.fromEntries(new FormData(form)),token=generation;let failed=false;busy=true;const submit=form.querySelector('button[type=submit],button:not([type])');if(submit)submit.disabled=true;try{error='';if(action==='discount_options'){await rpc('discount_options',{coupon_code:values.coupon_code,payment_method:values.payment_method});requestKey='';orderID=null;await getQuote();}else if(action==='address'){const clean=C.address(values);address=await window.NeoCloud.shopAddress('save',{...clean,id:address.id||null,label:values.label,is_default:values.is_default==='on'});savedAddresses=await window.NeoCloud.shopAddress('list');addressEditing=false;addressError='';await getQuote();mode='payment';window.NeoEngagement?.track('checkout_step_completed','loja')}else if(action==='pay'){if(!values.accept)throw Error('Confirme os dados da compra.');requestKey=requestKey||crypto.randomUUID();if(!orderID){const created=await rpc('order',{request_key:requestKey,address,expected_total_cents:quote.total_cents,...(data.promotions_ready?{quote_token:quote.quote_token}:{}),accept_terms:true});if(token!==generation)return;orderID=created.id;window.NeoEngagement?.track('order_created','loja');cart=[]}await pay(orderID)}else if(action==='product'){if(costRetries.has(product.id))throw Error('Confirme o lançamento pendente em Custos e aquisições antes de salvar o produto.');const price=C.cents(values.price);for(const image of productImages){if(image.blob&&!image.path){const path=await window.NeoCloud.uploadShopPhoto(image.blob);if(token!==generation)return;image.path=path;}}const paths=productImages.map(image=>image.path).filter(Boolean);if(paths.length>1&&!data.shop_extensions?.gallery)throw Error('Atualize a estrutura da loja no Supabase para salvar várias fotos.');await rpc('product',{id:product.id||null,name:values.name,payment_name:values.payment_name,description:values.description,category:values.category,price_cents:price,stock:Number(values.stock),active:values.active==='on',featured:values.featured==='on',photo_path:paths[0]||null,...(data.shop_extensions?.gallery?{photo_paths:paths}:{})});if(token!==generation)return;clearPhoto();homeLast=0;mode='manage';busy=false;await load(true)}else if(action==='settings'){await rpc('settings',{...values,shipping_cents:C.cents(values.shipping,true),shipping_by_state:data.settings.shipping_by_state||{},shipping_ready:values.shipping_ready==='on',delivery_min:Number(values.delivery_min),delivery_max:Number(values.delivery_max)});mode='manage';busy=false;await load(true)}else if(action==='fulfill'){await rpc('fulfill',{id:form.dataset.id,...values});orders=await rpc('manage_orders')}}catch(err){failed=true;if(token===generation){if(action==='pay'&&orderID){try{orders=await rpc('orders');if(token===generation){mode='orders';error='Pedido salvo, mas o pagamento continua pendente. '+err.message;draw()}}catch{report(err.message)}}else if(action==='pay'&&data?.promotions_ready){try{await getQuote()}catch{}error=err.message;draw();}else if(action==='address'){addressError=err.message;draw()}else report(err.message)}}finally{if(token===generation){busy=false;if(submit)submit.disabled=false;if(!failed||action==='pay'||action==='address')draw()}}});
  setInterval(()=>{if(owner&&context.user?.id===owner&&window.NeoCloud.user?.id===owner&&document.visibilityState==='visible'&&document.querySelector('[data-shop-home]'))loadHome(context)},60000);setInterval(async()=>{if(!paymentReturned||mode!=='orders'||busy||document.visibilityState!=='visible')return;const current=orders.find(o=>o.id===paymentReturnOrder);if(current&&!['awaiting_payment','pending'].includes(current.status))return;try{orders=await rpc('orders');draw()}catch{}},5000);
  const renderOrderCards=orderCards;
  orderCards=manage=>{let html=renderOrderCards(manage);if(!manage)html=html.replace(/<button class="secondary space" data-shop="request_cancel" ([^>]*)>Solicitar cancelamento<\/button>/g,(_,attrs)=>`<details class="shop-order-more"><summary aria-label="Mais opções do pedido" title="Mais opções">⋮</summary><div class="shop-order-more-menu"><button class="text-btn" data-shop="request_cancel" ${attrs}>Solicitar cancelamento</button></div></details>`);if(manage){const shell=document.createElement('div');shell.innerHTML=html;const rows=filteredOrders(true);shell.querySelectorAll('.shop-order').forEach((card,index)=>{const order=rows[index];if(!order||['cancelled','expired'].includes(order.status)||order.fulfillment==='delivered'||order.cancellation_status==='approved')return;card.insertAdjacentHTML('beforeend',`<details class="shop-order-more"><summary aria-label="Mais opções do pedido" title="Mais opções">⋮</summary><div class="shop-order-more-menu"><button class="text-btn" data-shop="admin_cancel_order" data-id="${e(order.id)}">Cancelar pedido</button></div></details>`)});html=shell.innerHTML}const standalone=window.matchMedia?.('(display-mode: standalone)').matches||window.navigator.standalone===true;if(manage||!paymentReturned||standalone)return html;return `<div class="notice shop-payment-browser-return" role="status"><strong>Pagamento concluído no Mercado Pago</strong><p>A confirmação será atualizada automaticamente. Feche esta tela do navegador e abra novamente o NeoPep pelo ícone instalado.</p></div>${html}`};

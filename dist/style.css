@@ -607,3 +607,11 @@ html.library-video-open,html.library-video-open body{overflow:hidden;overscroll-
 
 .library-home-symbol :is(img,video,canvas){width:100%;height:100%;object-fit:contain;display:block}
 .library-home-symbol [data-pdf-thumb]{display:block;width:100%;height:100%}
+
+.shop-cost-editor { border-top: 1px solid var(--line); padding-top: .75rem; min-width: 0; }
+.shop-cost-editor summary { cursor: pointer; padding-block: .5rem; }
+.shop-cost-editor fieldset { min-width: 0; }
+.shop-cost-editor [hidden] { display: none; }
+.shop-cost-editor output { display: block; overflow-wrap: anywhere; }
+.shop-cost-history { padding-inline-start: 1.25rem; overflow-wrap: anywhere; }
+.shop-cost-history li + li { margin-top: .5rem; }
