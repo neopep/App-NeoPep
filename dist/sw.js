@@ -4,7 +4,7 @@ const ASSETS=['./','index.html','style.css','core.js','cloud.js','captcha.js','p
 const urls=new Set(ASSETS.map(p=>new URL(p,self.registration.scope).href));
 self.addEventListener('install',e=>e.waitUntil((async()=>{
  const cache=await caches.open(CACHE);
- const playerShellAssets=ASSETS.filter(asset=>asset==='./'||asset==='library-video.js'||asset==='library-files.js');
+ const playerShellAssets=ASSETS.filter(asset=>asset==='./'||asset==='appearance.js'||asset==='library-video.js'||asset==='library-files.js');
  async function preload(asset){
   const url=new URL(asset,self.registration.scope);
   const response=await fetch(new Request(url,{cache:'reload'}));
