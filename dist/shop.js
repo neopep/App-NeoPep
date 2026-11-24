@@ -93,12 +93,140 @@ window.NeoShop=(()=>{
  function paymentStep(){const applied=quote?.coupon_code||quote?.discounts?.length?`<div class="shop-applied-discount"><strong>Desconto aplicado</strong>${quote.coupon_code?`<span>Cupom ${e(quote.coupon_code)}</span>`:''}${discountDetails(quote)}</div>`:'';return `<h2>Resumo da compra</h2>${applied}<div class="shop-address shop-payment-address"><div><strong>${e(address.label||'Endereço de entrega')}</strong><p>${e(address.name)}<br>${e(address.street)}, ${e(address.number)}${address.complement?' · '+e(address.complement):''}<br>${e(address.city)} / ${e(address.state)} · CEP ${e(formatCEP(address.postal_code))}</p></div>${button('address','Editar','type="button"','secondary')}</div><form data-shop-form="pay" class="shop-finalize"><input name="accept" type="hidden" value="on"><button class="primary full" ${!data.settings.payments_ready||!data.settings.shipping_ready?'disabled':''}>${data.settings.payments_ready?'Finalizar minha compra':'Pagamento indisponível'}</button></form>`}
  function checkout(){if(!cart.length&&!orderID)return empty('Seu carrinho está vazio','Escolha um produto para continuar.');const step=mode==='cart'?0:mode==='address'?1:2;return `<ol class="shop-steps">${['Carrinho','Entrega','Pagamento'].map((s,i)=>`<li class="${i===step?'active':''}"><button type="button" data-shop="${['cart','address','payment'][i]}" ${i===2&&step<2?'disabled':''}><b>${i+1}</b>${s}</button></li>`).join('')}</ol><div class="shop-checkout-layout"><section class="card">${mode==='cart'?`<h2>Confira seus produtos</h2>${cartLines()}${discountOptions()}${button('address','Continuar para entrega','','primary full space')}`:mode==='address'?`${deliveryStep()}`:`${paymentStep()}`}</section>${summary(mode==='address')}</div>`}
  function orderCards(manage=false){const returned=paymentReturned&&!manage?orders.find(o=>o.id===paymentReturnOrder):null,returnNotice=returned?`<div class="notice ${['paid','test_paid'].includes(returned.status)?'':'shop-payment-wait'}"><strong>${['paid','test_paid'].includes(returned.status)?'Pagamento confirmado':'Confirmando seu pagamento'}</strong><p>${['paid','test_paid'].includes(returned.status)?'Seu pedido foi atualizado com sucesso.':'A confirmação pode levar alguns instantes. Você pode fechar esta tela e voltar ao NeoPep instalado.'}</p>${button('refresh','Atualizar pedido','','secondary')}</div>`:'';return `${returnNotice}${button(manage?'manage':'catalog','‹ Voltar')}<div class="shop-orders-head"><h2>${manage?'Pedidos da loja':'Meus pedidos'}</h2>${manage?button('export_orders','Exportar pedidos','','secondary'):''}</div>${manage?orderDashboard()+`<label class="shop-order-search"><span class="sr-only">Buscar pedidos</span><input data-order-search type="search" value="${e(orderSearch)}" placeholder="Buscar por pedido, nome, CPF/CNPJ ou endereço"></label>`:''}${filteredOrders(manage).map(o=>`<article class="card shop-order"><div class="between"><div><strong>Pedido ${e(o.id.slice(0,8).toUpperCase())}</strong><small class="sub">${e(new Date(o.created_at).toLocaleString('pt-BR'))}</small></div><span class="tag shop-order-status status-${e(o.status)}">${o.environment==='test'?'TESTE · ':''}${e(statusNames[o.status]||o.status)}</span></div>${manage&&o.customer_email?`<p class="sub">Cliente: ${e(o.customer_email)}</p>`:''}${o.items.map(i=>`<div class="shop-total"><span>${e(i.name)} × ${i.quantity}</span><b>${C.money(i.unit_price_cents*i.quantity)}</b></div>`).join('')}${discountDetails(o)}<div class="shop-total shop-grand"><span>Total com entrega</span><b>${C.money(o.total_cents)}</b></div>${o.tracking?`<p class="shop-tracking"><strong>Rastreio:</strong> ${e(o.tracking)} ${o.tracking_url?`<a href="${e(o.tracking_url)}" target="_blank" rel="noopener">Acompanhar entrega</a>`:''}</p>`:''}<details><summary>Dados de entrega</summary><p>${e(o.address?.name||'')}<br>${e(o.address?.street||'')}, ${e(o.address?.number||'')} · ${e(o.address?.district||'')}<br>${e(o.address?.city||'')} / ${e(o.address?.state||'')} · ${e(formatCEP(o.address?.postal_code||''))}<br>${e(o.address?.phone||'')} · ${e(o.address?.email||'')}</p></details>${o.cancellation_status==='requested'?`<div class="notice error shop-cancellation"><strong>Cancelamento solicitado</strong><p>${e(o.cancellation_reason||'Solicitação do cliente.')}</p>${manage?`<label>Observação da loja<input data-cancel-note="${e(o.id)}" maxlength="500" placeholder="Informe a decisão ao cliente"></label><div class="shop-admin-actions">${button('cancel_approve','Aprovar',`data-id="${e(o.id)}"`,'primary')}${button('cancel_reject','Recusar',`data-id="${e(o.id)}"`,'secondary')}</div>`:''}</div>`:o.cancellation_status==='approved'?'<p class="notice">Cancelamento aprovado pela loja.</p>':o.cancellation_status==='rejected'?`<p class="notice">Cancelamento não aprovado. ${e(o.cancellation_note||'')}</p>`:''}${!manage&&['awaiting_payment','pending'].includes(o.status)?`<div class="shop-order-actions">${button('resume','Continuar pagamento',`data-id="${e(o.id)}"`,'primary')}${button('cancel_order','Cancelar pedido',`data-id="${e(o.id)}"`,'secondary')}</div>`:''}${!manage&&['paid','test_paid'].includes(o.status)&&o.fulfillment!=='delivered'&&o.cancellation_status==='none'?button('request_cancel','Solicitar cancelamento',`data-id="${e(o.id)}"`,'secondary space'):''}${manage&&['paid','test_paid','paid_review'].includes(o.status)?`<form data-shop-form="fulfill" data-id="${e(o.id)}" class="space"><label>Status do envio<select name="fulfillment">${[['processing','Em preparação'],['dispatched','Enviado'],['delivered','Entregue']].map(([id,label])=>`<option value="${id}" ${id===o.fulfillment?'selected':''}>${label}</option>`).join('')}</select></label>${field('tracking','Código de rastreamento','text',o.tracking||'','maxlength="150"')}${field('tracking_url','Link para acompanhar','url',o.tracking_url||'','maxlength="500" placeholder="https://..."')}<button class="secondary space">Salvar envio</button></form>`:''}</article>`).join('')||empty('Nenhum pedido por aqui','Seus pedidos aparecerão após iniciar uma compra.')}`}
- function orderStats(){const paid=orders.filter(o=>['paid','test_paid','paid_review'].includes(o.status)),processing=paid.filter(o=>o.fulfillment==='processing'),dispatched=paid.filter(o=>o.fulfillment==='dispatched'),delivered=paid.filter(o=>o.fulfillment==='delivered'),pending=orders.filter(o=>['awaiting_payment','pending'].includes(o.status)),cancel=orders.filter(o=>o.cancellation_status==='requested');return {total:orders.length,paid:paid.length,processing:processing.length,dispatched:dispatched.length,delivered:delivered.length,pending:pending.length,cancel:cancel.length,revenue:paid.reduce((n,o)=>n+Number(o.total_cents||0),0)}}
+ function orderStats(){const paid=orders.filter(o=>['paid','test_paid','paid_review'].includes(o.status)),processing=paid.filter(o=>o.fulfillment==='processing'),dispatched=paid.filter(o=>o.fulfillment==='dispatched'),delivered=paid.filter(o=>o.fulfillment==='delivered'),pending=orders.filter(o=>['awaiting_payment','pending'].includes(o.status)),cancel=orders.filter(o=>o.cancellation_status==='requested');return {total:orders.length,paid:paid.length,processing:processing.length,dispatched:dispatched.length,delivered:delivered.length,pending:pending.length,cancel:cancel.length}}
  function newOrderCount(){let seen='';try{seen=localStorage.getItem('neo-shop-orders-seen:'+owner)||''}catch{}return orders.filter(o=>!seen||o.created_at>seen).length}
- function orderDashboard(){const s=orderStats(),card=(id,label,value,extra='')=>`<button type="button" data-shop="order_filter" data-filter="${id}" class="${extra} ${orderFilter===id?'active':''}" aria-pressed="${orderFilter===id}"><small>${label}</small><strong>${value}</strong></button>`;return `<div class="shop-order-dashboard">${card('all','Total',s.total)}${card('paid','Pagos',s.paid)}${card('processing','A enviar',s.processing)}${card('dispatched','Enviados',s.dispatched)}${card('delivered','Entregues',s.delivered)}${card('pending','Aguardando pagamento',s.pending)}${s.cancel?card('cancel','Cancelamentos',s.cancel):''}${card('all','Total confirmado',C.money(s.revenue),'shop-revenue')}</div>`}
+ const financialStates={...statusNames,partially_refunded:'Reembolso parcial'};
+ function financialPanel(){
+  if(!data?.can_manage)return '';
+  const options=(dict)=>Object.entries(dict).map(([value,label])=>`<option value="${e(value)}">${e(label)}</option>`).join('');
+  const products=data.products.map(p=>`<option value="${e(p.id)}">${e(p.name)}</option>`).join('');
+  const categories=[...new Set(data.products.map(p=>p.category).filter(Boolean))].sort();
+  return `<details class="card shop-financial" data-shop-financial>
+   <summary>Indicadores financeiros</summary>
+   <p class="sub">Período pela criação do pedido, no horário de São Paulo. Valores de vendas reais confirmadas; frete cobrado separado.</p>
+   <form data-financial-filters class="space" hidden>
+    <div class="form-grid">
+     ${field('from','De','date','','required')}
+     ${field('to','Até','date','','required')}
+     <label>Produto<select name="product_id"><option value="">Todos</option>${products}</select></label>
+     <label>Categoria atual<select name="category"><option value="">Todas</option>${categories.map(category=>`<option>${e(category)}</option>`).join('')}</select></label>
+     <label>Pagamento<select name="environment"><option value="">Todos</option>${options({production:'Real',test:'Teste'})}</select></label>
+     <label>Status<select name="status"><option value="">Todos</option>${options(financialStates)}</select></label>
+     <label>Atendimento<select name="fulfillment"><option value="">Todos</option>${options({processing:'A enviar',dispatched:'Enviado',delivered:'Entregue'})}</select></label>
+     <label>Detalhar por<select name="group_by">${options({day:'Dia',product:'Produto',category:'Categoria atual'})}</select></label>
+    </div>
+    <button class="secondary" type="submit">Aplicar filtros</button>
+   </form>
+   <p class="sub" role="status" data-financial-status></p>
+   <button class="secondary" type="button" data-financial-retry hidden>Tentar novamente</button>
+   <div data-financial-results></div>
+   <div class="inline-actions" data-financial-pages hidden>
+    <button class="secondary" type="button" data-financial-prev>Anterior</button>
+    <span class="sub" data-financial-page></span>
+    <button class="secondary" type="button" data-financial-next>Próxima</button>
+   </div>
+  </details>`;
+ }
+ function financialMoney(value){
+  if(value==null)return 'Indisponível';
+  const text=String(value),negative=text.startsWith('-'),digits=text.replace(/^-/,'').padStart(3,'0');
+  return `${negative?'−':''}R$ ${digits.slice(0,-2).replace(/\B(?=(\d{3})+(?!\d))/g,'.')},${digits.slice(-2)}`;
+ }
+ function financialResults(result){
+  const s=result.sales,stock=result.stock;
+  const card=(label,value)=>`<div><dt>${label}</dt><dd>${e(value)}</dd></div>`;
+  return `<dl class="shop-financial-totals">
+   ${card('Receita bruta',financialMoney(s.gross_cents))}
+   ${card('Descontos',financialMoney(s.discount_cents))}
+   ${card('Receita comercial',financialMoney(s.commercial_cents))}
+   ${card('Frete cobrado',s.shipping_cents==null?'Somente no total sem recorte de produto ou categoria':financialMoney(s.shipping_cents))}
+   ${card('Vendas reais no recorte',s.orders)}
+   ${card('Unidades vendidas',s.units)}
+   ${card('CMV conhecido',financialMoney(s.known_cmv_cents))}
+   ${card('Cobertura de custo',`${s.covered_units} de ${s.units} unidades${s.coverage_percent==null?'':' · '+s.coverage_percent.replace('.',',')+'%'}`)}
+   ${card('Lucro bruto estimado',financialMoney(s.profit_cents))}
+   ${card('Margem bruta',s.margin_percent==null?'Indisponível':String(s.margin_percent).replace('.',',')+'%')}
+   ${card('Estoque disponível hoje',stock.units)}
+   ${card('Produtos publicados com até 5 unidades',stock.alert_count)}
+  </dl>
+  ${s.covered_units<s.units?'<p class="sub">Faltam custos históricos. O CMV conhecido cobre apenas as unidades com snapshot.</p>':''}
+  <p class="sub">Valores devolvidos, taxas, frete próprio, impostos e lucro líquido indisponíveis. Pedidos devolvidos ou em revisão ficam fora da receita.</p>
+  ${stock.alerts.length?`<ul aria-label="Alertas prioritários de estoque">${stock.alerts.map(row=>`<li>${e(row.name)} · ${e(row.stock)} un.</li>`).join('')}</ul>`:''}
+  ${result.states.length?`<h3>Pedidos por ambiente e situação</h3><ul>${result.states.map(row=>`<li>${row.environment==='test'?'Teste':'Real'} · ${e(financialStates[row.status]||row.status)} · ${e(row.orders)}</li>`).join('')}</ul>`:''}
+  ${result.details.length?`<div class="table-wrap"><table>
+    <caption>Vendas reais no detalhamento selecionado</caption>
+    <thead><tr><th scope="col">Grupo</th><th scope="col">Receita comercial</th><th scope="col">Vendas</th><th scope="col">Unidades</th></tr></thead>
+    <tbody>${result.details.map(row=>`<tr><th scope="row">${e(row.label)}</th><td>${e(financialMoney(row.commercial_cents))}</td><td>${e(row.orders)}</td><td>${e(row.units)}</td></tr>`).join('')}</tbody>
+   </table></div>`:'<p class="sub">Nenhuma venda real confirmada neste recorte.</p>'}`;
+ }
+ const financialPanels=new WeakSet();
+ function mountFinancial(host){
+  const token=generation,form=host.querySelector('[data-financial-filters]');
+  const results=host.querySelector('[data-financial-results]'),status=host.querySelector('[data-financial-status]');
+  const retry=host.querySelector('[data-financial-retry]'),pages=host.querySelector('[data-financial-pages]');
+  const previous=host.querySelector('[data-financial-prev]'),next=host.querySelector('[data-financial-next]');
+  let filters={},page=1,pending=false,ready=false;
+  const current=()=>host.isConnected&&generation===token;
+  async function read(requestedPage=1){
+   if(pending||!current())return;
+   pending=true;retry.hidden=true;
+   form.querySelector('button').disabled=true;previous.disabled=next.disabled=true;
+   results.replaceChildren();pages.hidden=true;
+   status.textContent='Consultando indicadores…';
+   results.setAttribute('aria-busy','true');
+   try{
+    const result=await window.NeoCloud.shopFinancial({...filters,page:requestedPage});
+    if(!current())return;
+    page=result.page;
+    if(!ready){
+     form.querySelector('[name=from]').value=result.from;
+     form.querySelector('[name=to]').value=result.to;
+     filters=Object.fromEntries(new FormData(form));
+     ready=true;
+    }
+    form.hidden=false;
+    results.innerHTML=financialResults(result);
+    pages.hidden=result.detail_pages<2;
+    previous.disabled=page<=1;next.disabled=page>=result.detail_pages;
+    host.querySelector('[data-financial-page]').textContent=`Página ${page} de ${result.detail_pages}`;
+    status.textContent='Indicadores atualizados.';
+   }catch(err){
+    if(!current())return;
+    if(err.code==='42501'){
+     host.hidden=true;
+     return;
+    }
+    if(['PGRST202','42883'].includes(err.code)){
+     status.textContent='Indicadores financeiros indisponíveis neste ambiente.';
+     return;
+    }
+    status.textContent=err.code?.startsWith('22')?'Confira os filtros. O período pode abranger até 366 dias, sem datas futuras.':'Falha ao consultar indicadores.';
+    retry.hidden=false;
+   }finally{
+    pending=false;form.querySelector('button').disabled=false;results.removeAttribute('aria-busy');
+   }
+  }
+  form.addEventListener('submit',event=>{
+   event.preventDefault();
+   if(pending)return;
+   filters=Object.fromEntries(new FormData(form));
+   void read();
+  });
+  retry.addEventListener('click',()=>read());
+  previous.addEventListener('click',()=>read(page-1));
+  next.addEventListener('click',()=>read(page+1));
+  void read();
+ }
+ document.addEventListener('toggle',event=>{
+  const host=event.target;
+  if(host.open&&host.matches?.('[data-shop-financial]')&&!financialPanels.has(host)){
+   financialPanels.add(host);mountFinancial(host);
+  }
+ },true);
+ function orderDashboard(operational=true){if(!operational)return financialPanel();const s=orderStats(),card=(id,label,value,extra='')=>`<button type="button" data-shop="order_filter" data-filter="${id}" class="${extra} ${orderFilter===id?'active':''}" aria-pressed="${orderFilter===id}"><small>${label}</small><strong>${value}</strong></button>`;return `<div class="shop-order-dashboard">${card('all','Total',s.total)}${card('paid','Pagos',s.paid)}${card('processing','A enviar',s.processing)}${card('dispatched','Enviados',s.dispatched)}${card('delivered','Entregues',s.delivered)}${card('pending','Aguardando pagamento',s.pending)}${s.cancel?card('cancel','Cancelamentos',s.cancel):''}</div>${financialPanel()}`}
  function filteredOrders(manage){if(!manage)return orders;const q=orderSearch.trim().toLocaleLowerCase('pt-BR'),digitsOnly=q.replace(/\D/g,'');return orders.filter(o=>{const paid=['paid','test_paid','paid_review'].includes(o.status),matches=orderFilter==='all'||orderFilter==='paid'&&paid||orderFilter==='processing'&&paid&&o.fulfillment==='processing'||orderFilter==='dispatched'&&paid&&o.fulfillment==='dispatched'||orderFilter==='delivered'&&paid&&o.fulfillment==='delivered'||orderFilter==='pending'&&['awaiting_payment','pending'].includes(o.status)||orderFilter==='cancel'&&o.cancellation_status==='requested';if(!matches)return false;if(!q)return true;const hay=[o.id,o.id?.slice(0,8),o.customer_email,o.address?.name,o.address?.email,o.address?.phone,o.address?.document_number,o.address?.cpf,o.address?.cnpj,o.address?.postal_code,o.address?.street,o.address?.number,o.address?.district,o.address?.city,o.address?.state,...(o.items||[]).map(i=>i.name)].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');return hay.includes(q)||(digitsOnly.length>=3&&hay.replace(/\D/g,'').includes(digitsOnly))})}
  const duplicateIcon='<svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>';
- function manager(){const fresh=newOrderCount();return `<div class="shop-admin-head"><h2>Gerenciar loja</h2><div class="shop-admin-actions">${button('new','＋ Adicionar produto','','primary')}${data.can_manage_orders===false?'':button('manage_orders',`Pedidos${fresh?` (${fresh} novos)`:''}`)+button('settings','Entrega e condições')+button('promotions','Promoções',data.promotions_ready?'':'disabled')+button('coupons','Cupons e origem',data.promotions_ready?'':'disabled')}</div></div>${!data.shop_extensions?.gallery?'<p class="sub">Atualize a estrutura da loja no Supabase para ativar várias fotos e exclusão de produtos.</p>':''}${!data.promotions_ready?'<p class="sub">Promoções e cupons precisam da atualização de descontos no Supabase.</p>':''}<div class="shop-manage-list">${data.products.map(p=>`<div class="card shop-manage-row">${p.photo_url?`<img class="shop-manage-photo" src="${e(p.photo_url)}" alt="" width="64" height="64">`:''}<div class="shop-manage-copy"><strong>${e(p.name)}</strong><p class="sub">${C.money(p.price_cents)} · ${p.stock} disponíveis · ${p.active?'Publicado':'Rascunho'}</p></div><div class="shop-manage-tools">${button('edit','Editar',`data-id="${e(p.id)}"`)}${data.shop_extensions?.duplicate_product?button('duplicate_product',duplicateIcon,`data-id="${e(p.id)}" aria-label="Duplicar produto" title="Duplicar produto"`,'icon-btn'):''}${button('delete_product',trash,`data-id="${e(p.id)}" aria-label="Excluir ${e(p.name)}" title="Excluir produto" ${data.shop_extensions?.delete_product?'':'disabled'}`,'icon-btn shop-delete-product')}</div></div>`).join('')||empty('Cadastre seu primeiro produto','Adicione fotos, descrição, preço e estoque para publicar.')}</div>`}
+ function manager(){const fresh=newOrderCount();return `<div class="shop-admin-head"><h2>Gerenciar loja</h2><div class="shop-admin-actions">${button('new','＋ Adicionar produto','','primary')}${data.can_manage_orders===false?'':button('manage_orders',`Pedidos${fresh?` (${fresh} novos)`:''}`)+button('settings','Entrega e condições')+button('promotions','Promoções',data.promotions_ready?'':'disabled')+button('coupons','Cupons e origem',data.promotions_ready?'':'disabled')}</div></div>${!data.shop_extensions?.gallery?'<p class="sub">Atualize a estrutura da loja no Supabase para ativar várias fotos e exclusão de produtos.</p>':''}${!data.promotions_ready?'<p class="sub">Promoções e cupons precisam da atualização de descontos no Supabase.</p>':''}${orderDashboard(false)}<div class="shop-manage-list">${data.products.map(p=>`<div class="card shop-manage-row">${p.photo_url?`<img class="shop-manage-photo" src="${e(p.photo_url)}" alt="" width="64" height="64">`:''}<div class="shop-manage-copy"><strong>${e(p.name)}</strong><p class="sub">${C.money(p.price_cents)} · ${p.stock} disponíveis · ${p.active?'Publicado':'Rascunho'}</p></div><div class="shop-manage-tools">${button('edit','Editar',`data-id="${e(p.id)}"`)}${data.shop_extensions?.duplicate_product?button('duplicate_product',duplicateIcon,`data-id="${e(p.id)}" aria-label="Duplicar produto" title="Duplicar produto"`,'icon-btn'):''}${button('delete_product',trash,`data-id="${e(p.id)}" aria-label="Excluir ${e(p.name)}" title="Excluir produto" ${data.shop_extensions?.delete_product?'':'disabled'}`,'icon-btn shop-delete-product')}</div></div>`).join('')||empty('Cadastre seu primeiro produto','Adicione fotos, descrição, preço e estoque para publicar.')}</div>`}
  function visibilityEditor(){
   if(!product.id||!data.shop_extensions?.member_visibility)return '';
   return `<details class="shop-product-visibility" data-shop-visibility="${e(product.id)}">

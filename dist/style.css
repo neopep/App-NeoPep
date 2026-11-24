@@ -615,3 +615,12 @@ html.library-video-open,html.library-video-open body{overflow:hidden;overscroll-
 .shop-cost-editor output { display: block; overflow-wrap: anywhere; }
 .shop-cost-history { padding-inline-start: 1.25rem; overflow-wrap: anywhere; }
 .shop-cost-history li + li { margin-top: .5rem; }
+
+.shop-financial { margin-block: 1rem; min-width: 0; }
+.shop-financial [hidden] { display: none; }
+.shop-financial-totals { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,10rem),1fr)); gap: .75rem; }
+.shop-financial-totals > div { min-width: 0; padding: .75rem; border: 1px solid var(--border); border-radius: 12px; }
+.shop-financial-totals dt { font-size: .8rem; color: var(--muted); }
+.shop-financial-totals dd { margin: .25rem 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.shop-financial caption { text-align: start; margin-bottom: .5rem; }
+.shop-financial .inline-actions { align-items: center; margin-top: .5rem; }
