@@ -628,3 +628,19 @@ html.library-video-open,html.library-video-open body{overflow:hidden;overscroll-
 [data-shop-reconciliation] { margin-top: 1rem; overflow-wrap: anywhere; }
 [data-shop-reconciliation] form + form { border-top: 1px solid var(--border); padding-top: 1rem; }
 [data-shop-reconciliation] li + li { margin-block-start: .4rem; }
+
+.shop-bulk [hidden] { display: none; }
+.shop-bulk-table { white-space: normal; margin-block: .75rem; }
+.shop-bulk-table label { margin-bottom: .35rem; }
+.shop-bulk-table input:not([type=checkbox]) { min-width: 7rem; }
+.shop-bulk-product { display: flex; gap: .5rem; align-items: center; overflow-wrap: anywhere; }
+.shop-bulk-product img { object-fit: cover; border-radius: .4rem; flex: none; }
+.shop-bulk-product small { display: block; }
+.shop-bulk-result-list { max-height: 20rem; overflow: auto; overflow-wrap: anywhere; }
+@media(max-width: 720px) {
+  .shop-bulk-table, .shop-bulk-table tbody { display: block; }
+  .shop-bulk-table thead { position: absolute; clip-path: inset(50%); overflow: hidden; width: 1px; height: 1px; }
+  .shop-bulk-table tr { display: grid; grid-template-columns: auto minmax(0,1fr); padding: .5rem; border: 1px solid var(--border); border-radius: 12px; margin-bottom: .5rem; }
+  .shop-bulk-table td { border: 0; padding: .35rem; }
+  .shop-bulk-table td:nth-child(n+3) { grid-column: 2; }
+}

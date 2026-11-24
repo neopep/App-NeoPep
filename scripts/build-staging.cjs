@@ -4,7 +4,7 @@ const { staging, verifyStagingKey, writeConfig } = require('../release/multiagen
 
 async function prepare() {
   const branch = process.env.VERCEL_GIT_COMMIT_REF;
-  const integratedBranch = ['homologacao/loja-010-04-010-05','desenvolvimento/ajuste-010-06-conciliacao'].includes(branch);
+  const integratedBranch = ['homologacao/loja-010-04-010-05','desenvolvimento/ajuste-010-06-conciliacao','desenvolvimento/ajuste-011-gerenciamento-massa'].includes(branch);
   if (integratedBranch && (process.env.VERCEL_PROJECT_ID !== 'prj_ksWxwsJyKhdR2nW2OiZkwx8hlkdq'
       || !/^[a-f0-9]{40}$/.test(process.env.VERCEL_GIT_COMMIT_SHA || ''))) {
     throw new Error('A integração financeira exige o projeto Vercel de Teste e um SHA Git.');
@@ -73,7 +73,7 @@ html:has(dialog[open])::after{visibility:hidden}
   const serviceWorker = 'dist/sw.js';
   const worker = fs.readFileSync(serviceWorker, 'utf8')
     .replace(/^(?:const CACHE_PREFIX=.*;\n)?const CACHE=.*;$/m,
-      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v35';")
+      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v36';")
     .replace(/key\.startsWith\((?:'[^']+'|CACHE_PREFIX)\)/, 'key.startsWith(CACHE_PREFIX)');
   fs.writeFileSync(serviceWorker, worker);
 }
