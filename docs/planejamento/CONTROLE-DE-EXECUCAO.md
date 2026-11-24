@@ -154,3 +154,8 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - Evidência: [registro da execução](https://github.com/neopep/App-NeoPep/blob/desenvolvimento/ajuste-006-miniatura-pdf/docs/planejamento/EXEC-2026-11-24-006.md). O Codex reportou build/check e 22 testes dirigidos; execução dos testes não foi repetida por este agente.
 - Bloqueios: PR de código não criado (403 informado pelo Codex); sem publicação em Teste; falta validar PDF real com usuário autorizado, Safari/PWA em iPhone físico e Android físico. **Não aprovar ou publicar** por inferência.
 - Desenvolvimento: EM_TESTE; aceite: NÃO_CONCEDIDO; publicação: NÃO_REALIZADA; próximo: criar PR isolada para staging/permanente, homologar em Teste e solicitar aceite.
+
+### Verificação complementar #006 — PR #41 e Vercel (24/11/2026)
+- PR [#41](https://github.com/neopep/App-NeoPep/pull/41) criada com sucesso por este agente, `draft`, `open`, destino `staging/permanente`, head `0087a15`. GitHub reporta `mergeable=true` na última leitura. Não foi efetuado merge.
+- Consulta Vercel filtrada pelo SHA `0087a15`: projeto **Teste** `app-neopep-staging`, deploy `dpl_7pDctqa1FjaatRazqDXDNa4TZBiA` com status `CANCELED`; projeto **Produção** `app-neopep`, preview `dpl_8tNimE4BsYfFxCDAKepbSbix1bcc` com status `ERROR`. Ambos têm `target=null` e **não** equivalem a publicação em domínio de Produção. Nenhum preview READY confirmado para este SHA.
+- Bloqueio atual: preparar e efetuar implantação no ambiente Teste por fluxo autorizado, depois validar PDF real e Safari/PWA físicos. O ajuste continua EM_TESTE (local), aceite NÃO_CONCEDIDO, publicação NÃO_REALIZADA. Não fazer merge em Teste sem checar se o fluxo de deploy/CI permitirá uma homologação isolada.
