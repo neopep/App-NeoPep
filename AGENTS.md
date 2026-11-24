@@ -21,3 +21,8 @@ NeoPeptídeos é um aplicativo web mobile de acompanhamento pessoal, com registr
    ```
 
 10. As contas `neopep` e `rafarwr5` estão autorizadas pelo proprietário a desenvolver, editar, criar commits, enviar alterações e publicar diretamente, respeitando a autorização de cada tarefa e as permissões da plataforma. Use sempre a identidade real. O repositório permanece público temporariamente. Se voltar a ser privado, revalide a elegibilidade no Vercel Hobby antes de publicar. [Fluxo das duas contas](docs/processos/PROTOCOLO-DE-DESENVOLVIMENTO.md#fluxo-operacional-entre-as-duas-contas)
+
+
+## Ciclo de evolução NeoPep — planejamento versionado (24/11/2026)
+Existe um **plano detalhado aprovado para os ajustes funcionais #001–#013 e governança #014** na PR documental [#40](https://github.com/neopep/App-NeoPep/pull/40). Na branch da PR, iniciar por [docs/planejamento/README.md](docs/planejamento/README.md), consultar [Plano Mestre](docs/planejamento/PLANO-MESTRE-NEOPEP-2026-11-24.md) e [Controle de Execução](docs/planejamento/CONTROLE-DE-EXECUCAO.md). Em checkout de main sem a PR integrada, consultar o conteúdo da PR #40 antes de implementar esses ajustes; não presumir que o documento já esteja na main.
+Cada tarefa deste ciclo exige microetapa rastreável, leitura do código existente, não regressão, teste em Teste, atualização documental no mesmo PR e aprovação independente para mexer em Produção. **Não alterar sem justificativa e autorização o webhook da Loja Mercado Pago.** Este adendo não revoga nenhuma regra anterior de AGENTS.md nem autoriza merge/deploy.

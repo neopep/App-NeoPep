@@ -1,9 +1,16 @@
-# NeoPep — Plano Mestre de Evolução (13 ajustes)
-**Versão:** 1.0 — 24/11/2026  
-**Status:** especificação funcional consolidada; implementação NÃO iniciada  
+# NeoPep — Plano Mestre de Evolução (13 pacotes funcionais + governança #014)
+**Versão:** 2.0 (revisada) — 24/11/2026  
+**Status:** especificação funcional consolidada, auditoria técnica/documental parcial; implementação deste ciclo NÃO iniciada  
 **Repositório:** neopep/App-NeoPep  
 **Ambientes:** Teste e Produção; não modificar Produção antes de validar Teste  
 **Regra:** este documento registra decisões e propostas; não comprova funcionalidades implementadas. A auditoria do código e dos bancos é obrigatória.
+
+## Leitura obrigatória e evidência
+**Ponto de entrada:** [README do Planejamento](README.md). **Detalhamento por módulo:** [Melhorias #001–#009](ESPECIFICACAO-MELHORIAS-001-009.md), [Loja #010–#011](ESPECIFICACAO-LOJA-010-011.md), [Assinaturas #012](ESPECIFICACAO-ASSINATURAS-012.md), [Campanhas #013](ESPECIFICACAO-CAMPANHAS-013.md), [Governança #014](GOVERNANCA-014.md). **Auditoria desta revisão:** [Relatório V2](AUDITORIA-REVISAO-2026-11-24.md). **Progresso:** [Controle de Execução](CONTROLE-DE-EXECUCAO.md).
+
+A numeração #001–#013 mantém integralmente os requisitos funcionais definidos pelo responsável. **#014 não é um novo módulo de produto**, mas a rotina de preservação, rastreabilidade e documentação permanente. Este texto é a síntese; os documentos específicos definem subetapas, campos, fluxos, estados, critérios de aceite e cenários de falha. Em divergências entre histórico e comportamento, registrar a diferença e confirmar no ambiente correto antes de sobrescrever qualquer aprovação.
+
+**Verificação adicional em 24/11/2026 (somente leitura):** Main/Produção Vercel READY fc0ae22 (09:37 UTC); Staging/ambiente Teste Vercel READY 0970ae6 (01:15 UTC); projetos Supabase ativos e saudáveis; ledger de 22 migrações em Teste e 15 em Produção, com IDs diferentes. Isto **não** constitui homologação funcional dos serviços, Windows, pagamentos ou domínios. Ver [Governança #014](GOVERNANCA-014.md).
 
 ## 0. Diretrizes e decisões transversais
 - Executar do mais simples ao mais complexo, em lotes pequenos e verificáveis.
@@ -186,3 +193,6 @@ Este documento mantém os **13 ajustes funcionais**. A pedido do responsável, a
 **Descobertas críticas:** PR #25 e #36 constam como merged; PR #35 e #37 estão abertas; PR #37 registra diferenças significativas entre Teste e Produção e requer reconciliação antes de promover código. O Connect 0.2.6 documentado suporta envio manual de texto/imagem e lembretes locais, não prova agendamento automático e envio em massa de grupos. Consultar levantamento para escopo e limitações.
 
 **Política permanente:** após cada subetapa, atualizar os arquivos do pacote, registrar o que foi realmente testado e os SHAs/ambientes, e preservar as versões aprovadas. Não declarar produção concluída por merge ou CI isolado. A PR #40 é documental e não autoriza mesclagem na `main`, migrations ou deploy.
+
+## 8. Especificação V2 e atualização cumulativa
+As regras gerais acima permanecem aprovadas. Para execução, consultar obrigatoriamente os detalhamentos por ID e os sub-IDs correspondentes em CONTROLE-DE-EXECUCAO.md. Na dúvida, preservar a implementação existente, classificar o achado como DESCONHECIDO e obter evidência antes de propor troca. As atualizações de execução e testes devem ser commitadas no GitHub pelo agente que realizar a atividade; não há acompanhamento automático em background.

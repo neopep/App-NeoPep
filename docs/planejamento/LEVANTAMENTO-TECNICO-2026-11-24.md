@@ -1,5 +1,5 @@
 # NeoPep — Levantamento técnico e matriz de preservação
-**Data:** 24/11/2026 | **Versão:** 1.0 | **Escopo:** leitura de GitHub e documentação versionada, NÃO auditoria autenticada de Supabase/Vercel/Windows
+**Data:** 24/11/2026 | **Versão:** 2.0 | **Escopo:** leitura de GitHub e documentação, consulta somente leitura de metadados Supabase/Vercel; NÃO homologação do Windows/WhatsApp
 **Fonte de verdade funcional:** [Plano Mestre](PLANO-MESTRE-NEOPEP-2026-11-24.md)  
 **Registro operacional:** [CONTROLE-DE-EXECUCAO](CONTROLE-DE-EXECUCAO.md)  
 **Instruções para qualquer agente:** [INICIO-PARA-AGENTES](INICIO-PARA-AGENTES.md)
@@ -74,7 +74,15 @@
 - Documentação: atualizar tracker, documento mestre, memória/decisões do módulo, commits, links de PR, pendências e próximos passos na MESMA entrega.
 
 ## 6. Lacunas atuais — não declarar concluídas
-- Não houve consulta autenticada nesta rodada a Supabase, Vercel, Windows, sessão WhatsApp ou Mercado Pago; nenhum envio, deploy, migration ou pagamento executado.
+- Nesta revisão V2 houve consultas autenticadas SOMENTE DE LEITURA a projetos, ledger e catálogo de metadados Supabase e deployments Vercel; não houve inspeção operacional de Windows, sessão WhatsApp ou Mercado Pago, nem envio, novo deploy voluntário, migration ou pagamento.
 - A lista de arquivos e os relatórios antigos indicam pontos a inspecionar, não provam comportamento de produção atual.
 - É necessário confirmar SHA implantado em Teste e Produção, status real do PR #37, schema e ledger reais, pipeline do Connect e capacidade do bridge instalado.
 - Há documentação histórica com estados contraditórios porque foi escrita em datas/branches diferentes; prevalece a evidência mais recente **do mesmo ambiente e commit**, nunca a descrição isolada de uma PR.
+
+## 7. Evidências V2 (24/11/2026; somente leitura)
+- Supabase Teste qnuluspqfazdppciermw e Produção cpslafpzjtbpmoxxysaa: status ACTIVE_HEALTHY. Ledger listado com **22** entradas em Teste e **15** em Produção; IDs/nome diferentes e equivalência de contrato não comprovada.
+- PostgreSQL information_schema nos dois: neo_private.shop_products.price_cents INTEGER, stock INTEGER; entidades de campanhas, suas publicações WhatsApp e grupos, conexões e seleção de grupos Connect presentes. Não se consultaram dados de usuário.
+- Vercel: projeto app-neopep teve deployment target production READY, main fc0ae22, 2026-11-24 09:37 UTC; app-neopep-staging teve target production **dentro do projeto Teste** READY staging/permanente 0970ae6, 01:15 UTC. Apontamento de domínios/custom aliases, Auth, Edge e funcionamento não verificados.
+- Commits da PR #40 acionaram previews em dois projetos Vercel; pode consumir quota. Não equivalem a deploy de produção. Considerar agrupar alterações documentais e avaliar filtros de builds (somente após autorização).
+- Evidência frontend exata: src/app.js possui appearance light/dark/system, formulário de permissões iniciais, privacyOptions statistics/usage/campaigns/location e requestDeviceLocation; dist/library.js usa PDF canvas com fallback PDF; dist/shop.js.home contém título atual; dist/admin/admin-whatsapp.js consulta catálogo sincronizado com até 30 grupos elegíveis, mas confirma manualmente publicação.
+- Para os detalhes operacionais e correções da V1, consultar [auditoria V2](AUDITORIA-REVISAO-2026-11-24.md) e [governança #014](GOVERNANCA-014.md).
