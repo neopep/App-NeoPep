@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #005 — Minhas comparações no Grupo; implementação reportada e PR #47 criada; homologação real e aceite pendentes.
-**ÚLTIMA_DECISÃO:** Codex implementou #005 (3483731) e PR #47 foi criada em rascunho; 67 testes reportados em ambiente simulado. Faltam permissões e expiração de URLs reais, Safari/PWA/dispositivos físicos. Sem aceite/deploy.
+**FOCO_ATUAL:** #004 — Minha alimentação; iniciar por 004.01 (diagnóstico e arquitetura), escolhido pelo proprietário em 24/11/2026; ainda sem implementação do novo ciclo.
+**ÚLTIMA_DECISÃO:** proprietário selecionou #004. É módulo amplo: implementar por subetapas independentes com gates, começando por diagnóstico; sem IA nesta fase. PRs #41–#47 seguem sem aceite e sem publicação.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -12,7 +12,7 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | Pré-requisito dirigido | #014 | Preservação, baseline e controle incremental | AUDITANDO | Não solicitado | Não aplicável diretamente | 014.01, conforme impacto |
 | 2 | #007 | Loja: texto e atendimento | NÃO_INICIADO | Não solicitado | Não preparado | 007.01 |
 | Em espera | #006 | Prévia de PDF na Home/Biblioteca | EM_TESTE (local concluído; Teste real pendente) | AGUARDANDO_ACEITE (não solicitado formalmente) | NAO_PREPARADO (sem deploy) | 006.03 |
-| 1 (foco atual) | #005 | Modal de comparações no Grupo | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 005.05 |
+| Em espera | #005 | Modal de comparações no Grupo | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 005.05 |
 | Em espera | #001 | Localização opcional no onboarding | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 001.03 |
 | Em espera | #002 | Personalização/consentimento | NÃO_INICIADO | Não solicitado | Não preparado | 002.01 |
 | Em espera | #008 | Fixar posts da Biblioteca | EM_TESTE (local; SQL não aplicado em Teste) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 008.03 |
@@ -22,7 +22,7 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | 10 | #011 | Edição em massa | NÃO_INICIADO | Não solicitado | Não preparado | 011.01 |
 | 11 | #013 | Campanhas e Connect | NÃO_INICIADO | Não solicitado | Não preparado | 013.01 |
 | 12 | #012 | Planos/assinaturas | NÃO_INICIADO | Não solicitado | Não preparado | 012.01 |
-| 13 | #004 | Minha alimentação | NÃO_INICIADO | Não solicitado | Não preparado | 004.01 |
+| 1 (foco atual) | #004 | Minha alimentação | NÃO_INICIADO | Não solicitado | Não preparado | 004.01 |
 
 **Importante:** «não iniciado» significa que **as novas mudanças deste ciclo** não foram iniciadas. Não significa que nenhuma parte semelhante já existe no aplicativo. Consultar o levantamento técnico.
 
@@ -65,6 +65,8 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | 2026-11-24 | Proprietário | «005» | #005 / 005.01 | Novo foco, sem execução/aceite/deploy; PRs #41–#46 seguem isoladas | PR #40 |
 
 | 2026-11-24 | Codex / conferência GitHub | #005 implementado em 3483731; PR #47 draft criada | #005 / 005.01–005.05 | 67 testes reportados; permissões/URLs reais e QA físico pendentes; sem aceite/publicação | [PR #47](https://github.com/neopep/App-NeoPep/pull/47) |
+
+| 2026-11-24 | Proprietário | «004» | #004 / 004.01 | Novo foco: Minha alimentação, iniciar diagnóstico/arquitetura antes de migrações; sem aceite/deploy; PRs #41–#47 preservadas | PR #40 |
 
 ## 4. Fila de aprovados aguardando publicação
 **Nenhum item deste ciclo aprovado ainda.** Inserir aqui um registro por ID/sub-ID: ID, versão/commit, aceite, data, opções individual/conjunto, dependências e release vinculado.
