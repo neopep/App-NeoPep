@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #013 — migração campaign_dispatch aplicada em Supabase Teste com flags WhatsApp/App desativadas; PRs #56/#57 draft. Sem deploy; homologação Windows, sessão WhatsApp, contas reais e anexos pendentes.
-**ÚLTIMA_DECISÃO:** proprietário autorizou explicitamente apenas a migração #013 de despacho em Supabase Teste; aplicada e verificada, flags whatsapp_enabled=false e app_enabled=false. Zero deploys Vercel, zero envios reais e Produção intocada.
+**FOCO_ATUAL:** #013 — Windows CI 0.2.8 aprovado em runner isolado (run 45471485884, SHA ff8a4eb); PR #58 draft; aplicativo físico, sessão WhatsApp real, assinatura/distribuição e homologação continuam pendentes. Servidor Teste com flags OFF; sem Vercel.
+**ÚLTIMA_DECISÃO:** proprietário autorizou preparar e validar o NeoPep Connect Windows; workflow Windows isolado executado e aprovado. Não houve deploy, atualização em PC do usuário, ativação de envio real nem Produção. Candidato CI não assinado e não distribuído.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
