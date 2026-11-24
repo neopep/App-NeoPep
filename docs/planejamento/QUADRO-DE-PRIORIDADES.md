@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #013 — NeoPep Connect 0.2.9 build privado Teste aprovado (run 45475331682), artefato privado gerado; assinatura/manifesto pelo agente RSA CNG, registro de rascunho e aceite da atualização pendentes. Flags de envio OFF; sem deploy Vercel nem Produção.
-**ÚLTIMA_DECISÃO:** proprietário autorizou iniciar a atualização para concluir #013. Solicitação privada 0.2.9 registrada no commit c886dc3 e CI de Teste concluída com sucesso; manter aprovação/instalação e qualquer envio separados, após assinatura RSA e evidência no Supabase.
+**FOCO_ATUAL:** #013 — Connect Teste 0.2.9 compilado no privado, manifesto RSA e evidência verificados no Supabase Teste; release em `draft`, não aprovado nem instalado. Ativação WhatsApp/App segue OFF. Próximas etapas: aprovação administrativa/instalação consentida, Windows e sessão real, QA web; zero Vercel.
+**ÚLTIMA_DECISÃO:** dono solicitou preparar atualização 0.2.9; private build 45475331682 sucesso e agente de assinatura registrou versão 0.2.9 como `draft`, evidence SHA256 f5dad2d... para fonte c5f2237. Sem aprovação automática, envio real, deploy Vercel ou Produção.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
