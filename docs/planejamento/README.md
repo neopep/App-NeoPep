@@ -12,6 +12,7 @@ Este é o ponto inicial para qualquer conversa, agente ou Codex que trabalhe na 
 | [Plano Mestre](PLANO-MESTRE-NEOPEP-2026-11-24.md) | Decisões funcionais aprovadas dos 13 pacotes; regras de preservação; ordem geral |
 | [Melhorias #001–#009](ESPECIFICACAO-MELHORIAS-001-009.md) | Tela a tela, regras, dados, UX, falhas, testes e critérios de aceite |
 | [Loja #010–#011](ESPECIFICACAO-LOJA-010-011.md) | Estoque, custos, snapshots, rentabilidade e gerenciamento em massa |
+| [Execução 010.04](PLANO-IMPLEMENTACAO-010-04.md) | Contratos administrativos, editor de custos BRL/USD, integração segura com a fundação existente, testes e critérios de aceite |
 | [Assinaturas #012](ESPECIFICACAO-ASSINATURAS-012.md) | Planos, recursos, entitlements, cortesias, recorrência e futuro Apple/Google |
 | [Campanhas #013](ESPECIFICACAO-CAMPANHAS-013.md) | Editor WhatsApp full-screen, status Connect, grupos, mídias, conteúdo Loja/Biblioteca/Comunidade, esteira e cross-post |
 | [Governança #014](GOVERNANCA-014.md) | Não regressão, evidência, release gates, segurança e atualizações por agente |
