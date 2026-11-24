@@ -3,6 +3,10 @@ const C=window.NeoCore, config=window.NEO_CONFIG||{};
 let client=null,user=null,profileRevision=null,listener=null,consents=[],isAdmin=false,onboarded=false,identityVersion=0;
 // Mantém o callback já usado no Supabase ao abrir o aplicativo também na raiz.
 function authRedirect(){const current=new URL(location.href),target=new URL(config.authRedirectPath||'./',current);if(target.origin!==current.origin)throw Error('O retorno de autenticação deve permanecer neste site.');target.hash='';target.search='';return target;}
+const official=config.supabaseUrl==='https://cpslafpzjtbpmoxxysaa.supabase.co';
+const connectTestEnabled=config.connectTestEnabled===true&&!official;
+const connectEnabled=connectTestEnabled||(official&&config.connectEnabled===true);
+const campaignsEnabled=!official||config.campaignActivationEnabled===true;
 const configured=/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(config.supabaseUrl||'')&&C.isPublicSupabaseKey(config.supabasePublishableKey);
 const ok=r=>{if(r.error){const source=r.error,emailLimit=source.code==='over_email_send_rate_limit'||/email rate limit exceeded/i.test(source.message||'');const error=new Error(emailLimit?'O limite de envio de e-mails foi atingido. Aguarde antes de tentar novamente. Se o problema continuar, entre em contato com o responsável pelo aplicativo.':source.message||'Não foi possível acessar a nuvem.');error.code=source.code||null;error.status=source.status||null;throw error}return r.data};
 const needsHealth=()=>{need();if(!api.hasConsent('health')||!api.hasConsent('terms'))throw Error('Conclua o cadastro inicial e os consentimentos antes de gravar na conta.');};
@@ -23,7 +27,7 @@ const authStorage={
 };
 function chooseRemember(value){if(typeof value!=='boolean')return;const saved=rememberSession===value?null:AUTH_KEYS.map(key=>[key,authStorage.getItem(key)]);rememberSession=value;writeStore(browserStore('localStorage'),REMEMBER_KEY,String(value));if(saved){for(const [key] of saved)authStorage.removeItem(key);for(const [key,item] of saved)if(item!==null)authStorage.setItem(key,item)}}
 const clearAuthStorage=()=>AUTH_KEYS.forEach(key=>authStorage.removeItem(key));
-const api={configured,
+const api={configured,connectTestEnabled:connectEnabled,
  async campaignImageURL(path){
   const result=ok(await need().storage.from('neo-campaign-images').createSignedUrl(path,120));
   return result.signedUrl;
@@ -46,9 +50,9 @@ const api={configured,
   if(owner!==user?.id)throw Error('A sessão mudou.');
   return path;
  },
- ...(config.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co' ? {
+ ...(connectTestEnabled ? {
   async importConnectRelease(manifest){
-   const response=await need().functions.invoke('connect-release-draft',{body:manifest});
+   const response=await need().functions.invoke(config.connectReleaseFunction,{body:manifest});
    if(response.error){
     let message='Não foi possível verificar o manifesto no servidor de Teste.';
     try{const detail=await response.error.context.json();if(typeof detail.error==='string')message=detail.error;}catch{}
@@ -56,20 +60,19 @@ const api={configured,
    }
    return response.data;
   },
-  async connectUpdateAdmin(action,data={}){return ok(await need().rpc('neo_connect_update_admin',{p_action:action,p_data:data}));}
  } : {}),
- async connectWaConnections(){return ok(await need().rpc('neo_connect_wa_list_connections'));},
- async connectWaGroups(connection,after=null){return ok(await need().rpc('neo_connect_wa_list_groups',{p_connection:connection,p_after:after,p_limit:50}));},
- async connectAdmin(action,data={}){return ok(await need().rpc('neo_connect_admin',{p_action:action,p_data:data}));},
- async connectReleaseURL(path){return ok(await need().storage.from('neo-connect-releases').createSignedUrl(path,120,{download:'NeoPepConnectSetup.exe'})).signedUrl;},
- async campaignWhatsAppSync(action,id=null,data={}){return ok(await need().rpc('neo_campaign_wa_sync',{p_action:action,p_id:id,p_data:data}));},
+ async connectUpdateAdmin(action,data={}){if(!connectEnabled)throw Error('Canal Windows indisponível.');return ok(await need().rpc('neo_connect_update_admin',{p_action:action,p_data:data}));},
+ async connectWaConnections(){if(!connectEnabled)throw Error('Canal Windows indisponível.');return ok(await need().rpc('neo_connect_wa_list_connections'));},
+ async connectWaGroups(connection,after=null){if(!connectEnabled)throw Error('Canal Windows indisponível.');return ok(await need().rpc('neo_connect_wa_list_groups',{p_connection:connection,p_after:after,p_limit:50}));},
+ async connectAdmin(action,data={}){if(!connectEnabled)throw Error('Canal Windows indisponível.');return ok(await need().rpc('neo_connect_admin',{p_action:action,p_data:data}));},
+ async connectReleaseURL(path){if(!connectEnabled)throw Error('Canal Windows indisponível.');return ok(await need().storage.from('neo-connect-releases').createSignedUrl(path,120,{download:'NeoPepConnectSetup.exe'})).signedUrl;},
  async campaignWhatsApp(action,id=null,data={}){return ok(await need().rpc('neo_campaign_wa',{p_action:action,p_id:id,p_data:data}));},
- async campaignAdmin(action,id=null,data={}){return ok(await need().rpc('neo_campaign_admin',{p_action:action,p_id:id,p_data:data}));},
+ async campaignAdmin(action,id=null,data={}){if(action==='activate'&&!campaignsEnabled)throw Error('Ativação de campanhas indisponível.');return ok(await need().rpc('neo_campaign_admin',{p_action:action,p_id:id,p_data:data}));},
  async privacyPreferences(choices=null,complete=false){
   return ok(await need().rpc('neo_privacy_preferences',{p_choices:choices,p_complete:complete}));
  },
- async campaignPushPreference(enabled=null){return ok(await need().rpc('neo_campaign_push_preference',{p_enabled:enabled}));},
- async campaignVisit(action,impression=null){return ok(await need().rpc('neo_campaign_visit',{p_action:action,p_impression:impression}));},get remember(){return rememberSession},get persistenceLimited(){return persistenceLimited},
+ async campaignPushPreference(enabled=null){if(!campaignsEnabled)return false;return ok(await need().rpc('neo_campaign_push_preference',{p_enabled:enabled}));},
+ async campaignVisit(action,impression=null){if(!campaignsEnabled)return null;return ok(await need().rpc('neo_campaign_visit',{p_action:action,p_impression:impression}));},get remember(){return rememberSession},get persistenceLimited(){return persistenceLimited},
  async pushDevice(action,subscription,timezone){need();return ok(await client.rpc("neo_push_device",{p_action:action,p_subscription:subscription,p_timezone:timezone||"UTC"}))},
  async shop(action,payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_shop',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou. Reabra a loja.');return data},
  async shopAddress(action,payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_shop_address',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou. Reabra o checkout.');return data},
@@ -164,21 +167,23 @@ const api={configured,
  async geoControl(action){need();return ok(await client.rpc('neo_geo_control',{p_action:action}))},
  async adminGeo(users){need();return ok(await client.rpc('neo_admin_geo',{p_users:users}))},
  async captureGeo(){
+  if(official||!config.geoEndpoint)return;
   need();const version=identityVersion,account=user.id;
   const {session}=ok(await client.auth.getSession());
   if(version!==identityVersion||session?.user?.id!==account||!session.access_token)return;
-  const result=await fetch('/api/staging-observe?mode=geo',{method:'POST',headers:{Authorization:'Bearer '+session.access_token}});
+  const result=await fetch(config.geoEndpoint+'?mode=geo',{method:'POST',headers:{Authorization:'Bearer '+session.access_token}});
   if(version===identityVersion&&result.ok)return result.json();
  },
  async adminOperations(section,days=30,review=null){need();return ok(await client.rpc('neo_admin_operations',{p_section:section,p_days:days,p_review:review}))},
  async qualityObserve(metric,duration=null,revision=''){need();return ok(await client.rpc('neo_quality_observe',{p_metric:metric,p_duration:duration,p_revision:revision}))},
  async adminSystem(action='snapshot',payload={}){need();return ok(await client.rpc('neo_admin_system',{p_action:action,p_payload:payload}))},
  async adminMonitor(provider){
+  if(official||!config.monitorEndpoint)throw Error('Fonte externa indisponível neste ambiente.');
   need();
   const version=identityVersion,account=user.id;
   const {session}=ok(await client.auth.getSession());
   if(version!==identityVersion||session?.user?.id!==account||!session.access_token)throw Error('Sessão indisponível.');
-  const response=await fetch('/api/admin-monitor?provider='+encodeURIComponent(provider),{
+  const response=await fetch(config.monitorEndpoint+'?provider='+encodeURIComponent(provider),{
    headers:{Authorization:'Bearer '+session.access_token}
   });
   if(version!==identityVersion||!response.ok)throw Error('Fonte indisponível.');
