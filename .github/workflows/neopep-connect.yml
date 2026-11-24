@@ -2,7 +2,7 @@ name: NeoPep Connect Windows
 
 on:
   push:
-    branches: [desenvolvimento/connect-windows-02, desenvolvimento/connect-whatsapp-grupos, desenvolvimento/connect-windows-campanhas-v026, desenvolvimento/connect-dois-ambientes, desenvolvimento/connect-turnstile]
+    branches: [desenvolvimento/connect-windows-02, desenvolvimento/connect-whatsapp-grupos, desenvolvimento/connect-windows-campanhas-v026, desenvolvimento/connect-dois-ambientes, desenvolvimento/connect-turnstile, desenvolvimento/ajuste-013-windows-qa]
     paths: ['connect/windows/**', 'connect/whatsapp-lab/**', '.github/workflows/neopep-connect.yml']
   pull_request:
     branches: [staging/permanente, desenvolvimento/connect-windows-02, desenvolvimento/connect-windows-campanhas-v025]
@@ -19,9 +19,9 @@ permissions:
 
 jobs:
   windows:
-    if: contains(fromJSON('["desenvolvimento/connect-windows-02","desenvolvimento/connect-whatsapp-grupos","desenvolvimento/connect-windows-campanhas-v026","desenvolvimento/connect-windows-026-integracao-staging","desenvolvimento/connect-dois-ambientes","desenvolvimento/connect-turnstile"]'), github.event.pull_request.head.ref || github.ref_name)
+    if: contains(fromJSON('["desenvolvimento/connect-windows-02","desenvolvimento/connect-whatsapp-grupos","desenvolvimento/connect-windows-campanhas-v026","desenvolvimento/connect-windows-026-integracao-staging","desenvolvimento/connect-dois-ambientes","desenvolvimento/connect-turnstile","desenvolvimento/ajuste-013-windows-qa"]'), github.event.pull_request.head.ref || github.ref_name)
     env:
-      CONNECT_TEST_VERSION: ${{ (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/connect-turnstile' && '0.2.8' || (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/connect-dois-ambientes' && '0.2.7' || contains(fromJSON('["desenvolvimento/connect-windows-campanhas-v026","desenvolvimento/connect-windows-026-integracao-staging"]'), (github.event.pull_request.head.ref || github.ref_name)) && '0.2.6' || (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/connect-whatsapp-grupos' && '0.2.4' || '0.2.2' }}
+      CONNECT_TEST_VERSION: ${{ (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/ajuste-013-windows-qa' && '0.2.8' || (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/connect-turnstile' && '0.2.8' || (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/connect-dois-ambientes' && '0.2.7' || contains(fromJSON('["desenvolvimento/connect-windows-campanhas-v026","desenvolvimento/connect-windows-026-integracao-staging"]'), (github.event.pull_request.head.ref || github.ref_name)) && '0.2.6' || (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/connect-whatsapp-grupos' && '0.2.4' || '0.2.2' }}
     runs-on: windows-2022
     timeout-minutes: 15
     steps:
