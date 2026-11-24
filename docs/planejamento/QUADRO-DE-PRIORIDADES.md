@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #010 — 010.04 implementada em branch independente e PR #51 draft, com contrato SQL ainda não aplicado em Teste; segurança e homologação pendentes.
-**ÚLTIMA_DECISÃO:** Codex apresentou commit 1e3292e para 010.04; conferida branch, criada PR #51 em rascunho. Os testes foram reportados como aprovados; sem migração adicional remota, aceite, merge ou deploy.
+**FOCO_ATUAL:** #010 — 010.04 revisão de segurança de autorização financeira em PR #51; contrato corrigido no Git, testes de regressão da correção e aplicação no Supabase Teste pendentes.
+**ÚLTIMA_DECISÃO:** «Vamos seguir»: auditoria detectou que neo_admin_access também permite moderadores; restrição de custos para admin_members implementada em commit 14a335d, com teste de moderador. Sem migração remota 010.04, sem publicação.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -79,6 +79,8 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | 2026-11-24 | Proprietário / consulta Supabase | «Vamos avançar» — sequência do #010 | #010 / 010.03-B e 010.04 | ACL, objetos e ledger novamente conferidos em Teste; planejada 010.04 sem novas migrações/deploy. QA real e aceite pendentes | [Plano 010.04](PLANO-IMPLEMENTACAO-010-04.md) |
 
 | 2026-11-24 | Codex / verificação GitHub | 010.04 implementada em 1e3292e e PR #51 draft aberta | #010 / 010.04 | UI/contrato criados; 33 testes reportados; API administrativa ainda não aplicada no Teste. Sem aceite/publicação | [PR #51](https://github.com/neopep/App-NeoPep/pull/51) |
+
+| 2026-11-24 | Proprietário / revisão de segurança | «Vamos seguir» — verificar contrato #010.04 | #010 / 010.04 | Achado de autorização financeira excessiva; commit 14a335d restringiu para admin_members e criou teste de moderador. Reteste e SQL em Teste pendentes; sem deploy/aceite | [PR #51](https://github.com/neopep/App-NeoPep/pull/51) |
 
 ## 4. Fila de aprovados aguardando publicação
 **Nenhum item deste ciclo aprovado ainda.** Inserir aqui um registro por ID/sub-ID: ID, versão/commit, aceite, data, opções individual/conjunto, dependências e release vinculado.
