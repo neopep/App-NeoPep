@@ -607,3 +607,10 @@ html.library-video-open,html.library-video-open body{overflow:hidden;overscroll-
 
 .library-home-symbol :is(img,video,canvas){width:100%;height:100%;object-fit:contain;display:block}
 .library-home-symbol [data-pdf-thumb]{display:block;width:100%;height:100%}
+
+.home-calculator{display:grid;gap:.5rem;width:100%;text-align:start;color:var(--ink);cursor:pointer}
+.home-calculator-title{font-weight:750;font-size:1.1rem}
+.home-calculator .calc-syringe{display:block;width:min(100%,21rem);height:auto;margin-inline:auto}
+.home-calculator-details{color:var(--muted);line-height:1.5}
+.home-calculator-link{display:flex;align-items:center;gap:.35rem;color:var(--accent);font-weight:650}
+.home-calculator:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
