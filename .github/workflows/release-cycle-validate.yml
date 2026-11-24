@@ -1,0 +1,37 @@
+name: Validar release conjunto NeoPep (sem publicar)
+on:
+  push:
+    branches: [homologacao/ciclo-completo-2026-11-24]
+    paths:
+      - '.github/workflows/release-cycle-validate.yml'
+      - 'src/**'
+      - 'dist/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'vercel.json'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.22.1'
+      - name: Verificar isolamento e bloqueio de publicacao
+        run: |
+          node - <<'NODE'
+          const fs=require('fs'),v=JSON.parse(fs.readFileSync('vercel.json','utf8'));
+          if(v.git.deploymentEnabled['homologacao/ciclo-completo-2026-11-24']!==false)throw Error('Branch não bloqueada no Vercel');
+          const s=fs.readFileSync('scripts/build-staging.cjs','utf8');
+          if(!s.includes("'homologacao/ciclo-completo-2026-11-24'"))throw Error('Falta guard de Teste');
+          console.log('RELEASE TESTE ISOLADO; AUTODEPLOY BLOQUEADO');
+          NODE
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run build
+      - run: npm run check
+      - run: npm test
