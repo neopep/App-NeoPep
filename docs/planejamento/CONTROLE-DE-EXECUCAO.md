@@ -211,3 +211,7 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - **007.03:** Build, check e empacotamento passaram. `node --test tests/{shop-ui,shop-payments-edge,staging-pwa}.test.cjs` teve 22 aprovações, e `node --test tests/shop.test.cjs` teve quatro. Seis cenários Chromium cobriram layout, contraste dos dois temas pelo estilo existente, teclado, rotação da rota para Atendimento e preservação de produto/preço em desktop, iPhone 13 e Pixel 7 emulados. O atendimento e as transações usaram fixtures locais.
 - Arquivos de runtime: `dist/shop.js`, `src/app.js`, `dist/app.js` e `dist/style.css`. Shell de cache atualizado em `dist/sw.js` e `scripts/build-staging.cjs`. Testes em `tests/shop-ui.test.cjs` e `tests/staging-pwa.test.cjs`. Sem delta SQL ou Edge.
 - Aguardam homologação: sessão autenticada, backend de atendimento e aparelhos físicos. Aceite pendente e publicação não realizada. As PRs #41–#47 não foram incorporadas. A reversão consiste em reverter o delta isolado do frontend.
+
+### 2026-11-24 — Auditoria integrada da PR #61
+
+- #001, #002, #003, #005–#011 e #013 estão integrados na candidata conforme a [matriz de liberação](RELEASE-CICLO-COMPLETO-2026-11-24.md). A auditoria regenerou o bundle da Home e onboarding. Build, check e 425 testes passaram, além dos ensaios isolados. Aceite e publicação continuam pendentes. O acesso de leitura aos ambientes falhou com 403 no proxy, portanto ledger, flags e configuração efetiva do deploy seguem como gates.

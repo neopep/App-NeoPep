@@ -16,3 +16,56 @@ As PRs originais devem permanecer separadas e rastreáveis, sem merge para `main
 
 ## Estado
 **Em consolidação técnica; nenhum deploy ou merge de produção.**
+
+## Auditoria da PR #61
+
+Base financeira publicada registrada: `43e31df`. Base da revisão: `4158d4e` na branch `homologacao/ciclo-completo-2026-11-24`. Foi reutilizada a PR #61. A ancestralidade Git confirma as origens abaixo. As correções de conflitos preservam os controles das duas cadeias nos arquivos compartilhados.
+
+| Etapa | PRs e commits de origem | Evidência da candidata | Gate de liberação |
+|---|---|---|---|
+| #001 Localização | #45 `cf3483f` | Onboarding precede #002 e exige ação explícita | Conferir opção de ambiente e permissão nativa em sessão de Teste |
+| #002 Personalização | #46 `bd0c64d` | Consentimento específico e revogável, com fallback quando o serviço falha | Confirmar RPC e ACL. Sem RPC confirmada, etapa fica indisponível |
+| #003 Aparência | #44 `00ef2d4` | Preferência, sistema e bootstrap do tema em Chromium | Validar Safari/PWA instalada |
+| #005 Comparações | #47 `3483731` | Testes do seletor, prévia e fluxo de cópia privada | Conferir grupo autorizado em Teste |
+| #006 Miniatura PDF | #41 `0087a15` | Miniatura proporcional e abertura em Chromium desktop, iPhone 13 e Pixel 7 emulados | Verificar material privado real na Biblioteca de Teste |
+| #007 Loja e atendimento | #48 `facee60` | Vitrine e atalho preservados com contexto de conta, testes de Loja | Verificar canal oficial em Teste |
+| #008 Fixação | #42 `d76ae73` | Ordem, permissões e controles validados pela suíte. A UI depende de `pins_ready` | Confirmar catálogo e RPC, manter controles ocultos até disponibilidade |
+| #009 Seringa na Home | #43 `b66569b` | Seringa reutilizada e dados locais segregados por conta, suíte da calculadora | Conferir conta com e sem cálculo salvo em Teste |
+| #010 Financeiro | #53 `43e31df`, #54 `5a53489` | Editor, dashboard, conciliação e rollback exercitados localmente | Conferir ledger e permissões financeiras do Teste |
+| #011 Gestão em massa | #55 `77fe00c` | Navegador e PostgreSQL com concorrência de lote e checkout | Conferir RPC, auditoria e estorno de lote em Teste |
+| #013 Campanhas | #56 `f0ed98a`, #57 `088ee45`, #58 `3109acd`, #59 `fa25bd1` | Editor desktop/mobile, filas e Bridge com infraestrutura isolada | Limitar release web ao editor/revisão. Manter agendamento e despacho externos desativados |
+| #004, #012 e #014 | Fora da integração funcional | Governança #014 aplicada à auditoria | #004 e #012 ficam no backlog |
+
+### Correção e preservação
+
+A compilação limpa detectou `dist/app.js` desatualizado em relação a `src/app.js`: faltavam o controle de tema na Home, o contexto autenticado do atalho de suporte e as transições de personalização no onboarding. O bundle foi regenerado. A CI da candidata agora reprova divergência entre os bundles recompilados e o Git. O cache PWA continua incluindo tema, editor de campanhas e visualizador de vídeo.
+
+O diff desde `43e31df` preserva todas as Edge Functions. As migrações direcionadas de Loja são idênticas às da PR #55 e os arquivos Windows e de despacho são idênticos aos da PR #59. Navegador verificou visibilidade por membro na vitrine e no gerenciamento. O PostgreSQL verificou compatibilidade com checkout concorrente e hashes das funções legadas. O relato de 0.2.10 já instalado em ambos os ambientes é informação operacional fornecida pelo proprietário. O último registro da PR #59 descreve um rascunho assinado de Teste, portanto instalação e sessão atuais carecem de evidência nova nesta auditoria.
+
+### Testes executados
+
+- Build e check passaram. O empacotamento de prévia e os 425 testes da suíte passaram.
+- Seis ensaios PostgreSQL 17 isolados passaram: editor e dashboard financeiro, conciliação, edição em massa, editor de campanhas e despacho. Houve verificação de permissões, concorrência, rollback e preservação dos contratos legados. As migrações #002 e #008 também são cobertas pela suíte local.
+- Nove ensaios Chromium passaram: aparência, campanhas, miniatura PDF, vídeo, visibilidade na vitrine e no gerenciamento, custos, dashboard e gestão em massa. Os fluxos mobile usaram emulação quando prevista pelo teste. O teste de vídeo usou MP4 real e iframe simulado.
+- Oito testes de Bridge e diagnóstico de sessão passaram com provedor simulado ou inspeção de contrato. Nenhum envio real, pagamento, nova compilação Windows ou mudança em sessão instalada.
+
+### Dependências e recuperação
+
+| Contrato | Arquivo no Git | Estado remoto |
+|---|---|---|
+| Fundação, editor e dashboard financeiro | `release/shop-finance/` e baseline #53 | Teste registrado como instalado no ledger pelos identificadores 20261124164148, 20261124170927 e 20261124172822 |
+| Conciliação e lote | `release/shop-reconciliation/20261124220000_shop_reconciliation.sql`, `release/shop-bulk/20261124230000_shop_bulk.sql` | Instalação em Teste informada. Conferir prefixo real e fingerprint. Produção pendente de conferência |
+| Campanhas | `release/campaign-editor/20261124233000_campaign_editor_versions.sql`, `release/campaign-dispatch/20261124234500_campaign_dispatch.sql` | Estrutura em Teste informada. Confirmar cada contrato e flags separadamente |
+| Fixação | `supabase/migrations/20261124140000_library_pins.sql` | Não confirmada em nenhum ambiente |
+| Consentimento | `supabase/migrations/20261124150000_personalization_consent.sql` | Não confirmado em nenhum ambiente |
+
+O preflight em `release/cycle-20261124/preflight.sql` consulta apenas catálogo para #002/#008. Foi executado antes e depois dos dois SQLs no PostgreSQL 17.12 isolado. Confirmou as dependências, RLS e os grants esperados, incluindo ausência de execução anônima da RPC de personalização e ausência de execução direta da função privada de fixação para clientes. Antes de uma futura alteração autorizada, conferir o ledger e capturar DDL, grants e backup no ambiente correto. Para recuperação de #008, restaurar a definição anterior de `public.neo_library_v25(text,jsonb)` a partir do catálogo capturado e preservar posições e auditoria. Para #002, voltar a interface e suspender execução da RPC se necessário, preservando eventos de consentimento. Não apagar histórico nem importar dados de Teste. Para Loja e Campanhas, usar preflights e rollbacks versionados, com recuperação ensaiada antes de qualquer mudança oficial.
+
+### Liberação
+
+1. O proxy retornou 403 para o Vercel, domínio de Teste e projetos Supabase. Retomar com acesso de leitura para confirmar Vercel, alias, variáveis, SHA e artefato READY de recuperação. O bloqueio Git de deployment automático está presente. A configuração efetiva dos projetos falta confirmar antes do push da correção, conforme a política do Plano Mestre.
+2. Validar ledger, contratos, papéis, RLS e os valores `whatsapp_enabled=false`, `app_enabled=false` e `paused=true` no destino. Obter autorização específica se faltar SQL. Manter interfaces dependentes indisponíveis até confirmação.
+3. Atualizar a PR #61 e aguardar CI no SHA final. Fazer um único deploy em `app-neopep-staging` após confirmar configuração, dependências e recuperação. Validar READY, SHA, marca TESTE, autenticação, PWA e módulos.
+4. Produção exige aceite da candidata de Teste, preflight próprio, evidência de backup e recuperação, autorização específica para migrações e confirmação do proprietário para promoção. Preservar domínio, Auth/callbacks, Mercado Pago, Storage e a sessão Windows, mantendo as flags de despacho desligadas.
+
+Nenhuma migração, ativação de worker, envio, merge ou implantação foi executada nesta auditoria.

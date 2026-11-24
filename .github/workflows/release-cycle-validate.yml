@@ -33,5 +33,7 @@ jobs:
           NODE
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run build
+      - name: Conferir bundles versionados
+        run: git diff --exit-code -- dist/app.js dist/cloud.js
       - run: npm run check
       - run: npm test
