@@ -607,3 +607,20 @@ html.library-video-open,html.library-video-open body{overflow:hidden;overscroll-
 
 .library-home-symbol :is(img,video,canvas){width:100%;height:100%;object-fit:contain;display:block}
 .library-home-symbol [data-pdf-thumb]{display:block;width:100%;height:100%}
+
+dialog.neo-structured-editor[open] {
+  position: fixed; inset: 0; margin: 0 auto; width: min(100%, 960px); max-width: 100%;
+  height: var(--structured-height,100dvh); max-height: none; border-radius: 0; padding: 0;
+  display: grid; grid-template-rows: auto minmax(0,1fr) auto; overflow: hidden;
+}
+.neo-structured-editor header, .neo-structured-editor footer { padding: .65rem 1rem; background: var(--solid); }
+.neo-structured-editor header { padding-top: max(.65rem,env(safe-area-inset-top)); }
+.neo-structured-editor footer { padding-bottom: max(.65rem,env(safe-area-inset-bottom)); max-height: 45dvh; overflow: auto; }
+.neo-structured-editor footer label { margin-bottom: .25rem; }
+.neo-structured-editor textarea { min-height: 3rem; }
+.neo-structured-scroll { padding: 1rem; min-height: 0; overflow: auto; }
+.neo-structured-preview { background: var(--soft); border-radius: 1rem; padding: .75rem; min-height: 7rem; }
+.neo-structured-bubble { background: var(--solid); border-radius: 12px 12px 3px 12px; margin: .5rem 0 .5rem auto; padding: .5rem .7rem; max-width: 92%; overflow-wrap: anywhere; }
+.neo-structured-bubble img { display: block; max-width: 100%; max-height: 240px; object-fit: contain; }
+.neo-structured-bubble img[hidden] { display: none; }
+.neo-structured-text { white-space: pre-wrap; }

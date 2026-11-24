@@ -213,11 +213,12 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  const syncPicker=embedded?mountSyncedCampaignGroups(q('[data-wa-sync-recipients]'),{cloud,picking:true}):null;
  if(cloud.connectTestEnabled===false)connect.querySelector('[data-connect-root]').textContent='Canal Windows indisponível neste ambiente.';
  let connectPanel;
- connect.addEventListener('toggle',()=>{
-  if(connectPanel||cloud.connectTestEnabled===false||!connect.open||typeof mountNeoConnect!=='function')return;
-  connectPanel=mountNeoConnect(q('[data-connect-root]'),cloud);
+ function loadConnect(){
+  if(cloud.connectTestEnabled===false||typeof mountNeoConnect!=='function')return;
+  connectPanel??=mountNeoConnect(q('[data-connect-root]'),cloud);
   void connectPanel.load();
- });
+ }
+ connect.addEventListener('toggle',()=>{if(!embedded&&connect.open)loadConnect();});
  const groupForm=q('[data-wa-group]'),form=q('[data-wa-publication]'),select=form.querySelector('[name=campaign_id]');
  help(groupForm,'wa-group');help(q('[data-wa-group-search]'),'wa-search');help(form,'wa-form');help(q('[data-wa-queue]').parentElement,'wa-queue');
  const queue=q('[data-wa-queue]').parentElement,groupList=q('[data-wa-groups]'),groupSearchForm=q('[data-wa-group-search]');
@@ -248,9 +249,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
   if(!connect.hidden){
    connect.open=true;
    connect.querySelector('summary').hidden=true;
-   if(!connectPanel&&cloud.connectTestEnabled!==false&&typeof mountNeoConnect==='function'){
-    connectPanel=mountNeoConnect(q('[data-connect-root]'),cloud);void connectPanel.load();
-   }
+   if(next!==previousView||!connectPanel)loadConnect();
   }
   if(groups&&syncCatalog&&next!==previousView)void syncCatalog.load();
   groupContainer.hidden=!groups;
