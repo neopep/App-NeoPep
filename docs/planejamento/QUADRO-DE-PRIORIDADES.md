@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #010.06 — candidata validada localmente; homologação e divergência de reembolso legado pendentes.
-**ÚLTIMA_DECISÃO:** proprietário determinou controle rigoroso porque há poucos deploys disponíveis na Vercel. Adotar política DEPLOY_SOB_DEMANDA: desligar ou preservar desligado deploy automático de branches de trabalho/documentação; desenvolver, compilar e testar localmente; fazer no máximo um deploy de homologação por lote consolidado, após gates, com autorização operacional de Teste; separar publicação de Produção e registrar consumo real. #010.06 em execução planejada, sem deploy novo autorizado.
+**FOCO_ATUAL:** #010.06 — candidata implementada localmente em `5a53489` / PR #54 draft, pendente de SQL em Teste, QA real e decisão sobre reembolso integral legado. #010.04+#010.05 aceitas em Teste; deploys Vercel preservados.
+**ÚLTIMA_DECISÃO:** Codex entregou candidata #010.06 (`5a53489`) com testes locais reportados e bloqueio de liberação de estoque por reembolso integral legado. Assistente confirmou Git diff (17 arquivos, branch 1 commit à frente de PR #53), abriu PR #54 draft e verificou em leitura no Supabase Teste dependências instaladas e objetos 010.06 ausentes. Nenhuma migração/deploy/Produção alterada; preservar cotas Vercel.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -18,7 +18,7 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | Em espera | #008 | Fixar posts da Biblioteca | EM_TESTE (local; SQL não aplicado em Teste) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 008.03 |
 | Em espera | #009 | Seringa no card da Home | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 009.03 |
 | Em espera | #003 | Tema claro/escuro | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 003.05 |
-| 1 (foco atual) | #010 | Estoque, custos e lucro | 010.06 candidata validada localmente | 010.04/010.05 aceitas; 010.06 pendente | 010.06 não publicada | Revisar reembolso legado e homologar 010.06 |
+| 1 (foco atual) | #010 | Estoque, custos e lucro | 010.04+010.05 ACEITAS; 010.06 CANDIDATA LOCAL / PR #54 DRAFT | 010.04 e 010.05 aprovadas; 010.06 pendente | Somente Teste da integração anterior; 010.06 não publicada | Decidir reembolso legado, autorizar migração 010.06 somente Teste e QA |
 | 10 | #011 | Edição em massa | NÃO_INICIADO | Não solicitado | Não preparado | 011.01 |
 | 11 | #013 | Campanhas e Connect | NÃO_INICIADO | Não solicitado | Não preparado | 013.01 |
 | 12 | #012 | Planos/assinaturas | NÃO_INICIADO | Não solicitado | Não preparado | 012.01 |
