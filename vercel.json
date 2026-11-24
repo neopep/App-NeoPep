@@ -66,7 +66,8 @@
       "desenvolvimento/calculadora-ajustes-lote": false,
       "desenvolvimento/ajuste-013-central-campanhas": false,
       "desenvolvimento/ajuste-013-continuacao": false,
-      "desenvolvimento/ajuste-013-windows-qa": false
+      "desenvolvimento/ajuste-013-windows-qa": false,
+      "desenvolvimento/ajuste-013-diagnostico-sessao": false
     }
   }
 }
