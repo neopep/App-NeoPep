@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #013 — Connect Teste 0.2.9 instalado; sessão WhatsApp Teste conectada e grupos visíveis, mas último sync de grupos ainda antigo. Na janela Produção erro local genérico 'Não foi possível processar a sessão local protegida'; diagnosticar sem apagar cofres ou alterar Produção. Flags de envio OFF, sem Vercel.
-**ÚLTIMA_DECISÃO:** proprietário validou WhatsApp/grupos no Teste e reportou erro de processamento da sessão na janela Produção da 0.2.9. Inspeção read-only dos dois Supabase: Teste conectado com heartbeat recente; Produção com último status 'connected' mais antigo, sem prova de sessão atualmente saudável. Não apagar/desvincular nem copiar cofres entre perfis.
+**FOCO_ATUAL:** #013 — diagnóstico não destrutivo da sessão WhatsApp Produção na PR #59, versão candidata Connect 0.2.10; inspeção por fase DPAPI/Bridge/credenciais/estado/grupos. Testes Windows em execução. Release 0.2.9 instalado; Prod sem alteração; Vercel e envios automáticos OFF.
+**ÚLTIMA_DECISÃO:** proprietário pediu «Então faça» para corrigir diagnóstico da sessão protegida Produção. Criada branch desenvolvimento/ajuste-013-diagnostico-sessao e PR draft #59. Mudança preserva cripto, pastas, cofre e bloqueio de envios, adiciona códigos locais seguros sem dados sensíveis. CI candidato 0.2.10 pendente; nenhum deploy/distribuição autorizada até validação.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
