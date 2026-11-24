@@ -12,7 +12,7 @@ test('diagnóstico diferencia leitura DPAPI, credencial e processamento de event
  assert.match(source,/phase="GRUPOS";/);
  assert.match(source,/RecordSafeDiagnostic\(phase,error\)/);
  assert.match(source,/ShowSafeFailure\(code\)/);
- assert.match(source,/Sessão preservada/);
+ assert.match(source,/O diagnóstico não apaga o cofre/);
  assert.doesNotMatch(source,/error\.Message|error\.StackTrace|error\.ToString\(\)/);
 });
 

@@ -18,3 +18,5 @@ A mensagem genérica vinha do `catch` em `connect/windows/WhatsApp.cs::Receive`,
 2. Abrir Produção → WhatsApp → Conexão WhatsApp e tentar conectar uma vez.
 3. Se falhar, copiar **somente** o código `WA-...` apresentado na aba Diagnóstico, sem compartilhar arquivos `.dat` ou credenciais.
 4. Corrigir precisamente a fase reportada, sem apagar a sessão. Manter Prod sem enviar.
+
+**Precisão de status:** uma falha da sessão não garante que o cofre estivesse intacto antes do diagnóstico. A interface informa apenas que a rotina de diagnóstico não o apaga; nenhum reset ou reparação são prometidos sem evidência de causa.

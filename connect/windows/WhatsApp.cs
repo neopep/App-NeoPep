@@ -148,9 +148,9 @@ sealed partial class WhatsApp : Form {
         return code;
     }
     void ShowSafeFailure(string code){
-        Notify("Falha ao processar a conexão protegida ("+code+"). Sessão preservada. Consulte Diagnóstico.");
+        Notify("Falha ao processar a conexão protegida ("+code+"). Não use Desconectar. Consulte Diagnóstico.");
         diagnostic.Text=code+" • "+DateTime.Now.ToString("g")+
-            "\nNenhuma credencial foi apagada. Não use Desconectar nem refaça o QR Code."+
+            "\nO diagnóstico não apaga o cofre. Não use Desconectar nem refaça o QR Code."+
             "\nRegistro local restrito: whatsapp-diagnostico.log (apenas data e código).";
     }
 
