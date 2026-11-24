@@ -194,3 +194,10 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - Codex reportou build/check/empacotamento e 75 testes direcionados aprovados, migração reaplicada em banco isolado; testes **não repetidos por este agente**.
 - Bloqueio: Supabase Teste não acessível ao Codex; migração não aplicada em Teste ou Produção. Revisar SQL/RLS, aplicar em Teste por fluxo seguro, validar sessão autenticada, Safari/PWA/dispositivos físicos e integração com #001 após aprovação de ambos.
 - Nenhum merge ou deploy realizado. PRs #41–#45 seguem separadas. Estado: EM_TESTE (local), ACEITE_NAO_CONCEDIDO, PUBLICACAO_NAO_REALIZADA.
+
+### Registro #005 — 24/11/2026 (conferência GitHub)
+- Branch `desenvolvimento/ajuste-005-comparacoes-grupo`, commit `348373111f856574ed0372ddea2855edd7b2faa1`; [PR #47](https://github.com/neopep/App-NeoPep/pull/47) aberta em rascunho para `staging/permanente`.
+- Comparação GitHub: 1 commit à frente, 0 atrás de `staging/permanente@0970ae6`; 10 arquivos alterados (community, cloud, CSS, SW, build, testes e registro de execução).
+- Codex reportou build/check/empacotamento e 67 testes direcionados aprovados, com serviços simulados e emulações Chromium/iPhone 13/Pixel 7. Estes testes **não foram repetidos por este agente**.
+- Pendências: revisão dirigida de código; homologação de permissões e expiração de URLs assinadas no Teste com contas reais, Safari/PWA e dispositivos físicos; aceite explícito. Nenhum merge/deploy efetuado. PRs #41–#46 seguem separadas.
+- Estados: EM_TESTE (local), ACEITE_NAO_CONCEDIDO, PUBLICACAO_NAO_REALIZADA.
