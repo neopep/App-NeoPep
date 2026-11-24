@@ -486,3 +486,9 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - Artefato privado `connect-teste-0.2.10-45481286448-1`, ID 14960019492, ZIP digest `326fe14dc82441067713f024463f7692955b75350333282bbb746ababd7e5702`; ainda falta assinatura do manifesto pelo agente RSA CNG e confirmação `draft` em Supabase Teste.
 - Nenhuma publicação/instalação da 0.2.10, a 0.2.9 continua em uso. Sessão Produção ainda com falha não classificada; novo diagnóstico fornecerá código `WA-...` após instalação opcional e teste controlado, sem limpar cofre.
 - Checks de envio da #013 seguem OFF e não houve alteração de Produção, deploy Vercel, envios WhatsApp ou nova migração SQL.
+
+### #013 — release de diagnóstico 0.2.10 assinado e em draft (24/11/2026)
+- Supabase Teste após agente: evidência `connect_release_evidence` versão **0.2.10**, código `148f68f927b9b128dcd5518b97dc6ab69f8980cb`, run privado **45481286448**, `artifact=connect-teste-0.2.10-45481286448-1`, SHA do instalador `57693a75407a01aae789fad98cbc2cd0d05a3c29b8189dac03eb0922e1bf97bf`, **51.356.672 bytes**, em **2026-11-24T20:34:44Z**.
+- Registro `neo_private.connect_releases` em Teste `distribution_state=draft`, `approved_at=NULL`, `required=false` (opcional); **nenhuma aprovação, instalação ou distribuição**. Candidato respeita perfil Teste e adiciona apenas diagnóstico por fase, sem novo envios ou resets.
+- Próximos passos: proprietário aprovar na área NeoPep Connect → Atualizações de Teste; no Windows consentir «Atualizar agora»; testar WhatsApp na janela de Produção com o código WA-... se falhar e sem utilizar «Desconectar»/novo QR. Não concluir recuperação de sessão antes de verificar resultado no cliente atualizado.
+- Nenhum deploy Vercel, envio WhatsApp/push, atualização banco Produção ou Mercado Pago; o agente de assinatura gravou apenas a evidência e o rascunho permitidos em banco Teste.
