@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),{parseHTML}=require('linkedom'),fs=require('fs'),vm=require('vm'),C=require('../dist/core.js');
-function setup(seed={},options={}){const {document,Event}=parseHTML(fs.readFileSync('dist/index.html','utf8'));const data=new Map(Object.entries(seed)),writes=[];let counter=0;const ctx={document,console,Event,localStorage:{getItem:k=>data.get(k)??null,setItem:(k,v)=>{if(options.quota)throw Error('quota');data.set(k,v);writes.push(k)},removeItem:k=>data.delete(k)},location:{hash:'',href:options.url||'https://example.test/',protocol:'https:'},history:{replaceState(a,b,hash){ctx.location.hash=hash}},navigator:{onLine:true},matchMedia:()=>({matches:false,addEventListener(){}}),setInterval(){},setTimeout(){},clearTimeout(){},addEventListener(){},scrollTo(){},confirm:()=>true,prompt:()=>null,URL,Blob,Date:options.date||Date,Number,String,JSON,FormData:class{},crypto:{randomUUID:()=>String(++counter)},NeoCore:C,NeoCloud:{configured:false,init:async()=>null,...options.cloud},NEO_CONFIG:{providers:{google:false,apple:false,email:false}},indexedDB:null};ctx.window=ctx;document.querySelector('#dialog').showModal=function(){this.setAttribute('open','')};document.querySelector('#dialog').close=function(){this.removeAttribute('open');this.dispatchEvent(new Event('close'))};vm.createContext(ctx);vm.runInContext(fs.readFileSync('dist/app.js','utf8'),ctx);return {ctx,document,data,writes,run:code=>vm.runInContext(code,ctx)}}
+function setup(seed={},options={}){const {document,Event}=parseHTML(fs.readFileSync('dist/index.html','utf8'));const data=new Map(Object.entries(seed)),writes=[];let counter=0;let darkSystem=options.darkSystem??false;const systemEvents=[];const ctx={document,console,Event,localStorage:{getItem:k=>data.get(k)??null,setItem:(k,v)=>{if(options.quota)throw Error('quota');data.set(k,v);writes.push(k)},removeItem:k=>data.delete(k)},location:{hash:'',href:options.url||'https://example.test/',protocol:'https:'},history:{replaceState(a,b,hash){ctx.location.hash=hash}},navigator:{onLine:true},matchMedia:query=>({get matches(){return query.includes('color-scheme')&&darkSystem},addEventListener(type,fn){if(query.includes('color-scheme')&&type==='change')systemEvents.push(fn)}}),setInterval(){},setTimeout(){},clearTimeout(){},addEventListener(){},scrollTo(){},confirm:()=>true,prompt:()=>null,URL,Blob,Date:options.date||Date,Number,String,JSON,FormData:class{},crypto:{randomUUID:()=>String(++counter)},NeoCore:C,NeoCloud:{configured:false,init:async()=>null,...options.cloud},NEO_CONFIG:{providers:{google:false,apple:false,email:false}},indexedDB:null};ctx.window=ctx;document.querySelector('#dialog').showModal=function(){this.setAttribute('open','')};document.querySelector('#dialog').close=function(){this.removeAttribute('open');this.dispatchEvent(new Event('close'))};vm.createContext(ctx);vm.runInContext(fs.readFileSync('dist/appearance.js','utf8'),ctx);vm.runInContext(fs.readFileSync('dist/app.js','utf8'),ctx);return {ctx,document,data,writes,setSystem(dark){darkSystem=dark;for(const fn of systemEvents)fn({matches:dark});},run:code=>vm.runInContext(code,ctx)}}
 test('todos os módulos renderizam em DOM e branding não contém Elo fora da migração',async()=>{const a=setup();for(const route of ['inicio','evolucao','registros','diario','aplicacoes','protocolos','calculadora','relatorios','calendario','lembretes','perfil','bemvindo','privacidade','fotos','onboarding','termos']){await a.run(`go('${route}',false)`);assert.ok(a.document.querySelector('#content').textContent.length>50,route)}assert.match(a.document.title,/NeoPep/);assert.equal(a.document.querySelectorAll('#nav button').length,5);assert.equal(a.writes.length,0)});
 test('prévia não migra nem grava elo-v1 automaticamente',()=>{const original=JSON.stringify({weights:[{id:1,date:C.today(),value:81}],measures:[],doses:[],settings:{}});const a=setup({'elo-v1':original});assert.equal(a.data.get('elo-v1'),original);assert.equal(a.writes.length,0);assert.equal(a.run('state.weights.length'),0)});
 test('CRUD local persiste e volta após nova abertura sem sobrescrever Elo',async()=>{const original='original',a=setup({'elo-v1':original});await a.run(`putRecord('weights',{id:'x',date:C.today(),value:80,note:''})`);assert.equal(a.writes.at(-1),'neo-v2');assert.equal(a.data.get('elo-v1'),original);assert.equal(a.run('state.weights.length'),1);const b=setup(Object.fromEntries(a.data));assert.equal(b.run('state.weights[0].value'),80);await a.run(`putRecord('weights',{id:'y',date:C.today(),value:79,note:''})`);assert.equal(a.run('state.weights.length'),1);assert.equal(a.run('state.weights[0].id'),'x');assert.equal(a.run('state.weights[0].value'),79)});
@@ -476,4 +476,33 @@ test('seringas têm comprimento comum, diâmetros diversos e recorte externo da 
   assert.equal(document.getElementById(id).firstElementChild.getAttribute('width'),glass.getAttribute('x'));
   assert.equal(document.querySelector('.calc-level-label text').textContent,'15,12 UI');
  }
+});
+
+test('aparência usa o sistema na abertura, preserva a escolha manual e permite voltar ao automático',async()=>{
+ const a=setup({}, {darkSystem:true});
+ const theme=app=>app.document.documentElement.dataset.theme;
+ assert.equal(theme(a),'dark');
+ assert.equal(a.data.has('neo-appearance'),false);
+ await a.run("go('inicio',false)");
+ const choose=value=>{
+  const select=a.document.querySelector('#homeAppearance');
+  for(const option of select.querySelectorAll('option'))option.toggleAttribute('selected',option.value===value);
+  select.dispatchEvent(new a.ctx.Event('change',{bubbles:true}));
+ };
+ choose('light');assert.equal(theme(a),'light');
+ assert.equal(a.data.get('neo-appearance'),'light');
+ a.setSystem(false);a.setSystem(true);assert.equal(theme(a),'light');
+ const reopened=setup(Object.fromEntries(a.data),{darkSystem:true});
+ assert.equal(theme(reopened),'light');
+ a.ctx.NeoCloud.user={id:'account-a'};
+ await a.run("mode='cloud';go('inicio',false)");
+ a.ctx.NeoCloud.user={id:'account-b'};
+ await a.run("go('inicio',false)");
+ assert.equal(theme(a),'light');
+ choose('dark');assert.equal(theme(a),'dark');
+ choose('system');a.setSystem(false);assert.equal(theme(a),'light');
+ a.setSystem(true);assert.equal(theme(a),'dark');
+ assert.equal(a.data.get('neo-appearance'),'system');
+ const html=fs.readFileSync('dist/index.html','utf8'),admin=fs.readFileSync('dist/admin/index.html','utf8');
+ for(const file of [html,admin])assert.ok(file.indexOf('appearance.js')>=0&&file.indexOf('appearance.js')<file.indexOf('style.css'));
 });

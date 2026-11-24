@@ -607,3 +607,47 @@ html.library-video-open,html.library-video-open body{overflow:hidden;overscroll-
 
 .library-home-symbol :is(img,video,canvas){width:100%;height:100%;object-fit:contain;display:block}
 .library-home-symbol [data-pdf-thumb]{display:block;width:100%;height:100%}
+
+/* Home appearance control, independent of the mobile header width. */
+.home-appearance{display:flex;justify-content:flex-end;align-items:center;gap:.5rem;margin-block:0 .65rem;color:var(--muted);font-size:.82rem}
+.home-appearance label{margin:0;font-size:inherit}
+.home-appearance select{width:auto;max-width:100%;min-height:44px;margin:0;padding:.45rem .6rem;border-radius:.65rem;color:var(--ink);background:var(--surface);border:1px solid var(--border);font-size:inherit}
+.home-appearance select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+[data-theme=light]{
+ --bg:#F4F5F6;--ink:#253449;--muted:#566579;--secondary-tone:#697789;
+ --navy:#142743;--surface:rgba(255,255,255,.88);--solid:#FFFFFF;
+ --line:#E2E5EA;--border:#D8DEE6;--accent:#223F63;--violet:#A8B4CC;
+ --soft:#EDF0F4;--gold:#223F63;--shadow:0 8px 24px #1427430d;
+ --chart:#385c86;--danger:#922c45;--good:#2b674f;--blur:blur(16px);
+ --calc-fluid-pigment:#6684aa;
+}
+[data-theme=light] .ambient{background:var(--bg)}
+[data-theme=light] :is(.primary,.home-quick-add.primary){background:var(--accent);color:var(--solid);box-shadow:0 3px 10px #14274322}
+[data-theme=light] :is(.card,dialog,.app-header,nav){accent-color:var(--accent)}
+[data-theme=light] :is(input,select,textarea){color:var(--ink);border-color:var(--border)}
+[data-theme=light] :is(input,textarea)::placeholder{color:var(--secondary-tone);opacity:1}
+[data-theme=light] :is(.brand,.page-head h1,.auth-brand){color:var(--navy)}
+[data-theme=light] :is(.demo-banner,.offline-banner,.library-filter-panel,.shop-featured-choice,.shop-home-image,.shop-product-visual,.shop-detail-photo){background:var(--soft);color:var(--accent);border-color:var(--border)}
+[data-theme=light] :is(.shop-featured-choice:has(input:checked)>span:first-of-type,.campaign-info,.chat-bubble>strong){color:var(--accent)}
+[data-theme=light] .shop-featured-choice input{accent-color:var(--accent)}
+[data-theme=light] .library-success-check{color:var(--good);background:var(--soft);border-color:var(--border)}
+[data-theme=light] .shop-applied-discount>strong{color:var(--good)}
+[data-theme=light] :is(.library-material-actions .icon-btn,.library-material-actions .library-feature-toggle[aria-pressed=true]){background:var(--soft)}
+[data-theme=light] .campaign-info-text:not([hidden]){background:var(--solid);color:var(--ink);border-color:var(--border)}
+[data-theme=light] .shop-payment-progress span{background:var(--accent)}
+[data-theme=light] .library-video-shell{--video-gold:#A8B4CC}
+[data-theme=light] :is(.library-video-title,.library-video-toolbar [data-video-time],.library-video-status,.library-video-shell button,.library-video-controls){color:#F4F5F6;background:#142743e8;border-color:#A8B4CC}
+.page-head:has(.home-appearance){flex-wrap:wrap}
+.page-head .home-appearance{margin-inline-start:auto;margin-block:0}
+[data-theme=light] .bottom-nav .nav-community>svg{background:var(--navy);color:var(--solid);box-shadow:0 4px 12px #14274326}
+[data-theme=light] :is(.bottom-nav .nav-community.active,.home-dose-shortcut){background:var(--soft);border-color:var(--border)}
+[data-theme=light] :is(.calc-vial,.calc-syringe) stop[stop-color="#fcdf9e"]{stop-color:#B8C5DA}
+[data-theme=light] :is(.calc-vial,.calc-syringe) stop[stop-color="#fff0d4"]{stop-color:#EDF0F4}
+[data-theme=light] .calc-syringe stop[stop-color="#a68b64"]{stop-color:#697789}
+[data-theme=light] .calc-syringe stop[stop-color="#997e58"]{stop-color:#697789}
+[data-theme=light] :is(.hero,.avatar,.chat-own){background:var(--soft);border-color:var(--border);color:var(--ink)}
+[data-theme=light] :is(.progress i,.result){background:var(--accent);color:var(--solid)}
+[data-theme=light] .notification-toast{background:var(--solid);border-color:var(--border);color:var(--ink);box-shadow:var(--shadow)}
+[data-theme=light] .photo-comparison{--photo-gold:#223F63;--photo-rail:#D8DEE6}
+[data-theme=light] .bottom-nav .nav-community>svg{border-color:var(--border)}

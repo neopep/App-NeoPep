@@ -124,7 +124,7 @@ async function cacheUpgrade(browser){
  const worker=fs.readFileSync(path.join(dist,'sw.js'),'utf8')+
   "\nself.addEventListener('message',event=>{if(event.data==='cache-fixture')event.ports[0].postMessage(CACHE);});";
  const oldWorker=worker.replace(/^const CACHE=.*;$/m,"const CACHE='neopeptideos-shell-legacy-fixture';").replace("'library-video.js',",'');
- const newShell='<script src="library-video.js"></script>';
+ const newShell='<script src="appearance.js"></script><script src="library-video.js"></script>';
  let updated=false;
  const server=http.createServer((request,response)=>{
   const pathname=new URL(request.url,'http://localhost').pathname;
@@ -135,7 +135,7 @@ async function cacheUpgrade(browser){
   }else if(pathname==='/'||pathname==='/index.html'){
    response.setHeader('Content-Type','text/html');
    response.end('<!doctype html><body>Biblioteca'+(updated?newShell:'')+'</body>');
-  }else if(pathname==='/library-files.js'||pathname==='/library-video.js'&&updated){
+  }else if(pathname==='/appearance.js'||pathname==='/library-files.js'||pathname==='/library-video.js'&&updated){
    response.setHeader('Content-Type','text/javascript');
    response.end(fs.readFileSync(path.join(dist,pathname.slice(1))));
   }else{response.writeHead(404);response.end();}
@@ -185,6 +185,7 @@ async function cacheUpgrade(browser){
   assert.equal(response.fromServiceWorker(),true);
   assert.match(await page.content(),/library-video\.js/);
   assert.equal(await page.evaluate(()=>typeof window.NeoLibraryVideo?.open),'function');
+  assert.equal(await page.evaluate(()=>typeof window.NeoAppearance?.apply),'function');
  }finally{
   await page.close();
   await new Promise(resolve=>server.close(resolve));
