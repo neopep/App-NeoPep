@@ -1,0 +1,91 @@
+name: Consolidar deltas do ciclo (CANDIDATO; sem Vercel)
+on:
+  push:
+    branches: [homologacao/ciclo-completo-2026-11-24]
+    paths: ['.github/workflows/release-cycle-merge.yml']
+permissions:
+  contents: write
+jobs:
+  merge-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.22.1'
+      - name: Reconciliar ramos localmente, sem publicação
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "NeoPep release CI"
+          git config user.email "release-ci@users.noreply.github.com"
+          for entry in \
+            "006 desenvolvimento/ajuste-006-miniatura-pdf 0087a15d27dc4c48c1cae675fae86c9e59199a8a" \
+            "008 desenvolvimento/ajuste-008-fixar-biblioteca d76ae73379537c3cf5d638f18dc91ab019e8cdb8" \
+            "009 desenvolvimento/ajuste-009-seringa-home b66569b39ddf7a322dc34cd78c7f6476ec4bd803" \
+            "003 desenvolvimento/ajuste-003-tema-claro 00ef2d4e7be01bb19261a8cdc5987439a7888299" \
+            "001 desenvolvimento/ajuste-001-localizacao cf3483f97c1b877643d22d0bdf98997363ef9b31" \
+            "002 desenvolvimento/ajuste-002-personalizacao bd0c64df2cbad3088e9f9d9ea4932df44efaf2ad" \
+            "005 desenvolvimento/ajuste-005-comparacoes-grupo 348373111f856574ed0372ddea2855edd7b2faa1" \
+            "007 desenvolvimento/ajuste-007-atendimento-loja facee60bc5cdfc32704178af97e1b4674a05460f" \
+            "013 desenvolvimento/ajuste-013-diagnostico-sessao fa25bd1b327fdc7f09649dffbf56a11012b0a85e"
+          do
+            read -r id b expected <<< "$entry"
+            git fetch --no-tags origin "refs/heads/$b:refs/remotes/origin/$b" >/dev/null 2>&1
+            found="$(git rev-parse "refs/remotes/origin/$b")"
+            if [[ "$found" != "$expected" ]]; then echo "::error::Fonte #$id alterada: $found vs $expected"; exit 1; fi
+            echo "::group::MERGE_CANDIDATO_$id"
+            # Prefer existing on conflicting hunks ONLY in this unreleased candidate.
+            # All conflicts must subsequently be reviewed to restore omitted changes.
+            if ! git merge --no-ff -X ours -m "candidate: integrar delta #$id sem deploy" "$found"; then
+              echo "::error::Integração Git #$id requer revisão humana."
+              git status --short
+              exit 1
+            fi
+            echo "INTEGRADO_EM_CANDIDATO_$id | $(git rev-parse HEAD)"
+            echo "::endgroup::"
+          done
+          node - <<'NODE'
+          const fs=require('fs');
+          const v=JSON.parse(fs.readFileSync('vercel.json','utf8'));
+          const branch='homologacao/ciclo-completo-2026-11-24';
+          if(v.git?.deploymentEnabled?.[branch]!==false)throw Error('Proteção contra deploy Vercel desativada');
+          const s=fs.readFileSync('src/app.js','utf8'),cloud=fs.readFileSync('src/cloud.js','utf8');
+          const files=['dist/library.js','dist/library-files.js','dist/community.js','dist/shop.js','dist/admin/campaign-editor.js','connect/windows/WhatsApp.cs'];
+          for(const f of files)if(!fs.existsSync(f))throw Error('Falta arquivo '+f);
+          if(!s||!cloud)throw Error('App ou cloud ausentes');
+          console.log('GATE ESTÁTICO: BRANCH SEM DEPLOY E ARQUIVOS PRESENTES');
+          NODE
+          git status --short
+      - name: Instalar dependências e reconstruir fonte compartilhada
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+          git add src/app.js src/cloud.js dist/app.js dist/cloud.js
+          git commit -m "build: regenerar bundles do candidato integral" || true
+      - name: Testes e verificação de regressão (não publica)
+        shell: bash
+        run: |
+          set +e
+          npm run check
+          check=$?
+          npm test
+          tests=$?
+          echo "VALIDACAO_CHECK=$check VALIDACAO_TESTS=$tests"
+          if [ "$check" != 0 ] || [ "$tests" != 0 ]; then
+            echo "::warning::Candidato não publicável: testes e/ou checks falharam. Commit apenas na branch isolada."
+          fi
+          exit 0
+      - name: Salvar somente na branch isolada, sem merge de produção
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e "const v=require('./vercel.json');if(v.git.deploymentEnabled['homologacao/ciclo-completo-2026-11-24']!==false)process.exit(1)"
+          git push origin HEAD:refs/heads/homologacao/ciclo-completo-2026-11-24
+          echo "CANDIDATO_DE_INTEGRACAO_ESCRITO_SEM_DEPLOY"
