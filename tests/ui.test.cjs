@@ -477,3 +477,41 @@ test('seringas têm comprimento comum, diâmetros diversos e recorte externo da 
   assert.equal(document.querySelector('.calc-level-label text').textContent,'15,12 UI');
  }
 });
+
+test('personalização é independente, opcional e revisável por conta',async()=>{
+ const decisions=new Map(),calls=[];
+ let account='a',shouldFail=false;
+ const options={cloud:{
+  user:{id:account},onboardingComplete:true,
+  privacyPreferences:async(choices,complete)=>{calls.push(['privacy',choices,complete]);return {pending:!complete,statistics:false,usage:false,campaigns:false,location:false};},
+  personalizationConsent:async choice=>{
+   if(choice!==undefined){calls.push(['personalization',account,choice]);if(shouldFail)throw Error('rede');decisions.set(account,choice);}
+   return {decided:decisions.has(account),granted:decisions.get(account)===true};
+  }
+ }};
+ const a=setup({},options),tick=()=>new Promise(setImmediate),q=sel=>a.document.querySelector(sel);
+ const start=async()=>{await a.run("mode='cloud';openAccountDestination()");await tick();};
+ const choose=async value=>{q('[data-personalization-choice='+value+']').click();await tick();};
+ await start();
+ assert.equal(q('#personalizationTitle').textContent,'Personalize sua experiência');
+ assert.match(q('[data-personalization]').textContent,/Permita que o NeoPep personalize sua experiência e melhore nossas comunicações\./);
+ assert.equal(q('[data-personalization]').hidden,false);
+ assert.equal(q('#privacyPreferences').hidden,true);
+ assert.equal(decisions.size,0);
+ await choose('allow');
+ assert.equal(decisions.get('a'),true);
+ assert.equal(q('#privacyPreferences').hidden,false);
+ assert.equal(calls.some(([action,value])=>action==='privacy'&&value),false);
+ await start();assert.equal(q('[data-personalization]').hidden,true);
+ await a.run("go('permissoes',false)");await tick();
+ assert.equal(q('[data-personalization-choice=deny]').hidden,false);
+ await choose('deny');assert.equal(decisions.get('a'),false);
+ account='b';a.ctx.NeoCloud.user={id:account};
+ await start();assert.equal(q('[data-personalization]').hidden,false);
+ await choose('deny');assert.equal(decisions.get('b'),false);
+ account='c';a.ctx.NeoCloud.user={id:account};shouldFail=true;
+ await start();await choose('allow');
+ assert.equal(decisions.has('c'),false);
+ assert.equal(q('#privacyPreferences').hidden,false);
+ assert.match(q('[data-privacy-notice]').textContent,/Não foi possível confirmar/);
+});
