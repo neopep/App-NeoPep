@@ -81,7 +81,7 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 | 010.05.3 | Integração com Loja → Gerenciar | VALIDADO LOCALMENTE | commit 2785404, interface e cache PWA |
 | 010.05.4 | Ensaios de regressão e filtragem | VALIDADO LOCALMENTE | 33 testes, PostgreSQL isolado e emulações |
 | 010.05.5 | Aplicação controlada e QA em Teste | SQL INSTALADO; FRONTEND VALIDADO LOCALMENTE | Ledger 20261124172822; deploy e QA real pendentes |
-| 010.06 | Testar concorrência e reconciliação | PLANEJADO | webhook preservado |
+| 010.06 | Testar concorrência e reconciliação | EM_PREPARAÇÃO / NÃO_IMPLEMENTADO | Plano #010.06 aprovado como foco pelo proprietário; integração futura deve preservar webhook e operar primeiro no Teste |
 | 011.01 | Contrato e UX preview em massa | PLANEJADO | tabela e filtros |
 | 011.02 | RPC admin atomizada/idempotente | PLANEJADO | ACL e transações |
 | 011.03 | Operações preços + câmbio + arredondamento | PLANEJADO | preview idêntica ao commit |
@@ -336,3 +336,10 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - Ambiente de Teste já publicado: Vercel `app-neopep-staging` deploy `dpl_Fb2oKfv8sFgWUx2945BjmFetetif` READY, domínio `https://teste.app.neopep.com.br/neo/`, Supabase Teste `qnuluspqfazdppciermw`. O proprietário declarou ter validado e aceitado; não inventar evidências adicionais específicas de QA (contas/moderador/iPhone), além do aceite comunicado.
 - Aceite da versão de Teste **não equivale** a merge da PR #53, não autoriza deploy ou DDL/ledger em Supabase de Produção `cpslafpzjtbpmoxxysaa`, nem mudança no Vercel de Produção `app-neopep`. Produção, checkout, estoque/fluxos já publicados e webhook Mercado Pago permanecem protegidos.
 - Próximo escopo planejado: **#010.06** — conciliação financeira, captura idempotente de snapshots de custo, política de custo médio ponderado e conferência de datas, reembolsos, taxas, impostos e frete próprio. NÃO INICIADA, sem migração ou produção autorizada; antes de implementar realizar auditoria das integrações, histórico Git/ledger e proteção de webhook.
+
+### Abertura de finalização #010.06 — 24/11/2026
+- Proprietário: **«Vamos avançar e finalizar»**. Interpretação operacional: executar a 010.06 de ponta a ponta, preparar integração e validar em Teste; **não equivale automaticamente ao aceite do código novo nem à autorização de publicação em Produção**, conforme protocolo já aprovado.
+- Consulta somente leitura ao Supabase Teste `qnuluspqfazdppciermw`: `shop_products=1`, saldo agregado `stock=100`, `shop_orders=0`, `shop_payments=0`, `shop_acquisitions=0`, `shop_stock_movements=0`, `shop_sale_cost_snapshots=0`, 3 migrações financeiras já presentes. Nenhuma escrita realizada.
+- Código de fundação vigente: `neo_private.shop_sale_cost_snapshots` exige pedido real `paid`, não liberado, com linha válida. Há suporte à referência de movimento de reserva, mas ainda sem rotina instalada de captura automática. Não criar snapshots artificiais para pedidos antigos; data de criação do pedido não equivale à data de recebimento.
+- [Plano detalhado #010.06](PLANO-IMPLEMENTACAO-010-06.md) define os blocos e critérios de saída, incluindo integração com 010.04+010.05 via PR #53, **sem merge implícito de #41–#50**, sem mudanças no código/configuração de Mercado Pago.
+- Estado: #010.06 **AINDA NÃO IMPLEMENTADO**, QA/aceite/publicação pendentes. `010.04+010.05` permanecem aceitas em Teste e sem promoção a Produção.

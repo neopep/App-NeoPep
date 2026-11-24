@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #010.06 — próximo ajuste planejado (conciliação de estoque, snapshots e custos); #010.04 e #010.05 aceitos pelo proprietário e publicados exclusivamente em Teste.
-**ÚLTIMA_DECISÃO:** proprietário declarou «Está validado e aceito» em 24/11/2026 para a versão de Teste integrada #010.04+#010.05. Aceite registrado das duas subetapas, incluindo #010.05 (PR #53, commit 43e31df, deploy Vercel Teste READY dpl_Fb2oKfv8sFgWUx2945BjmFetetif). Isto NÃO constitui autorização para Produção, merge ou aplicação de SQL no banco de Produção; #010.06 ainda não iniciado.
+**FOCO_ATUAL:** #010.06 — finalizar conciliação de estoque, custo médio, snapshots e métricas, com implementação a executar em branch isolada. #010.04 e #010.05 já aprovadas em Teste.
+**ÚLTIMA_DECISÃO:** proprietário solicitou «Vamos avançar e finalizar» o ajuste #010. Preparar implementação integral da #010.06 e integração final em Teste, protegendo Mercado Pago; aceite e produção seguem decisões separadas. Leitura Supabase Teste: 1 produto, 100 unidades, 0 pedidos/pagamentos/aquisições/movimentos/snapshots, 3 migrations financeiras já instaladas; não inventar histórico.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -18,7 +18,7 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | Em espera | #008 | Fixar posts da Biblioteca | EM_TESTE (local; SQL não aplicado em Teste) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 008.03 |
 | Em espera | #009 | Seringa no card da Home | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 009.03 |
 | Em espera | #003 | Tema claro/escuro | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 003.05 |
-| 1 (foco atual) | #010 | Estoque, custos e lucro | 010.04+010.05 VALIDADAS E ACEITAS EM TESTE; #010.06 NÃO_INICIADA | 010.04 e 010.05 APROVADAS PELO PROPRIETÁRIO | SOMENTE TESTE; Produção pendente | 010.06 diagnóstico e conciliação |
+| 1 (foco atual) | #010 | Estoque, custos e lucro | 010.04+010.05 ACEITAS TESTE; 010.06 EM PREPARAÇÃO | 010.04 e 010.05 aprovadas; 010.06 pendente | Somente Teste; Produção pendente | Implementar 010.06 em branch isolada e homologar |
 | 10 | #011 | Edição em massa | NÃO_INICIADO | Não solicitado | Não preparado | 011.01 |
 | 11 | #013 | Campanhas e Connect | NÃO_INICIADO | Não solicitado | Não preparado | 013.01 |
 | 12 | #012 | Planos/assinaturas | NÃO_INICIADO | Não solicitado | Não preparado | 012.01 |
@@ -91,6 +91,8 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | 2026-11-24 | Assistente / Vercel Teste | Homologação financeira 010.04+010.05 | #010 / 010.04+010.05 | PR #53 draft; Vercel projeto Teste `app-neopep-staging` publicou commit `43e31df`, deploy `dpl_Fb2oKfv8sFgWUx2945BjmFetetif` READY. Custom alias `teste.app.neopep.com.br` respondeu 200 e `config.js` exibiu Supabase Teste e SHA certo. QA real e aceite 010.05 pendentes; sem publicação em Produção | [PR #53](https://github.com/neopep/App-NeoPep/pull/53) |
 
 | 2026-11-24 | Proprietário | «Está validado e aceito» | #010 / 010.04+010.05 | Aceite explícito da integração em Teste; PR #53 @43e31df, Vercel Teste READY dpl_Fb2oKfv8sFgWUx2945BjmFetetif. Nenhuma promoção para Produção autorizada. #010.06 próximo, ainda não iniciado | [PR #53](https://github.com/neopep/App-NeoPep/pull/53) |
+
+| 2026-11-24 | Proprietário | «Vamos avançar e finalizar» | #010 / 010.06 | Prioriza fechamento completo: conciliação, snapshots idempotentes, política de custo, recebimentos e reversões; preservar checkout/webhook Mercado Pago e o aceite separado de Produção | [Plano #010.06](PLANO-IMPLEMENTACAO-010-06.md) |
 
 ## 4. Fila de aprovados aguardando publicação
 **#010.04 e #010.05 aprovadas pelo proprietário em 24/11/2026**, como versão integrada de Teste da [PR #53](https://github.com/neopep/App-NeoPep/pull/53), commit `43e31df`, deploy READY `dpl_Fb2oKfv8sFgWUx2945BjmFetetif`. Aguardar solicitação explícita de publicação em Produção; nenhuma promoção de PR ou migração de Produção autorizada. #010.06 permanece não iniciada.
