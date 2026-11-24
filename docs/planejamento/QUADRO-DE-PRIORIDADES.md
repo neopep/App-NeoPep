@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #013 — correção dos 4 avisos CS4014 do WinForms + CI Windows repetida e aprovada em 45472598828; PR #58 draft. Guia para homologação física pronto, mas sem binário assinado/distribuído e sem sessão WhatsApp testada; gates Teste OFF.
-**ÚLTIMA_DECISÃO:** proprietário pediu «Então vamos avançar» para validação Windows #013. Código async revisado no commit c5f2237, CI Windows 45472598828 success; guia físico documentado. Repositório privado de build conferido somente em leitura; versão 0.2.8 já usada, sugerida nova 0.2.9. Sem publicação, deploy, instalação ou envios.
+**FOCO_ATUAL:** #013 — NeoPep Connect 0.2.9 build privado Teste aprovado (run 45475331682), artefato privado gerado; assinatura/manifesto pelo agente RSA CNG, registro de rascunho e aceite da atualização pendentes. Flags de envio OFF; sem deploy Vercel nem Produção.
+**ÚLTIMA_DECISÃO:** proprietário autorizou iniciar a atualização para concluir #013. Solicitação privada 0.2.9 registrada no commit c886dc3 e CI de Teste concluída com sucesso; manter aprovação/instalação e qualquer envio separados, após assinatura RSA e evidência no Supabase.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
