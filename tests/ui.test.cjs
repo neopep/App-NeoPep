@@ -477,3 +477,46 @@ test('seringas têm comprimento comum, diâmetros diversos e recorte externo da 
   assert.equal(document.querySelector('.calc-level-label text').textContent,'15,12 UI');
  }
 });
+
+test('card da Home mostra somente o último cálculo salvo da conta e abre a calculadora existente',async()=>{
+ const a=setup(),q=s=>a.document.querySelector(s);
+ const owner='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',other='bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+ const card=()=>q('[data-home-calculator]');
+ const home=()=>a.run("page='inicio';render()");
+ const open=async()=>{card().click();await new Promise(setImmediate);assert.equal(a.run('page'),'calculadora');};
+ a.ctx.NeoCloud.user={id:owner};
+ a.run("mode='cloud'");home();
+ assert.doesNotMatch(card().textContent,/Último cálculo salvo/);
+ assert.equal(card().querySelector('.calc-meniscus'),null);
+ await open();
+ assert.equal(a.document.querySelectorAll('#calcForm [name=capacity]').length,3);
+ function calculate(capacity,dose){
+  q('#mass').value='10';q('#volume').value='1';q('#dose').value=String(dose);
+  a.run(`calcCapacityValue=${capacity};updateCalc()`);
+ }
+ calculate(.3,2.5);home();
+ assert.doesNotMatch(card().textContent,/Último cálculo salvo/);
+ for(const capacity of [.3,.5,1]){
+  await open();calculate(capacity,2.5);q('#calc-save').click();
+  const mark=q('#result [data-calc-piston]').getAttribute('x');
+  home();
+  assert.match(card().textContent,/Último cálculo salvo/);
+  assert.match(card().textContent,/0,25 mL · 25 UI/);
+  assert.equal(card().querySelector('[data-calc-piston]').getAttribute('x'),mark);
+  assert.ok(card().querySelector('[data-graduation="'+Math.round(capacity*100)+'"]'));
+ }
+ await open();
+ q('#calc-saved-list article:last-child [data-calc-saved-action=apply]').click();
+ home();
+ assert.match(card().textContent,/Seringa de 1 mL/);
+ await open();
+ assert.equal(a.run('calcCapacityValue'),.3,'restauração continua respeitando a seleção existente');
+ q('#calc-saved-list article:first-child [data-calc-saved-action=remove]').click();
+ home();assert.match(card().textContent,/Seringa de 0,5 mL/);
+ a.ctx.NeoCloud.user={id:other};home();
+ assert.doesNotMatch(card().textContent,/Último cálculo salvo/);
+ a.ctx.NeoCloud.user={id:owner};home();
+ assert.match(card().textContent,/Seringa de 0,5 mL/);
+ a.run("mode='local'");home();
+ assert.doesNotMatch(card().textContent,/Último cálculo salvo/);
+});
