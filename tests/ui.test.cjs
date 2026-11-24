@@ -439,7 +439,10 @@ test('dosagens preservam precisão, múltiplos itens, seleção, renomeação e 
  const put=(mass,volume,dose,name)=>{
   q('#mass').value=mass;q('#volume').value=volume;q('#dose').value=dose;q('#calc-saved-name').value=name;q('#calc-save').click();
  };
- put('10','2','4.275','A');put('20','1','2.5','B');
+ q('#mass').value='10';q('#volume').value='2';q('#dose').value='4.275';q('#calc-saved-name').value='A';
+ a.run('updateCalc()');q('#result [data-calc-saved-action=save]').click();
+ assert.match(q('[data-calc-result-save-status]').textContent,/Dosagem salva/);
+ put('20','1','2.5','B');
  assert.equal(q('#calc-saved-list').children.length,2);
  assert.equal(q('.calc-layout').lastElementChild.classList.contains('calc-saved'),true);
  const data=JSON.parse(a.data.get('neo-calc-saved-v1:'+owner));

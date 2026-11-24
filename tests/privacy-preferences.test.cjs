@@ -122,3 +122,21 @@ test('permissão nativa de campanhas exige ação, respeita recusa e não ativa 
  assert.match(await window.NeoPush.requestPermission(),/Lembretes/);
  assert.deepEqual(requests,['native']);
 });
+
+test('consulta nativa pede localização aproximada e descarta as coordenadas',async()=>{
+ const app=readFileSync('src/app.js','utf8');
+ const source=app.slice(app.indexOf('function requestDeviceLocation()'),app.indexOf('function mountPrivacyPreferences()'));
+ const native=async geolocation=>vm.runInNewContext(source+'\nrequestDeviceLocation()',{
+  navigator:{geolocation}
+ });
+ let calls=0;
+ assert.equal(await native({getCurrentPosition(success,_error,options){
+  calls++;
+  assert.equal(options.enableHighAccuracy,false);
+  assert.equal(options.timeout,8000);
+  success({coords:{get latitude(){throw Error('Coordenadas não devem ser lidas');}}});
+ }}),true);
+ assert.equal(calls,1);
+ assert.equal(await native({getCurrentPosition(_success,error){error({code:1});}}),false);
+ assert.equal(await native(undefined),false);
+});

@@ -62,6 +62,7 @@ const api={configured,
  async connectWaGroups(connection,after=null){return ok(await need().rpc('neo_connect_wa_list_groups',{p_connection:connection,p_after:after,p_limit:50}));},
  async connectAdmin(action,data={}){return ok(await need().rpc('neo_connect_admin',{p_action:action,p_data:data}));},
  async connectReleaseURL(path){return ok(await need().storage.from('neo-connect-releases').createSignedUrl(path,120,{download:'NeoPepConnectSetup.exe'})).signedUrl;},
+ async campaignWhatsAppSync(action,id=null,data={}){return ok(await need().rpc('neo_campaign_wa_sync',{p_action:action,p_id:id,p_data:data}));},
  async campaignWhatsApp(action,id=null,data={}){return ok(await need().rpc('neo_campaign_wa',{p_action:action,p_id:id,p_data:data}));},
  async campaignAdmin(action,id=null,data={}){return ok(await need().rpc('neo_campaign_admin',{p_action:action,p_id:id,p_data:data}));},
  async privacyPreferences(choices=null,complete=false){
@@ -209,6 +210,95 @@ const api={configured,
   const manifest=rows.map(r=>r.kind+':'+r.id).sort(),verified=receipt?.manifest?.map(r=>r.kind+':'+r.id).sort();
   if(version!==identityVersion||account!==user?.id||result?.verified!==rows.length||receipt?.records_requested!==rows.length||JSON.stringify(manifest)!==JSON.stringify(verified))throw Error('A confirmação da migração não pôde ser verificada. Mantenha o backup e a origem local; repita a conferência.');
   return {added:result.added,skipped:merged.skipped,verified:true,migrationId};
+ },
+ async beforeAfterAvailable(){
+  need();
+  const version=identityVersion;
+  const result=await client.from('neo_saved_comparisons').select('id').limit(1);
+  if(version!==identityVersion)throw Error('A conta mudou.');
+  return !result.error;
+ },
+ async savedBeforeAfter(){
+  // Listing must remain possible after photo/health consent is withdrawn.
+  need();
+  const account=user.id,version=identityVersion;
+  const rows=ok(await client.from('neo_saved_comparisons')
+   .select('id,user_id,path,before_photo_id,after_photo_id,before_date,after_date,created_at')
+   .eq('user_id',account).order('created_at',{ascending:false}).limit(100));
+  if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou.');
+  return rows;
+ },
+ async saveBeforeAfter(blob,photos){
+  needsHealth();
+  if(!api.hasConsent('photos'))throw Error('Autorize o armazenamento de fotografias antes de salvar.');
+  if(blob?.type!=='image/jpeg'||!blob.size||blob.size>5242880||!Array.isArray(photos)||photos.length!==2)
+   throw Error('Comparação inválida.');
+  const account=user.id,version=identityVersion;
+  const check=()=>{if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou. Abra novamente a comparação.')};
+  const [before,after]=photos;
+  if(!before||!after||before.id===after.id||!C.validDate(before.date)||!C.validDate(after.date)||
+   before.date>=after.date||!/^[-a-f0-9]{36}$/i.test(before.id)||!/^[-a-f0-9]{36}$/i.test(after.id))
+   throw Error('Escolha fotografias próprias de duas datas em ordem cronológica.');
+  const rows=ok(await client.from('neo_photos').select('id,path,date,role')
+   .eq('user_id',account).in('id',[before.id,after.id]));
+  check();
+  if(rows.length!==2||[before,after].some(p=>!rows.some(row=>
+   row.id===p.id&&row.date===p.date&&row.role==='progress'&&row.path?.startsWith(account+'/'))))
+   throw Error('As fotografias selecionadas não estão disponíveis nesta conta.');
+  const id=crypto.randomUUID(),path=account+'/'+id+'.jpg',bucket=client.storage.from('neo-comparisons');
+  check();
+  ok(await bucket.upload(path,blob,{contentType:'image/jpeg',upsert:false,cacheControl:'0'}));
+  try{
+   check();
+   const saved=ok(await client.from('neo_saved_comparisons').insert({
+    id,user_id:account,path,before_photo_id:before.id,after_photo_id:after.id,
+    before_date:before.date,after_date:after.date
+   }).select('id,path,created_at').single());
+   check();
+   return saved;
+  }catch(error){
+   try{await bucket.remove([path])}catch{}
+   throw error;
+  }
+ },
+ async beforeAfterURL(item){
+  need();
+  const account=user.id,version=identityVersion;
+  if(item?.user_id!==account||!item.path?.startsWith(account+'/'))
+   throw Error('Comparação privada indisponível.');
+  const data=ok(await client.storage.from('neo-comparisons').createSignedUrl(item.path,60));
+  if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou.');
+  return data.signedUrl;
+ },
+ async beforeAfterBlob(item){
+  needsHealth();
+  const account=user.id,version=identityVersion;
+  if(item?.user_id!==account||!item.path?.startsWith(account+'/')||
+   !/^[-a-f0-9]{36}\/[-a-f0-9]{36}\.jpg$/i.test(item.path))
+   throw Error('Comparação privada indisponível.');
+  const record=ok(await client.from('neo_saved_comparisons').select('id,path')
+   .eq('id',item.id).eq('user_id',account).eq('path',item.path).single());
+  if(version!==identityVersion||user?.id!==account||record?.path!==item.path)
+   throw Error('A conta mudou ou a comparação não existe mais.');
+  const blob=ok(await client.storage.from('neo-comparisons').download(item.path));
+  if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou.');
+  if(blob?.type!=='image/jpeg'||!blob.size||blob.size>5242880)
+   throw Error('Imagem da comparação indisponível.');
+  return blob;
+ },
+ async deleteBeforeAfter(item){
+  // A user must be able to erase data even after revoking prior consent.
+  need();
+  const account=user.id,version=identityVersion;
+  if(item?.user_id!==account||!item.path?.startsWith(account+'/'))throw Error('Comparação privada indisponível.');
+  // Delete Storage first: its SELECT policy verifies that this metadata still exists.
+  const record=ok(await client.from('neo_saved_comparisons').select('id,path')
+   .eq('id',item.id).eq('path',item.path).eq('user_id',account).single());
+  if(version!==identityVersion||user?.id!==account||record?.path!==item.path)
+   throw Error('A conta mudou ou a comparação não existe mais.');
+  ok(await client.storage.from('neo-comparisons').remove([item.path]));
+  if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou.');
+  ok(await client.from('neo_saved_comparisons').delete().eq('id',item.id).eq('user_id',account));
  },
  async photos(){
   need();

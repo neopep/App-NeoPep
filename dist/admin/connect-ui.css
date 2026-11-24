@@ -146,3 +146,33 @@ html[data-theme=light] .neo-wa-link{color:#14567a}
 .neo-wa-live summary::before{content:"▸";margin-inline-end:.4rem}
 .neo-wa-live[open] summary::before{content:"▾"}
 .neo-wa-live textarea{display:block;width:100%;min-height:4rem}
+
+/* Navigation in the campaign administration panel. */
+.neo-campaign-crumbs span+span::before{content:none}
+.neo-campaign-crumbs [aria-current=page]{color:var(--ink);font-weight:600}
+.neo-campaign-crumb-link{appearance:none;border:0;background:none;box-shadow:none;padding:0;color:inherit;font:inherit;cursor:pointer}
+.neo-campaign-crumb-link:is(:hover,:focus-visible){text-decoration:underline}
+.neo-campaign-crumb-separator{opacity:.65}
+.neo-campaign-sections[role=tablist],.neo-connect-tabs{display:flex;flex-wrap:nowrap;gap:.3rem;max-width:100%;overflow-x:auto;scrollbar-width:thin;padding-block:.25rem}
+.neo-campaign-sections .neo-campaign-tab,.neo-connect-tabs [role=tab]{flex:0 0 auto;white-space:nowrap;min-height:44px;padding:.55rem .8rem;border:0;border-bottom:2px solid transparent;border-radius:0;background:none;color:inherit;opacity:.8}
+.neo-campaign-sections .neo-campaign-tab[aria-selected=true],.neo-connect-tabs [aria-selected=true]{border-bottom-color:currentColor;opacity:1;font-weight:700}
+.neo-campaign-sections .neo-campaign-tab:focus-visible,.neo-connect-tabs [role=tab]:focus-visible{outline:2px solid currentColor;outline-offset:-2px}
+.neo-campaign-actionbar{display:flex;justify-content:flex-end;align-items:center;margin:.6rem 0}
+.neo-campaign-actionbar .neo-campaign-new-label{display:inline}
+[data-connect-pane][hidden],[data-campaign-wa] [hidden]{display:none!important}
+[data-sync-rows]{overflow-wrap:anywhere}
+[data-sync-rows] .check{align-items:flex-start;padding-block:.55rem}
+
+dialog[data-campaign-edit]:not([hidden]){
+ position:fixed;inset:0;width:100%;height:100%;height:var(--campaign-editor-height,100dvh);
+ max-width:none;max-height:none;margin:0;border:0;border-radius:0;box-sizing:border-box;
+ overflow-y:auto;overscroll-behavior:contain;background:var(--solid,Canvas);color:var(--ink,CanvasText);
+ padding:max(12px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
+}
+dialog[data-campaign-edit]>form{max-width:980px;margin-inline:auto;padding-bottom:3rem}
+dialog[data-campaign-edit] .neo-campaign-editor-head{position:sticky;top:0;z-index:2;padding-block:.65rem;background:var(--solid,Canvas)}
+.neo-campaign-editor-head-actions{display:flex;flex-wrap:wrap;gap:.5rem}
+@media(max-width:600px){
+ dialog[data-campaign-edit] .neo-campaign-editor-head h3{font-size:1.2rem}
+ dialog[data-campaign-edit] :is(input,textarea,select){font-size:16px}
+}

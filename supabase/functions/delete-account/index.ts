@@ -30,6 +30,20 @@ Deno.serve(async req=>{
  if(!support.error&&Array.isArray(support.data))for(let offset=0;offset<support.data.length;offset+=100){const removedMedia=await admin.storage.from('neo-support').remove(support.data.slice(offset,offset+100));if(removedMedia.error)throw removedMedia.error;}
  // Remover todos os objetos antes da conta: auth.users não exclui Storage automaticamente.
  for(const bucket of ['neo-private','neo-community','neo-community-files','neo-support'])for(;;){const files=await admin.storage.from(bucket).list(user.id,{limit:100});if(files.error)throw files.error;if(!files.data.length)break;const removal=await admin.storage.from(bucket).remove(files.data.map(f=>user.id+'/'+f.name));if(removal.error)throw removal.error;}
+ // Bucket opcional: versões antigas do NeoPep ainda não possuem neo-comparisons.
+ // Não impedir exclusão de contas nesses ambientes, mas falhar fechado em erros reais.
+ const privateComparisons=await admin.storage.getBucket('neo-comparisons');
+ if(privateComparisons.error){
+  const reason=String(privateComparisons.error.message||'');
+  const status=String(privateComparisons.error.statusCode||privateComparisons.error.status||privateComparisons.error.code||'');
+  if(status!=='404'&&!/bucket not found|not found/i.test(reason))throw privateComparisons.error;
+ }else for(;;){
+  const files=await admin.storage.from('neo-comparisons').list(user.id,{limit:100});
+  if(files.error)throw files.error;
+  if(!files.data?.length)break;
+  const removedFiles=await admin.storage.from('neo-comparisons').remove(files.data.map(f=>user.id+'/'+f.name));
+  if(removedFiles.error)throw removedFiles.error;
+ }
  const removed=await admin.auth.admin.deleteUser(user.id);if(removed.error)throw removed.error;
  return new Response(JSON.stringify({deleted:true}),{status:200,headers});
  }catch{return out(500,'Exclusão não concluída. Tente novamente. A conta não é confirmada como excluída até terminar.');}finally{if(verifier)try{await verifier.auth.signOut({scope:'local'});}catch{}}

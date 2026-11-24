@@ -45,6 +45,13 @@ test('staging installs at the root and keeps the former launch and worker routes
     URL, self: { registration: { scope }, addEventListener() {} }
   });
   assert.notEqual(cache('https://test.example/'), cache('https://test.example/neo/'));
+  assert.match(cache('https://test.example/'),/pwa-v31$/);
+  assert.match(cache('https://test.example/neo/'),/pwa-v31$/);
+  assert.match(read('sw.js'),/'library-video\.js','library-files\.js'/);
+  for(const file of ['index.html','neo/index.html']){
+   const html=read(file);
+   assert.ok(html.indexOf('library-video.js')>=0&&html.indexOf('library-video.js')<html.indexOf('library-files.js'));
+  }
   const { rewrites, headers } = JSON.parse(fs.readFileSync('vercel.json'));
   assert.ok(rewrites.some(rule => rule.source === '/neo/sw.js' && rule.destination === '/sw.js'));
   assert.ok(headers.some(rule => rule.source === '/neo/sw.js' &&
