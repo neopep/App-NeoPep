@@ -1,4 +1,5 @@
-insert into auth.users(id) values ('00000000-0000-0000-0000-000000000001'), ('00000000-0000-0000-0000-000000000002');
+insert into auth.users(id) values ('00000000-0000-0000-0000-000000000001'), ('00000000-0000-0000-0000-000000000002'), ('00000000-0000-0000-0000-000000000003');
+insert into neo_private.community_moderators(user_id) values ('00000000-0000-0000-0000-000000000003');
 insert into neo_private.admin_members(user_id) values ('00000000-0000-0000-0000-000000000001');
 insert into neo_private.shop_products(id,name,description,category,price_cents,stock)
 values ('00000000-0000-0000-0000-000000000010','Produto teste','','Teste',1000,3);
@@ -33,6 +34,19 @@ begin
   begin
     perform public.neo_shop_costs_v1('register',args);
     raise exception 'member can write cost';
+  exception when insufficient_privilege then null;
+  end;
+  -- A moderator may pass legacy neo_admin_access(), but must not read costs.
+  perform set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000003',true);
+  assert public.neo_admin_access();
+  begin
+    perform public.neo_shop_costs_v1('read',args);
+    raise exception 'community moderator can read financial costs';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.neo_shop_costs_v1('register',args);
+    raise exception 'community moderator can write financial costs';
   exception when insufficient_privilege then null;
   end;
   perform set_config('request.jwt.claim.sub',admin::text,true);
