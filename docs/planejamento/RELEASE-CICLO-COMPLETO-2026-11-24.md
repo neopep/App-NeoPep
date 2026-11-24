@@ -69,3 +69,10 @@ O preflight em `release/cycle-20261124/preflight.sql` consulta apenas catálogo 
 4. Produção exige aceite da candidata de Teste, preflight próprio, evidência de backup e recuperação, autorização específica para migrações e confirmação do proprietário para promoção. Preservar domínio, Auth/callbacks, Mercado Pago, Storage e a sessão Windows, mantendo as flags de despacho desligadas.
 
 Nenhuma migração, ativação de worker, envio, merge ou implantação foi executada nesta auditoria.
+
+## Retomada da liberação integral
+
+- Bases Git verificadas novamente: PR #61 `4158d4e`, revisão local anterior `06b7b1a`, `staging/permanente` `0970ae6`, `main` `fc0ae22`. As pontas das PRs #41–#59 coincidem com o inventário da candidata.
+- A regressão do editor agora analisa o HTML real de administração. Confere resolução local do asset, existência, ordem de execução antes de `admin.js`, versões de cache e presença no service worker. O ensaio de navegador cobre o editor com dependências simuladas. A API de Actions retornou 403, portanto o resultado do run remoto anteriormente reprovado não pôde ser consultado.
+- O ensaio de merge em memória com `main` mostrou conflitos em configuração, fontes/bundles, service worker, painel e Windows. A correção oficial de notificações privadas (`fc0ae22` e antecedentes) toca `dist/push.js`, `dist/sw.js` e `push-dispatch`. A promoção exige reconciliação seletiva do delta das 11 etapas sobre o baseline oficial, com preservação das notificações, Auth, CSP e Edge Functions oficiais. O webhook tem diferença entre as duas pontas e deve ficar ancorado ao oficial. O build da candidata da PR #61 está isolado no projeto Vercel de Teste.
+- Teste e Produção continuam com estado remoto não revalidado. As consultas aos dois Supabase, ao domínio de Teste e à Vercel retornaram 403 do proxy, inclusive na tentativa de leitura fora do sandbox. Antes da publicação, obter acesso de leitura aos dois projetos Vercel e aos catálogos dos dois Supabase, conferir configuração efetiva de auto-deploy, ledger, permissões e flags. Registrar backup restaurável antes de mudanças oficiais.
