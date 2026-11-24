@@ -605,5 +605,6 @@ html.library-video-open,html.library-video-open body{overflow:hidden;overscroll-
  @keyframes shop-visibility-reveal{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 }
 
-.library-home-symbol :is(img,video,canvas){width:100%;height:100%;object-fit:contain;display:block}
-.library-home-symbol [data-pdf-thumb]{display:block;width:100%;height:100%}
+.library-home-symbol{flex:none;overflow:hidden}
+.library-home-symbol :is(img,video){width:100%;height:100%;object-fit:contain;display:block}
+.library-home-cover-loading{opacity:.55}
