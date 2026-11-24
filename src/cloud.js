@@ -66,7 +66,10 @@ const api={configured,
  async campaignWhatsApp(action,id=null,data={}){return ok(await need().rpc('neo_campaign_wa',{p_action:action,p_id:id,p_data:data}));},
  async campaignAdmin(action,id=null,data={}){return ok(await need().rpc('neo_campaign_admin',{p_action:action,p_id:id,p_data:data}));},
  async privacyPreferences(choices=null,complete=false){
-  return ok(await need().rpc('neo_privacy_preferences',{p_choices:choices,p_complete:complete}));
+  const sdk=need(),version=identityVersion;
+  const result=ok(await sdk.rpc('neo_privacy_preferences',{p_choices:choices,p_complete:complete}));
+  if(version!==identityVersion)throw Error('A conta mudou. Reabra suas preferências.');
+  return result;
  },
  async campaignPushPreference(enabled=null){return ok(await need().rpc('neo_campaign_push_preference',{p_enabled:enabled}));},
  async campaignVisit(action,impression=null){return ok(await need().rpc('neo_campaign_visit',{p_action:action,p_impression:impression}));},get remember(){return rememberSession},get persistenceLimited(){return persistenceLimited},

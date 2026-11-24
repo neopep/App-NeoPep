@@ -607,3 +607,6 @@ html.library-video-open,html.library-video-open body{overflow:hidden;overscroll-
 
 .library-home-symbol :is(img,video,canvas){width:100%;height:100%;object-fit:contain;display:block}
 .library-home-symbol [data-pdf-thumb]{display:block;width:100%;height:100%}
+
+.privacy-location-actions{display:flex;flex-wrap:wrap;gap:.5rem;margin-block:1rem .5rem}
+[data-location-intro][hidden],#privacyPreferences[hidden]{display:none}
