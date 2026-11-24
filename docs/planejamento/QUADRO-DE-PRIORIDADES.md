@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #013 — Windows CI 0.2.8 aprovado em runner isolado (run 45471485884, SHA ff8a4eb); PR #58 draft; aplicativo físico, sessão WhatsApp real, assinatura/distribuição e homologação continuam pendentes. Servidor Teste com flags OFF; sem Vercel.
-**ÚLTIMA_DECISÃO:** proprietário autorizou preparar e validar o NeoPep Connect Windows; workflow Windows isolado executado e aprovado. Não houve deploy, atualização em PC do usuário, ativação de envio real nem Produção. Candidato CI não assinado e não distribuído.
+**FOCO_ATUAL:** #013 — correção dos 4 avisos CS4014 do WinForms + CI Windows repetida e aprovada em 45472598828; PR #58 draft. Guia para homologação física pronto, mas sem binário assinado/distribuído e sem sessão WhatsApp testada; gates Teste OFF.
+**ÚLTIMA_DECISÃO:** proprietário pediu «Então vamos avançar» para validação Windows #013. Código async revisado no commit c5f2237, CI Windows 45472598828 success; guia físico documentado. Repositório privado de build conferido somente em leitura; versão 0.2.8 já usada, sugerida nova 0.2.9. Sem publicação, deploy, instalação ou envios.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
