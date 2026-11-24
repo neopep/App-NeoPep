@@ -166,3 +166,10 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - Evidência Codex: 25 testes direcionados, build/check e emulações desktop/iPhone 13/Pixel 7 reportados; este agente não repetiu a execução nem auditou ainda a semântica SQL/RLS.
 - **Bloqueio:** Supabase Teste não acessível ao Codex (proxy); SQL apenas validado em banco isolado, não aplicado em Teste/Produção. Exige revisão dirigida da migração e aplicação controlada em Teste antes da homologação real. Faltam contas reais, concorrência administrativa e dispositivos físicos.
 - #006 permanece separado na PR #41, sem merge automático. Desenvolvimento #008: EM_TESTE (local); aceite NÃO_CONCEDIDO; publicação NÃO_REALIZADA.
+
+### Registro #009 — 24/11/2026 (conferência GitHub)
+- Branch `desenvolvimento/ajuste-009-seringa-home`, commit `b66569b39ddf7a322dc34cd78c7f6476ec4bd803`; [PR #43](https://github.com/neopep/App-NeoPep/pull/43) aberta em rascunho para `staging/permanente`.
+- Comparação GitHub: 1 commit à frente, 0 atrás da base `0970ae6`; 8 arquivos: `src/app.js`, `dist/app.js`, `dist/style.css`, `dist/sw.js`, `scripts/build-staging.cjs`, `tests/staging-pwa.test.cjs`, `tests/ui.test.cjs`, `docs/planejamento/EXEC-2026-11-24-009.md`.
+- Codex reportou build/check/empacotamento e 64 testes direcionados aprovados, incluindo exclusão, troca de contas, três capacidades e emulações. Estes testes **não foram repetidos por este agente**.
+- Pendências: revisão dirigida de código; homologação com sessão autenticada em Teste, Safari/PWA e dispositivos físicos; aceite explícito. PR criada, mas não mesclada; nenhum deploy realizado por este agente. #006/PR #41 e #008/PR #42 continuam independentes.
+- Estado: EM_TESTE (local), ACEITE_NAO_CONCEDIDO, PUBLICACAO_NAO_REALIZADA.
