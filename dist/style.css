@@ -624,3 +624,7 @@ html.library-video-open,html.library-video-open body{overflow:hidden;overscroll-
 .shop-financial-totals dd { margin: .25rem 0 0; font-weight: 600; overflow-wrap: anywhere; }
 .shop-financial caption { text-align: start; margin-bottom: .5rem; }
 .shop-financial .inline-actions { align-items: center; margin-top: .5rem; }
+
+[data-shop-reconciliation] { margin-top: 1rem; overflow-wrap: anywhere; }
+[data-shop-reconciliation] form + form { border-top: 1px solid var(--border); padding-top: 1rem; }
+[data-shop-reconciliation] li + li { margin-block-start: .4rem; }
