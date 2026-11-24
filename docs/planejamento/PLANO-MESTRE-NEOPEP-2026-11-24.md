@@ -170,3 +170,19 @@
 
 ## 6. Estado de armazenamento
 Este documento é a **fonte de planejamento versionada no GitHub**, em branch/PR documental, sem deploy. O menu de consulta dentro do aplicativo é uma **implementação futura**, não existente por consequência deste arquivo. Não apresentar a documentação em GitHub como se já estivesse visível no painel NeoPep.
+
+
+---
+
+## 7. Adendo de levantamento técnico e continuidade (24/11/2026)
+Este documento mantém os **13 ajustes funcionais**. A pedido do responsável, acrescenta-se **#014 — Governança, preservação e documentação incremental**, como módulo transversal, para formar um pacote operacional de **14 frentes** sem alterar a numeração e os requisitos aprovados dos itens #001–#013.
+
+**Arquivos obrigatórios deste pacote:**
+- [Levantamento técnico e matriz de preservação](LEVANTAMENTO-TECNICO-2026-11-24.md): achados de GitHub, componentes existentes, lacunas e verificações por módulo.
+- [Controle de execução incremental](CONTROLE-DE-EXECUCAO.md): status de cada item, subetapas, evidências, commits, PRs, Teste e Produção.
+- [Início para agentes e Codex](INICIO-PARA-AGENTES.md): sequência obrigatória de leitura, retomada e atualização.
+- [PR #40](https://github.com/neopep/App-NeoPep/pull/40): revisão documental, sem deploy.
+
+**Descobertas críticas:** PR #25 e #36 constam como merged; PR #35 e #37 estão abertas; PR #37 registra diferenças significativas entre Teste e Produção e requer reconciliação antes de promover código. O Connect 0.2.6 documentado suporta envio manual de texto/imagem e lembretes locais, não prova agendamento automático e envio em massa de grupos. Consultar levantamento para escopo e limitações.
+
+**Política permanente:** após cada subetapa, atualizar os arquivos do pacote, registrar o que foi realmente testado e os SHAs/ambientes, e preservar as versões aprovadas. Não declarar produção concluída por merge ou CI isolado. A PR #40 é documental e não autoriza mesclagem na `main`, migrations ou deploy.
