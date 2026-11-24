@@ -57,10 +57,12 @@ test('A página carrega scripts na ordem correta e limpa o formulário após sal
  const html=fs.readFileSync('dist/admin/index.html','utf8');
  const whatsapp=fs.readFileSync('dist/admin/admin-whatsapp.js','utf8');
  const connect=fs.readFileSync('dist/admin/admin-connect.js','utf8');
- assert.ok(html.indexOf('connect-navigation.js')<html.indexOf('admin-connect.js'));
+ assert.ok(!html.includes('connect-navigation.js'));
+ assert.ok(html.indexOf('admin-connect.js')<html.indexOf('admin-whatsapp.js'));
  assert.ok(html.indexOf('whatsapp-navigation.js')<html.indexOf('admin-whatsapp.js'));
  assert.match(whatsapp,/form\.reset\(\);selectedJob=null;prepared=null;files=\[\];preview\(\);/);
- assert.match(connect,/installNeoConnectNavigation\(root\)/);
+ assert.match(connect,/switchConnectTab\(activeTab\)/);
+ assert.doesNotMatch(connect,/installNeoConnectNavigation/);
 });
 
 test('Atualizações cadastra somente rascunhos e não oferece download para eles',async()=>{
@@ -87,7 +89,7 @@ test('Atualizações cadastra somente rascunhos e não oferece download para ele
  };
  const panel=scope.mountNeoConnect(root,cloud);
  await panel.load();
- click(window,root.querySelector('[data-neo-connect-view="updates"]'));
+ click(window,root.querySelector('[data-connect-tab="updates"]'));
  const form=root.querySelector('[data-connect-form="update_register"]');
  form.reset=()=>{};
  const submit=()=>form.dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));
@@ -103,7 +105,7 @@ test('Atualizações cadastra somente rascunhos e não oferece download para ele
  assert.match(root.querySelector('[data-connect-updates]').textContent,/0\.2\.3 · Rascunho/);
  assert.equal(root.querySelector('[data-connect-updates] script'),null);
  assert.equal(root.querySelector('[data-connect="download"][data-version="0.2.3"]'),null);
- assert.equal(root.querySelector('[data-neo-connect-panel="updates"]').hidden,false);
+ assert.equal(root.querySelector('[data-connect-pane="updates"]').hidden,false);
  assert.equal(root.querySelector('[data-connect-status]').textContent,'Rascunho cadastrado.');
 });
 
@@ -115,7 +117,8 @@ test('Atualizações fica indisponível sem acesso à RPC administrativa',async(
  const cloud={connectAdmin:async()=>({releases:[],accounts:[],devices:[],groups:[],tasks:[],audit:[]}),
   campaignWhatsApp:async()=>[]};
  await scope.mountNeoConnect(root,cloud).load();
- assert.equal(root.querySelector('[data-neo-connect-view="updates"]'),null);
+ assert.ok(root.querySelector('[data-connect-tab="updates"]'));
+ assert.equal(Boolean(root.querySelector('[data-connect-form="update_register"]')),false);
  const restricted=document.createElement('div');
  document.body.append(restricted);
  cloud.connectUpdateAdmin=async()=>{throw new Error('Administrador obrigatório');};
@@ -184,4 +187,27 @@ test('Atualizações exige política do servidor e confirmação para aprovar e 
  assert.match(section().textContent,/Bloqueio de atualização · Versão 0\.2\.3 · Concluída · Administrador admin/);
  assert.equal(block(),null);
  assert.equal(root.querySelector('[data-connect="download"][data-version="0.2.3"]'),null);
+});
+
+test('Connect alterna as oito abas com um painel independente e preserva a aba ao atualizar',async()=>{
+ const {document,window,scope}=load('dist/admin/admin-connect.js','<div id="connect"></div>');
+ const root=document.querySelector('#connect');
+ scope.esc=String;
+ const panel=scope.mountNeoConnect(root,{
+  connectAdmin:async()=>({releases:[],accounts:[],devices:[],groups:[],tasks:[],audit:[]}),
+  connectWaConnections:async()=>[],
+  campaignWhatsApp:async()=>[]
+ });
+ await panel.load();
+ const tabs=[...root.querySelectorAll('[role=tab]')];
+ assert.equal(tabs.length,8);
+ for(const tab of tabs){
+  click(window,tab);
+  assert.equal(tab.getAttribute('aria-selected'),'true');
+  assert.deepEqual([...root.querySelectorAll('[role=tabpanel]:not([hidden])')].map(pane=>pane.id),
+   [tab.getAttribute('aria-controls')]);
+ }
+ await panel.load();
+ assert.equal(root.querySelector('[aria-selected=true]').textContent,'Ajuda');
+ assert.equal(root.querySelectorAll('.neo-connect-tabs').length,1);
 });

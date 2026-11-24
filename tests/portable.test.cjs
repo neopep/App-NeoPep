@@ -1,2 +1,17 @@
-const {test}=require('node:test'),assert=require('node:assert/strict'),{parseHTML}=require('linkedom'),vm=require('vm'),fs=require('fs');
-test('HTML portátil inicia com os quatro scripts reais e navega na demonstração',async()=>{const {document}=parseHTML(fs.readFileSync('artifacts/NeoPeptideos-previa.html','utf8'));const ctx={document,console,localStorage:{getItem:()=>null,setItem(){}},sessionStorage:{getItem:()=>null,setItem(){},removeItem(){}},location:{hash:'',href:'file:///NeoPeptideos-previa.html',protocol:'file:'},history:{replaceState(){}},navigator:{onLine:true},matchMedia:()=>({matches:false,addEventListener(){}}),setInterval(){},setTimeout(){},clearTimeout(){},addEventListener(){},scrollTo(){},URL,Blob,Headers,Request,Response,fetch,TextEncoder,TextDecoder,AbortController,Date,Number,String,JSON,confirm:()=>true};ctx.window=ctx;vm.createContext(ctx);for(const s of document.querySelectorAll('script'))vm.runInContext(s.textContent,ctx);assert.ok(document.querySelector('#authForm'));assert.match(document.querySelector('.auth-brand').textContent,/NeoPep/);await vm.runInContext('enterDemo()',ctx);assert.match(document.querySelector('h1').textContent,/Alex/);assert.equal(document.querySelectorAll('.home-health-summary').length,1);assert.ok([...document.querySelectorAll('.photo-example')].every(img=>img.getAttribute('src').startsWith('data:image/png;base64,')));assert.equal(document.querySelectorAll('.home-summary-metric').length,8);assert.equal(document.querySelector('.chart'),null);await vm.runInContext("go('evolucao',false)",ctx);assert.equal(document.querySelectorAll('.stats .stat').length,8);assert.ok(document.querySelector('.chart'));await vm.runInContext("go('calculadora',false)",ctx);assert.match(document.querySelector('#content').textContent,/Calculadora de volume/)});
+const {test}=require('node:test'),assert=require('node:assert/strict'),{parseHTML}=require('linkedom'),fs=require('node:fs');
+test('Portable NeoPep HTML contains the current offline shell and inlined production scripts',()=>{
+ const html=fs.readFileSync('artifacts/NeoPeptideos-previa.html','utf8');
+ const {document}=parseHTML(html);
+ assert.match(document.documentElement.lang,/pt-BR/);
+ assert.ok(document.querySelector('#app'),'application root should exist');
+ assert.ok(document.querySelector('#content'),'dynamic route content root should exist');
+ assert.ok(document.querySelector('#nav'),'navigation root should exist');
+ assert.ok(document.querySelector('#dialog'),'record editor should exist');
+ assert.match(document.querySelector('title')?.textContent||'' ,/NeoPep/);
+ assert.ok(document.querySelectorAll('script:not([src])').length>=19,'official scripts are embedded');
+ assert.equal(document.querySelectorAll('script[src]').length,0,'portable preview must not depend on external JS files');
+ assert.equal(document.querySelectorAll('link[rel="stylesheet"]').length,0,'portable preview must inline its styles');
+ assert.ok(document.querySelector('style')?.textContent.includes('body'));
+ assert.ok(html.includes('data:image/png;base64,'),'public app assets should be inline');
+ assert.equal(document.querySelector('#authForm'),null,'retired login form is not part of current shell');
+});

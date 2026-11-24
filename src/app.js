@@ -59,7 +59,7 @@ function journeyProgress(m){const j=C.weightJourney(m),delta=m.current!=null&&m.
 let homeDetailsOpen=false;
 function setHomeDetails(open){if(open&&!homeDetailsOpen)engagementTrack('home_journey_expand','inicio');homeDetailsOpen=!!open;const panel=document.getElementById('homeJourneyDetails'),button=document.querySelector('[data-home-details]');if(panel)panel.hidden=!homeDetailsOpen;if(button){button.setAttribute('aria-expanded',String(homeDetailsOpen));button.querySelector('span').textContent=homeDetailsOpen?'Ocultar acompanhamento':'Ver meu acompanhamento';}if(page==='inicio'){if(!open)comparisonPrepared.fill(null);hydratePhotoImages();}}
 function homeJourneyDetails(done){return stats(true,true)+comparisonCard(true)+`<div class="home-today"><section class="card"><div class="card-head"><div><h2>Seu cuidado de hoje</h2><p class="sub">Um momento para você.</p></div><span class="tag">${done?icon('check'):'Hoje'}</span></div>${dailyTasks(done)}<button class="text-btn full" data-go="lembretes">${icon('bell')} Personalizar lembretes</button></section></div><div class="space"><section class="card"><div class="card-head"><h2>Seus últimos passos</h2><button class="text-btn" data-go="registros">Ver todos</button></div>${recent().length?recent().map(r=>`<div class="task"><div class="task-icon">${icon(r.icon)}</div><div><b>${r.title}</b><small>${esc(r.detail.slice(0,75))} · ${date(r.date)}</small></div><button class="icon-btn" data-go="${r.route}" aria-label="Ver ${r.title}">${icon('chevron')}</button></div>`).join(''):empty('Seu primeiro passo pode ser hoje','Registre um peso, medida ou momento do seu dia.','','journal')}</section></div>`}
-function overview(){const m=C.metrics(state),name=state.profile.name.trim().split(/\s+/)[0],hour=new Date().getHours(),greeting=hour<12?'Bom dia':hour<18?'Boa tarde':'Boa noite',next=C.nextReminders(state)[0],done=state.weights.some(r=>r.date===C.today());return head(greeting+(name?', '+esc(name):'')+'.','Um novo dia para acompanhar sua evolução.','')+`<section class="card home-journey"><div class="card-head"><h2>Uma jornada com propósito</h2><div class="home-quick-actions"><button class="primary home-quick-add" data-add="weight" aria-label="Adicionar registro de peso">${icon('plus')}</button><button class="home-dose-shortcut" data-go="calculadora" aria-label="Dose: abrir calculadora">${icon('calc')}<span>Dose</span></button></div></div>${m.goal?journeyProgress(m):`<p class="sub">Defina uma meta pessoal e acompanhe a distância entre seu ponto de partida e seu objetivo.</p><button class="text-btn" data-go="perfil">Definir minha meta ${icon('arrow')}</button>`}<div class="task"><div class="task-icon">${icon('clock')}</div><div><b>Próximo lembrete</b><small>${next?esc(next.title)+' · '+next.next.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'Nenhum lembrete'}</small></div></div><button type="button" class="secondary full home-details-toggle" data-home-details aria-controls="homeJourneyDetails" aria-expanded="${homeDetailsOpen}"><span>${homeDetailsOpen?'Ocultar acompanhamento':'Ver meu acompanhamento'}</span>${icon('chevron')}</button></section>`+`<div id="homeJourneyDetails" class="home-journey-details" role="region" aria-label="Resumo e registros da sua jornada" ${homeDetailsOpen?'':'hidden'}>${homeJourneyDetails(done)}</div>`+(window.NeoLibrary?.home?.()||'')+(window.NeoShop?.home?.()||'')+`<div class="card insight space"><div class="task-icon">${icon('calc')}</div><div style="flex:1"><h3>Clareza em cada cálculo.</h3><p class="sub">Converta a dose prescrita em volume e marcações U-100.</p></div><button class="icon-btn" data-go="calculadora" aria-label="Abrir calculadora">${icon('arrow')}</button></div>`}
+function overview(){const m=C.metrics(state),name=state.profile.name.trim().split(/\s+/)[0],hour=new Date().getHours(),greeting=hour<12?'Bom dia':hour<18?'Boa tarde':'Boa noite',next=C.nextReminders(state)[0],done=state.weights.some(r=>r.date===C.today());return head(greeting+(name?', '+esc(name):'')+'.','Um novo dia para acompanhar sua evolução.','')+`<section class="card home-journey"><div class="card-head"><h2>Uma jornada com propósito</h2><div class="home-quick-actions"><button class="primary home-quick-add" data-add="weight" aria-label="Adicionar registro de peso">${icon('plus')}</button><button class="home-dose-shortcut" data-go="calculadora" aria-label="Dose: abrir calculadora">${icon('calc')}<span>Dose</span></button></div></div>${m.goal?journeyProgress(m):`<p class="sub">Defina uma meta pessoal e acompanhe a distância entre seu ponto de partida e seu objetivo.</p><button class="text-btn" data-go="perfil">Definir minha meta ${icon('arrow')}</button>`}<div class="task"><div class="task-icon">${icon('clock')}</div><div><b>Próximo lembrete</b><small>${next?esc(next.title)+' · '+next.next.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'Nenhum lembrete'}</small></div></div><button type="button" class="secondary full home-details-toggle" data-home-details aria-controls="homeJourneyDetails" aria-expanded="${homeDetailsOpen}"><span>${homeDetailsOpen?'Ocultar acompanhamento':'Ver meu acompanhamento'}</span>${icon('chevron')}</button></section>`+`<div id="homeJourneyDetails" class="home-journey-details" role="region" aria-label="Resumo e registros da sua jornada" ${homeDetailsOpen?'':'hidden'}>${homeJourneyDetails(done)}</div>`+(window.NeoLibrary?.home?.()||'')+`<section class="card" aria-labelledby="homeNutritionTitle"><h2 id="homeNutritionTitle">Minha alimentação</h2><p class="sub">Em breve</p></section>`+(window.NeoShop?.home?.()||'')+`<div class="card insight space"><div class="task-icon">${icon('calc')}</div><div style="flex:1"><h3>Clareza em cada cálculo.</h3><p class="sub">Converta a dose prescrita em volume e marcações U-100.</p></div><button class="icon-btn" data-go="calculadora" aria-label="Abrir calculadora">${icon('arrow')}</button></div>`}
 function historyTable(type,rows=state[type]){const preferences=historyPrefs[type]||{query:'',from:'',to:'',page:0};const searchable=rows.map(r=>type==='doses'?{...r,protocolName:state.protocols.find(p=>p.id===r.protocolId)?.name||''}:r),data=C.filterRecords(searchable,preferences).reverse(),size=12,pages=Math.max(1,Math.ceil(data.length/size)),current=Math.min(preferences.page||0,pages-1),start=current*size;const headers={weights:['Data','Peso','Gordura','Nota'],measures:['Data','Cintura','Quadril','Peito','Braço','Coxa','Gordura'],doses:['Data','Produto','Dose informada','Local','Protocolo','Nota'],journal:['Data','Bem-estar','Energia','Sono','Apetite','Água','Atividade','Nota'],protocols:['Início','Nome','Fim','Status','Observações'],reminders:['Início','Título','Horário','Repetição','Status']};const value=(n,u,display=fmt)=>n==null?'—':display(n)+' '+u;
 const values=r=>type==='weights'?[date(r.date),value(r.value,unit(),weight),value(r.fat,'%'),r.note]:type==='measures'?[date(r.date),...['waist','hip','chest','arm','thigh'].map(k=>value(r[k],measureUnit(),cm)),value(r.fat,'%')]:type==='doses'?[date(r.date),r.product,fmt(r.amount,4)+' '+r.unit,r.site,r.protocolName||(r.protocolId?'Protocolo não disponível':'Sem vínculo'),r.note]:type==='journal'?[date(r.date),value(r.wellbeing,'/ 5'),value(r.energy,'/ 5'),value(r.sleep,'h'),value(r.appetite,'/ 5'),value(r.water,'L'),value(r.activity,'min'),r.note]:type==='protocols'?[date(r.date),r.name,r.end?date(r.end):'—',r.status==='active'?'Em acompanhamento':'Encerrado',r.note]:[date(r.date),r.title,r.time,{once:'Uma vez',daily:'Diário',weekly:'Semanal'}[r.repeat],r.enabled?'Ativo':'Pausado'];
 const actions=r=>`<button class="text-btn" data-edit="${type}:${esc(r.id)}" aria-label="Editar registro de ${date(r.date)}">Editar</button>${type==='reminders'?`<button class="text-btn" data-toggle-reminder="${esc(r.id)}">${r.enabled?'Pausar':'Ativar'}</button>`:''}<button class="delete" data-delete="${type}:${esc(r.id)}" aria-label="Excluir registro de ${date(r.date)}">${icon('trash')}</button>`;
@@ -273,7 +273,7 @@ function updateCalc(commit=false,track=true){
   ${exceedsMass?'<p class="error">O valor informado excede a massa total do frasco.</p>':''}
   ${outside?'<p class="error">O volume excede a capacidade da seringa selecionada.</p>':''}
   <dl class="calc-result-details"><div><dt>Concentração</dt><dd>${calcDisplay(r.concentration)} mg/mL</dd></div><div><dt>Razão massa ÷ dose</dt><dd>${calcDisplay(r.doses)}</dd></div></dl>
-  <p class="sub">A exibição usa até duas casas decimais. Os cálculos mantêm a precisão dos valores informados.</p>`;
+  <p class="sub">A exibição usa até duas casas decimais. Os cálculos mantêm a precisão dos valores informados.</p><button type="button" class="primary" data-calc-saved-action="save">Salvar dosagem</button><p class="sub" data-calc-result-save-status role="status"></p>`;
  }catch(err){
   if(track&&commit&&calcOutcome!=='invalid')engagementTrack('calculator_validation_error','calculadora');
   calcOutcome='invalid';
@@ -466,7 +466,8 @@ function restoreCalcSaved(){
 document.addEventListener('click',event=>{
  const control=event.target.closest('[data-calc-saved-action]');
  if(!control)return;
- const status=$('#calc-saved-status'),key=calcStorageKey(),action=control.dataset.calcSavedAction;
+ const resultStatus=control.closest('#result')?.querySelector('[data-calc-result-save-status]');
+ const status=resultStatus||$('#calc-saved-status'),key=calcStorageKey(),action=control.dataset.calcSavedAction;
  if(!key||$('#calcForm').dataset.calcOwner!==key){
   status.textContent='A sessão mudou. Reabra a calculadora para continuar.';
   return;
@@ -499,7 +500,7 @@ document.addEventListener('click',event=>{
  status.textContent={save:'Dosagem salva neste dispositivo.',apply:'Dosagem aplicada.',rename:'Nome atualizado.',remove:'Dosagem excluída.'}[action];
  const focused=saved.items.some(value=>value.id===item.id)?
   $('#calc-saved-list').querySelector('[data-saved-id="'+item.id+'"] [data-calc-saved-action="'+(action==='rename'?'rename':'apply')+'"]'):$('#calc-save');
- focused?.focus({preventScroll:true});
+ if(!resultStatus)focused?.focus({preventScroll:true});
 });
 
 function reports(){const rows=C.periodRows(state.weights,period),m=C.metrics(state);return head('Sua jornada, em perspectiva.','Relatórios descritivos para acompanhar e compartilhar.',`<button class="primary" id="csvPeriod">${icon('download')}<span>CSV do período</span></button>`)+stats(true)+`<div class="report-print-heading"><h2>NeoPep · Relatório pessoal</h2><p>${esc(state.profile.name)} · Emitido em ${date(C.today())}</p></div><div class="grid"><section class="card"><div class="card-head"><h2>Relatório de evolução</h2><button class="text-btn" id="print">PDF / Imprimir</button></div>${periods()}${chart(rows)}<p class="sub">${rows.length?'Período: '+date(rows[0].date)+' a '+date(rows.at(-1).date)+'. Variação: '+weight(rows.at(-1).value-rows[0].value)+' '+unit()+'.':'Nenhum peso no período selecionado.'}</p></section><section class="card"><h2>Comparação entre períodos</h2>${comparison()}<p class="sub space">Meta: ${weight(m.goal)} ${unit()} · Progresso: ${fmt(m.progress,0)}%.</p><p class="sub space">Os dados não estabelecem causa entre mudanças corporais e aplicações. IMC é um indicador descritivo, limitado e não diagnóstico.</p></section></div><section class="card space"><h2>Pesos no período</h2>${historyTable('weights',rows)}</section><section class="card space"><h2>Diário no período</h2>${historyTable('journal',C.periodRows(state.journal,period))}</section><section class="card space"><h2>Medidas no período</h2>${historyTable('measures',C.periodRows(state.measures,period))}</section><section class="card space"><h2>Aplicações no período</h2>${historyTable('doses',C.periodRows(state.doses,period))}</section><div class="notice">O CSV desta tela respeita o período escolhido e inclui os registros e o diário. Para exportar todo o histórico, use o CSV ou backup no Perfil. Filtros de texto afetam a visualização, não o CSV do período. Para PDF, use “PDF / Imprimir” e a opção de salvar ou compartilhar PDF do sistema. O CSV usa kg e cm; aplicações mantêm a unidade informada. Fotos são exportadas individualmente para preservar sua privacidade.</div>`}
@@ -768,7 +769,7 @@ function comparisonCard(home){
    <div class="comparison-slider-slot"><input type="range" data-photo-slider="${label}" aria-label="Fotografia ${label}" aria-valuetext="${date(selected.date)}, ${position}" min="0" step="1" max="${rows.length-1}" value="${index}" style="--photo-progress:${rows.length>1?100*index/(rows.length-1):0}%" ${rows.length===1?'disabled hidden':''}></div></figure>`;
   }).join('');
  return `<section class="card space" data-photo-comparison data-comparison-home="${home}">${heading}
-  <div class="compare photo-comparison" id="comparisonPhotos">${figures}</div><div class="comparison-card-actions"><div class="comparison-weight" data-comparison-weight aria-live="polite">${comparisonWeightMarkup(currentComparisonWeight())}</div><button type="button" class="secondary full comparison-export-button" data-comparison-export>${icon('expand')} Comparar e compartilhar</button>${comparisonDays.size<2?addBtn('photo',photos.length?'Adicionar foto de outro dia':'Adicionar minhas fotos'):''}</div></section>`;
+  <div class="compare photo-comparison" id="comparisonPhotos">${figures}</div><div class="comparison-card-actions"><div class="comparison-weight" data-comparison-weight aria-live="polite">${comparisonWeightMarkup(currentComparisonWeight())}</div><button type="button" class="secondary full comparison-export-button" data-comparison-export>${icon('expand')} Comparar e compartilhar</button>${mode==='cloud'&&!demo?'<button type="button" class="secondary full" data-saved-comparisons>Minhas comparações salvas</button>':''}${comparisonDays.size<2?addBtn('photo',photos.length?'Adicionar foto de outro dia':'Adicionar minhas fotos'):''}</div></section>`;
 }
 function paintComparison(figure,day,index,warm=false){
  const side=Number(figure.dataset.photoSide),label=side?'Depois':'Antes',rows=comparisonDays.get(day),photo=rows?.[index];
@@ -962,10 +963,11 @@ async function showComparisonExport(trigger){
   <form method="dialog"><button type="submit" class="secondary" autofocus>Fechar</button></form></header>
   <div class="comparison-export-media"><p role="status">Preparando imagens…</p></div>
   <footer><div class="comparison-export-actions"><button type="button" class="primary" data-export-share disabled>Compartilhar</button>
-  <a class="secondary" data-export-save hidden download="NeoPep-Antes-e-Depois.jpg">Salvar imagem</a></div>
+  <a class="secondary" data-export-save hidden download="NeoPep-Antes-e-Depois.jpg">Salvar imagem</a>
+  <button type="button" class="secondary" data-export-cloud hidden disabled>Salvar no NeoPep</button></div>
   <p data-export-status role="status"></p></footer>`;
  const media=dialog.querySelector('.comparison-export-media');
- const share=dialog.querySelector('[data-export-share]'),save=dialog.querySelector('[data-export-save]');
+ const share=dialog.querySelector('[data-export-share]'),save=dialog.querySelector('[data-export-save]'),cloudSave=dialog.querySelector('[data-export-cloud]');
  const status=dialog.querySelector('[data-export-status]');
  const current=()=>!controller.signal.aborted&&dialog.open&&generation===loadGeneration&&(!account||Cloud.user?.id===account);
  const canvas=document.createElement('canvas');
@@ -982,6 +984,21 @@ async function showComparisonExport(trigger){
  dialog.addEventListener('close',()=>{if(!controller.signal.aborted)dialog.dispose()},{once:true});
  const comparisonOrigin=engagementArea(page);
  save.addEventListener('click',event=>{if(!current())event.preventDefault();else engagementTrack('photo_comparison_export_success',comparisonOrigin)});
+ cloudSave.addEventListener('click',async()=>{
+  if(!current()||!file||!exportable||!account)return;
+  if(!window.confirm('Salvar esta comparação de fotos no armazenamento privado da sua conta NeoPep? Ela não será publicada em grupos.'))return;
+  cloudSave.disabled=true;
+  status.textContent='Salvando sua comparação privada…';
+  try{
+   const saved=await Cloud.saveBeforeAfter(file,photos);
+   if(!current()||!saved)return;
+   status.textContent='Comparação salva na sua conta. Ela não foi compartilhada.';
+   cloudSave.textContent='Salvo no NeoPep';
+   engagementTrack('photo_comparison_export_success',comparisonOrigin);
+  }catch(error){
+   if(current()){cloudSave.disabled=false;status.textContent=error?.message||'Não foi possível salvar. Tente novamente.';}
+  }
+ });
  share.addEventListener('click',async()=>{
   if(!current()||!url)return;
   try{
@@ -1082,6 +1099,14 @@ async function showComparisonExport(trigger){
    save.href=url;
    save.hidden=false;
    share.disabled=false;
+   if(account&&file&&typeof Cloud.beforeAfterAvailable==='function'){
+    try{
+     if(await Cloud.beforeAfterAvailable()&&current()){
+      cloudSave.hidden=false;
+      cloudSave.disabled=false;
+     }
+    }catch{} // Backend ainda não habilitado: manter opção oculta.
+   }
   }else{
    status.textContent=account?'Selecione fotos reais de dois dias diferentes para compartilhar ou salvar.':'Entre na sua conta para compartilhar suas fotos.';
   }
@@ -1094,6 +1119,74 @@ async function showComparisonExport(trigger){
 document.addEventListener('click',event=>{
  const trigger=event.target.closest?.('[data-comparison-export]');
  if(trigger&&!$('#comparisonExport')){engagementTrack(page==='fotos'?'photo_comparison_started':'before_after_open');void showComparisonExport(trigger)}
+});
+async function showSavedComparisons(trigger){
+ if($('#savedComparisonsDialog')||mode!=='cloud'||demo||!Cloud.user?.id)return;
+ const generation=loadGeneration,account=Cloud.user.id;
+ const dialog=document.createElement('dialog');
+ dialog.id='savedComparisonsDialog';
+ dialog.className='comparison-export-dialog';
+ dialog.setAttribute('aria-label','Minhas comparações salvas');
+ dialog.innerHTML='<header><h2>Minhas comparações salvas</h2><form method="dialog"><button class="secondary" type="submit">Fechar</button></form></header><div class="comparison-saved-list" role="region" aria-live="polite"><p>Carregando…</p></div>';
+ const active=()=>dialog.isConnected&&dialog.open&&generation===loadGeneration&&mode==='cloud'&&Cloud.user?.id===account;
+ dialog.addEventListener('close',()=>{dialog.remove();if(trigger?.isConnected)trigger.focus({preventScroll:true})},{once:true});
+ document.body.append(dialog);
+ if(typeof dialog.showModal==='function')dialog.showModal();else dialog.setAttribute('open','');
+ const list=dialog.querySelector('.comparison-saved-list');
+ async function refresh(){
+  if(!active())return;
+  try{
+   const records=await Cloud.savedBeforeAfter();
+   if(!active())return;
+   list.replaceChildren();
+   if(!records.length){const empty=document.createElement('p');empty.textContent='Você ainda não salvou comparações nesta conta.';list.append(empty);return;}
+   for(const item of records){
+    const section=document.createElement('section');
+    section.className='card space';
+    const label=document.createElement('p');
+    label.textContent='Antes: '+date(item.before_date)+' · Depois: '+date(item.after_date);
+    const controls=document.createElement('div');
+    controls.className='comparison-export-actions';
+    const view=document.createElement('button'),remove=document.createElement('button');
+    view.type=remove.type='button';
+    view.className='secondary';view.textContent='Visualizar';
+    remove.className='secondary';remove.textContent='Excluir';
+    const preview=document.createElement('div');
+    preview.className='comparison-saved-preview';
+    view.addEventListener('click',async()=>{
+     if(!active())return;
+     view.disabled=true;
+     try{
+      const url=await Cloud.beforeAfterURL(item);
+      if(!active())return;
+      const img=document.createElement('img');
+      img.src=url;img.alt='Comparação privada de '+date(item.before_date)+' até '+date(item.after_date);
+      img.referrerPolicy='no-referrer';
+      img.style.maxWidth='100%';
+      img.style.maxHeight='65vh';
+      preview.replaceChildren(img);
+     }catch(error){if(active())preview.textContent=error?.message||'Prévia indisponível.'}
+     finally{if(active())view.disabled=false}
+    });
+    remove.addEventListener('click',async()=>{
+     if(!active()||!window.confirm('Excluir permanentemente esta comparação privada do NeoPep? As fotos originais não serão excluídas.'))return;
+     remove.disabled=true;
+     try{
+      await Cloud.deleteBeforeAfter(item);
+      if(active())await refresh();
+     }catch(error){
+      if(active()){remove.disabled=false;preview.textContent=error?.message||'Não foi possível excluir a comparação.';}
+     }
+    });
+    controls.append(view,remove);section.append(label,controls,preview);list.append(section);
+   }
+  }catch(error){if(active())list.textContent=error?.message||'Não foi possível carregar as comparações salvas.'}
+ }
+ void refresh();
+}
+document.addEventListener('click',event=>{
+ const button=event.target.closest?.('[data-saved-comparisons]');
+ if(button)void showSavedComparisons(button);
 });
 async function showPhoto(id,trigger=document.activeElement){
  const photo=photoList.find(row=>row.id===id),generation=loadGeneration;
@@ -1366,6 +1459,7 @@ function privacyPreferencesPage(){
   <fieldset disabled aria-label="Permissões opcionais">
   ${privacyOptions.map(([key,label])=>`<label class="privacy-option" for="privacy-${key}"><span>${label}</span><input id="privacy-${key}" name="${key}" type="checkbox" role="switch"></label>`).join('')}
   </fieldset>
+  <p class="form-help">Se você ativar a localização, o aparelho pedirá permissão. O NeoPep usa apenas a região aproximada da conexão e não envia as coordenadas do aparelho.</p>
   <p class="sub" data-privacy-notice role="status">Consultando preferências…</p>
   <a class="text-btn privacy-policy-link" href="#privacidade" target="_blank" rel="noopener">Política de Privacidade</a>
   <button type="submit" class="primary full" disabled>${initial?'Salvar e continuar':'Salvar preferências'}</button>
@@ -1377,6 +1471,17 @@ function privacyHelp(form){
  if(window.Notification?.permission==='denied')messages.push('Notificações bloqueadas. Para liberá-las, abra os ajustes de notificações do aparelho ou do navegador.');
  if(form.elements.location.disabled)messages.push('A localização aproximada ainda está indisponível neste ambiente.');
  return messages.join(' ');
+}
+function requestDeviceLocation(){
+ return new Promise(resolve=>{
+  try{
+   const geo=navigator.geolocation;
+   if(!geo){resolve(false);return;}
+   geo.getCurrentPosition(()=>resolve(true),()=>resolve(false),{
+    enableHighAccuracy:false,maximumAge:0,timeout:8000
+   });
+  }catch{resolve(false);}
+ });
 }
 function mountPrivacyPreferences(){
  const form=$('#privacyPreferences');
@@ -1418,9 +1523,13 @@ function mountPrivacyPreferences(){
   // Start native authorization within the submit gesture, before the network request.
   const wantsCampaigns=choices.campaigns===true;
   const nativeNotice=wantsCampaigns?Promise.resolve(window.NeoPush?.requestPermission?.()).catch(()=> 'Não foi possível concluir a autorização do aparelho. Confira os ajustes de notificações.'):Promise.resolve('');
+  const locationCheck=choices.location===true?requestDeviceLocation():null;
   saving=true;fields.disabled=true;save.disabled=true;if(skip)skip.disabled=true;
-  status.textContent='Salvando preferências…';
+  status.textContent=locationCheck?'Aguardando a permissão do aparelho…':'Salvando preferências…';
   try{
+   const locationUnavailable=locationCheck!==null&&!(await locationCheck);
+   if(!current())return;
+   if(locationUnavailable)delete choices.location;
    const values=await Cloud.privacyPreferences(skipping?null:choices,initial);
    if(Cloud.user?.id!==account)return;
    if(choices.statistics!==undefined){
@@ -1436,7 +1545,8 @@ function mountPrivacyPreferences(){
     geoAccount=account;geoAllowed=values.location;geoNext=0;geoCaptureRequested=values.location;
     if(values.location)void syncGeo();
    }
-   const notice=await nativeNotice;
+   const notificationMessage=await nativeNotice;
+   const notice=[notificationMessage,locationUnavailable?'A localização continua desativada. Você pode autorizá-la no Perfil.':''].filter(Boolean).join(' ');
    if(!current())return;
    apply(values);
    if(initial){
@@ -1637,9 +1747,21 @@ async function reloadCloud(){cloudError='';const gen=loadGeneration;try{const ne
 async function refreshAfterWrite(next){state=next;try{await reloadCloud()}catch{cloudError='A alteração foi salva na sua conta, mas não foi possível atualizar o histórico completo. Use Atualizar para conferir novamente.';render()}}
 async function putRecord(type,raw){if(mode==='cloud'&&!demo&&!state.profile.consent)throw Error('Salve seu perfil e o consentimento antes de adicionar registros à conta.');let r=C.validRecord(type,raw);if(type==='journal'&&!r.note&&['wellbeing','energy','sleep','appetite','water','activity'].every(k=>r[k]==null))throw Error('Preencha ao menos um campo do diário ou escreva uma observação.');let next={...state,[type]:[...state[type]]},existing=editing;if(type==='weights'&&!existing)existing=state.weights.find(w=>w.date===r.date);if(existing){if(type==='weights'&&!editing&&!confirm('Já existe um peso nesta data. Atualizar esse registro?'))return false;r={...r,id:existing.id,_revision:existing._revision};next[type]=next[type].filter(x=>x.id!==existing.id)}next[type].push(r);if(mode==='cloud'&&!demo){if(!navigator.onLine)throw Error('Conecte-se para salvar na sua conta.');const owner=Cloud.user?.id;const saved=await Cloud.put(type,r);if(!existing&&Cloud.user?.id===owner)engagementTrack(({weights:'weight_record_created',measures:'measurement_record_created',journal:'journal_record_created',doses:'application_record_created',protocols:'protocol_record_created',reminders:'reminder_created'})[type]);next[type]=next[type].map(x=>x.id===r.id?(saved||r):x);await refreshAfterWrite(next)}else{if(!localConsent())return false;next.profile={...state.profile,consent:true};persist(next)}return true}
 async function toggleReminder(id){const r=state.reminders.find(x=>x.id===id);if(!r)return;const changed={...r,enabled:!r.enabled},next={...state,reminders:state.reminders.map(x=>x.id===id?changed:x)};if(mode==='cloud'&&!demo){const saved=await Cloud.put('reminders',changed);next.reminders=next.reminders.map(x=>x.id===id?(saved||changed):x);await refreshAfterWrite(next)}else persist(next);render();toast(changed.enabled?'Lembrete ativado. Atualize a agenda se necessário.':'Lembrete pausado no aplicativo. Eventos já exportados devem ser ajustados na agenda.')}
-let avatarCrop={zoom:1,x:50,y:50},avatarCropURL='';
-function clearAvatarCrop(){if(avatarCropURL)URL.revokeObjectURL(avatarCropURL);avatarCropURL='';avatarCrop={zoom:1,x:50,y:50}}
-async function encodePhoto(file,{maxBytes=25*1024*1024,edge=1800,quality=.88,crop=false}={}){const imageType=String(file?.type||'').toLowerCase(),imageName=String(file?.name||'').toLowerCase();if(!file||!file.size||file.size>maxBytes||!(imageType.startsWith('image/')||/\.(jpe?g|png|webp|heic|heif|avif)$/i.test(imageName)))throw Error('Escolha uma foto de até '+Math.round(maxBytes/1024/1024)+' MB.');const url=URL.createObjectURL(file);try{const img=new Image();await new Promise((res,rej)=>{img.onload=res;img.onerror=()=>rej(Error(/\.(heic|heif)$/i.test(imageName)||/hei[cf]/.test(imageType)?'Este aparelho não conseguiu converter a foto HEIC. Nas opções da foto, escolha Mais compatível ou JPEG e tente novamente.':'Não foi possível decodificar esta imagem.'));img.src=url});if(img.width*img.height>100000000)throw Error('Imagem grande demais. Reduza a resolução.');const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');if(crop){const side=Math.min(img.width,img.height)/avatarCrop.zoom,sx=(img.width-side)*(avatarCrop.x/100),sy=(img.height-side)*(avatarCrop.y/100);canvas.width=canvas.height=Math.min(1200,Math.round(side));ctx.drawImage(img,sx,sy,side,side,0,0,canvas.width,canvas.height)}else{const scale=Math.min(1,edge/Math.max(img.width,img.height));canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));ctx.drawImage(img,0,0,canvas.width,canvas.height)}return await new Promise((res,rej)=>canvas.toBlob(b=>b?res(b):rej(Error('Falha ao converter a imagem para JPEG.')),'image/jpeg',quality))}finally{URL.revokeObjectURL(url)}}
+let avatarCrop={zoom:1,x:50,y:50},avatarCropURL='',avatarCropImage=null;
+function clearAvatarCrop(){if(avatarCropURL)URL.revokeObjectURL(avatarCropURL);avatarCropURL='';avatarCropImage=null;avatarCrop={zoom:1,x:50,y:50}}
+function avatarCropRect(width,height,{zoom,x,y}){
+ const side=Math.min(width,height)/zoom;
+ return [(width-side)*x/100,(height-side)*y/100,side,side];
+}
+function drawAvatarCrop(canvas,image,rect){
+ canvas.getContext('2d').drawImage(image,...rect,0,0,canvas.width,canvas.height);
+}
+function paintAvatarCrop(){
+ const canvas=document.querySelector('.avatar-crop-preview canvas');
+ if(!canvas||!avatarCropImage?.naturalWidth)return;
+ drawAvatarCrop(canvas,avatarCropImage,avatarCropRect(avatarCropImage.naturalWidth,avatarCropImage.naturalHeight,avatarCrop));
+}
+async function encodePhoto(file,{maxBytes=25*1024*1024,edge=1800,quality=.88,crop=false}={}){const imageType=String(file?.type||'').toLowerCase(),imageName=String(file?.name||'').toLowerCase();if(!file||!file.size||file.size>maxBytes||!(imageType.startsWith('image/')||/\.(jpe?g|png|webp|heic|heif|avif)$/i.test(imageName)))throw Error('Escolha uma foto de até '+Math.round(maxBytes/1024/1024)+' MB.');const framing=crop?{...avatarCrop}:null;const url=URL.createObjectURL(file);try{const img=new Image();await new Promise((res,rej)=>{img.onload=res;img.onerror=()=>rej(Error(/\.(heic|heif)$/i.test(imageName)||/hei[cf]/.test(imageType)?'Este aparelho não conseguiu converter a foto HEIC. Nas opções da foto, escolha Mais compatível ou JPEG e tente novamente.':'Não foi possível decodificar esta imagem.'));img.src=url});if(img.width*img.height>100000000)throw Error('Imagem grande demais. Reduza a resolução.');const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');if(crop){const rect=avatarCropRect(img.naturalWidth,img.naturalHeight,framing);canvas.width=canvas.height=Math.max(1,Math.min(1200,Math.round(rect[2])));drawAvatarCrop(canvas,img,rect)}else{const scale=Math.min(1,edge/Math.max(img.width,img.height));canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));ctx.drawImage(img,0,0,canvas.width,canvas.height)}return await new Promise((res,rej)=>canvas.toBlob(b=>b?res(b):rej(Error('Falha ao converter a imagem para JPEG.')),'image/jpeg',quality))}finally{URL.revokeObjectURL(url)}}
 function sanitizePhoto(file,maxBytes){return encodePhoto(file,{maxBytes,crop:formKind==='avatar'})}
 let photoBatch=[];
 function clearPhotoBatch(){
@@ -1783,8 +1905,29 @@ async function submitPhotoBatch(form){
  $('#dialog').close();
  toast('Fotos salvas.');
 }
-document.addEventListener('change',event=>{const input=event.target;if(formKind!=='avatar'||!input.matches('#recordForm input[name=photo]'))return;clearAvatarCrop();const file=input.files?.[0];if(!file)return;avatarCropURL=URL.createObjectURL(file);const host=document.createElement('section');host.className='avatar-crop-editor';host.innerHTML=`<h3>Ajustar foto de perfil</h3><div class="avatar-crop-preview"><img src="${esc(avatarCropURL)}" alt="Prévia do recorte da foto"></div><label>Aproximar<input type="range" min="1" max="3" step="0.05" value="1" data-avatar-crop="zoom"></label><div class="form-grid"><label>Posição horizontal<input type="range" min="0" max="100" value="50" data-avatar-crop="x"></label><label>Posição vertical<input type="range" min="0" max="100" value="50" data-avatar-crop="y"></label></div><p class="form-help">A área circular mostra como a foto aparecerá no perfil e no grupo.</p>`;input.closest('label')?.after(host)});
-document.addEventListener('input',event=>{const range=event.target.closest?.('[data-avatar-crop]');if(!range)return;avatarCrop[range.dataset.avatarCrop]=Number(range.value);const img=document.querySelector('.avatar-crop-preview img');if(img){img.style.transform=`scale(${avatarCrop.zoom})`;img.style.objectPosition=`${avatarCrop.x}% ${avatarCrop.y}%`}});
+document.addEventListener('change',event=>{
+ const input=event.target;
+ if(formKind!=='avatar'||!input.matches('#recordForm input[name=photo]'))return;
+ clearAvatarCrop();
+ input.closest('form')?.querySelector('.avatar-crop-editor')?.remove();
+ const file=input.files?.[0];
+ if(!file)return;
+ const url=avatarCropURL=URL.createObjectURL(file),image=new Image();
+ avatarCropImage=image;
+ const host=document.createElement('section');
+ host.className='avatar-crop-editor';
+ host.innerHTML=`<h3>Ajustar foto de perfil</h3><div class="avatar-crop-preview"><canvas width="440" height="440" role="img" aria-label="Prévia do recorte da foto"></canvas></div><label>Aproximar<input type="range" min="1" max="3" step="0.05" value="1" data-avatar-crop="zoom"></label><div class="form-grid"><label>Posição horizontal<input type="range" min="0" max="100" value="50" data-avatar-crop="x"></label><label>Posição vertical<input type="range" min="0" max="100" value="50" data-avatar-crop="y"></label></div><p class="form-help">A área circular mostra como a foto aparecerá no perfil e no grupo.</p>`;
+ input.closest('label')?.after(host);
+ image.onload=()=>{if(avatarCropURL===url)paintAvatarCrop()};
+ image.onerror=()=>{if(avatarCropURL===url)host.querySelector('.form-help').textContent='Não foi possível mostrar a prévia desta imagem.'};
+ image.src=url;
+});
+document.addEventListener('input',event=>{
+ const range=event.target.closest?.('[data-avatar-crop]');
+ if(!range)return;
+ avatarCrop[range.dataset.avatarCrop]=Number(range.value);
+ paintAvatarCrop();
+});
 document.addEventListener('click',event=>{if(!event.target.closest?.('[data-add="avatar"]'))return;setTimeout(()=>{const button=document.querySelector('#saveRecord');if(button)button.textContent=avatarURL?'Alterar foto':'Salvar foto'},0)});
 $('#recordForm').addEventListener('submit',async e=>{e.preventDefault();if(busy)return;busy=true;$('#saveRecord').disabled=true;$('#saveRecord').textContent='Salvando…';let savedWarning='';try{if(formKind==='photo'){await submitPhotoBatch(e.target);return}const f=new FormData(e.target),r=Object.fromEntries(f);r.id=editing?.id||draftRecordId||uid();if(formKind==='avatar'){if(mode==='cloud'&&!state.profile.consent)throw Error('Complete seu perfil e consentimento antes de enviar fotos.');if(demo)throw Error('Fotos reais não são adicionadas à demonstração.');if(!localConsent())return;const generation=loadGeneration;const blob=await sanitizePhoto(f.get('photo'));if(generation!==loadGeneration)throw Error('A conta mudou. Abra novamente o formulário.');if(!C.validDate(r.date)||r.date>C.today())throw Error('Data inválida.');const role=formKind==='avatar'?'avatar':'progress';let uploaded=null;if(mode==='cloud'){if(!f.has('photoConsent'))throw Error('Confirme a autorização para fotografias.');await authorizePhotoUpload(e.target);const thumbnail=await encodePhoto(blob,{edge:160,quality:.68});requirePhotoOwner(e.target);uploaded=await Cloud.uploadPhoto(blob,r.date,role,thumbnail);requirePhotoOwner(e.target);}else await photoStore('put',{id:r.id,date:r.date,role,blob,thumbnail:await encodePhoto(blob,{edge:160,quality:.68}),created_at:new Date().toISOString()});if(role==='avatar'&&uploaded?.url){avatarURL=uploaded.url;photoList=photoList.filter(p=>p.role!=='avatar').concat(uploaded);window.NeoCommunity?.refreshIdentity?.();if(uploaded.communitySynced===false)savedWarning='Foto aplicada ao perfil. A foto da comunidade não foi atualizada; tente alterar a foto novamente.'}else try{await loadPhotos()}catch{savedWarning='Foto salva. Não foi possível atualizar a galeria; use Atualizar fotos para conferir.'}}else{if(formKind==='reminder'){r.title=C.reminderTitle(r.recordTarget,r.title);r.enabled=f.has('enabled');r.weekday=new Date(r.date+'T12:00').getDay()}if(!await putRecord(kindType[formKind],r))return;}formDirty=false;$('#dialog').close();render();toast(savedWarning||(demo?'Alteração apenas na demonstração.':'Registro salvo. Mais um passo na sua jornada.'))}catch(e){if(mode==='cloud'&&!demo)Cloud.reportError?.(formKind==='photo'||formKind==='avatar'?'photo_failed':'profile_failed');$('#formError').textContent=e.message}finally{busy=false;$('#saveRecord').disabled=false;$('#saveRecord').textContent='Salvar registro';if(formKind==='photo')paintPhotoBatch()}});
 $('#close').onclick=()=>{if(!busy)$('#dialog').close()};
