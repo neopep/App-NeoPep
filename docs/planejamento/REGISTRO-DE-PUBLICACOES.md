@@ -46,3 +46,7 @@
 - Baseline recuperação Vercel Teste anterior: `dpl_F7crpVWtyrBkc7ZpddMNb7XjpMRg` READY. Restaurar alias somente em caso de regressão e após verificar estado; sem rollback SQL por falha de UI.
 - QA: permissões com JWT real, fluxos admin, história/câmbio e iPhone físico pendentes. Testes locais Codex não reexecutados. Backup atualizado não comprovado (proprietário aceitou risco ao autorizar mudanças anteriores no Teste).
 - Produção `app-neopep` `prj_Qd8luBAEbXtJgk5dIwwoSbnrBIki`: **intocada**, sem release, merge ou troca de alias. Checkout e webhook Mercado Pago intocados.
+
+## Aceite de proprietário — #010.04+#010.05 — 24/11/2026
+- Proprietário declarou **«Está validado e aceito»** sobre a integração em Teste da [PR #53](https://github.com/neopep/App-NeoPep/pull/53), SHA `43e31dfcc703e08192acc93d596c566cfd783260`, Vercel de Teste READY `dpl_Fb2oKfv8sFgWUx2945BjmFetetif` no domínio `https://teste.app.neopep.com.br/neo/`.
+- Estado: **ACEITO_PELO_PROPRIETÁRIO / PUBLICADO_SOMENTE_TESTE / AGUARDA_DECISÃO_DE_PRODUÇÃO**. Nenhum merge ou deploy de Produção por causa deste aceite. #010.06 não iniciado; contrato e inventário financeiro devem ser reconciliados antes de novo release.
