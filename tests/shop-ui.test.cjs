@@ -23,3 +23,26 @@ test('carrinho recalcula economia ao mudar quantidade e salva cupom e forma de p
 test('administrador cria regra de quantidade e cupom de origem, sem expor os controles ao cliente',async()=>{const s=setup({admin:true,promotions:true});await s.ui.load();s.document.querySelector('[data-shop=manage]').click();await tick();s.document.querySelector('[data-shop=promotions]').click();await tick();assert.ok(s.document.querySelector('[data-promo-form=mode]'));s.document.querySelector('[data-promo=new]').click();let f=s.document.querySelector('[data-promo-form=rule]');f.querySelector('[name=name]').value='Quantidade';f.querySelector('[name=amount]').value='15';f.querySelector('[name=min_quantity]').value='2';f.reportValidity=()=>true;f.dispatchEvent(new s.window.Event('submit',{bubbles:true,cancelable:true}));await tick();let saved=s.calls.find(c=>c[0]==='promotion_save')[1];assert.equal(saved.value,1500);assert.equal(saved.min_quantity,2);assert.equal(saved.code,'');s.document.querySelector('[data-promo=tab][data-tab=coupons]').click();s.document.querySelector('[data-promo=new]').click();f=s.document.querySelector('[data-promo-form=rule]');f.querySelector('[name=name]').value='Indicação';f.querySelector('[name=code]').value='PARCEIRO';f.querySelector('[name=amount]').value='0';f.querySelector('[name=source]').value='Instagram';f.querySelector('[name=referrer_email]').value='parceiro@example.test';const kind=f.querySelector('[name=kind]');for(const option of kind.querySelectorAll('option')){if(option.value==='tracking')option.setAttribute('selected','');else option.removeAttribute('selected');}f.reportValidity=()=>true;f.dispatchEvent(new s.window.Event('submit',{bubbles:true,cancelable:true}));await tick();saved=s.calls.filter(c=>c[0]==='promotion_save').at(-1)[1];assert.equal(saved.kind,'tracking');assert.equal(saved.value,0);assert.equal(saved.referrer_email,'parceiro@example.test');assert.equal(saved.source,'Instagram');s.ui.session({id:'B'});assert.doesNotMatch(s.window.NeoShopPromotions.view(),/parceiro@example/);const customer=setup({promotions:true});await customer.ui.load();assert.equal(customer.document.querySelector('[data-shop=manage]'),null);});
 
 test('cotação alterada pede revisão e permite confirmar novamente sem travar o checkout',async()=>{const s=setup({ready:true,promotions:true,rejectOrder:true});await s.ui.load();s.document.querySelector('[data-shop=buy]').click();await tick();assert.ok(s.document.querySelector('[data-shop=address]'));s.document.querySelector('[data-shop=address]').click();await tick();submit(s.document,s.window,{name:'Pessoa Teste',email:'buyer@example.test',phone:'11999999999',document_type:'CPF',document_number:'11144477735',postal_code:'01001000',street:'Rua de Teste',number:'10',complement:'',district:'Centro',city:'São Paulo',state:'SP'});await tick();const pay=s.document.querySelector('[data-shop-form=pay]');pay.querySelector('[name=accept]').checked=true;pay.reportValidity=()=>true;pay.dispatchEvent(new s.window.Event('submit',{bubbles:true,cancelable:true}));await tick();assert.match(s.document.querySelector('[role=alert]').textContent,/valores ou descontos/);assert.equal(s.document.querySelector('[data-shop-form=pay] button').disabled,false);assert.equal(s.navigation.length,0);});
+
+test('vitrine mostra texto aprovado e um único atalho ao atendimento interno, com fallback sem link',async()=>{
+ const s=setup(),root=s.document.querySelector('main');
+ const ctx={cloud:true,user:{id:'customer'}};
+ s.window.NeoSupport={view(){}};
+ s.window.NeoCloud.support=async()=>({});
+ root.innerHTML=s.ui.home(ctx);
+ await s.ui.loadHome(ctx);
+ const title=root.querySelector('.shop-home h2');
+ const shortcuts=root.querySelectorAll('[data-shop-home-support]');
+ assert.equal(title.textContent,'Encontre o que você procura.');
+ assert.equal(shortcuts.length,1);
+ assert.equal(shortcuts[0].textContent,'Não encontrou o que procura? Fale com nosso atendimento para consultar a disponibilidade.');
+ assert.equal(shortcuts[0].dataset.go,'comunidade');
+ assert.equal(shortcuts[0].dataset.supportShortcut,'true');
+ assert.equal(shortcuts[0].querySelector('svg').getAttribute('aria-hidden'),'true');
+ assert.ok(root.querySelector('[data-go=loja]'));
+ delete s.window.NeoCloud.support;
+ root.innerHTML=s.ui.home(ctx);
+ assert.equal(root.querySelector('[data-shop-home-support]'),null);
+ assert.match(root.querySelector('.shop-home-support').textContent,/Atendimento indisponível/);
+ assert.equal(root.querySelector('.shop-home-support a'),null);
+});
