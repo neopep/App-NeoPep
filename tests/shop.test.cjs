@@ -10,7 +10,7 @@ test('loja: autorização, preço no servidor, estoque, isolamento e confirmaç�
  await assert.rejects(shop('product',{name:'Produto',payment_name:'Produto',price_cents:1,stock:4}),/Autorização/);await assert.rejects(db.query('select * from neo_private.shop_orders'),/permission/);
  await db.exec('reset role');await db.query('insert into neo_private.admin_members(user_id) values($1)',[A]);await as(db,A);
  const {path}=await shop('reserve_photo');await db.query('insert into storage.objects(name,bucket_id) values($1,$2)',[path,'neo-shop-products']);const product=(await shop('product',{name:'Produto de teste',payment_name:'Produto de teste',description:'Descrição',category:'Acessórios',price_cents:1990,stock:3,active:true,photo_path:path})).id;
- await shop('settings',{seller_name:'Loja Teste',seller_document:'11144477735',business_address:'Rua Comercial, 100, Cidade',support_email:'loja@example.test',returns_policy:'Condições da loja em teste.',shipping_ready:true,shipping_cents:500,delivery_min:3,delivery_max:8,payments_ready:true});await db.exec("update neo_private.shop_settings set shipping_by_state='{}'::jsonb");assert.equal((await shop('catalog')).settings.payments_ready,false);
+ await shop('settings',{seller_name:'Loja Teste',seller_document:'11144477735',business_address:'Rua Comercial, 100, Cidade',support_email:'loja@example.test',returns_policy:'Condições da loja em teste.',shipping_ready:true,shipping_cents:500,delivery_min:3,delivery_max:8,payments_ready:true});await db.exec('reset role');await db.exec("update neo_private.shop_settings set shipping_by_state='{}'::jsonb");await as(db,A);assert.equal((await shop('catalog')).settings.payments_ready,false);
  await as(db,B);await shop('cart',{items:[{product_id:product,quantity:2,price_cents:1}]});let quote=await shop('quote');assert.equal(quote.subtotal_cents,3980);assert.equal(quote.total_cents,4480);
  const address={name:'Comprador Teste',email:'buyer@example.test',phone:'11999999999',document_type:'CPF',document_number:'11144477735',postal_code:'01001000',street:'Rua de Teste',number:'10',complement:'',district:'Centro',city:'São Paulo',state:'SP'},request_key='10000000-0000-4000-8000-000000000001';
  await assert.rejects(shop('order',{request_key,address,expected_total_cents:4480,accept_terms:true}),/configuração/);
@@ -36,7 +36,7 @@ test('visibilidade por produto protege a compra e duplicação preserva listas e
  const newcomer='00000000-0000-4000-8000-000000000003';
  const other='00000000-0000-4000-8000-000000000004';
  try{
-  await db.exec('alter table auth.users add column email text, add column deleted_at timestamptz, add column is_anonymous boolean default false; create publication supabase_realtime;');
+  await db.exec('alter table auth.users add column if not exists email text, add column deleted_at timestamptz, add column is_anonymous boolean default false; create publication supabase_realtime;');
   await db.exec(fs.readFileSync('supabase/migrations/20261123220000_shop_member_visibility.sql','utf8'));
   const productionDelta=fs.readFileSync('release/shop-admin-visibility/production.sql','utf8');
   await db.exec(productionDelta);
