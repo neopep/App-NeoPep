@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #010 — 010.04 revisão de segurança de autorização financeira em PR #51; contrato corrigido no Git, testes de regressão da correção e aplicação no Supabase Teste pendentes.
-**ÚLTIMA_DECISÃO:** «Vamos seguir»: auditoria detectou que neo_admin_access também permite moderadores; restrição de custos para admin_members implementada em commit 14a335d, com teste de moderador. Sem migração remota 010.04, sem publicação.
+**FOCO_ATUAL:** #010.04 — correção financeira retestada localmente; aplicação e homologação em Teste pendentes.
+**ÚLTIMA_DECISÃO:** preparar somente o contrato 010.04 para Teste, após conferir o ledger existente e a autorização. Sem aceite ou publicação.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -18,7 +18,7 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | Em espera | #008 | Fixar posts da Biblioteca | EM_TESTE (local; SQL não aplicado em Teste) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 008.03 |
 | Em espera | #009 | Seringa no card da Home | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 009.03 |
 | Em espera | #003 | Tema claro/escuro | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 003.05 |
-| 1 (foco atual) | #010 | Estoque, custos e lucro | 010.04 validada localmente | Pendente | Não realizada | Homologar 010.04 em Teste após autorização |
+| 1 (foco atual) | #010 | Estoque, custos e lucro | 010.04 validada localmente após correção de ACL | Pendente | Não realizada | Preflight e homologação em Teste após autorização |
 | 10 | #011 | Edição em massa | NÃO_INICIADO | Não solicitado | Não preparado | 011.01 |
 | 11 | #013 | Campanhas e Connect | NÃO_INICIADO | Não solicitado | Não preparado | 013.01 |
 | 12 | #012 | Planos/assinaturas | NÃO_INICIADO | Não solicitado | Não preparado | 012.01 |

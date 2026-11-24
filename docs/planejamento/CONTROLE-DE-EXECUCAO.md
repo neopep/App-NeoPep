@@ -261,3 +261,10 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - **Validação que foi feita:** inspeção dos SQLs e do esquema Teste com consultas de leitura. Banco de Teste mantém `shop_cost_foundation` no ledger, `entry_kind` ausente, RPC `public.neo_shop_costs_v1` ausente, estoque 100 e 1 produto no momento da leitura. **Não houve instalação da migração 010.04 nem replay dos testes PostgreSQL no ambiente de execução deste agente**.
 - **Próxima condição:** Codex reexecutar os testes SQL/concorrência/segurança com a correção, revisar resultado e, depois, aplicar o contrato somente em Teste por migração versionada, validando admin vs moderador vs usuário comum, registros sintéticos e preservação do saldo legado. Dados financeiros e UI continuam indisponíveis em Teste até essa etapa; Produção intocada.
 - Estado #010.04: REVISÃO_DE_SEGURANÇA (corrigido no código, testes da correção pendentes); aceite NÃO_CONCEDIDO; publicação NÃO_REALIZADA.
+
+### Reteste e prontidão para aplicação 010.04 — 24/11/2026
+
+- [PR #51](https://github.com/neopep/App-NeoPep/pull/51), correção revisada `14a335d`; testes e plano versionados no commit [`0e0faaf`](https://github.com/neopep/App-NeoPep/commit/0e0faaf5108f2c1c85357baaf2748525e909a5a6).
+- PostgreSQL 17 isolado aprovou leitura/escrita por administrador e negação por moderador, membro e sessão sem identidade. Passaram também BRL/USD exatos, idempotência em duas conexões, revisão obsoleta e preservação de venda anterior. Check e 33 testes Loja/PWA passaram.
+- Preflight somente leitura validado em fixture do ledger `20261124164148`, com recusa se o contrato já estiver presente. A conferência real nesta sessão foi bloqueada por 403 de proxy. Após autorização, repetir preflight no projeto Teste, registrar recuperação, aplicar apenas o contrato 010.04 e homologar com sessões reais e produtos sintéticos.
+- Estado: **VALIDADO LOCALMENTE / HOMOLOGAÇÃO PENDENTE**. Aceite e publicação pendentes. Fundação não reaplicada remotamente. Checkout, webhook, reserva e Produção preservados.
