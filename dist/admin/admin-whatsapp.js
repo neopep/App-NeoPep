@@ -114,6 +114,63 @@ function neoWhatsappPreview({cloud,read,trigger,form,onEdit,resolve}){
  return close;
 }
 
+function mountSyncedCampaignGroups(root,{cloud,picking=false}){
+ const states={eligible:'Elegível',stale:'Sincronização desatualizada',disconnected:'Desconectado',unavailable:'Indisponível'};
+ root.innerHTML=`<div class="form-grid"><label>Pesquisar grupos sincronizados<input type="search" maxlength="100"></label>
+ <label>Estado<select><option value="">Todos</option>${Object.entries(states).map(([id,label])=>`<option value="${id}">${label}</option>`).join('')}</select></label></div>
+ <button type="button" class="secondary" data-sync-refresh>Atualizar grupos</button><p role="status" data-sync-status></p><div data-sync-rows></div>`;
+ const search=root.querySelector('input'),filter=root.querySelector('select'),status=root.querySelector('[data-sync-status]');
+ const destination=root.querySelector('[data-sync-rows]');
+ let catalog=[],selected=new Map(),revision=0,current=null,ready=false,initialized=false;
+ function render(){
+  const query=search.value.trim().toLocaleLowerCase('pt-BR');
+  const records=new Map([...selected,...catalog.map(row=>[row.id,row])]);
+  const rows=[...records.values()].filter(row=>(!filter.value||filter.value===row.state)&&
+   (row.name+' '+(row.connection||'')).toLocaleLowerCase('pt-BR').includes(query));
+  destination.innerHTML=rows.map(row=>{
+   const checked=selected.has(row.id);
+   const label=`<strong>${esc(row.name)}</strong><small class="sub"> · ${esc(row.connection||'Conexão indisponível')} · ${esc(states[row.state]||'Estado desconhecido')}${row.participant_count==null?'':' · '+Number(row.participant_count)+' participantes'}${row.last_synced_at?' · sincronizado em '+esc(new Date(row.last_synced_at).toLocaleString('pt-BR')):''}</small>`;
+   return picking?`<label class="check"><input type="checkbox" data-sync-id="${esc(row.id)}" ${checked?'checked':''} ${row.state!=='eligible'&&!checked?'disabled':''}><span>${label}</span></label>`:
+    `<article class="monitor-block">${label}</article>`;
+  }).join('')||'<p>Nenhum grupo encontrado. Sincronize os grupos selecionados no NeoPep Connect.</p>';
+  status.textContent=picking?`${selected.size} de até 30 grupos selecionados.`:'';
+ }
+ async function load(campaign=null,{preserve=false}={}){
+  const token=++revision;
+  ready=false;current=campaign;
+  if(!preserve){selected=new Map();catalog=[];initialized=false;}
+  destination.replaceChildren();status.textContent='Consultando grupos sincronizados…';
+  try{
+   const [rows,initial]=await Promise.all([
+    cloud.campaignWhatsAppSync('catalog'),
+    campaign&&picking&&!preserve?cloud.campaignWhatsAppSync('recipients',campaign):[]
+   ]);
+   if(token!==revision||!root.isConnected)return false;
+   catalog=rows;
+   if(!preserve)selected=new Map(initial.map(row=>[row.id,row]));
+   for(const [key,row] of selected)selected.set(key,catalog.find(item=>item.id===key)||{...row,state:'unavailable'});
+   ready=true;initialized=true;render();return true;
+  }catch{
+   if(token===revision)status.textContent='Grupos sincronizados indisponíveis. Confira a conexão e a implantação da integração, ou tente atualizar.';
+   return false;
+  }
+ }
+ search.addEventListener('input',()=>{if(ready)render();});
+ filter.addEventListener('change',()=>{if(ready)render();});
+ destination.addEventListener('change',event=>{
+  const input=event.target.closest('[data-sync-id]');
+  if(!input||!ready)return;
+  const id=input.dataset.syncId,row=catalog.find(item=>item.id===id);
+  if(!input.checked){selected.delete(id);if(row?.state!=='eligible')input.disabled=true;}
+  else if(!row||row.state!=='eligible'||selected.size>=30||[...selected.keys()].some(key=>key.split(':')[1]===id.split(':')[1])){
+   input.checked=false;status.textContent='Selecione até 30 grupos distintos e elegíveis.';return;
+  }else selected.set(id,row);
+  status.textContent=`${selected.size} de até 30 grupos selecionados.`;
+ });
+ root.querySelector('[data-sync-refresh]').addEventListener('click',()=>{void load(current,{preserve:initialized});});
+ return {load,ready:()=>ready,values:()=>[...selected.keys()]};
+}
+
 function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  const rpc=(action,id=null,data={})=>cloud.campaignWhatsApp(action,id,data);
  const q=selector=>root.querySelector(selector);
@@ -125,8 +182,8 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  const mayAct=row=>['pending','scheduled','late'].includes(row.state);
  const dayNames=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
  let groupRows=[],queueRows=[],campaigns=[],prepared=null,selectedJob=null,files=[],refreshToken=0,prepareToken=0,working=false,groupSearch='',reminderTimer;
- root.innerHTML=`<div class="between"><h3>WhatsApp</h3>${openManual?action('manual','<span aria-hidden="true">?</span> <span class="admin-pdf-accessible">Manual do WhatsApp</span>'):''}</div>
- <p class="sub">O grupo é escolhido no WhatsApp. Confirme a publicação no painel após o envio.</p>
+ root.innerHTML=`<div class="between" ${embedded?'hidden':''}><h3>WhatsApp</h3>${openManual?action('manual','<span aria-hidden="true">?</span> <span class="admin-pdf-accessible">Manual do WhatsApp</span>'):''}</div>
+ <p class="sub" data-wa-channel-notice>O grupo é escolhido no WhatsApp. Confirme a publicação no painel após o envio.</p>
  <details class="space" data-wa-connect><summary>NeoPep Connect</summary><div data-connect-root></div></details><p role="status" data-wa-status></p><p role="status" data-wa-reminders></p>
  <details class="space"><summary>Grupos cadastrados</summary>
  <form data-wa-group-search>${field('group_search','Pesquisar grupos','maxlength="100"')}<button type="submit" class="secondary">Pesquisar</button></form>
@@ -137,11 +194,11 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  <label>Descrição e observações<textarea name="notes" maxlength="1000"></textarea></label>
  <label class="check"><input type="checkbox" name="active" checked> Grupo ativo</label>
  <div class="neo-campaign-actions"><button type="submit" class="primary">Salvar grupo</button>${action('clear_group','Limpar edição')}</div>
- </form><div data-wa-groups></div></details>
+ </form><div data-wa-groups></div><div data-wa-sync-catalog></div></details>
  <form class="space" data-wa-publication>
  <label>Campanha vinculada<select name="campaign_id" required><option value="">Selecione</option></select></label>
  <div data-wa-preview></div>
- <fieldset><legend data-campaign-legend="groups">Seleção de grupos</legend><div data-wa-recipients></div></fieldset>
+ <fieldset><legend data-campaign-legend="groups">Seleção de grupos</legend><div data-wa-recipients></div><div data-wa-sync-recipients></div></fieldset>
  <fieldset><legend data-campaign-legend="attachments">Anexos autorizados</legend>
  ${field('attachment_search','Pesquisar anexos','maxlength="100"')}${action('attachments','Buscar arquivos')}<div data-wa-attachments></div></fieldset>
  <div class="form-grid">${field('day','Data da divulgação','type="date"')}${field('time','Horário','type="time"')}
@@ -152,10 +209,13 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  <button type="submit" class="primary">Salvar publicação</button></form>
  <fieldset class="space"><legend data-campaign-legend="state">Fila de publicações</legend><div data-wa-queue></div></fieldset>`;
  const connect=q('[data-wa-connect]');
+ const syncCatalog=embedded?mountSyncedCampaignGroups(q('[data-wa-sync-catalog]'),{cloud}):null;
+ const syncPicker=embedded?mountSyncedCampaignGroups(q('[data-wa-sync-recipients]'),{cloud,picking:true}):null;
+ if(cloud.connectTestEnabled===false)connect.querySelector('[data-connect-root]').textContent='Canal Windows indisponível neste ambiente.';
  let connectPanel;
  connect.addEventListener('toggle',()=>{
-  if(!connect.open||typeof mountNeoConnect!=='function')return;
-  connectPanel??=mountNeoConnect(q('[data-connect-root]'),cloud);
+  if(connectPanel||cloud.connectTestEnabled===false||!connect.open||typeof mountNeoConnect!=='function')return;
+  connectPanel=mountNeoConnect(q('[data-connect-root]'),cloud);
   void connectPanel.load();
  });
  const groupForm=q('[data-wa-group]'),form=q('[data-wa-publication]'),select=form.querySelector('[name=campaign_id]');
@@ -181,15 +241,23 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
   if(!embedded)return;
   if(!force&&next!==currentView&&!canLeave())return;
   if(next!==currentView){openEditor='';unsaved=false;}
-  currentView=next;
+  const previousView=currentView;currentView=next;
   const groups=next==='groups',pub=next==='publications';
+  q('[data-wa-channel-notice]').hidden=!pub;
   connect.hidden=next!=='connect';
-  if(!connect.hidden)connect.open=true;
+  if(!connect.hidden){
+   connect.open=true;
+   connect.querySelector('summary').hidden=true;
+   if(!connectPanel&&cloud.connectTestEnabled!==false&&typeof mountNeoConnect==='function'){
+    connectPanel=mountNeoConnect(q('[data-connect-root]'),cloud);void connectPanel.load();
+   }
+  }
+  if(groups&&syncCatalog&&next!==previousView)void syncCatalog.load();
   groupContainer.hidden=!groups;
-  groupForm.hidden=!groups||openEditor!=='groups';
-  groupSearchForm.hidden=groupList.hidden=!groups||openEditor==='groups';
+  groupForm.hidden=Boolean(syncCatalog)||!groups||openEditor!=='groups';
+  groupSearchForm.hidden=groupList.hidden=Boolean(syncCatalog)||!groups||openEditor==='groups';
   form.hidden=!pub||openEditor!=='publications';queue.hidden=!pub||openEditor==='publications';
-  tool.hidden=!groups&&!pub;
+  tool.hidden=!pub&&(Boolean(syncCatalog)||!groups);
   const add=tool.querySelector('[data-wa=new_item]'),back=tool.querySelector('[data-wa=back_item]');
   add.hidden=Boolean(openEditor);back.hidden=!openEditor;add.textContent=groups?'Novo grupo':'Nova divulgação';
  }
@@ -207,6 +275,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
   if(chosen)select.value=chosen;
  }
  function renderGroups(){
+  if(syncPicker)return;
   q('[data-wa-groups]').innerHTML=groupRows.map(gr=>`<div class="between"><p>${esc(gr.name)} <small>${esc(gr.category)} · ${gr.active?'Ativo':'Inativo'}</small>
     ${gr.invite?`<a href="${esc(gr.invite)}" target="_blank" rel="noopener noreferrer">Abrir convite</a>`:''}</p>
     <button type="button" class="secondary" data-wa="edit_group" data-id="${esc(gr.id)}">Editar</button></div>`).join('');
@@ -231,7 +300,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  }
  async function refresh(){
   const token=++refreshToken;
-  const [groups,queue]=await Promise.all([rpc('groups',null,{search:groupSearch}),rpc('queue')]);
+  const [groups,queue]=await Promise.all([syncCatalog?[]:rpc('groups',null,{search:groupSearch}),rpc('queue')]);
   if(token!==refreshToken||!root.isConnected)return;
   groupRows=groups;queueRows=queue;renderGroups();renderQueue();await reminders();
  }
@@ -262,6 +331,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  async function prepare(id,job=null){
   const token=++prepareToken;
   prepared=null;selectedJob=null;files=[];preview();
+  if(syncPicker)void syncPicker.load(id||null);
   if(!id)return;
   const campaign=await rpc('prepare',id,job?{publication:job.id}:{});
   if(token!==prepareToken||!root.isConnected)return;
@@ -289,14 +359,22 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
    unsaved=false;openEditor='';resetGroup();setView('groups',true);await refresh();tell('Grupo salvo.');
   });
  });
- select.addEventListener('change',()=>{void protectedAction(()=>prepare(select.value))});
+ select.addEventListener('change',()=>{
+  void prepare(select.value).catch(()=>tell('Não foi possível preparar a campanha selecionada.'));
+ });
  form.addEventListener('submit',event=>{
   event.preventDefault();
   const data=new FormData(form),day=data.get('day'),time=data.get('time');
   if(Boolean(day)!==Boolean(time)){tell('Preencha data e horário juntos.');return;}
   void protectedAction(async()=>{
-   await rpc('schedule',null,{campaign_id:data.get('campaign_id'),groups:data.getAll('group'),attachments:data.getAll('attachment'),
-    local_time:day?day+'T'+time:null,timezone:data.get('timezone'),weekdays:data.getAll('weekday').map(Number),remind:data.has('remind')});
+   const settings={attachments:data.getAll('attachment'),local_time:day?day+'T'+time:null,
+    timezone:data.get('timezone'),weekdays:data.getAll('weekday').map(Number),remind:data.has('remind')};
+   if(syncPicker){
+    if(!syncPicker.ready()||!syncPicker.values().length){tell('Selecione os grupos sincronizados antes de salvar.');return;}
+    await cloud.campaignWhatsAppSync('schedule',data.get('campaign_id'),{...settings,recipients:syncPicker.values()});
+   }else{
+    await rpc('schedule',null,{...settings,campaign_id:data.get('campaign_id'),groups:data.getAll('group')});
+   }
    unsaved=false;openEditor='';setView('publications',true);form.reset();selectedJob=null;prepared=null;files=[];preview();
    await refresh();tell('Publicação salva na fila. Para criar outra, selecione novamente a campanha e o grupo.');
   });
@@ -312,7 +390,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
   }
   if(wa==='new_item'){
    if(currentView==='groups'){resetGroup();showEditor('groups');groupForm.elements.name.focus();}
-   else{form.reset();prepared=null;selectedJob=null;files=[];preview();showEditor('publications');select.focus();}
+   else{form.reset();prepared=null;selectedJob=null;files=[];preview();showEditor('publications');void syncPicker?.load();select.focus();}
    return;
   }
   if(wa==='back_item'){
@@ -375,6 +453,8 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
   });
  });
  if(!embedded&&typeof installNeoWhatsappNavigation==='function')installNeoWhatsappNavigation(root);
+ if(!syncCatalog)q('[data-wa-sync-catalog]').hidden=true;
+ if(!syncPicker)q('[data-wa-sync-recipients]').hidden=true;
  if(embedded)setView('publications',true);
  return {setCampaigns,setView,canLeave,dirty:()=>unsaved,show(id){
   if(!reminderTimer)reminderTimer=setInterval(()=>{

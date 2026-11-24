@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),path=require('path');
-test('publicação contém só NeoPeptídeos e mantém o endereço anterior com arquivos idênticos',()=>{
+test('publicação mantém a marca atual NeoPep e mantém o endereço anterior com arquivos idênticos',()=>{
  const target='artifacts/hosting-preview';fs.mkdirSync(target+'/dist/elo',{recursive:true});fs.writeFileSync(target+'/dist/elo/obsolete.txt','old');
  require('../scripts/stage-preview.cjs');
  assert.equal(fs.existsSync(target+'/dist/elo'),false);

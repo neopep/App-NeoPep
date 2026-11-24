@@ -4,3 +4,30 @@ test('card carrega apenas destaques oficiais, escapa texto e aponta para Bibliot
 });
 test('troca de conta descarta resposta antiga e ausência de SQL mantém entrada da Biblioteca',async()=>{let resolveA;const s=setup(async()=>new Promise(resolve=>resolveA=resolve));const pending=s.ui.loadHome(s.context);s.ui.session({id:'B'});s.window.NeoCloud.library=async()=>({materials:[{id:'b',title:'Material atual',excerpt:'Texto'}]});await s.ui.loadHome({cloud:true,user:{id:'B'}});resolveA({materials:[{id:'a',title:'Antigo'}]});await pending;assert.ok(s.document.querySelector('[data-material="b"]'));assert.equal(s.document.querySelector('[data-material="a"]'),null);s.ui.session(null);s.document.querySelector('main').innerHTML=s.ui.home();assert.ok(s.document.querySelector('[data-community-section=library]'));assert.equal(s.document.querySelector('[data-material]'),null);
 });
+
+test('destaque solicita apenas a prévia privada do item atual, usa fallback e descarta a conta anterior',async()=>{
+ const calls=[];
+ const file={path:'member/cover.jpg',mime:'image/jpeg',allow_download:false};
+ const s=setup(async(action,payload)=>{
+  calls.push([action,payload?.id]);
+  return action==='featured'?{materials:[{id:'one',title:'A'},{id:'two',title:'B'}]}:
+   {material:{attachments:[file]}};
+ });
+ let resolve;
+ s.window.NeoCloud.libraryMediaURL=async(item,download)=>{
+  assert.equal(item,file);assert.equal(download,false);
+  if(calls.at(-1)[1]==='two')return new Promise(r=>resolve=r);
+  return 'https://private.test/image?token=temporary';
+ };
+ await s.ui.loadHome(s.context);
+ await new Promise(setImmediate);
+ assert.deepEqual(calls,[['featured',undefined],['get','one']]);
+ assert.match(s.document.querySelector('[data-library-home] img').src,/private\.test/);
+ s.document.querySelector('[data-library-step="1"]').click();
+ await new Promise(setImmediate);
+ assert.equal(s.document.querySelector('[data-library-home] img'),null);
+ s.ui.session(null);
+ resolve('https://private.test/old-account');
+ await new Promise(setImmediate);
+ assert.equal(s.document.querySelector('[data-library-home] img'),null);
+});

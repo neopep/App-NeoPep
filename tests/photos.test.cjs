@@ -607,3 +607,25 @@ test('formulário de fotos usa consentimento específico da conta atual e exige 
  run("openRecord('avatar')");
  assert.equal(field().hasAttribute('checked'),false);
 });
+
+test('o recorte quadrado usa zoom e posição no espaço original da foto',()=>{
+ const crop=app()('avatarCropRect');
+ for(const [width,height] of [[1200,800],[800,1200],[800,800]]){
+  assert.deepEqual(Array.from(crop(width,height,{zoom:2,x:100,y:0})),[width-400,0,400,400]);
+  assert.deepEqual(Array.from(crop(width,height,{zoom:2,x:0,y:100})),[0,height-400,400,400]);
+  assert.deepEqual(Array.from(crop(width,height,{zoom:1,x:50,y:50})),[(width-800)/2,(height-800)/2,800,800]);
+ }
+});
+
+test('cabeçalho e Perfil usam o mesmo arquivo principal do avatar salvo',async()=>{
+ const calls=[];
+ const run=app({
+  configured:false,init:async()=>null,
+  photos:async()=>[{id:'avatar',role:'avatar',path:'private/crop.jpg'}],
+  photoURL:async(photo,variant)=>{calls.push([photo.path,variant]);return 'https://test.invalid/recorte.jpg';}
+ });
+ await run("mode='cloud';loadPhotos()");
+ assert.deepEqual(calls,[['private/crop.jpg','original']]);
+ assert.equal(run.document.querySelector('#avatar img').getAttribute('src'),'https://test.invalid/recorte.jpg');
+ assert.match(run("mode='local';profilePage()"),/<div class="avatar"><img src="https:\/\/test\.invalid\/recorte\.jpg"/);
+});
