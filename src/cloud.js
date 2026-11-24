@@ -270,7 +270,23 @@ const api={configured,
   if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou.');
   return data.signedUrl;
  },
- async beforeAfterBlob(item){
+ async beforeAfterThumbnails(item){
+  const sdk=need(),account=user.id,version=identityVersion;
+  if(item?.user_id!==account||!item.path?.startsWith(account+'/'))
+   throw Error('Comparação privada indisponível.');
+  const ids=[item.before_photo_id,item.after_photo_id];
+  if(ids.some(id=>typeof id!=='string'||!/^[-a-f0-9]{36}$/i.test(id)))return [null,null];
+  const photos=ok(await sdk.from('neo_photos').select('id,path,date,role')
+   .eq('user_id',account).in('id',ids));
+  if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou.');
+  const results=await Promise.allSettled(ids.map((id,index)=>{
+   const photo=photos.find(row=>row.id===id&&row.role==='progress'&&row.date===[item.before_date,item.after_date][index]);
+   return photo?api.photoURL(photo,'thumbnail'):null;
+  }));
+  if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou.');
+  return results.map(result=>result.status==='fulfilled'?result.value:null);
+ },
+ async verifyBeforeAfter(item){
   needsHealth();
   const account=user.id,version=identityVersion;
   if(item?.user_id!==account||!item.path?.startsWith(account+'/')||
@@ -280,6 +296,12 @@ const api={configured,
    .eq('id',item.id).eq('user_id',account).eq('path',item.path).single());
   if(version!==identityVersion||user?.id!==account||record?.path!==item.path)
    throw Error('A conta mudou ou a comparação não existe mais.');
+ },
+ async beforeAfterBlob(item){
+  needsHealth();
+  const account=user.id,version=identityVersion;
+  await api.verifyBeforeAfter(item);
+  if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou.');
   const blob=ok(await client.storage.from('neo-comparisons').download(item.path));
   if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou.');
   if(blob?.type!=='image/jpeg'||!blob.size||blob.size>5242880)
