@@ -156,54 +156,142 @@ window.NeoCommunity=(()=>{
  function beginVisit(direct=false,section='feed',materialID=''){window.NeoEngagement?.track(direct?'community_chat_open':section==='library'?'community_library_view':'community_feed_view','comunidade');visitDirect=direct;visitSection=section==='library'?'library':'feed';materialTarget=typeof materialID==='string'?materialID:'';selectedMaterialID=materialTarget;if(materialTarget){librarySort='recent';libraryType='all';librarySearch='';libraryFeaturedOnly=false;}captureBoundary=true;unreadBoundary=null;markerVisible=false;followTail=true;sendToBottom=true;if(direct||visitSection!=='library')closeMaterialEditor();tab=direct?'direct':visitSection;if(tab==='library')document.dispatchEvent(new window.CustomEvent('neo:library-seen'))}
  const message=p=>`<article class="chat-bubble ${p.own?'chat-own':'chat-other'}" aria-label="${p.own?'Sua mensagem':'Mensagem de '+e(p.alias)}"><strong class="message-author" data-identity-ready="true">${avatarMarkup(p.own?(String(context.profileName||'').trim()||'Você'):p.alias,p.own?(context.avatarURL||''):p.avatar_url,true)}${p.own?e(String(context.profileName||'').trim()||'Você'):e(p.alias)}${p.user_id&&!p.own&&p.user_id!==context.user?.id?`<button type="button" class="member-info-button" data-community="member_info" data-user="${e(p.user_id)}" aria-label="Ver participante ${e(p.alias)}">ⓘ</button>`:''}</strong>${p.snapshot?summaryCard(p.snapshot):''}${p.photo_path?(safeURL(p.photo_url)?`<figure class="chat-media"><a href="${e(safeURL(p.photo_url))}" target="_blank" rel="noopener noreferrer"><img class="chat-photo" src="${e(safeURL(p.photo_url))}" alt="Foto compartilhada por ${e(p.alias)}" width="320" height="240" loading="eager" decoding="async" referrerpolicy="no-referrer"></a><figcaption hidden>Não foi possível carregar a foto.<button class="text-btn" data-community="retry_photo">Tentar novamente</button></figcaption></figure>`:'<div class="chat-media-unavailable">Não foi possível abrir a foto.<button class="text-btn" data-community="retry_photo">Tentar novamente</button></div>'):p.media_missing?'<div class="chat-media-unavailable">A foto desta mensagem não pôde ser localizada.<button class="text-btn" data-community="retry_photo">Verificar novamente</button></div>':''}${p.file?`<div class="chat-document chat-document-preview">📄 ${e(p.file.name)}<small>${e(Math.ceil(p.file.size/1024))} KB</small>${safeURL(p.file_url)?`<iframe src="${e(safeURL(p.file_url))}" title="Prévia de ${e(p.file.name)}" loading="lazy"></iframe><a class="text-btn" href="${e(safeURL(p.file_url))}" target="_blank" rel="noopener noreferrer">Abrir arquivo</a>`:'<button class="text-btn" data-community="retry_photo">Tentar abrir arquivo novamente</button>'}</div>`:''}<p class="community-text">${e(p.body)}</p><div class="chat-meta"><time>${e(new Date(p.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}))}</time><span>${p.status==='pending'?'Enviado · aguardando aprovação':p.status==='rejected'?'Não publicado':'Publicado'}</span></div><div class="message-tools">${context.admin&&p.user_id&&!p.own?`<button type="button" class="message-icon" data-community="contact_member" data-user="${e(p.user_id)}" aria-label="Conversar no particular com ${e(p.alias)}">↗</button>`:''}<button type="button" class="message-icon" data-community="share_post" data-id="${e(p.id)}" aria-label="Compartilhar esta postagem">${glyph('share')}</button>${p.own||context.admin?`<details class="chat-actions"><summary class="message-icon" aria-label="Ações desta mensagem">${glyph('more')}</summary><div class="message-action-menu">${p.own?`<button class="text-btn" data-community="delete_post" data-id="${e(p.id)}">Excluir mensagem</button>`:''}${context.admin?`${p.status==='pending'?`<button class="text-btn" data-community="approve" data-id="${e(p.id)}">Aprovar</button>`:''}<button class="text-btn" data-community="reject" data-id="${e(p.id)}">Remover publicação</button>`:''}</div></details>`:''}</div></article>`;
  function composer(){return `<form data-community-form="post" class="chat-composer"><div class="composer-shell">${photo?`<div class="compact-photo"><img src="${e(photoURL)}" alt="${selectedComparison?'Comparação Antes e Depois escolhida':'Foto que será enviada'}"><span>${selectedComparison?'Antes/Depois · só será compartilhado após confirmação':''}</span><button type="button" class="text-btn" data-community="remove_photo">Remover foto</button></div>`:''}${documentFile?`<div class="compact-document">📄 ${e(documentFile.name)}<button type="button" class="text-btn" data-community="remove_file">Remover arquivo</button></div>`:''}${showSummary?`<div class="composer-summary" aria-live="polite">${previewBusy?'<p class="sub">Atualizando resumo…</p>':previewError?`<p role="alert">${e(previewError)}</p>`:snapshot?summaryCard(snapshot):'<p class="sub">Selecione os indicadores no menu +.</p>'}<button type="button" class="text-btn" data-community="remove_summary">Remover resumo</button></div>`:''}<label class="chat-input-label"><span class="sr-only">Sua mensagem</span><textarea name="body" rows="1" maxlength="2000" placeholder="Escreva uma mensagem…" aria-label="Sua mensagem">${e(draft)}</textarea></label><div class="composer-toolbar"><div class="attach-anchor"><button type="button" class="chat-plus" data-community="attachments" aria-label="Adicionar à mensagem" aria-expanded="${attachOpen}" aria-controls="chat-attach-menu">＋</button>${attachOpen?`<div id="chat-attach-menu" class="chat-attach-menu">${summarySelecting?`<fieldset class="chat-fields"><legend>Escolha o que compartilhar</legend>${choices.map(([id,label])=>`<label><input type="checkbox" data-summary-field="${id}" ${fields.includes(id)?'checked':''}> ${label}</label>`).join('')}</fieldset><button type="button" class="primary full" data-community="summary_done">Concluir</button>`:`<button type="button" class="text-btn" data-community="choose_photo" ${!data.chat_ready?'disabled':''}>Adicionar foto</button><button type="button" class="text-btn" data-community="choose_comparison" ${!data.chat_ready||!context.cloud?'disabled':''}>Minha comparação Antes/Depois</button><button type="button" class="text-btn" data-community="choose_file" ${!data.files_ready?'disabled':''}>Adicionar arquivo <small>PDF ou TXT · até 5 MB</small></button><button type="button" class="text-btn" data-community="summary" ${!data.chat_ready?'disabled':''}>Compartilhar resumo</button><p class="sub chat-send-notice">Confira os anexos e a prévia. Use a seta da mensagem para enviar aos membros.</p>`}</div>`:''}</div><span class="composer-audience">Comunidade · ${e(data.alias)}</span><button class="primary chat-send" type="submit" aria-label="Enviar" ${loading||previewBusy||previewError?'disabled':''}><span aria-hidden="true">↑</span><span class="sr-only">Enviar</span></button></div></div><input type="file" data-chat-file accept="application/pdf,text/plain,.pdf,.txt" hidden><input type="file" data-chat-photo accept="image/*,.heic,.heif,.avif" hidden>${!data.chat_ready?'<p class="sub">Fotos e resumo precisam da atualização adicional no Supabase.</p>':''}<p data-chat-error role="alert"></p></form>`}
- async function openComparisonPicker(){
-  if(loading||!data?.chat_ready||!context.cloud||!window.NeoCloud?.savedBeforeAfter)return;
-  const token=generation,account=owner;
-  document.querySelector('[data-before-after-picker]')?.remove();
+ function openComparisonPicker(trigger){
+  if(tab!=='feed'||loading||!data?.chat_ready||!context.cloud||!window.NeoCloud?.savedBeforeAfter)return;
+  if(document.querySelector('[data-before-after-picker]'))return;
   const dialog=document.createElement('dialog');
+  const token=generation,account=owner,log=document.querySelector('.chat-log'),top=log?.scrollTop;
+  const cloud=window.NeoCloud;
+  let selection=null,previewURL='',request=0,previewRequest=0,observer;
+  const current=()=>token===generation&&owner===account&&dialog.isConnected;
   dialog.dataset.beforeAfterPicker='';
-  dialog.className='library-material-dialog';
-  dialog.setAttribute('aria-label','Comparações Antes e Depois salvas');
-  dialog.innerHTML='<div class="library-editor-head"><strong>Minhas comparações</strong><button type="button" class="secondary" data-community="close_comparison_picker">Fechar</button></div><div class="library-editor-content"><p role="status">Carregando comparações privadas…</p></div>';
-  document.body.append(dialog);
-  dialog.addEventListener('close',()=>dialog.remove(),{once:true});
-  if(typeof dialog.showModal==='function')dialog.showModal();else dialog.setAttribute('open','');
-  try{
-   const records=await window.NeoCloud.savedBeforeAfter();
-   if(token!==generation||owner!==account||!dialog.isConnected)return;
-   const body=dialog.querySelector('.library-editor-content');
-   body.innerHTML=records.length?'<p>Escolha uma comparação salva. Ela ainda não será publicada.</p>'+records.map(row=>
-    `<button type="button" class="secondary full" data-community="pick_comparison" data-id="${e(row.id)}">Antes: ${e(row.before_date)} · Depois: ${e(row.after_date)}</button>`).join(''):
-    '<p>Você ainda não salvou uma comparação Antes/Depois. Abra Fotos para criar e salvar uma.</p>';
-   dialog.savedComparisons=records;
-  }catch(error){
-   if(token===generation&&owner===account&&dialog.isConnected)
-    dialog.querySelector('.library-editor-content').textContent=error?.message||'Não foi possível consultar suas comparações.';
+  dialog.className='comparison-picker';
+  dialog.setAttribute('aria-labelledby','comparisonPickerTitle');
+  dialog.innerHTML=`<header class="comparison-picker-head">
+   <h2 id="comparisonPickerTitle">Minhas comparações</h2>
+   <button type="button" class="icon-btn" data-picker="close" aria-label="Fechar comparações">×</button>
+  </header><div class="comparison-picker-scroll">
+   <p data-picker-status role="status"></p><div data-picker-list></div><div data-picker-preview></div>
+  </div><footer class="comparison-picker-actions">
+   <button type="button" class="secondary" data-picker="close" data-go="fotos">Criar comparação</button>
+   <button type="button" class="secondary" data-picker="refresh">Atualizar</button>
+   <button type="button" class="text-btn" data-picker="close">Cancelar</button>
+   <button type="button" class="primary" data-picker="attach" disabled>Usar comparação</button>
+  </footer>`;
+  const find=selector=>dialog.querySelector(selector);
+  const list=find('[data-picker-list]'),notice=find('[data-picker-status]'),preview=find('[data-picker-preview]');
+  const attach=find('[data-picker=attach]'),refresh=find('[data-picker=refresh]');
+  function resetPreview(){
+   previewRequest++;
+   if(previewURL)URL.revokeObjectURL(previewURL);
+   previewURL='';selection=null;attach.disabled=true;preview.replaceChildren();
   }
- }
- async function selectSavedComparison(id,trigger){
-  const dialog=trigger.closest('[data-before-after-picker]');
-  const item=dialog?.savedComparisons?.find(row=>row.id===id);
-  if(!item||loading||!data?.chat_ready||!window.NeoCloud?.beforeAfterBlob)return;
-  const token=generation,account=owner,buttons=[...dialog.querySelectorAll('button')];
-  buttons.forEach(button=>button.disabled=true);
-  try{
-   const blob=await window.NeoCloud.beforeAfterBlob(item);
-   if(token!==generation||owner!==account||!dialog.isConnected)return;
-   clearPhoto();
-   photo=blob;
-   photoURL=URL.createObjectURL(blob);
-   selectedComparison={id:item.id,before_date:item.before_date,after_date:item.after_date,account};
-   attachOpen=false;
-   resetID();
-   draw();
-  }catch(error){
-   if(token===generation&&owner===account&&dialog.isConnected){
-    let feedback=dialog.querySelector('[role="alert"]');
-    if(!feedback){feedback=document.createElement('p');feedback.setAttribute('role','alert');dialog.querySelector('.library-editor-content')?.prepend(feedback)}
-    feedback.textContent=error?.message||'Não foi possível carregar esta comparação.';
+  const cleanup=window.MutationObserver?new window.MutationObserver(()=>{if(!dialog.isConnected)dispose();}):null;
+  function dispose(){request++;resetPreview();observer?.disconnect();cleanup?.disconnect();window.removeEventListener?.('hashchange',leave);}
+  function close(restore=true){
+   dispose();dialog.remove();
+   if(restore&&currentAccount()){
+    const currentLog=log?.isConnected?log:document.querySelector('.chat-log');
+    if(currentLog&&top!=null)currentLog.scrollTop=top;
+    if(trigger?.isConnected)trigger.focus({preventScroll:true});
    }
-  }finally{if(dialog.isConnected)buttons.forEach(button=>button.disabled=false)}
+  }
+  function leave(){if(typeof location!=='undefined'&&location.hash!=='#comunidade')close(false);}
+  window.addEventListener?.('hashchange',leave);
+  function currentAccount(){return token===generation&&owner===account;}
+  dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
+  dialog.addEventListener('close',()=>close(),{once:true});
+  function dateLabel(date){
+   return /^\d{4}-\d{2}-\d{2}$/.test(date)?date.split('-').reverse().join('/'):'Data indisponível';
+  }
+  async function thumbnails(row,record,run){
+   if(!current()||run!==request)return;
+   try{
+    const urls=await cloud.beforeAfterThumbnails?.(record)||[];
+    if(!current()||run!==request)return;
+    [...row.querySelectorAll('[data-picker-thumb]')].forEach((cell,index)=>{
+     const src=safeURL(urls[index]);
+     if(!src){cell.textContent='Foto indisponível';return;}
+     const image=document.createElement('img');
+     image.alt=index===0?'Foto de antes':'Foto de depois';
+     image.referrerPolicy='no-referrer';
+     image.addEventListener('error',()=>{cell.textContent='Foto indisponível';},{once:true});
+     image.src=src;cell.replaceChildren(image);
+    });
+   }catch{
+    if(current()&&run===request)for(const cell of row.querySelectorAll('[data-picker-thumb]'))cell.textContent='Foto indisponível';
+   }
+  }
+  let records=[];
+  async function load(){
+   const run=++request;
+   resetPreview();observer?.disconnect();records=[];
+   refresh.disabled=true;
+   notice.textContent='Carregando comparações privadas…';
+   list.innerHTML='<div class="comparison-picker-skeleton" aria-hidden="true"><span></span><span></span></div>';
+   try{
+    const result=await cloud.savedBeforeAfter();
+    if(!current()||run!==request)return;
+    records=result.filter(row=>row.user_id===account&&row.path?.startsWith(account+'/'));
+    notice.textContent=records.length?'Escolha uma comparação para ver a prévia.':'Você ainda não salvou uma comparação Antes/Depois.';
+    list.innerHTML=records.map(row=>`<button type="button" class="secondary comparison-picker-row" data-community="pick_comparison" data-id="${e(row.id)}" aria-pressed="false">
+     <span><span class="comparison-picker-thumb" data-picker-thumb>Carregando foto…</span><strong>Antes</strong> · ${e(dateLabel(row.before_date))}</span>
+     <span><span class="comparison-picker-thumb" data-picker-thumb>Carregando foto…</span><strong>Depois</strong> · ${e(dateLabel(row.after_date))}</span>
+    </button>`).join('');
+    const rows=[...list.querySelectorAll('[data-id]')];
+    if(window.IntersectionObserver){
+     observer=new window.IntersectionObserver((entries,visible)=>{
+      if(!current()||run!==request)return;
+      for(const entry of entries)if(entry.isIntersecting){
+       visible.unobserve(entry.target);
+       void thumbnails(entry.target,records[rows.indexOf(entry.target)],run);
+      }
+     },{root:find('.comparison-picker-scroll')});
+     rows.forEach(row=>observer.observe(row));
+    }else{
+     for(let index=0;index<rows.length&&current()&&run===request;index++)await thumbnails(rows[index],records[index],run);
+    }
+   }catch{
+    if(current()&&run===request){list.replaceChildren();notice.textContent='Não foi possível consultar suas comparações. Tente atualizar.';}
+   }finally{if(current()&&run===request)refresh.disabled=false;}
+  }
+  dialog.addEventListener('click',async event=>{
+   const command=event.target.closest('[data-picker]')?.dataset.picker;
+   if(command==='close'){close();return;}
+   if(command==='refresh'){void load();return;}
+   if(command==='attach'&&selection?.blob&&current()){
+    const {record,blob}=selection;
+    close(false);clearPhoto();photo=blob;photoURL=URL.createObjectURL(blob);
+    selectedComparison={...record,account};
+    attachOpen=false;resetID();draw();
+    if(top!=null){const now=document.querySelector('.chat-log');if(now)now.scrollTop=top;}
+    document.querySelector('[data-community=attachments]')?.focus({preventScroll:true});
+    return;
+   }
+   const row=event.target.closest('[data-community=pick_comparison]');
+   const record=records.find(item=>item.id===row?.dataset.id);
+   if(!record||!current()||!cloud.beforeAfterBlob)return;
+   resetPreview();
+   const run=previewRequest;
+   for(const button of list.querySelectorAll('[aria-pressed]'))button.setAttribute('aria-pressed',String(button===row));
+   notice.textContent='Carregando prévia da comparação…';
+   try{
+    const blob=await cloud.beforeAfterBlob(record);
+    if(!current()||run!==previewRequest)return;
+    previewURL=URL.createObjectURL(blob);
+    const image=document.createElement('img');
+    image.src=previewURL;image.alt='Prévia da composição Antes e Depois';
+    preview.replaceChildren(image);selection={record,blob};attach.disabled=false;
+    notice.textContent='Confira a prévia. O Grupo só receberá a cópia após a confirmação do envio.';
+   }catch{
+    if(current()&&run===previewRequest)notice.textContent='Esta comparação não está disponível. Tente atualizar.';
+   }
+  });
+  document.body.append(dialog);
+  cleanup?.observe(document.body,{childList:true});
+  if(typeof dialog.showModal==='function')dialog.showModal();else dialog.setAttribute('open','');
+  find('[data-picker=close]').focus();
+  void load();
  }
  function view(ctx){context=ctx;const key=ctx.demo?'demo':ctx.cloud?ctx.user?.id||'guest':'local';if(key!==owner){document.querySelector('[data-library-pins]')?.remove();owner=key;generation++;libraryLinks.clear();librarySort='recent';libraryType='all';librarySearch='';libraryFeaturedOnly=false;libraryFilterOpen=false;libraryReloadQueued=false;clearMaterialFiles();materialEditID='';materialExistingFiles=[];materialEditRevision=null;materialStatus='';materialDialogOpen=false;materialSuccess=null;materialDraft={title:'',body:'',url:'',featured:false};document.querySelector('[data-library-editor]')?.remove();window.NeoLibraryFiles?.reset();materialUploading=false;librarySupport=null;captureBoundary=true;unreadBoundary=null;markerVisible=false;followTail=true;photoLinks.clear();fileLinks.clear();ownMedia.clear();checkedMedia.clear();clearDraft();fields=['change','days'];data=null;status='';loading=false;tab=visitDirect||typeof location!=='undefined'&&/[?&]conversa=1(?:&|$)/.test(location.search||'')?'direct':visitSection}context={...ctx,platformAdmin:ctx.platformAdmin??ctx.admin,admin:(ctx.platformAdmin??ctx.admin)||data?.can_moderate===true};let body='';
  if(!ctx.cloud)body='<div class="notice">A comunidade exige uma conta conectada. Seus registros locais e de demonstração não são publicados.</div>';
@@ -274,7 +362,7 @@ if(all.some(p=>p.photo_path)&&window.NeoCloud.communityPhotoURL){await Promise.a
  if(action==='remove_existing_material_file'){if(!context.admin||materialUploading||materialSaving)return;const file=materialExistingFiles[Number(t.dataset.index)];if(file)file.removed=true;draw();return;}
  if(action==='edit_material_files'){if(!context.admin||materialUploading||!data.edit_ready)return;const token=generation;t.disabled=true;try{const result=await window.NeoCloud.library('get',{id:t.dataset.id});if(token!==generation)return;if(!result.material)throw Error('Material não encontrado.');const row=result.material;await loadLibraryMedia([row],token,6);if(token!==generation)return;closeMaterialEditor(true);materialEditID=row.id;materialEditRevision=row.revision;materialExistingFiles=(row.attachments||[]).map(f=>({...f,removed:false}));materialDraft={title:row.title,body:materialDescription(row),url:row.url||'',featured:row.featured===true};materialSuccess=null;materialStatus='';materialDialogOpen=true;draw();}catch(err){if(token===generation){status=err.message;draw();}}finally{t.disabled=false;}return;}
  if(action==='open_youtube'){const media=window.NeoMediaLinks?.resolve(t.dataset.url);if(media?.platform!=='YouTube'||!media.embed)return;const row=data?.materials?.find(m=>m.id===t.closest('[data-material-id]')?.dataset.materialId);recordMaterialAccess(row?.id);await window.NeoLibraryFiles?.open({external_url:media.url,display_name:row?.title||'Vídeo',allow_download:false},t);return;}if(action==='play_external'){recordMaterialAccess(t.closest('[data-material-id]')?.dataset.materialId);const media=window.NeoMediaLinks?.resolve(t.dataset.url);if(!media?.embed)return;const frame=document.createElement('iframe');frame.src=media.embed;frame.title='Vídeo '+media.platform;frame.allow='fullscreen; picture-in-picture; encrypted-media';frame.setAttribute('allowfullscreen','');frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');frame.referrerPolicy='strict-origin-when-cross-origin';t.replaceWith(frame);return;}if(action==='load_material_media'){const row=data?.materials?.find(m=>m.id===t.dataset.id);if(row){const token=generation;t.disabled=true;await loadLibraryMedia([row],token,6);if(token===generation)draw();}return;}if(action==='remove_material_file'){if(materialUploading)return;const item=materialFiles[Number(t.dataset.index)];if(item?.local_url)URL.revokeObjectURL(item.local_url);window.NeoLibraryFiles?.close();materialFiles=materialFiles.filter((_,i)=>i!==Number(t.dataset.index));draw();return;}if(action==='more_members'){await fetchMembers(true);return}if(action==='members'||action==='member_info'){await openMembers(action==='member_info'?t.dataset.user:null);return}if(action==='close_members'){memberRequest++;clearTimeout(memberSearchTimer);document.querySelector('[data-members-dialog]')?.remove();return}if(action==='contact_member'){await contactMember(t.dataset.user);return}if(action==='promote_member'||action==='demote_member'){if(!confirm(action==='promote_member'?'Tornar este participante administrador? Ele terá acesso à administração da plataforma, da loja e dos atendimentos.':'Remover o acesso de administrador? Os atendimentos serão devolvidos à fila.'))return;try{await window.NeoCloud.communityMembers(action==='promote_member'?'promote':'demote',{user_id:t.dataset.user});await openMembers(t.dataset.user)}catch(err){const output=document.querySelector('[data-members-status]');if(output)output.textContent=err.message}return}if(action==='settings'){await openSettings();return}if(action==='close_settings'){document.querySelector('[data-community-settings]')?.remove();return}if(action==='notifications'){document.querySelector('[data-community-settings]')?.remove();const panel=window.NeoCommunityAlerts?.panel();if(panel)document.querySelector('[data-community-root]').insertAdjacentHTML('beforeend',panel);return}if(action==='save_settings'){const input=document.querySelector('[data-auto-publish]');if(!input)return;const token=generation;t.disabled=true;try{await window.NeoCloud.communitySettings('update',{require_approval:!input.checked});if(token===generation){const status=document.querySelector('[data-community-settings-status]');if(status)status.textContent='Configuração salva. Vale para novas postagens.'}}catch(err){if(token===generation){const status=document.querySelector('[data-community-settings-status]');if(status)status.textContent=err.message}}finally{t.disabled=false}return}if(action==='share_post'){await sharePost(t.dataset.id);return}
- if(action==='attachments'){attachOpen=!attachOpen;if(attachOpen)summarySelecting=false;draw();return}if(action==='summary_done'){attachOpen=false;summarySelecting=false;draw();return}if(action==='choose_file'){document.querySelector('[data-chat-file]')?.click();return}if(action==='remove_file'){documentFile=null;filePath='';resetID();draw();return}if(action==='choose_photo'){document.querySelector('[data-chat-photo]')?.click();return}if(action==='choose_comparison'){attachOpen=false;draw();await openComparisonPicker();return}if(action==='close_comparison_picker'){t.closest('[data-before-after-picker]')?.close?.();t.closest('[data-before-after-picker]')?.remove();return}if(action==='pick_comparison'){await selectSavedComparison(t.dataset.id,t);return}if(action==='remove_photo'){clearPhoto();resetID();draw();return}if(action==='remove_summary'){snapshot=null;showSummary=false;previewError='';previewBusy=false;previewVersion++;resetID();draw();return}if(action==='summary'){showSummary=true;summarySelecting=true;await updatePreview();return}
+ if(action==='attachments'){attachOpen=!attachOpen;if(attachOpen)summarySelecting=false;draw();return}if(action==='summary_done'){attachOpen=false;summarySelecting=false;draw();return}if(action==='choose_file'){document.querySelector('[data-chat-file]')?.click();return}if(action==='remove_file'){documentFile=null;filePath='';resetID();draw();return}if(action==='choose_photo'){document.querySelector('[data-chat-photo]')?.click();return}if(action==='choose_comparison'){openComparisonPicker(t);return}if(action==='remove_photo'){clearPhoto();resetID();draw();return}if(action==='remove_summary'){snapshot=null;showSummary=false;previewError='';previewBusy=false;previewVersion++;resetID();draw();return}if(action==='summary'){showSummary=true;summarySelecting=true;await updatePreview();return}
  if(action==='feature_material'){if(!context.admin||!data?.library_ready)return;const item=data.materials?.find(m=>m.id===t.dataset.id);if(!item)return;const token=generation;loading=true;t.disabled=true;try{await window.NeoCloud.library('set_featured',{id:item.id,featured:!item.featured});if(token!==generation)return;window.NeoLibrary?.invalidate();}catch(err){if(token===generation)status=err.message;}finally{if(token===generation){loading=false;await load(context,true);}}return;}
  if(action==='cleanup_photos'){try{await window.NeoCloud.cleanupCommunityPhotos();status='Arquivos não utilizados removidos.'}catch(err){status=err.message}draw();return}
  if(!['delete_post','delete_material','approve','reject'].includes(action))return;
@@ -287,7 +375,7 @@ if(all.some(p=>p.photo_path)&&window.NeoCloud.communityPhotoURL){await Promise.a
     if(!window.confirm('Publicar esta comparação Antes/Depois no Grupo? Os membros autorizados poderão visualizar a imagem.'))return;
    }values.share='on';if(snapshot)values.summary_share='on';if(photo)values.photo_share='on';}
  captureMaterialDraft();if(kind==='material')materialSaving=true;loading=true;const token=generation;const button=form.querySelector('[type="submit"]')||form.querySelector('button');const controls=Array.from(form.querySelectorAll('button,input,textarea')).map(el=>[el,el.disabled]);controls.forEach(([el])=>el.disabled=true);if(kind==='material')syncMaterialDialog();try{
- if(kind==='post'&&data.chat_ready){messageID=messageID||crypto.randomUUID();if(photo&&!photoPath)photoPath=await window.NeoCloud.uploadCommunityPhoto(photo);if(token!==generation)return;if(documentFile&&!filePath)filePath=await window.NeoCloud.uploadCommunityFile(documentFile);if(token!==generation)return;const payload={...values,id:messageID,photo_path:photoPath||null,snapshot,fields};if(filePath)await window.NeoCloud.communityFile('post',{...payload,file_path:filePath});else await chat('post',payload);}else if(kind==='material'&&data.library_ready){for(const item of materialFiles){if(!item.path){await uploadMaterialItem(item,token);if(token!==generation)return;if(item.upload_state==='error')throw Error(item.error);}}const attachments=data.file_controls_ready?materialFiles.map(f=>({path:f.path,allow_download:f.allow_download})):materialFiles.map(f=>f.path);const editing=!!materialEditID,title=values.title;let result;const kept=materialExistingFiles.filter(f=>!f.removed).map(f=>({path:f.path,allow_download:f.allow_download!==false}));const allAttachments=editing?[...kept,...attachments]:attachments;const payload={title:values.title,body:String(values.body||'').trim()||(values.url?'Material externo.':'Material anexado.'),url:values.url||'',featured:values.featured==='on',...(data.media_ready?{attachments:allAttachments}:{})};if(editing){result=await window.NeoCloud.library('update',{id:materialEditID,expected_revision:materialEditRevision,...payload});}else result=await window.NeoCloud.library('create',payload);if(token!==generation)return;materialSuccess={id:result?.id||materialEditID,title,count:allAttachments.length,editing};materialExistingFiles=[];materialEditRevision=null;clearMaterialFiles();materialEditID='';materialDraft={title:'',body:'',url:'',featured:false};materialStatus='';syncMaterialDialog();window.NeoLibrary?.invalidate();}else{if(kind==='post'&&draft.trim().length<3)throw Error('Use pelo menos 3 caracteres até concluir a atualização do Supabase.');const result=await rpc(kind,values);if(kind==='material'&&token===generation){materialSuccess={id:result?.id||'',title:values.title,count:0,attaching:false};materialDraft={title:'',body:'',url:'',featured:false};syncMaterialDialog();}}
+ if(kind==='post'&&data.chat_ready){messageID=messageID||crypto.randomUUID();if(selectedComparison){await window.NeoCloud.verifyBeforeAfter?.(selectedComparison);if(token!==generation)return;}if(photo&&!photoPath)photoPath=await window.NeoCloud.uploadCommunityPhoto(photo);if(token!==generation)return;if(documentFile&&!filePath)filePath=await window.NeoCloud.uploadCommunityFile(documentFile);if(token!==generation)return;const payload={...values,id:messageID,photo_path:photoPath||null,snapshot,fields};if(filePath)await window.NeoCloud.communityFile('post',{...payload,file_path:filePath});else await chat('post',payload);}else if(kind==='material'&&data.library_ready){for(const item of materialFiles){if(!item.path){await uploadMaterialItem(item,token);if(token!==generation)return;if(item.upload_state==='error')throw Error(item.error);}}const attachments=data.file_controls_ready?materialFiles.map(f=>({path:f.path,allow_download:f.allow_download})):materialFiles.map(f=>f.path);const editing=!!materialEditID,title=values.title;let result;const kept=materialExistingFiles.filter(f=>!f.removed).map(f=>({path:f.path,allow_download:f.allow_download!==false}));const allAttachments=editing?[...kept,...attachments]:attachments;const payload={title:values.title,body:String(values.body||'').trim()||(values.url?'Material externo.':'Material anexado.'),url:values.url||'',featured:values.featured==='on',...(data.media_ready?{attachments:allAttachments}:{})};if(editing){result=await window.NeoCloud.library('update',{id:materialEditID,expected_revision:materialEditRevision,...payload});}else result=await window.NeoCloud.library('create',payload);if(token!==generation)return;materialSuccess={id:result?.id||materialEditID,title,count:allAttachments.length,editing};materialExistingFiles=[];materialEditRevision=null;clearMaterialFiles();materialEditID='';materialDraft={title:'',body:'',url:'',featured:false};materialStatus='';syncMaterialDialog();window.NeoLibrary?.invalidate();}else{if(kind==='post'&&draft.trim().length<3)throw Error('Use pelo menos 3 caracteres até concluir a atualização do Supabase.');const result=await rpc(kind,values);if(kind==='material'&&token===generation){materialSuccess={id:result?.id||'',title:values.title,count:0,attaching:false};materialDraft={title:'',body:'',url:'',featured:false};syncMaterialDialog();}}
  if(token!==generation)return;if(kind==='post'){window.NeoEngagement?.track(data.chat_ready?'community_message_sent':'community_post_created','comunidade');clearDraft();form.reset();form.querySelectorAll('.compact-photo,.compact-document,.composer-summary,.chat-attach-menu').forEach(node=>node.remove());sendToBottom=true}else form.reset();loading=false;await load();
  }catch(err){if(token===generation){if(kind==='material'){materialStatus=err.message;draw();}else showError(err.message)}}finally{if(token===generation){loading=false;controls.forEach(([el,wasDisabled])=>el.disabled=wasDisabled);if(kind==='material'){materialSaving=false;draw();}}}});
  // Realtime invalidates authorized data; periodic reconciliation recovers missed/disconnected events.

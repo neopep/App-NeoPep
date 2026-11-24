@@ -26,7 +26,7 @@ Option 2: Install and provide the "ws" package:
 `:"",w=`${v} wants you to sign in with your Ethereum account:
 ${g}
 
-${b}`,A=`URI: ${d}
+${E}`,k=`URI: ${d}
 Version: ${h}
 Chain ID: ${t}${o?`
 Nonce: ${o}`:""}

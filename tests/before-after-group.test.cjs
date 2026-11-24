@@ -24,10 +24,10 @@ test('owner-only private comparison read and image validation',()=>{
 test('group picker does not automatically publish and confirms chosen comparison',()=>{
  const c=read('dist/community.js');
  assert.match(c,/data-community="choose_comparison"/);
- assert.match(c,/async function openComparisonPicker\(\)/);
- assert.match(c,/async function selectSavedComparison\(id,trigger\)/);
- assert.match(c,/NeoCloud\.beforeAfterBlob\(item\)/);
- assert.match(c,/selectedComparison=\{id:item\.id/);
+ assert.match(c,/function openComparisonPicker\(trigger\)/);
+ assert.match(c,/data-picker="attach" disabled/);
+ assert.match(c,/cloud\.beforeAfterBlob\(record\)/);
+ assert.match(c,/selectedComparison=\{\.\.\.record,account\}/);
  assert.match(c,/window\.confirm\('Publicar esta comparação Antes\/Depois no Grupo/);
  const confirm=c.indexOf("window.confirm('Publicar esta comparação Antes/Depois");
  const upload=c.indexOf('window.NeoCloud.uploadCommunityPhoto(photo)');
