@@ -27,7 +27,7 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 | #005 | Modal de comparações | PLANEJADO | PR36 registra comparações; operação atual remota não verificada | 005.01 |
 | #001 | Localização onboarding | PLANEJADO | Preferência e prompt nativo já no código | 001.01 |
 | #002 | Consentimento personalização | PLANEJADO | Quatro preferências existentes | 002.01 |
-| #008 | Fixar publicações | PLANEJADO | Biblioteca já instalada; ordem atual não auditada | 008.01 |
+| #008 | Fixar publicações | EM_TESTE (local) | PR #42 draft; commit d76ae73; SQL não aplicado em Teste | 008.03 |
 | #009 | Seringa na Home | PLANEJADO | syringeSymbol existente | 009.01 |
 | #003 | Tema claro/escuro | PLANEJADO | light/dark/system existente no código | 003.01 |
 | #010 | Estoque, custos e lucro | PLANEJADO | shop_products.stock e price_cents confirmados nos dois bancos | 010.01 |
@@ -62,9 +62,9 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 | 002.01 | Mapear finalidade das preferências existentes | PLANEJADO | analytics, uso, push, location |
 | 002.02 | Inserir tela com textos aprovados | PLANEJADO | sequenciada, consentimento separado |
 | 002.03 | Validar opt-out e privacidade | PLANEJADO | sem dados sensíveis no marketing |
-| 008.01 | Analisar order/filter/ACL da Biblioteca | PLANEJADO | identificar delta SQL |
-| 008.02 | Fixar/desafixar e ordenar com autorização | PLANEJADO | múltiplos fixados |
-| 008.03 | Validar filtros, permissão e destaque | PLANEJADO | sem vazamento |
+| 008.01 | Analisar order/filter/ACL da Biblioteca | REPORTADO_CONCLUIDO | Codex inspecionou Biblioteca existente; ver registro de execução na branch |
+| 008.02 | Fixar/desafixar e ordenar com autorização | IMPLEMENTADO_LOCALMENTE | PR #42; migração 20261124140000_library_pins.sql ainda não aplicada em Teste |
+| 008.03 | Validar filtros, permissão e destaque | EM_TESTE | 25 testes reportados, banco isolado e emulações; faltam contas reais e dispositivos físicos |
 | 009.01 | Localizar seringa resultado e último cálculo | PLANEJADO | source true |
 | 009.02 | Reusar componente no card da Home | PLANEJADO | vazio e cálculo real |
 | 009.03 | Validar três capacidades e contas | PLANEJADO | sem regressão |
@@ -159,3 +159,10 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - PR [#41](https://github.com/neopep/App-NeoPep/pull/41) criada com sucesso por este agente, `draft`, `open`, destino `staging/permanente`, head `0087a15`. GitHub reporta `mergeable=true` na última leitura. Não foi efetuado merge.
 - Consulta Vercel filtrada pelo SHA `0087a15`: projeto **Teste** `app-neopep-staging`, deploy `dpl_7pDctqa1FjaatRazqDXDNa4TZBiA` com status `CANCELED`; projeto **Produção** `app-neopep`, preview `dpl_8tNimE4BsYfFxCDAKepbSbix1bcc` com status `ERROR`. Ambos têm `target=null` e **não** equivalem a publicação em domínio de Produção. Nenhum preview READY confirmado para este SHA.
 - Bloqueio atual: preparar e efetuar implantação no ambiente Teste por fluxo autorizado, depois validar PDF real e Safari/PWA físicos. O ajuste continua EM_TESTE (local), aceite NÃO_CONCEDIDO, publicação NÃO_REALIZADA. Não fazer merge em Teste sem checar se o fluxo de deploy/CI permitirá uma homologação isolada.
+
+### Registro #008 — 24/11/2026 (GitHub)
+- Branch `desenvolvimento/ajuste-008-fixar-biblioteca`, commit `d76ae73379537c3cf5d638f18dc91ab019e8cdb8`, [PR #42](https://github.com/neopep/App-NeoPep/pull/42) aberta em rascunho para `staging/permanente`.
+- Comparação: 1 commit à frente e 0 atrás de `staging/permanente@0970ae6`; 9 arquivos alterados, inclusive `dist/community.js`, CSS, service worker, build, testes e `supabase/migrations/20261124140000_library_pins.sql`.
+- Evidência Codex: 25 testes direcionados, build/check e emulações desktop/iPhone 13/Pixel 7 reportados; este agente não repetiu a execução nem auditou ainda a semântica SQL/RLS.
+- **Bloqueio:** Supabase Teste não acessível ao Codex (proxy); SQL apenas validado em banco isolado, não aplicado em Teste/Produção. Exige revisão dirigida da migração e aplicação controlada em Teste antes da homologação real. Faltam contas reais, concorrência administrativa e dispositivos físicos.
+- #006 permanece separado na PR #41, sem merge automático. Desenvolvimento #008: EM_TESTE (local); aceite NÃO_CONCEDIDO; publicação NÃO_REALIZADA.
