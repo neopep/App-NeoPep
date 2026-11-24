@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #013 — Connect Teste 0.2.9 instalada e reportada pelo dispositivo, confirmada no Supabase; computador aprovado online. WhatsApp ainda com status disconnected e sincronização anterior, requer validação local de sessão/grupos sem envio. Flags automáticas OFF; web UI e homologação real pendentes.
-**ÚLTIMA_DECISÃO:** proprietário informou «Já atualizei». Verificação read-only do Supabase Teste confirmou evento installed da 0.2.9 e heartbeat do dispositivo 0.2.9; WhatsApp disconnected e presença worker nula. Nada enviado, nenhum deploy Vercel, produção intocada.
+**FOCO_ATUAL:** #013 — Connect Teste 0.2.9 instalado; sessão WhatsApp Teste conectada e grupos visíveis, mas último sync de grupos ainda antigo. Na janela Produção erro local genérico 'Não foi possível processar a sessão local protegida'; diagnosticar sem apagar cofres ou alterar Produção. Flags de envio OFF, sem Vercel.
+**ÚLTIMA_DECISÃO:** proprietário validou WhatsApp/grupos no Teste e reportou erro de processamento da sessão na janela Produção da 0.2.9. Inspeção read-only dos dois Supabase: Teste conectado com heartbeat recente; Produção com último status 'connected' mais antigo, sem prova de sessão atualmente saudável. Não apagar/desvincular nem copiar cofres entre perfis.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
