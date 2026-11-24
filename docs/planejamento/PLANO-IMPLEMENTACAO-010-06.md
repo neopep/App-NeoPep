@@ -51,3 +51,15 @@ Criar PR draft, evidência de testes, checklist 010.01–010.06, blockers, decis
 - Na etapa #010.06, **não realizar deploy automático** a cada commit/erro. Testar localmente todos os componentes, corrigir em lote e fazer build final idêntico ao de Vercel antes de solicitar um único deploy controlado de Teste.
 - Quando a implantação exigir alteração de branch que ativa builds automaticamente, ajustar o bloqueio/ignorar builds primeiro e comprovar. Não criar previews de PR desnecessários nem redeploys idênticos.
 - Não prometer limite mensal, quantidade restante ou custo sem verificar informações específicas no painel Vercel.
+## Execução registrada em 24/11/2026
+
+| Subetapa | Estado |
+|---|---|
+| 010.06.1 | Inventário e média móvel documentados |
+| 010.06.2 | Instrumentação e snapshots implementados e validados localmente |
+| 010.06.3 | Auditoria, despesas comprovadas e devolução física integradas localmente |
+| 010.06.4 | Build/check, 33 testes Loja/PWA, PostgreSQL 17 concorrente e emulações aprovados |
+| 010.06.5 | Autorização para aplicação em Teste, QA real e confirmação do deploy pendentes |
+| 010.06.6 | Candidata versionada. Divergência legada de reembolso, aceite e publicação pendentes |
+
+[Evidências, dependências e fronteira de reversão](https://github.com/neopep/App-NeoPep/blob/5a534891be186dc6e54c643e1b09d4347964a1bd/docs/planejamento/EXEC-2026-11-24-010-06.md).
