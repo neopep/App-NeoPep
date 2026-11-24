@@ -28,7 +28,11 @@ declare
   page_id uuid;
   result jsonb;
 begin
-  if actor is null or not coalesce(public.neo_admin_access(), false) then
+  -- Financial costs are restricted to administrators, never community-only moderators.
+  -- neo_admin_access() also recognizes community_moderators and is too broad here.
+  if actor is null or not exists (
+    select 1 from neo_private.admin_members where user_id = actor
+  ) then
     raise exception 'shop_cost_admin_required' using errcode = '42501';
   end if;
   if p_action is null or p_action not in ('read', 'register')
