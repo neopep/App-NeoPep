@@ -63,7 +63,10 @@
   ],
   "git": {
     "deploymentEnabled": {
-      "desenvolvimento/calculadora-ajustes-lote": false
+      "desenvolvimento/calculadora-ajustes-lote": false,
+      "desenvolvimento/ajuste-010-04-editor-custos": false,
+      "desenvolvimento/ajuste-010-05-dashboard-financeiro": false,
+      "homologacao/loja-010-04-010-05": false
     }
   }
 }
