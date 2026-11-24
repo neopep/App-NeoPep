@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #010.06 — candidata implementada localmente em `5a53489` / PR #54 draft, pendente de SQL em Teste, QA real e decisão sobre reembolso integral legado. #010.04+#010.05 aceitas em Teste; deploys Vercel preservados.
-**ÚLTIMA_DECISÃO:** proprietário determinou «Mantém como está» sobre o contrato de reembolso/estoque legado. Manter liberação automática existente em reembolso integral pré-expedição, sem alterar checkout ou webhook; documentar como comportamento conhecido e aceito, exigindo testes de não duplicidade. 010.06 continua pendente de migração Teste, QA real e aceite da implementação; economizar deploys.
+**FOCO_ATUAL:** #010.06 — migração shop_reconciliation aplicada e verificada em Supabase Teste; PR #54 draft, frontend ainda não publicado; QA de sessões reais, Teste READY e aceite da 010.06 pendentes. Regra legada de reembolso mantida.
+**ÚLTIMA_DECISÃO:** após «Vamos avançar e concluir essa etapa agora», foi aplicada apenas a migração 010.06 no Supabase Teste `qnuluspqfazdppciermw` com preflight aprovado; 4 triggers, RPC e ledger confirmados, estoque preservado em 100 unidades. Sem deploy Vercel, sem Produção e sem mudanças no Mercado Pago. QA real e aceite ainda pendentes.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
