@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #010.04 + #010.05 — integração validada localmente; configuração Vercel/Supabase Teste e QA reais pendentes.
-**ÚLTIMA_DECISÃO:** preparar e publicar a versão integrada somente após verificar ambiente Teste. Bloqueio remoto 403 nesta execução; versão de referência preservada.
+**FOCO_ATUAL:** #010.04 + #010.05 — integração publicada no Vercel de Teste (READY), QA com usuários reais e aceite 010.05 pendentes.
+**ÚLTIMA_DECISÃO:** publicação controlada da branch de integração `homologacao/loja-010-04-010-05@43e31df` exclusivamente no projeto Vercel de Teste `app-neopep-staging`. Deploy `dpl_Fb2oKfv8sFgWUx2945BjmFetetif` READY; domínio teste.app.neopep.com.br confirmou SHA e Supabase Teste. Sem merge em staging/main ou publicação do projeto Vercel de Produção. #010.05 ainda sem aceite do proprietário.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -18,7 +18,7 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | Em espera | #008 | Fixar posts da Biblioteca | EM_TESTE (local; SQL não aplicado em Teste) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 008.03 |
 | Em espera | #009 | Seringa no card da Home | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 009.03 |
 | Em espera | #003 | Tema claro/escuro | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 003.05 |
-| 1 (foco atual) | #010 | Estoque, custos e lucro | SQL em Teste e frontend integrado validado localmente | 010.04 aceita; 010.05 pendente | Frontend integrado sem deploy | Verificar projeto, publicar em Teste e homologar |
+| 1 (foco atual) | #010 | Estoque, custos e lucro | 010.04+010.05 INTEGRAÇÃO_PUBLICADA_TESTE / READY / QA_REAL_PENDENTE | 010.04 aceita; 010.05 sem aceite | Publicada SOMENTE EM TESTE, não Produção | QA real e aceite 010.05; 010.06 em espera |
 | 10 | #011 | Edição em massa | NÃO_INICIADO | Não solicitado | Não preparado | 011.01 |
 | 11 | #013 | Campanhas e Connect | NÃO_INICIADO | Não solicitado | Não preparado | 013.01 |
 | 12 | #012 | Planos/assinaturas | NÃO_INICIADO | Não solicitado | Não preparado | 012.01 |
@@ -87,6 +87,8 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | 2026-11-24 | Codex / conferência GitHub | 010.05 commit `2785404`; PR criada manualmente após 403 | #010 / 010.05 | PR [#52](https://github.com/neopep/App-NeoPep/pull/52) em rascunho; 13 arquivos; código pronto para revisão, SQL ainda não aplicado em Teste, sem homologação nem aceite; 010.04 segue aprovado separadamente | [PR #52](https://github.com/neopep/App-NeoPep/pull/52) |
 
 | 2026-11-24 | Proprietário / Supabase | «Autorizo» — aplicar migração SQL 010.05 somente em Teste | #010 / 010.05 | Preflight somente leitura passou; SQL exato do Git (blob `1d3e756f`) aplicado em `qnuluspqfazdppciermw`; ledger remoto `20261124172822 / shop_financial_dashboard`, diferente do prefixo local `20261124200000`. RPC e grants verificados. Sem deploy/QA real/aceite 010.05 | [PR #52](https://github.com/neopep/App-NeoPep/pull/52) |
+
+| 2026-11-24 | Assistente / Vercel Teste | Homologação financeira 010.04+010.05 | #010 / 010.04+010.05 | PR #53 draft; Vercel projeto Teste `app-neopep-staging` publicou commit `43e31df`, deploy `dpl_Fb2oKfv8sFgWUx2945BjmFetetif` READY. Custom alias `teste.app.neopep.com.br` respondeu 200 e `config.js` exibiu Supabase Teste e SHA certo. QA real e aceite 010.05 pendentes; sem publicação em Produção | [PR #53](https://github.com/neopep/App-NeoPep/pull/53) |
 
 ## 4. Fila de aprovados aguardando publicação
 **#010.04 aprovada pelo proprietário em 24/11/2026**, aguardando validação funcional real e decisão de publicação. Versão: PR #51, commit `0e0faaf`; migração somente Teste ledger `20261124170927`. Não inclui a etapa #010.05 nem autoriza Produção. Demais subetapas deste ciclo não foram aprovadas. Registrar futuras liberações individualmente.

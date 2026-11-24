@@ -37,3 +37,12 @@
 
 ## Fila para release conjunto
 **Vazia.** Itens entram somente após aceite do proprietário e decisão explícita de publicar em conjunto.
+
+## Publicação exclusivamente em Teste — integração financeira #010.04+#010.05 — 24/11/2026
+- Tipo: **HOMOLOGAÇÃO_TESTE** (não é PUBLICADO_PRODUCAO). Escopo: editor de custos e dashboard financeiro. #010.04 aceita pelo proprietário, #010.05 ainda aguarda aceite.
+- Git: branch `homologacao/loja-010-04-010-05`, SHA `43e31dfcc703e08192acc93d596c566cfd783260`, [PR #53](https://github.com/neopep/App-NeoPep/pull/53) draft. Base staging `0970ae6`; sem merge.
+- Vercel Teste: projeto `app-neopep-staging` (ID `prj_ksWxwsJyKhdR2nW2OiZkwx8hlkdq`), deploy `dpl_Fb2oKfv8sFgWUx2945BjmFetetif` **READY**, URL `https://app-neopep-staging-eggkjzt1y-neo-pep.vercel.app`, alias oficial de Teste `https://teste.app.neopep.com.br/neo/`. Verificação HTTP 200 na página e no `/config.js`: `NeoPep Teste`, Supabase Teste `qnuluspqfazdppciermw`, SHA correspondente.
+- Supabase Teste: ledger fundação `20261124164148`, editor `20261124170927`, dashboard `20261124172822`; script `release/shop-finance/verify-test-integration.sql` passou com consultas somente de leitura e impressão digital RPC. Sem novas migrações.
+- Baseline recuperação Vercel Teste anterior: `dpl_F7crpVWtyrBkc7ZpddMNb7XjpMRg` READY. Restaurar alias somente em caso de regressão e após verificar estado; sem rollback SQL por falha de UI.
+- QA: permissões com JWT real, fluxos admin, história/câmbio e iPhone físico pendentes. Testes locais Codex não reexecutados. Backup atualizado não comprovado (proprietário aceitou risco ao autorizar mudanças anteriores no Teste).
+- Produção `app-neopep` `prj_Qd8luBAEbXtJgk5dIwwoSbnrBIki`: **intocada**, sem release, merge ou troca de alias. Checkout e webhook Mercado Pago intocados.
