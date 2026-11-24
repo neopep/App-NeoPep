@@ -1041,10 +1041,12 @@ async function mountCampaigns(root){
   if(!structured.open||!showStructured()||typeof cloud.campaignEditor!=='function')return;
   const box=structured.querySelector('[data-structured-list]');
   try{
-   const entries=await cloud.campaignEditor('review');
+   let entries;
+   try{entries=await cloud.campaignDispatch('review',{});}
+   catch{entries=await cloud.campaignEditor('review');}
    if(!root.isConnected)return;
    box.innerHTML=entries.filter(row=>row.channel===area).map(row=>`<article class="monitor-block">
-    <strong>${esc(row.title)}</strong><p class="sub">Versão ${esc(row.revision)} · Em revisão, envio bloqueado
+    <strong>${esc(row.title)}</strong><p class="sub">Versão ${esc(row.revision)} · ${row.state==='tracking'?'Acompanhar destinos':row.state==='app'?'Acompanhar App':'Em revisão, envio bloqueado'}
     ${row.planned_local?' · '+esc(row.planned_local)+' · '+esc(row.timezone):''} · ${esc(row.destinations)} destino(s)</p>
     <button type="button" class="secondary" data-campaign-action="structured_resume" data-id="${esc(row.campaign_id)}">Reabrir rascunho</button></article>`).join('')||'<p class="sub">Nenhuma versão neste canal.</p>';
   }catch{if(root.isConnected)box.textContent='Revisão no servidor indisponível. Rascunhos locais continuam acessíveis.';}

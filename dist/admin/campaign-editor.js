@@ -87,7 +87,13 @@
      <label>Buscar referências<input name="catalog_search" type="search" maxlength="100"></label><div data-editor-catalog></div>
      <p class="sub">Comunidade: seleção para republicação depende de consentimento verificável. Materiais da Biblioteca são referências internas com acesso pelo aplicativo.</p>
     </details>
-    <label>Horário sugerido para revisão (São Paulo)<input name="planned_local" type="datetime-local" value="${e(draft.planned_local)}"></label>
+    <label>Horário planejado (São Paulo)<input name="planned_local" type="datetime-local" value="${e(draft.planned_local)}"></label>
+    ${channel==='app'?'<label class="check"><input name="push" type="checkbox"> Solicitar push App para contas com consentimento</label>':
+       '<label>Ocorrências semanais<input name="weekly_count" type="number" min="1" max="6" step="1" value="1"></label>'}
+    <details class="space"><summary>Acompanhar destinos</summary>
+     <button type="button" class="secondary" data-editor="dispatch_status">Atualizar tentativas</button>
+     <div data-dispatch-results></div>
+    </details>
    </main>
    <footer><label>Compor texto<textarea name="message" maxlength="4000" rows="2"></textarea></label>
     <div class="inline-actions" aria-label="Formatação do trecho selecionado">
@@ -99,8 +105,8 @@
      <button type="button" class="primary" data-editor="save">Registrar rascunho na Central</button>
      <button type="button" class="secondary" data-editor="fresh">Novo rascunho</button>
      ${channel==='whatsapp'?'<button type="button" class="secondary" data-editor="cross">Criar versão App</button>':''}
-     <button type="button" class="secondary" disabled>Publicar agora</button><button type="button" class="secondary" disabled>Programar</button>
-    </div><p class="sub">Envio e agendamento automáticos bloqueados. O horário indicado é uma intenção de revisão.</p>
+     <button type="button" class="secondary" data-editor="publish" disabled>Publicar agora</button><button type="button" class="secondary" data-editor="schedule" disabled>Programar</button>
+    </div><p class="sub" data-dispatch-gate>Envio e agendamento automáticos bloqueados. Somente texto no contrato de despacho.</p>
     <p role="status" class="sub" data-editor-status></p>
    </footer>`;
   document.body.append(dialog);
@@ -108,7 +114,7 @@
   const status=$('[data-editor-status]'),message=field('message');
   const preview=$('[data-editor-preview]'),connection=$('[data-structured-connection]');
   const objectUrls=new Set();
-  let groups=[],pending,active=true,editing=null,removed=null,saving=false,revision=0,loadToken=0,catalogToken=0,selection=[0,0],catalogRows=[];
+  let gates={},dispatching=false,groups=[],pending,active=true,editing=null,removed=null,saving=false,revision=0,loadToken=0,catalogToken=0,selection=[0,0],catalogRows=[];
   const current=()=>active&&cloud.user?.id===account;
   const mediaKey=id=>account+':'+state.editorId+':'+id;
   const tell=text=>{if(current())status.textContent=text;};
@@ -130,7 +136,7 @@
    catch{tell('Falha ao salvar neste dispositivo. Mantenha o editor aberto.');return false;}
   }
   function changed(){
-   clearTimeout(pending);tell('Salvando rascunho…');pending=setTimeout(saveLocal,300);
+   showGate();clearTimeout(pending);tell('Salvando rascunho…');pending=setTimeout(saveLocal,300);
   }
   function render(){
    const version=++revision;
@@ -192,6 +198,71 @@
      'Sem destino elegível na consulta atual. Despacho bloqueado.';
    }catch{if(current()&&token===loadToken){groups=[];renderGroups();connection.textContent='Diagnóstico indisponível. Despacho bloqueado.';}}
   }
+  function showGate(){
+   const clean=state.remoteId&&state.savedDraft===JSON.stringify(draft)&&!message.value.trim()&&!editing;
+   const enabled=channel==='app'?gates.app_enabled:gates.whatsapp_enabled;
+   const textOnly=draft.blocks.length>0&&draft.blocks.every(block=>block.type==='text'&&!/(https?:\/\/|www\.)/i.test(block.text||''));
+   const eligible=channel==='app'||draft.groups.length>0&&draft.groups.every(id=>groups.some(row=>row.id===id&&row.state==='eligible'));
+   const allow=Boolean(enabled&&clean&&textOnly&&eligible);
+   $('[data-editor=publish]').disabled=!allow||channel==='whatsapp'&&!gates.devices?.some(d=>d.ready);
+   $('[data-editor=schedule]').disabled=!allow||!draft.planned_local;
+   $('[data-dispatch-gate]').textContent=enabled?
+    'O despacho exige uma versão registrada, somente texto e destinos autorizados. Aceitação pelo cliente não confirma entrega.':
+    'Envio e agendamento automáticos bloqueados. Somente texto no contrato de despacho.';
+  }
+  async function refreshGate(){
+   if(typeof cloud.campaignDispatch!=='function')return;
+   try{
+    const result=await cloud.campaignDispatch('diagnostics',{});
+    if(!current())return;
+    gates=result||{};
+    if(channel==='whatsapp'&&gates.devices?.length){
+     connection.textContent=gates.devices.map(d=>`${d.label} · ${d.ready?'Sessão recente':'Offline ou não verificada'}
+      ${d.bridge_version?' · '+d.bridge_version:''}`).join(' / ');
+    }
+   }catch{if(current())gates={};}
+   if(current())showGate();
+  }
+  const outcomes={waiting:'Aguardando',leased:'Em preparação',started:'Em processamento',accepted:'Aceito pelo cliente',
+   uncertain:'Resultado incerto · revisar',failed:'Falhou',cancelled:'Cancelado'};
+  async function showDispatch(){
+   const root=$('[data-dispatch-results]');
+   root.textContent='Consultando destinos…';
+   try{
+    const rows=await cloud.campaignDispatch(channel==='app'?'app_status':'status',{editor_id:state.editorId});
+    if(!current())return;
+    if(channel==='app'){
+     root.innerHTML=rows.map(row=>`<article class="monitor-block">
+      <strong>${e(row.title)} · ${row.cancelled_at?'Cancelada':row.status==='active'&&new Date(row.starts_at)>new Date()?'Programada':e(row.status)}</strong>
+      <p class="sub">${e(new Date(row.starts_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}))} · Push ${row.push_requested?'solicitado':'desligado'}</p>
+      ${row.status==='active'&&new Date(row.starts_at)>new Date()?'<button type="button" class="secondary" data-editor="reschedule" data-batch="'+e(row.id)+'">Mover horário App</button> <button type="button" class="secondary" data-editor="cancel_batch" data-batch="'+e(row.id)+'">Cancelar App</button>':''}</article>`).join('')||'Nenhuma publicação App registrada.';
+     return;
+    }
+    root.innerHTML=rows.map(row=>`<article class="monitor-block">
+     <strong>${e(row.dispatch_jid)} · ${e(outcomes[row.dispatch_state]||row.dispatch_state)}</strong>
+     <p class="sub">${e(new Date(row.dispatch_due).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}))} · ${e(row.dispatch_attempts)} tentativa(s)${row.dispatch_cancel_requested?' · Cancelamento solicitado':''}</p>
+     <ul>${row.attempts.map(a=>`<li>${e(a.event)} · ${e(new Date(a.recorded_at).toLocaleString('pt-BR'))}</li>`).join('')}</ul>
+     ${row.dispatch_state==='waiting'?'<button type="button" class="secondary" data-editor="reschedule" data-batch="'+e(row.dispatch_batch)+'" data-publication="'+e(row.id)+'">Mover para o horário planejado</button>':''}
+     ${['waiting','leased','started'].includes(row.dispatch_state)?'<button type="button" class="secondary" data-editor="cancel_batch" data-batch="'+e(row.dispatch_batch)+'">Cancelar lote</button>':''}</article>`).join('')||'Nenhum destino agendado neste rascunho.';
+   }catch{if(current())root.textContent='Histórico de despacho indisponível.';}
+  }
+  async function dispatch(scheduled){
+   if(dispatching||!current())return;
+   const action=channel==='app'?'publish_app':'schedule_whatsapp';
+   const intent={editor_id:state.editorId,revision:state.revision,local_time:scheduled?draft.planned_local:null,
+    weekly_count:channel==='app'||!scheduled?1:Number(field('weekly_count').value),push:field('push')?.checked===true};
+   const fingerprint=JSON.stringify(intent);
+   const request=state.dispatchAttempt?.fingerprint===fingerprint?state.dispatchAttempt:{fingerprint,id:uuid()};
+   if(!window.confirm('Confirmar neste canal? Confira os destinos, o horário e o conteúdo registrado.'))return;
+   state.dispatchAttempt=request;saveLocal();dispatching=true;
+   try{
+    await cloud.campaignDispatch(action,{...intent,request_id:request.id});
+    if(!current())return;
+    saveLocal();tell(channel==='app'?'Campanha App registrada.':'Ocorrências registradas. Confira os resultados por destino.');
+    onSaved?.();
+   }catch{tell('Não foi possível confirmar a operação. Repita os mesmos dados para reconciliar.');}
+   finally{dispatching=false;}
+  }
   async function saveRemote(){
    if(saving||!current())return;
    if(editing||message.value.trim()){tell('Adicione ou conclua o bloco em edição antes de registrar a versão.');return;}
@@ -206,6 +277,7 @@
      source_id:source,revision:state.revision,channel,draft:snapshot});
     if(!current())return;
     state.revision=result.revision;state.remoteId=result.campaign_id;state.attempt=null;
+    state.savedDraft=fingerprint;showGate();
     saveLocal();tell('Versão '+state.revision+' registrada para revisão. Nenhum envio realizado.');
     onSaved?.(result);
    }catch(err){tell(err.code==='40001'?'A versão mudou. Reabra pela esteira para revisar.':'Não foi possível confirmar o registro. Repita sem alterar a versão para recuperar o resultado.');}
@@ -284,7 +356,18 @@
     if(!state.remoteId&&!window.confirm('Iniciar outro rascunho e substituir a cópia local ao editar?'))return;
     if(close())open({cloud,channel,trigger,onSaved,onConnect,fresh:true});
    }
-   if(action==='groups')void refreshGroups();
+   if(action==='groups'){await refreshGroups();void refreshGate();}
+   if(action==='publish'||action==='schedule')void dispatch(action==='schedule');
+   if(action==='dispatch_status')void showDispatch();
+   if(action==='cancel_batch'||action==='reschedule'){
+    if(action==='cancel_batch'&&!window.confirm('Cancelar os destinos ainda pendentes do lote?'))return;
+    if(action==='reschedule'&&!draft.planned_local){tell('Informe o novo horário planejado.');return;}
+    try{
+     await cloud.campaignDispatch((action==='cancel_batch'?'cancel':'reschedule')+(channel==='app'?'_app':''),{batch_id:control.dataset.batch,
+      publication_id:control.dataset.publication,local_time:draft.planned_local});
+     if(current())void showDispatch();
+    }catch{tell('Não foi possível alterar o lote. Confira os estados e o horário.');}
+   }
    if(action==='cross'){
     if(!state.remoteId){tell('Registre a versão WhatsApp antes de criar a versão App vinculada.');return;}
     if(close())open({cloud,channel:'app',row:{id:state.remoteId,title:draft.title,body:draft.blocks.filter(b=>b.type==='text').map(b=>b.text).join('\n\n').slice(0,4000)},trigger,onSaved,onConnect});
@@ -336,7 +419,9 @@
    if(action==='delete'&&block){removed={block,index};draft.blocks.splice(index,1);if(editing===block.id){editing=null;message.value='';$('[data-editor=text]').textContent='Adicionar texto';}render();changed();}
    if(action==='revert'&&removed&&draft.blocks.length<32){draft.blocks.splice(removed.index,0,removed.block);removed=null;render();changed();}
   });
-  render();renderGroups();dialog.showModal();field('title').focus();if(channel==='whatsapp')void refreshGroups();
+  if(remote&&!state.savedDraft&&state.revision===remote.revision)state.savedDraft=JSON.stringify(remote.draft);
+  render();renderGroups();dialog.showModal();field('title').focus();
+  if(channel==='whatsapp')void refreshGroups().then(refreshGate);else void refreshGate();
  }
 
  window.NeoCampaignEditor={open,closeForSession:()=>stopOpen?.()};

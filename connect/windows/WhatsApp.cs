@@ -40,6 +40,8 @@ sealed partial class WhatsApp : Form {
     readonly Label sendStatus=new Label(),previewText=new Label();
     Guid pendingSend=Guid.Empty;
     bool sendingText;
+    TaskCompletionSource<Tuple<string,string>> automatedSend;
+    Guid automatedRequest;
     readonly HashSet<string> sentRequests=new HashSet<string>(StringComparer.Ordinal);
     Dictionary<string,object> localVault;
     readonly JavaScriptSerializer json=new JavaScriptSerializer { MaxJsonLength=16*1024*1024 };
@@ -214,7 +216,7 @@ sealed partial class WhatsApp : Form {
         }catch{}
     }
     void PublishManualText(){
-        if(environment.IsProduction||!ready||sendingText||!groupReadAt.HasValue||pendingSend!=Guid.Empty||canPublish==null||!canPublish())return;
+        if(environment.IsProduction||!ready||sendingText||automatedSend!=null||!groupReadAt.HasValue||pendingSend!=Guid.Empty||canPublish==null||!canPublish())return;
         var choice=targetGroup.SelectedItem as GroupChoice;
         string text=CampaignText();
         if(choice==null||!selected.Contains(choice.Id)||(campaignImage==null&&String.IsNullOrEmpty(text))||text.Length>2000)return;
@@ -237,6 +239,24 @@ sealed partial class WhatsApp : Form {
             pendingSend=Guid.Empty;sendingText=false;UpdateComposer();
             sendStatus.Text="Conexão interrompida. Resultado incerto: confira o grupo antes de reenviar.";
         }
+    }
+    public Guid CampaignConnection { get { return connectionId; } }
+    public bool CampaignSessionReady {
+        get { return !environment.IsProduction&&!closing&&!forgetting&&ready&&pipe!=null&&process!=null
+            &&connectionId!=Guid.Empty&&groupReadAt.HasValue&&DateTime.Now-groupReadAt.Value<TimeSpan.FromHours(24); }
+    }
+    public async Task<Tuple<string,string>> DispatchCampaignTextAsync(Guid request,string group,string text) {
+        if(!CampaignSessionReady||pendingSend!=Guid.Empty||automatedSend!=null||!selected.Contains(group)
+            ||String.IsNullOrWhiteSpace(text)||text.Length>2000||request==Guid.Empty
+            ||canPublish==null||!canPublish())return Tuple.Create("refused",(string)null);
+        var completion=new TaskCompletionSource<Tuple<string,string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        automatedSend=completion;automatedRequest=request;sendingText=true;UpdateComposer();
+        try {
+            pipe.WriteLine(json.Serialize(new {action="send_text",request_id=request.ToString(),group_jid=group,text=text}));
+            return await Task.WhenAny(completion.Task,Task.Delay(TimeSpan.FromSeconds(25)))==completion.Task
+                ? await completion.Task : Tuple.Create("uncertain",(string)null);
+        }catch{return Tuple.Create("uncertain",(string)null);}
+        finally{automatedSend=null;automatedRequest=Guid.Empty;sendingText=false;UpdateComposer();}
     }
     void ClearGroups(){
         sync.Enabled=false;
@@ -387,6 +407,13 @@ sealed partial class WhatsApp : Form {
                 groupReadAt=DateTime.Now;RenderGroups();ShowGroupStatus();RefreshComposerGroups();
             }else if(type=="send_result"){
                 var result=message["value"] as Dictionary<string,object>;
+                if(result!=null&&automatedSend!=null&&TextValue(result,"request_id")==automatedRequest.ToString()){
+                    var outcome=TextValue(result,"status");
+                    var receipt=TextValue(result,"message_id");
+                    var accepted=outcome=="accepted"&&!String.IsNullOrWhiteSpace(receipt);
+                    automatedSend.TrySetResult(Tuple.Create(accepted?"accepted":outcome=="rejected"?"refused":"uncertain",
+                        accepted?receipt:null));
+                }
                 if(result!=null&&pendingSend!=Guid.Empty&&TextValue(result,"request_id")==pendingSend.ToString()){
                     var status=TextValue(result,"status");
                     if(status=="accepted"){
@@ -408,6 +435,7 @@ sealed partial class WhatsApp : Form {
     }
     void StopBridge(){
         ++generation;ready=false;forgetting=false;
+        if(automatedSend!=null)automatedSend.TrySetResult(Tuple.Create("uncertain",(string)null));
         if(pendingSend!=Guid.Empty){
             AuditSend("uncertain");
             sendStatus.Text="Conexão encerrada durante envio: resultado incerto. Consulte o grupo antes de tentar novamente.";

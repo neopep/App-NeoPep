@@ -401,6 +401,34 @@ sealed partial class Connect : Form {
             p_action=action,p_device=String.IsNullOrEmpty(device)?null:device,p_secret=Value(local,"secret"),p_data=data
         },true);
     }
+    Task<Dictionary<string,object>> CampaignDispatch(string action,object data) {
+        return Post("/rest/v1/rpc/neo_campaign_dispatch_device_v1",new {
+            p_action=action,p_device=Value(local,"device"),p_secret=Value(local,"secret"),p_data=data
+        },true);
+    }
+    async Task TickCampaignDispatch() {
+        // Explicit local opt-in and a disabled-by-default server gate are both required.
+        if(profile.IsProduction||Environment.GetEnvironmentVariable("NEO_CONNECT_CAMPAIGN_WORKER")!="1")return;
+        var window=whatsapp;
+        if(window==null||window.CampaignConnection==Guid.Empty)return;
+        try {
+            var connection=window.CampaignConnection;
+            bool ready=window.CampaignSessionReady;
+            if(ready)await SetWhatsAppStatus(connection,"connected");
+            var gate=await CampaignDispatch("heartbeat",new {connection_id=connection,bridge_version="wa-text-v1",session_ready=ready});
+            if(gate==null||!gate.ContainsKey("enabled")||!Convert.ToBoolean(gate["enabled"])||!ready)return;
+            var lease=await CampaignDispatch("claim",new {});
+            if(lease==null||whatsapp!=window||window.CampaignConnection!=connection||!window.CampaignSessionReady)return;
+            var id=Value(lease,"id");var fence=Value(lease,"fence");
+            var job=await CampaignDispatch("start",new {id=id,fence=fence});
+            if(job==null)return;
+            var receipt=Tuple.Create("uncertain",(string)null);
+            Guid idempotency;
+            if(whatsapp==window&&window.CampaignConnection==connection&&Guid.TryParse(fence,out idempotency))
+                receipt=await window.DispatchCampaignTextAsync(idempotency,Value(job,"group_jid"),Value(job,"text"));
+            await CampaignDispatch("finish",new {id=id,fence=fence,outcome=receipt.Item1,receipt_id=receipt.Item2});
+        }catch(Exception){Record("campaign_worker_unavailable");}
+    }
     async Task Login() {
         if(busy||installingUpdate||checkingUpdate||whatsappOpen)return;busy=true;
         var previous=new Dictionary<string,object>(local);
@@ -509,6 +537,7 @@ sealed partial class Connect : Form {
                 tray.BalloonTipText="Há divulgações manuais previstas. Consulte o painel.";
                 tray.ShowBalloonTip(5000);
             }
+            await TickCampaignDispatch();
             if(profile.IsProduction)return;
             var job=await RPC("claim",new { });
             if(job==null)return;
