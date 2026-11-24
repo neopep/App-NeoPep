@@ -6,7 +6,9 @@ const profile=()=>({...C.defaultProfile(),name:'Teste',height:174,initialWeight:
 async function onboard(db){await db.query('select neo_complete_onboarding($1,$2,true,true)',[JSON.stringify(profile()),JSON.stringify(C.blank().settings)])}
 test('loja: autorização, preço no servidor, estoque, isolamento e confirmação financeira exclusiva',async()=>{const db=await setup();try{
  await db.query('insert into auth.users(id) values($1),($2)',[A,B]);await as(db,A);await onboard(db);await as(db,B);await onboard(db);
- const shop=async(action,payload={})=>(await db.query('select neo_shop($1,$2) as d',[action,JSON.stringify(payload)])).rows[0].d;
+ const shop=async(action,payload={})=>{try{return (await db.query('select neo_shop($1,$2) as d',[action,JSON.stringify(payload)])).rows[0].d;}catch(error){
+ if(action==='order'&&/frete/.test(String(error.message))){try{const check=(await db.query('select neo_shop($1,$2) as d',['quote',JSON.stringify({state:payload.address?.state||'SP'})])).rows[0].d;console.error('FRETE_DIAGNOSTICO',JSON.stringify({key:payload.request_key,expected:payload.expected_total_cents,current:check.total_cents,shipping:check.shipping_cents,discount:check.discount_cents}));}catch{}}
+ throw error;}};
  await assert.rejects(shop('product',{name:'Produto',payment_name:'Produto',price_cents:1,stock:4}),/Autorização/);await assert.rejects(db.query('select * from neo_private.shop_orders'),/permission/);
  await db.exec('reset role');await db.query('insert into neo_private.admin_members(user_id) values($1)',[A]);await as(db,A);
  const {path}=await shop('reserve_photo');await db.query('insert into storage.objects(name,bucket_id) values($1,$2)',[path,'neo-shop-products']);const product=(await shop('product',{name:'Produto de teste',payment_name:'Produto de teste',description:'Descrição',category:'Acessórios',price_cents:1990,stock:3,active:true,photo_path:path})).id;
