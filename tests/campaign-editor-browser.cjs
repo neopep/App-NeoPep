@@ -10,7 +10,7 @@ async function scenario(browser,options){
   await page.addStyleTag({path:path.join(dist,'style.css')});
   await page.addScriptTag({path:path.join(dist,'admin/campaign-editor.js')});
   await page.evaluate(()=>{
-   window.calls=[];window.failed=false;window.failSave=true;
+   window.confirm=()=>true;window.calls=[];window.failed=false;window.failSave=true;
    window.cloud={
     user:{id:'admin'},
     campaignWhatsAppSync:async action=>{
@@ -18,6 +18,13 @@ async function scenario(browser,options){
      if(window.failed)throw Error('offline');
      return [{id:'connection:g1',state:'eligible',name:'Grupo um',connection:'Conta A'},
       {id:'connection:g2',state:'disconnected',name:'Grupo dois',connection:'Conta B'}];
+    },
+    campaignDispatch:async(action,input)=>{
+     window.calls.push([action,input]);
+     if(action==='diagnostics')return {whatsapp_enabled:false,app_enabled:true,devices:[]};
+     if(action==='publish_app')return {batch_id:'batch-app'};
+     if(action==='app_status')return [{id:'batch-app',title:'App',status:'active',starts_at:'2099-01-01',push_requested:false}];
+     throw Error('Ação inesperada');
     },
     campaignEditor:async(action,payload)=>{
      window.calls.push([action,payload]);
@@ -83,6 +90,14 @@ async function scenario(browser,options){
   await dialog.getByText(/Versão 1 registrada/).waitFor();
   const app=await page.evaluate(()=>calls.filter(([action])=>action==='save').at(-1)[1]);
   assert.equal(app.channel,'app');assert.equal(app.draft.audience,'premium');assert.deepEqual(app.draft.groups,[]);
+  await dialog.getByRole('button',{name:'Publicar agora'}).click();
+  // The mock must receive only the App dispatch and no external notification.
+  await dialog.getByText('Campanha App registrada.').waitFor();
+  assert.equal(await page.evaluate(()=>calls.find(([action])=>action==='publish_app')[1].push),false);
+  await dialog.getByText('Acompanhar destinos',{exact:true}).click();
+  await dialog.getByRole('button',{name:'Atualizar tentativas'}).click();
+  await dialog.getByText('App · Programada').waitFor();
+
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  }finally{await page.close();}
 }
