@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #007 — Loja: textos e atendimento; subetapa 007.01; correção explícita do proprietário (pedido anterior #004 foi engano), 24/11/2026. Implementação não iniciada.
-**ÚLTIMA_DECISÃO:** proprietário corrigiu a escolha de #004 para #007. #004 volta à fila sem execução de Codex confirmada; #007 é o foco atual. Preservar PRs #41–#47 sem aceite/publicação e não tocar Mercado Pago.
+**FOCO_ATUAL:** #007 — Loja: textos e atendimento; implementado pelo Codex no commit facee60 e PR #48 draft criada; homologação autenticada e aceite pendentes.
+**ÚLTIMA_DECISÃO:** PR #48 criada para #007; 26 testes reportados, sem homologação real. Atenção: branch #007 inclui arquivos de planejamento duplicados em relação à branch documental canônica; conciliar antes do merge. Nenhum aceite/deploy.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -69,6 +69,8 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | 2026-11-24 | Proprietário | «004» | #004 / 004.01 | Novo foco: Minha alimentação, iniciar diagnóstico/arquitetura antes de migrações; sem aceite/deploy; PRs #41–#47 preservadas | PR #40 |
 
 | 2026-11-24 | Proprietário | Correção: «Desculpe é o 007» | #007 / 007.01 | Substitui a seleção #004 antes de execução confirmada; #004 permanece no backlog. Sem aceite/deploy | PR #40 |
+
+| 2026-11-24 | Codex / conferência GitHub | #007 implementado em facee60; PR #48 draft criada | #007 / 007.01–007.03 | 26 testes reportados; atendimento autenticado e conciliação documental pendentes; sem aceite/publicação | [PR #48](https://github.com/neopep/App-NeoPep/pull/48) |
 
 ## 4. Fila de aprovados aguardando publicação
 **Nenhum item deste ciclo aprovado ainda.** Inserir aqui um registro por ID/sub-ID: ID, versão/commit, aceite, data, opções individual/conjunto, dependências e release vinculado.

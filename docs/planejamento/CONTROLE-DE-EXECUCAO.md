@@ -201,3 +201,11 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - Codex reportou build/check/empacotamento e 67 testes direcionados aprovados, com serviços simulados e emulações Chromium/iPhone 13/Pixel 7. Estes testes **não foram repetidos por este agente**.
 - Pendências: revisão dirigida de código; homologação de permissões e expiração de URLs assinadas no Teste com contas reais, Safari/PWA e dispositivos físicos; aceite explícito. Nenhum merge/deploy efetuado. PRs #41–#46 seguem separadas.
 - Estados: EM_TESTE (local), ACEITE_NAO_CONCEDIDO, PUBLICACAO_NAO_REALIZADA.
+
+### Registro #007 — 24/11/2026 (conferência GitHub)
+- Branch `desenvolvimento/ajuste-007-atendimento-loja`, commit `facee60bc5cdfc32704178af97e1b4674a05460f`; [PR #48](https://github.com/neopep/App-NeoPep/pull/48) aberta em rascunho para `staging/permanente`.
+- Comparação GitHub: 1 commit à frente, 0 atrás da base `0970ae6`; 10 arquivos (app, shop, CSS, SW, build, testes e dois arquivos de planejamento).
+- Codex reportou build/check/empacotamento e 26 testes direcionados aprovados, com seis cenários Chromium desktop/iPhone 13/Pixel 7 e sem transações reais. Testes **não repetidos por este agente**.
+- **Risco de integração documental:** a branch #007 adiciona `docs/planejamento/CONTROLE-DE-EXECUCAO.md` e `QUADRO-DE-PRIORIDADES.md`, enquanto a branch do Plano Mestre mantém versões canônicas mais recentes. Antes do merge, reconciliar as duas versões preservando todo histórico, sem sobrescrever registros.
+- Pendências: revisão dirigida de código, homologação de atendimento com sessão real em Teste, aceite explícito. Nenhum merge, migração ou deploy realizado. PRs #41–#47 permanecem separadas.
+- Estado: EM_TESTE (local), ACEITE_NAO_CONCEDIDO, PUBLICACAO_NAO_REALIZADA.
