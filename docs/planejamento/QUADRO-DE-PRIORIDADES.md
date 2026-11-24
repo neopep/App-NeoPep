@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #006 — Miniatura real de PDF no destaque Biblioteca; primeira subetapa 006.01; selecionado pelo proprietário em 24/11/2026; implementação do Codex confirmada na branch 0087a15; homologação real pendente.
-**ÚLTIMA_DECISÃO:** proprietário escolheu #006 como primeiro ajuste a implementar. Prioridade 1 operacional; implementação local e testes direcionados confirmados; aguarda Teste com PDF real e dispositivo físico. Sem aceite ou autorização de publicação.
+**FOCO_ATUAL:** #008 — Fixação e ordenação de posts na Biblioteca; primeira subetapa 008.01; escolhido pelo proprietário em 24/11/2026; Codex ainda não iniciou esta nova tarefa.
+**ÚLTIMA_DECISÃO:** proprietário solicitou iniciar #008 agora, deixando #006 em homologação pendente, sem aceite e sem publicação. A escolha de #008 não autoriza merge, migração ou deploy.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -11,11 +11,11 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 |---|---|---|---|---|---|---|
 | Pré-requisito dirigido | #014 | Preservação, baseline e controle incremental | AUDITANDO | Não solicitado | Não aplicável diretamente | 014.01, conforme impacto |
 | 2 | #007 | Loja: texto e atendimento | NÃO_INICIADO | Não solicitado | Não preparado | 007.01 |
-| 1 | #006 | Prévia de PDF na Home/Biblioteca | EM_TESTE (local concluído; Teste real pendente) | AGUARDANDO_ACEITE (não solicitado formalmente) | NAO_PREPARADO (sem deploy) | 006.03 |
+| Em espera | #006 | Prévia de PDF na Home/Biblioteca | EM_TESTE (local concluído; Teste real pendente) | AGUARDANDO_ACEITE (não solicitado formalmente) | NAO_PREPARADO (sem deploy) | 006.03 |
 | 3 | #005 | Modal de comparações no Grupo | NÃO_INICIADO | Não solicitado | Não preparado | 005.01 |
 | 4 | #001 | Localização opcional no onboarding | NÃO_INICIADO | Não solicitado | Não preparado | 001.01 |
 | 5 | #002 | Personalização/consentimento | NÃO_INICIADO | Não solicitado | Não preparado | 002.01 |
-| 6 | #008 | Fixar posts da Biblioteca | NÃO_INICIADO | Não solicitado | Não preparado | 008.01 |
+| 1 (foco atual) | #008 | Fixar posts da Biblioteca | NÃO_INICIADO | Não solicitado | Não preparado | 008.01 |
 | 7 | #009 | Seringa no card da Home | NÃO_INICIADO | Não solicitado | Não preparado | 009.01 |
 | 8 | #003 | Tema claro/escuro | NÃO_INICIADO | Não solicitado | Não preparado | 003.01 |
 | 9 | #010 | Estoque, custos e lucro | NÃO_INICIADO | Não solicitado | Não preparado | 010.01 |
@@ -41,6 +41,8 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | 2026-11-24 | Proprietário | «Vamos fazer o zero zero meia. Primeiro» | #006 / 006.01 | Definido como FOCO_ATUAL e prioridade operacional 1; aguarda início pelo Codex, sem aceite ou deploy | PR #40 |
 
 | 2026-11-24 | Codex / conferência GitHub | Implementação #006 na branch desenvolvimento/ajuste-006-miniatura-pdf, commit 0087a15; 9 arquivos, um commit à frente de staging/permanente | #006 / 006.01–006.03 | 006.01/006.02 implementados; 006.03 em homologação, testes reais pendentes; aceite e publicação não realizados | [Registro do Codex](https://github.com/neopep/App-NeoPep/blob/desenvolvimento/ajuste-006-miniatura-pdf/docs/planejamento/EXEC-2026-11-24-006.md) |
+
+| 2026-11-24 | Proprietário | «Vamos pra 008» | #008 / 008.01 | #008 passa a FOCO_ATUAL, sem execução/aceite/publicação; #006 permanece em homologação pendente | PR #40 |
 
 ## 4. Fila de aprovados aguardando publicação
 **Nenhum item deste ciclo aprovado ainda.** Inserir aqui um registro por ID/sub-ID: ID, versão/commit, aceite, data, opções individual/conjunto, dependências e release vinculado.
