@@ -32,7 +32,7 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 | #003 | Tema claro/escuro | PLANEJADO | light/dark/system existente no código | 003.01 |
 | #010 | Estoque, custos e lucro | EM_TESTE (Supabase staging) | 010.03-B: schema aplicado somente em Teste, sem backup por opção expressa do proprietário; sem homologação funcional ou aceite | 010.03-B QA |
 | #011 | Gestão em massa | VALIDADO LOCALMENTE | Candidata 77fe00c; homologação e aceite pendentes | 011.05 QA em Teste |
-| #013 | Central de Campanhas | IMPLEMENTAÇÃO LOCAL PARCIAL | Editor e revisão versionada; despacho real bloqueado | 013.09–014 conforme matriz |
+| #013 | Central de Campanhas | IMPLEMENTAÇÃO LOCAL PARCIAL | Editor, agenda e despacho de texto validados localmente; homologação externa pendente | 013.09–014 conforme matriz |
 | #012 | Assinaturas | PLANEJADO | Segmentação por plano existente, billing recorrente não verificado | 012.01 |
 | #004 | Alimentação | PLANEJADO | Card Em breve documentado | 004.01 |
 
@@ -93,12 +93,12 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 | 013.04 | Formatação precisa e seleção de texto | VALIDADO LOCALMENTE | prévia corresponde ao payload |
 | 013.05 | Imagens, anexos e compatibilidade de mídia | PRÉVIA LOCAL | legenda versus separado |
 | 013.06 | Seletores Produto/Biblioteca/Comunidade | REFERÊNCIAS PROTEGIDAS | links e autorizações |
-| 013.07 | Grupos sincronizados e estado real Connect | CATÁLOGO INTEGRADO / QA REAL PENDENTE | heartbeat, sessão e elegibilidade |
-| 013.08 | Criar/agendar na esteira sem despacho falso | REVISÃO BLOQUEADA / SEM DESPACHO | status por grupo/canal |
+| 013.07 | Grupos sincronizados e estado real Connect | DIAGNÓSTICO VALIDADO COM FIXTURES / WINDOWS PENDENTE | heartbeat, sessão e elegibilidade |
+| 013.08 | Criar/agendar na esteira sem despacho falso | AGENDA POR DESTINO VALIDADA EM BANCO ISOLADO | status por grupo/canal |
 | 013.09 | Homologar Bridge para envio imediato real | BLOQUEADO PARA ENVIO REAL | envio só após autorização |
-| 013.10 | Agendamento automático com fila/offline/retries | ARQUITETURA PROPOSTA / WORKER PENDENTE | canal e execução autorizados |
-| 013.11 | Cross-post App → WhatsApp | RASCUNHO VINCULADO LOCAL | prévia e personalização |
-| 013.12 | Cross-post WhatsApp → App e push | RASCUNHO VINCULADO / PUSH BLOQUEADO | opt-in e versões independentes |
+| 013.10 | Agendamento automático com fila/offline/retries | WORKER IMPLEMENTADO COM OPT-IN / WINDOWS PENDENTE | canal e execução autorizados |
+| 013.11 | Cross-post App → WhatsApp | RASCUNHO VINCULADO / AGENDA DE TEXTO LOCAL | prévia e personalização |
+| 013.12 | Cross-post WhatsApp → App e push | AGENDA APP INDEPENDENTE / PUSH REAL PENDENTE | opt-in e versões independentes |
 | 013.13 | Testes reais Windows/ambientes controlados | QA LOCAL / WINDOWS REAL PENDENTE | autorização de testes |
 | 013.14 | Rollout seguro e monitoramento | PREPARADO / SEM ROLLOUT | gates Produção |
 | 012.01 | Inventariar Premium e plano de campanhas | PLANEJADO | sem duplicar acesso |
@@ -416,3 +416,7 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - Proprietário: **«Vamos executar então então pra concluir e deixar pronta essa 013»**. Escopo: concluir infraestrutura de envio por destino, agendamento durável, retries/idempotência, capacidade real do Bridge, publicação cruzada e controles de segurança, mantendo PR #56 `f0ed98a` como base e migração `campaign_editor_versions` já aplicada em Supabase Teste.
 - Implementar código e SQL **localmente**, com preflight/rollback/testes e PR em rascunho; não ativar envio real WhatsApp, push, scheduler ou dispatch; nenhuma aplicação SQL remota adicional sem autorização; **zero deploys Vercel** e Produção intocada.
 - Preservar regras de campanhas existentes, Loja e Mercado Pago; não inventar capacidade de WhatsApp/Windows nem confundir aceitação pelo cliente com entrega/leitura. Concluir pendências locais antes da homologação física do Windows/sessão e do rollout.
+
+### 2026-11-24 — Continuação da #013
+
+- A continuação da PR #56 implementou a fila de texto por destino, leases, recorrência semanal limitada, agenda App independente e diagnóstico de dispositivo. Build, check, 24 regressões, cinco testes simulados de Bridge, PostgreSQL 17 isolado e Chromium desktop/mobile passaram. A compilação Windows, o provedor real e o transporte automático de anexos continuam pendentes. Gates desligados por padrão. [Matriz, migrações e evidências no commit 088ee45](https://github.com/neopep/App-NeoPep/blob/088ee45e4a87b2dabb25a5703291bcf8df2ce580/docs/planejamento/EXEC-2026-11-24-013-CONTINUACAO.md).

@@ -20,7 +20,7 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | Em espera | #003 | Tema claro/escuro | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 003.05 |
 | 1 (foco atual) | #010 | Estoque, custos e lucro | 010.04+010.05 ACEITAS; 010.06 CANDIDATA LOCAL / PR #54 DRAFT | 010.04 e 010.05 aprovadas; 010.06 pendente | Somente Teste da integração anterior; 010.06 não publicada | Reembolso legado mantido por decisão do proprietário; autorizar migração 010.06 somente Teste e QA |
 | 1 (foco atual) | #011 | Edição em massa | VALIDADO LOCALMENTE | Pendente | Não publicada | 011.05 QA em Teste após autorização |
-| 1 (foco atual) | #013 | Central de Campanhas | Editor e revisão validados localmente; despacho pendente | Pendente | Não publicada | Homologar ACL, Connect e preparar worker sem ativar envio |
+| 1 (foco atual) | #013 | Central de Campanhas | Editor, agenda e despacho de texto validados localmente | Pendente | Não publicada | Compilar e homologar no Windows com sessão controlada, revisar transporte de anexos e manter gates desligados |
 | 12 | #012 | Planos/assinaturas | NÃO_INICIADO | Não solicitado | Não preparado | 012.01 |
 | Em espera | #004 | Minha alimentação | NÃO_INICIADO | Não solicitado | Não preparado | 004.01 |
 
