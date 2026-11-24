@@ -13,5 +13,5 @@ test('Portable NeoPep HTML contains the current offline shell and inlined produc
  assert.equal(document.querySelectorAll('link[rel="stylesheet"]').length,0,'portable preview must inline its styles');
  assert.ok(document.querySelector('style')?.textContent.includes('body'));
  assert.ok(html.includes('data:image/png;base64,'),'public app assets should be inline');
- assert.ok(!html.includes('id="authForm"'),'do not require the retired login layout');
+ assert.equal(document.querySelector('#authForm'),null,'retired login form is not part of current shell');
 });
