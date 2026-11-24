@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #003 — Tema claro/escuro; implementação reportada e PR #44 criada; homologação autenticada e aceite pendentes.
-**ÚLTIMA_DECISÃO:** #003 implementado pelo Codex, branch independente conferida, PR #44 draft criada; 81 e 110 testes reportados (rodadas com possível sobreposição), 21 comparações visuais. Não houve aceite ou publicação.
+**FOCO_ATUAL:** #001 — Localização opcional no onboarding; subetapa 001.01; escolhido pelo proprietário em 24/11/2026; implementação pelo Codex ainda não iniciada.
+**ÚLTIMA_DECISÃO:** proprietário escolheu iniciar #001. #006 (PR #41), #008 (PR #42), #009 (PR #43) e #003 (PR #44) continuam pendentes de homologação/aceite, sem publicação; não incorporar essas branches automaticamente.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -13,11 +13,11 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | 2 | #007 | Loja: texto e atendimento | NÃO_INICIADO | Não solicitado | Não preparado | 007.01 |
 | Em espera | #006 | Prévia de PDF na Home/Biblioteca | EM_TESTE (local concluído; Teste real pendente) | AGUARDANDO_ACEITE (não solicitado formalmente) | NAO_PREPARADO (sem deploy) | 006.03 |
 | 3 | #005 | Modal de comparações no Grupo | NÃO_INICIADO | Não solicitado | Não preparado | 005.01 |
-| 4 | #001 | Localização opcional no onboarding | NÃO_INICIADO | Não solicitado | Não preparado | 001.01 |
+| 1 (foco atual) | #001 | Localização opcional no onboarding | NÃO_INICIADO | Não solicitado | Não preparado | 001.01 |
 | 5 | #002 | Personalização/consentimento | NÃO_INICIADO | Não solicitado | Não preparado | 002.01 |
 | Em espera | #008 | Fixar posts da Biblioteca | EM_TESTE (local; SQL não aplicado em Teste) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 008.03 |
 | Em espera | #009 | Seringa no card da Home | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 009.03 |
-| 1 (foco atual) | #003 | Tema claro/escuro | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 003.05 |
+| Em espera | #003 | Tema claro/escuro | EM_TESTE (local; homologação real pendente) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 003.05 |
 | 9 | #010 | Estoque, custos e lucro | NÃO_INICIADO | Não solicitado | Não preparado | 010.01 |
 | 10 | #011 | Edição em massa | NÃO_INICIADO | Não solicitado | Não preparado | 011.01 |
 | 11 | #013 | Campanhas e Connect | NÃO_INICIADO | Não solicitado | Não preparado | 013.01 |
@@ -53,6 +53,8 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | 2026-11-24 | Proprietário | «003» | #003 / 003.01 | #003 definido como foco atual; #006, #008 e #009 mantidos em homologação pendente, sem aceite/deploy | PR #40 |
 
 | 2026-11-24 | Codex / conferência GitHub | Implementação #003 no commit 00ef2d4; PR #44 draft criada | #003 / 003.01–003.05 | Testes e comparação visual reportados; QA real, aceite e publicação pendentes | [PR #44](https://github.com/neopep/App-NeoPep/pull/44) |
+
+| 2026-11-24 | Proprietário | «001» | #001 / 001.01 | Novo foco, sem execução ou autorização de deploy; PRs #41–#44 seguem pendentes | PR #40 |
 
 ## 4. Fila de aprovados aguardando publicação
 **Nenhum item deste ciclo aprovado ainda.** Inserir aqui um registro por ID/sub-ID: ID, versão/commit, aceite, data, opções individual/conjunto, dependências e release vinculado.
