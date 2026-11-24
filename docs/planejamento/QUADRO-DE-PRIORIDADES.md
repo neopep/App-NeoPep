@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
 **FOCO_ATUAL:** #010.06 — finalizar conciliação de estoque, custo médio, snapshots e métricas, com implementação a executar em branch isolada. #010.04 e #010.05 já aprovadas em Teste.
-**ÚLTIMA_DECISÃO:** proprietário solicitou «Vamos avançar e finalizar» o ajuste #010. Preparar implementação integral da #010.06 e integração final em Teste, protegendo Mercado Pago; aceite e produção seguem decisões separadas. Leitura Supabase Teste: 1 produto, 100 unidades, 0 pedidos/pagamentos/aquisições/movimentos/snapshots, 3 migrations financeiras já instaladas; não inventar histórico.
+**ÚLTIMA_DECISÃO:** proprietário determinou controle rigoroso porque há poucos deploys disponíveis na Vercel. Adotar política DEPLOY_SOB_DEMANDA: desligar ou preservar desligado deploy automático de branches de trabalho/documentação; desenvolver, compilar e testar localmente; fazer no máximo um deploy de homologação por lote consolidado, após gates, com autorização operacional de Teste; separar publicação de Produção e registrar consumo real. #010.06 em execução planejada, sem deploy novo autorizado.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -93,6 +93,8 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | 2026-11-24 | Proprietário | «Está validado e aceito» | #010 / 010.04+010.05 | Aceite explícito da integração em Teste; PR #53 @43e31df, Vercel Teste READY dpl_Fb2oKfv8sFgWUx2945BjmFetetif. Nenhuma promoção para Produção autorizada. #010.06 próximo, ainda não iniciado | [PR #53](https://github.com/neopep/App-NeoPep/pull/53) |
 
 | 2026-11-24 | Proprietário | «Vamos avançar e finalizar» | #010 / 010.06 | Prioriza fechamento completo: conciliação, snapshots idempotentes, política de custo, recebimentos e reversões; preservar checkout/webhook Mercado Pago e o aceite separado de Produção | [Plano #010.06](PLANO-IMPLEMENTACAO-010-06.md) |
+
+| 2026-11-24 | Proprietário | «Só temos que controlar que temos poucos deploys na vercel» | Todos, prioritariamente #010.06 | Política de economia de deploy: zero deploys automáticos para branches; testes locais primeiro; um único deploy de homologação por lote fechado, após checklist; Produção somente com autorização específica. Registrar deploy ID/estado e evitar testes por deploy | [Política](POLITICA-ECONOMIA-DEPLOYS.md) |
 
 ## 4. Fila de aprovados aguardando publicação
 **#010.04 e #010.05 aprovadas pelo proprietário em 24/11/2026**, como versão integrada de Teste da [PR #53](https://github.com/neopep/App-NeoPep/pull/53), commit `43e31df`, deploy READY `dpl_Fb2oKfv8sFgWUx2945BjmFetetif`. Aguardar solicitação explícita de publicação em Produção; nenhuma promoção de PR ou migração de Produção autorizada. #010.06 permanece não iniciada.

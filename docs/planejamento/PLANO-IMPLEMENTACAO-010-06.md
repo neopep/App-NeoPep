@@ -45,3 +45,9 @@ Criar PR draft, evidência de testes, checklist 010.01–010.06, blockers, decis
 - Nenhuma migração aplicada em Produção sem release específico.
 - QA Teste com artefato READY, SHA, UI e sessão real, aceite do proprietário posterior à execução.
 - PR/commit/ledger/rollback rastreáveis e registro de publicação correspondente.
+
+## Regra adicional obrigatória — economia de deploys
+- O proprietário informou que há **poucos deploys disponíveis na Vercel**. Consulte [POLITICA-ECONOMIA-DEPLOYS.md](POLITICA-ECONOMIA-DEPLOYS.md) antes de preparar ou executar qualquer publicação.
+- Na etapa #010.06, **não realizar deploy automático** a cada commit/erro. Testar localmente todos os componentes, corrigir em lote e fazer build final idêntico ao de Vercel antes de solicitar um único deploy controlado de Teste.
+- Quando a implantação exigir alteração de branch que ativa builds automaticamente, ajustar o bloqueio/ignorar builds primeiro e comprovar. Não criar previews de PR desnecessários nem redeploys idênticos.
+- Não prometer limite mensal, quantidade restante ou custo sem verificar informações específicas no painel Vercel.

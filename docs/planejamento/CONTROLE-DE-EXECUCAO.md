@@ -343,3 +343,9 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - Código de fundação vigente: `neo_private.shop_sale_cost_snapshots` exige pedido real `paid`, não liberado, com linha válida. Há suporte à referência de movimento de reserva, mas ainda sem rotina instalada de captura automática. Não criar snapshots artificiais para pedidos antigos; data de criação do pedido não equivale à data de recebimento.
 - [Plano detalhado #010.06](PLANO-IMPLEMENTACAO-010-06.md) define os blocos e critérios de saída, incluindo integração com 010.04+010.05 via PR #53, **sem merge implícito de #41–#50**, sem mudanças no código/configuração de Mercado Pago.
 - Estado: #010.06 **AINDA NÃO IMPLEMENTADO**, QA/aceite/publicação pendentes. `010.04+010.05` permanecem aceitas em Teste e sem promoção a Produção.
+
+### Diretriz de economia de deploys Vercel — 24/11/2026
+- Proprietário informou limitação de deploys disponíveis e exigiu controle operacional. Política transversal em [POLITICA-ECONOMIA-DEPLOYS.md](POLITICA-ECONOMIA-DEPLOYS.md).
+- **Não publicar automaticamente** em Teste ou Produção a cada commit/PR. Manter bloqueio de deploy automático em branches de desenvolvimento, homologação e documentação quando possível; verificar a efetividade nas configurações reais da Vercel. CI/testes/build em ambiente local primeiro; agrupar correções antes de um deploy manual de Teste.
+- Registrar contagem/estado do deploy, projeto, ID, commit, consumo real e motivo de cada publicação. READY, ERROR, CANCELED e previews podem ter impacto de recursos; não afirmar que não consomem cotas sem confirmação do painel Vercel.
+- Para #010.06: executar integração/SQL e testes sem deploy; solicitar/confirmar liberação para um deploy de Teste somente depois do conjunto integral passar. Nenhum deploy realizado nesta atualização documental.
