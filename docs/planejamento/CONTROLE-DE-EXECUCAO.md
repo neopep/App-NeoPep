@@ -71,7 +71,7 @@ Status deve ser **por subetapa e ambiente**, não declarar uma frente inteira CO
 | 003.01 | Inventariar tokens light/dark/system | PLANEJADO | screenshots baseline dark |
 | 003.02 | Implementar tema claro paleta e switch | PLANEJADO | sem flash e opção system |
 | 003.03 | Revisar todas telas e acessibilidade | PLANEJADO | dark preservado |
-| 010.01 | Auditar estoque, pedido, Edge e transições | PLANEJADO | sem alterar MP |
+| 010.01 | Auditar estoque, pedido, Edge e transições | DIAGNÓSTICO DOCUMENTADO | [Evidência Git e limites do catálogo remoto](DIAGNOSTICO-010-01-ESTOQUE-FINANCEIRO.md) |
 | 010.02 | Decidir custo/câmbio/CMV e política estoque | PLANEJADO | regras explícitas |
 | 010.03 | Schema aditivo custos e movimentações | PLANEJADO | RLS, snapshot, rollback |
 | 010.04 | UI de aquisição no produto atual | PLANEJADO | sem segundo stock |
@@ -209,3 +209,6 @@ O agente responsável por **cada entrega real** registra a atualização documen
 - **Risco de integração documental:** a branch #007 adiciona `docs/planejamento/CONTROLE-DE-EXECUCAO.md` e `QUADRO-DE-PRIORIDADES.md`, enquanto a branch do Plano Mestre mantém versões canônicas mais recentes. Antes do merge, reconciliar as duas versões preservando todo histórico, sem sobrescrever registros.
 - Pendências: revisão dirigida de código, homologação de atendimento com sessão real em Teste, aceite explícito. Nenhum merge, migração ou deploy realizado. PRs #41–#47 permanecem separadas.
 - Estado: EM_TESTE (local), ACEITE_NAO_CONCEDIDO, PUBLICACAO_NAO_REALIZADA.
+
+### EXEC-2026-11-24-010.01
+Diagnóstico documental na branch `docs/ajuste-010-01-diagnostico-estoque`, com [inventário e proposta](DIAGNOSTICO-010-01-ESTOQUE-FINANCEIRO.md). Teste `0970ae6` e Produção `fc0ae22` comparados por Git. Catálogos atuais inacessíveis pelo proxy. Nenhuma execução financeira ou alteração remota. Aguardando autorização para 010.02.
