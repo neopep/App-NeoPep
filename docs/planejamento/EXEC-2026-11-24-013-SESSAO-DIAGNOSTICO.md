@@ -20,3 +20,10 @@ A mensagem genérica vinha do `catch` em `connect/windows/WhatsApp.cs::Receive`,
 4. Corrigir precisamente a fase reportada, sem apagar a sessão. Manter Prod sem enviar.
 
 **Precisão de status:** uma falha da sessão não garante que o cofre estivesse intacto antes do diagnóstico. A interface informa apenas que a rotina de diagnóstico não o apaga; nenhum reset ou reparação são prometidos sem evidência de causa.
+
+## Resultado da validação e preparação 0.2.10
+- CI Windows final: run [45480809973](https://github.com/neopep/App-NeoPep/actions/runs/45480809973) com `conclusion=success`, 12 etapas aprovadas, fonte **`148f68f927b9b128dcd5518b97dc6ab69f8980cb`** (o código efetivamente compilado).
+- Pedido ao repositório privado `neopep/NeoPep-Connect-Build-Privado`: `release-requests/0.2.10.json`, commit `ce6507e8b70cc82471fbc0a4d10b2c4895b169d4`, perfil `staging`; ponte `45481259800`.
+- Build privado [45481286448](https://github.com/neopep/NeoPep-Connect-Build-Privado/actions/runs/45481286448) **success**; artefato privado `connect-teste-0.2.10-45481286448-1` (ID 14960019492); ZIP digest `sha256:326fe14dc82441067713f024463f7692955b75350333282bbb746ababd7e5702` (o digest do ZIP não equivale ao SHA do EXE).
+- No primeiro preflight após build: `connect_release_evidence` e `connect_releases` para 0.2.10 ainda ausentes no Supabase Teste. Fase pendente: agente Windows RSA CNG conferir, assinar manifesto, registrar arquivo privado e **somente draft**. Não aprovar, não baixar nem instalar antes de verificar origem/hash/estado.
+- Flags Supabase Teste: `whatsapp_enabled=false`, `app_enabled=false`, `connect_config.paused=true`. Sem alterações de bancos, sem deploys Vercel, produção intocada.
