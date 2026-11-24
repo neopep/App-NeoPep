@@ -78,6 +78,9 @@ test('Antes/Depois salvo só é anexado por escolha e não publica se confirmaç
  assert.equal(published,0);
  pick.click();
  await new Promise(setImmediate);
+ assert.ok(document.querySelector('[data-picker-preview] img'));
+ assert.equal(document.querySelector('.compact-photo'),null);
+ document.querySelector('[data-picker=attach]').click();
  assert.ok(document.querySelector('.compact-photo'));
  assert.equal(published,0);
  const form=document.querySelector('[data-community-form="post"]');
@@ -95,6 +98,8 @@ test('comparação Antes/Depois confirmada usa cópia de foto no Grupo e não ex
  const item={id:'00000000-0000-4000-8000-000000000111',user_id:'A',
   path:'A/00000000-0000-4000-8000-000000000111.jpg',before_date:'2026-11-02',after_date:'2026-11-22'};
  const uploaded=[],posted=[];
+ let present=true;
+ window.NeoCloud.verifyBeforeAfter=async()=>{if(!present)throw Error('Comparação excluída');};
  window.NeoCloud.communityChat=async(action,payload)=>{
   if(action==='read')return state;
   if(action==='post'){posted.push(payload);return {ok:true}};
@@ -117,9 +122,15 @@ test('comparação Antes/Depois confirmada usa cópia de foto no Grupo e não ex
  await new Promise(setImmediate);
  document.querySelector('[data-before-after-picker] [data-community="pick_comparison"]').click();
  await new Promise(setImmediate);
+ document.querySelector('[data-picker=attach]').click();
  assert.equal(uploaded.length,0);
  const form=document.querySelector('[data-community-form="post"]');
  form.reportValidity=()=>true;
+ present=false;
+ form.dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));
+ await new Promise(setImmediate);
+ assert.equal(uploaded.length,0);assert.equal(posted.length,0);
+ present=true;
  form.dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));
  await new Promise(setImmediate);
  assert.equal(uploaded.length,1);
@@ -127,4 +138,43 @@ test('comparação Antes/Depois confirmada usa cópia de foto no Grupo e não ex
  assert.equal(posted[0].photo_path,'A/community-copy.jpg');
  assert.equal(posted[0].photo_share,'on');
  assert.ok(!JSON.stringify(posted).includes(item.path));
+});
+
+test('seletor preserva conversa e apresenta miniaturas autorizadas, fallback e comparações vazias',async()=>{
+ const state={member:true,chat_ready:true,alias:'Teste',posts:[],pending:[],materials:[]};
+ const {ui,document,window}=setup(async()=>state);
+ const tick=()=>new Promise(setImmediate);
+ const first={id:'first',user_id:'A',path:'A/first.jpg',before_date:'2026-11-01',after_date:'2026-11-20'};
+ const second={...first,id:'second',path:'A/second.jpg'};
+ let release,signature=0,records=[first,second,{...first,id:'foreign',user_id:'B',path:'B/foreign.jpg'}];
+ window.NeoCloud.savedBeforeAfter=()=>new Promise(resolve=>{release=resolve});
+ window.NeoCloud.beforeAfterThumbnails=async item=>item===first?['https://photos.test/thumb?token='+(++signature),null]:[null,null];
+ window.NeoCloud.beforeAfterBlob=async()=>{throw Error('removed');};
+ const context={cloud:true,user:{id:'A'}};
+ document.querySelector('main').innerHTML=ui.view(context);await ui.load(context);
+ document.querySelector('[data-community=attachments]').click();
+ const field=document.querySelector('textarea'),log=document.querySelector('.chat-log');
+ field.value='Rascunho constante';field.dispatchEvent(new window.Event('input',{bubbles:true}));log.scrollTop=97;
+ document.querySelector('[data-community=choose_comparison]').click();
+ assert.ok(document.querySelector('.comparison-picker-skeleton'));
+ release(records);await tick();
+ const q=selector=>document.querySelector(selector);
+ assert.equal(document.querySelectorAll('[data-community=pick_comparison]').length,2);
+ assert.equal(q('[data-id=foreign]'),null);
+ assert.match(q('[data-id=first]').textContent,/01\/11\/2026/);
+ const image=q('[data-id=first] img');assert.ok(image);
+ image.dispatchEvent(new window.Event('error'));
+ assert.match(q('[data-id=first]').textContent,/Foto indisponível/);
+ q('[data-id=second]').click();await tick();
+ assert.equal(q('[data-picker=attach]').disabled,true);
+ assert.match(q('[data-picker-status]').textContent,/não está disponível/);
+ q('[data-picker=refresh]').click();release(records);await tick();
+ assert.match(q('[data-id=first] img').getAttribute('src'),/token=2$/);
+ q('[data-picker=refresh]').click();release([]);await tick();
+ assert.match(q('[data-picker-status]').textContent,/ainda não salvou/);
+ assert.equal(q('[data-picker=close][data-go=fotos]').textContent,'Criar comparação');
+ q('[data-picker=close]:not([data-go])').click();
+ assert.equal(q('[data-before-after-picker]'),null);
+ assert.equal(q('textarea'),field);assert.equal(field.value,'Rascunho constante');
+ assert.equal(q('.chat-log'),log);assert.equal(log.scrollTop,97);
 });
