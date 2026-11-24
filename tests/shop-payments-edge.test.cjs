@@ -74,7 +74,7 @@ test('Orders API: recipient, currency and environment mismatch never confirm a p
 test('Orders API: partial refunds require manual review; provider outage must not approve',async()=>{
  const s=setup('mercadopago-webhook',{provider:{status:'processed',status_detail:'partially_refunded',transactions:{payments:[{id:'101',status:'processed',payment_method:{id:'pix',type:'bank_transfer'}}],refunds:[{amount:'5.00',status:'processed'}]}}});
  assert.equal((await s.handle(await webhook())).status,200);
- assert.equal(event(s).p_status,'in_mediation','partial refund must go to review, not ordinary pending/approved');
+ assert.equal(event(s).p_status,'partially_refunded','partial Orders refund must be classified for paid_review rather than pending/approved');
  const offline=setup('mercadopago-webhook',{providerFail:true});
  assert.equal((await offline.handle(await webhook())).status,503);
  assert.equal(offline.calls.filter(([action])=>action.startsWith('neo_shop_payment_event')).length,0);
