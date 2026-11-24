@@ -1,7 +1,7 @@
 # Quadro vivo de prioridades e aceites — NeoPep
 **Versão inicial:** 24/11/2026. **A ordem é editável por comando do proprietário.** IDs não são prioridades e não devem ser renumerados.
-**FOCO_ATUAL:** #008 — Fixação e ordenação de posts na Biblioteca; primeira subetapa 008.01; escolhido pelo proprietário em 24/11/2026; implementação do Codex confirmada no commit d76ae73 e PR #42; homologação Supabase/Teste pendente.
-**ÚLTIMA_DECISÃO:** Codex implementou #008 na branch independente e a PR #42 foi aberta em rascunho; 25 testes reportados, migração validada somente em banco isolado. Ainda não houve homologação real, aceite do proprietário ou publicação.
+**FOCO_ATUAL:** #009 — Seringa da calculadora no card da Home; primeira subetapa 009.01; selecionado pelo proprietário em 24/11/2026; execução ainda não iniciada pelo Codex.
+**ÚLTIMA_DECISÃO:** proprietário escolheu iniciar #009 agora. #006 permanece pendente na PR #41 e #008 permanece pendente na PR #42, ambos sem aceite nem publicação. Não incorporar automaticamente essas branches.
 **PR de referência:** #40, branch documental `docs/plano-mestre-ajustes-2026-11-24`.
 
 ## 1. Backlog inicial sugerido (não vinculante)
@@ -15,8 +15,8 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | 3 | #005 | Modal de comparações no Grupo | NÃO_INICIADO | Não solicitado | Não preparado | 005.01 |
 | 4 | #001 | Localização opcional no onboarding | NÃO_INICIADO | Não solicitado | Não preparado | 001.01 |
 | 5 | #002 | Personalização/consentimento | NÃO_INICIADO | Não solicitado | Não preparado | 002.01 |
-| 1 (foco atual) | #008 | Fixar posts da Biblioteca | EM_TESTE (local; SQL não aplicado em Teste) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 008.03 |
-| 7 | #009 | Seringa no card da Home | NÃO_INICIADO | Não solicitado | Não preparado | 009.01 |
+| Em espera | #008 | Fixar posts da Biblioteca | EM_TESTE (local; SQL não aplicado em Teste) | AGUARDANDO_ACEITE (não concedido) | NAO_PREPARADO (sem deploy) | 008.03 |
+| 1 (foco atual) | #009 | Seringa no card da Home | NÃO_INICIADO | Não solicitado | Não preparado | 009.01 |
 | 8 | #003 | Tema claro/escuro | NÃO_INICIADO | Não solicitado | Não preparado | 003.01 |
 | 9 | #010 | Estoque, custos e lucro | NÃO_INICIADO | Não solicitado | Não preparado | 010.01 |
 | 10 | #011 | Edição em massa | NÃO_INICIADO | Não solicitado | Não preparado | 011.01 |
@@ -45,6 +45,8 @@ A qualquer momento, o proprietário pode solicitar qualquer ID e ele passa à pr
 | 2026-11-24 | Proprietário | «Vamos pra 008» | #008 / 008.01 | #008 passa a FOCO_ATUAL, sem execução/aceite/publicação; #006 permanece em homologação pendente | PR #40 |
 
 | 2026-11-24 | Codex / conferência GitHub | #008 implementado no commit d76ae73; PR #42 draft criada para staging/permanente | #008 / 008.01–008.03 | Implementado localmente; migração e testes reais pendentes; sem aceite e publicação | [PR #42](https://github.com/neopep/App-NeoPep/pull/42) |
+
+| 2026-11-24 | Proprietário | «o 009» | #009 / 009.01 | #009 torna-se foco atual; #006 e #008 mantidos em homologação pendente, sem aprovação nem deploy | PR #40 |
 
 ## 4. Fila de aprovados aguardando publicação
 **Nenhum item deste ciclo aprovado ainda.** Inserir aqui um registro por ID/sub-ID: ID, versão/commit, aceite, data, opções individual/conjunto, dependências e release vinculado.
