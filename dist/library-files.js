@@ -7,11 +7,40 @@ window.NeoLibraryFiles=(()=>{
  const url=value=>{if(typeof value!=='string'||!value.trim())return '';try{const u=new URL(value,document.baseURI||location.href);return ['https:','blob:'].includes(u.protocol)&&!u.username&&!u.password?u.href:''}catch{return ''}};
  function reset(){epoch++;close();cache.clear();textCache.clear();videoCache.clear();queue=[];}
  async function pdf(){if(!readerPromise)readerPromise=import('./vendor/pdfjs/pdf.mjs').then(lib=>{lib.GlobalWorkerOptions.workerSrc=new URL('vendor/pdfjs/pdf.worker.mjs',document.baseURI||location.href).href;return lib}).catch(err=>{readerPromise=null;throw err});return readerPromise;}
- async function loadPDF(src,onTask){const lib=await pdf();const task=lib.getDocument({url:src,isEvalSupported:false,enableXfa:false,useWasm:false,isOffscreenCanvasSupported:false,cMapUrl:new URL('vendor/pdfjs/cmaps/',document.baseURI||location.href).href,cMapPacked:true,standardFontDataUrl:new URL('vendor/pdfjs/standard_fonts/',document.baseURI||location.href).href});onTask?.(task);try{return await task.promise;}catch(err){await task.destroy().catch(()=>{});throw err;}}
+ async function loadPDF(src,onTask,options={}){const lib=await pdf();const task=lib.getDocument({...options,url:src,isEvalSupported:false,enableXfa:false,useWasm:false,isOffscreenCanvasSupported:false,cMapUrl:new URL('vendor/pdfjs/cmaps/',document.baseURI||location.href).href,cMapPacked:true,standardFontDataUrl:new URL('vendor/pdfjs/standard_fonts/',document.baseURI||location.href).href});onTask?.(task);try{return await task.promise;}catch(err){await task.destroy().catch(()=>{});throw err;}}
  function close(){window.NeoLibraryVideo?.close();window.NeoPDFReader?.close('library');const state=current;current=null;if(!state)return;state.abort?.abort();state.render?.cancel?.();state.task?.destroy?.().catch(()=>{});state.dialog.remove();state.focus?.focus?.({preventScroll:true});}
  async function readText(response){if(typeof TextDecoder==='undefined'||typeof response.arrayBuffer!=='function')return response.text();const bytes=new Uint8Array(await response.arrayBuffer());if(bytes[0]===255&&bytes[1]===254)return new TextDecoder('utf-16le').decode(bytes);if(bytes[0]===254&&bytes[1]===255)return new TextDecoder('utf-16be').decode(bytes);try{return new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{return new TextDecoder('windows-1252').decode(bytes);}}
  function paintText(state){if(current!==state)return;const total=Math.max(1,Math.ceil(state.text.length/12000));state.dialog.querySelector('[data-text-file]').textContent=state.text.slice((state.number-1)*12000,state.number*12000);state.dialog.querySelector('[data-page-count]').textContent=`Página ${state.number} de ${total}`;state.dialog.querySelector('[data-library-viewer=previous]').disabled=state.number<=1;state.dialog.querySelector('[data-library-viewer=next]').disabled=state.number>=total;}
  async function open(file,trigger=document.activeElement){close();const external=file.external_url?window.NeoMediaLinks?.resolve(file.external_url):null;const embed=external?.platform==='YouTube'?external.embed:'';const src=url(file.view_url||file.local_url);if(!src&&!embed&&!(file.mime==='text/plain'&&typeof file.text==='string'))throw Error('Não foi possível abrir o anexo. Tente novamente.');if(file.mime==='application/pdf')return window.NeoPDFReader.open({url:src,title:file.display_name||file.name,trigger:document.activeElement,owner:'library'});if(embed||file.mime?.startsWith('video/'))return window.NeoLibraryVideo.open({src,embed,title:file.display_name||file.name||'Vídeo',trigger});const dialog=document.createElement('dialog');dialog.className='library-file-viewer';dialog.setAttribute('aria-label',file.display_name||file.name);dialog.innerHTML=`<div class="library-viewer-head"><button type="button" class="text-btn" data-library-viewer="close" aria-label="Fechar visualização e voltar">‹ Voltar</button><strong>${escape(file.display_name||file.name)}</strong></div><div class="library-reader-body">${file.mime?.startsWith('image/')?`<img class="library-reader-image" src="${escape(src)}" alt="${escape(file.display_name||file.name)}">`:'<nav class="library-reader-tools" aria-label="Páginas do texto"><button class="secondary" type="button" data-library-viewer="previous" disabled>‹</button><span data-page-count>Preparando texto…</span><button class="secondary" type="button" data-library-viewer="next" disabled>›</button></nav><pre class="library-reader-text" data-text-file></pre>'}<p data-file-status role="status"></p></div>`;const state={dialog,focus:document.activeElement,number:1,abort:new AbortController()};current=state;document.body.append(dialog);if(typeof dialog.showModal==='function')dialog.showModal();else dialog.setAttribute('open','');dialog.addEventListener('cancel',event=>{event.preventDefault();close()});dialog.querySelector('[data-library-viewer=close]').focus();const output=dialog.querySelector('[data-file-status]');dialog.querySelector('.library-reader-image')?.addEventListener('error',()=>{if(current===state)output.textContent='Não foi possível exibir a imagem. Reabra o arquivo para tentar novamente.';});try{if(file.mime==='text/plain'){let text=file.text;if(typeof text!=='string'){const response=await fetch(src,{signal:state.abort.signal,credentials:'omit',referrerPolicy:'no-referrer'});if(!response.ok)throw Error('fetch');text=await readText(response);}if(current===state){state.text=text;paintText(state);}}}catch{if(current===state)output.textContent='Não foi possível carregar o arquivo. Confira sua conexão e tente novamente.';}}
+ async function pdfCover(source,signal){
+  const src=url(source);
+  if(!src||signal.aborted)return '';
+  const canvas=document.createElement('canvas');
+  let task,render;
+  const destroy=()=>task?.destroy().catch(()=>{});
+  const abort=()=>{render?.cancel();void destroy();};
+  signal.addEventListener('abort',abort,{once:true});
+  try{
+   const file=await loadPDF(src,loading=>{
+    task=loading;
+    if(signal.aborted)abort();
+   },{disableAutoFetch:true,disableStream:true});
+   if(signal.aborted)return '';
+   const page=await file.getPage(1);
+   if(signal.aborted)return '';
+   const base=page.getViewport({scale:1});
+   const viewport=page.getViewport({scale:Math.min(1,256/Math.max(base.width,base.height))});
+   canvas.width=Math.max(1,Math.ceil(viewport.width));
+   canvas.height=Math.max(1,Math.ceil(viewport.height));
+   render=page.render({canvas,viewport});
+   await render.promise;
+   return signal.aborted?'':canvas.toDataURL('image/webp',.8);
+  }finally{
+   signal.removeEventListener('abort',abort);
+   await destroy();
+   canvas.width=canvas.height=0;
+  }
+ }
  async function thumbnail(node,token){const key=node.dataset.pdfKey||node.dataset.pdfThumb,canvas=node.querySelector('canvas');if(!node.isConnected||!canvas?.getContext)return;const cached=cache.get(key);if(cached){const image=document.createElement('img');image.src=cached;image.alt='Primeira página do PDF';node.replaceChildren(image);return;}let documentPDF;try{documentPDF=await loadPDF(url(node.dataset.pdfThumb));if(token!==epoch||!node.isConnected)return;const p=await documentPDF.getPage(1),base=p.getViewport({scale:1}),viewport=viewportFor(p,480/base.width);canvas.width=viewport.width;canvas.height=viewport.height;await p.render({canvasContext:canvas.getContext('2d'),viewport}).promise;if(token!==epoch||!node.isConnected)return;const data=canvas.toDataURL('image/jpeg',.8);cache.set(key,data);if(cache.size>30)cache.delete(cache.keys().next().value);node.querySelector('span')?.remove();}catch{canvas.hidden=true;}finally{documentPDF?.loadingTask?.destroy?.().catch(()=>{});}}
  function drain(){while(running<2&&queue.length){const job=queue.shift();if(!job.node.isConnected||job.token!==epoch)continue;running++;thumbnail(job.node,job.token).finally(()=>{running--;drain()});}}
  async function textThumbnail(node){const token=epoch,key=node.dataset.previewKey||node.dataset.textThumb;if(textCache.has(key)){node.textContent=textCache.get(key);return;}try{const response=await fetch(url(node.dataset.textThumb),{credentials:'omit',referrerPolicy:'no-referrer'});if(!response.ok)throw Error('fetch');const text=(await readText(response)).slice(0,600);if(token!==epoch)return;textCache.set(key,text);if(textCache.size>30)textCache.delete(textCache.keys().next().value);if(node.isConnected)node.textContent=text||'Arquivo de texto vazio.';}catch{if(node.isConnected&&token===epoch)node.textContent='TXT · Toque para ler';}}
@@ -19,5 +48,5 @@ window.NeoLibraryFiles=(()=>{
  function scan(root=document){if(!root)return;for(const node of root.querySelectorAll('[data-pdf-thumb],[data-text-thumb],[data-video-thumb]')){if(node.dataset.previewQueued)continue;node.dataset.previewQueued='true';if(node.hasAttribute('data-text-thumb'))textThumbnail(node);else if(node.hasAttribute('data-video-thumb'))videoThumbnail(node);else queue.push({node,token:epoch});}drain();}
  document.addEventListener('click',event=>{const b=event.target.closest('[data-library-viewer]');if(!b||!current)return;const state=current;switch(b.dataset.libraryViewer){case'close':close();break;case'previous':if(state.text!==undefined&&state.number>1){state.number--;paintText(state);}break;case'next':if(state.text!==undefined&&state.number<Math.ceil(state.text.length/12000)){state.number++;paintText(state);}break;}});
  window.addEventListener('hashchange',close);
- return {open,close,reset,session,scan};
+ return {open,close,reset,session,scan,pdfCover};
 })();
