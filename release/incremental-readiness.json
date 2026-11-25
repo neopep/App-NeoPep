@@ -1,0 +1,33 @@
+{
+  "target": "production-incremental",
+  "checks": {
+    "official_baseline": {
+      "status": "verified",
+      "evidence": "SHA fc0ae22faf75b108aad137b1399fc8b367af1292 e deployment dpl_5tRTZU2WsH7Zn5naexANfaZuAESd conferidos na API Vercel. Domínio serve o Supabase cpslafpzjtbpmoxxysaa."
+    },
+    "installed_migrations": {
+      "status": "verified",
+      "evidence": "Ledger oficial 20261125144222, 20261125144224, 20261125144225, 20261125144453 e 20261125145240 20261125145355 e 20261125150040. Os quatro gatilhos financeiros novos estão instalados."
+    },
+    "financial_contract": {
+      "status": "verified",
+      "evidence": "PostgreSQL isolado com 39 funções oficiais consultadas da Produção. Ensaio de reserva concorrente, aprovação/estorno idempotente, ACL e reversão passou. Fingerprints das 39 funções iguais após aplicação."
+    },
+    "geo_official": {
+      "status": "pending",
+      "note": "Falta configurar o endpoint oficial e validar sessão autenticada, recusa e Safari iPhone."
+    },
+    "campaign_central": {
+      "status": "pending",
+      "note": "Contratos instalados com fila desativada e destinos vazios. Falta ensaio autenticado com sessão real e worker oficial."
+    },
+    "connect_official": {
+      "status": "pending",
+      "note": "Faltam comprovação do worker no perfil oficial, destinos autorizados e confirmação da cadeia de atualização."
+    },
+    "authenticated_smoke": {
+      "status": "pending",
+      "note": "Falta ensaio autenticado representativo da candidata com verificação de isolamento, arquivos privados, Auth e PWA."
+    }
+  }
+}

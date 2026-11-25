@@ -922,7 +922,7 @@ function mountOperations(root,summary){
 }
 $('#adminRefresh').onclick=refresh;
 window.NeoGestures?.configure({refresh,back:()=>history.length>1?history.back():location.assign('../')});
-window.NeoCloud.init((event,user)=>{if(event==='TOKEN_REFRESHED')return;if(signupVisit?.account!==user?.id){clearSignupToast();signupVisit=null}generation++;window.NeoAgent?.reset();authorized=false;$('#adminTabs').hidden=true;$('#adminContent').innerHTML='';if(user)refresh();else $('#adminStatus').textContent='Sessão ausente. Entre no aplicativo.';}).then(user=>{if(user)refresh();else if(!window.NeoCloud.configured)refresh();else $('#adminStatus').textContent='Entre na sua conta pelo aplicativo.';}).catch(()=>{$('#adminStatus').textContent='Não foi possível verificar a sessão.';});
+window.NeoCloud.init((event,user)=>{if(event==='TOKEN_REFRESHED')return;window.NeoCampaignEditor?.closeForSession();if(signupVisit?.account!==user?.id){clearSignupToast();signupVisit=null}generation++;window.NeoAgent?.reset();authorized=false;$('#adminTabs').hidden=true;$('#adminContent').innerHTML='';if(user)refresh();else $('#adminStatus').textContent='Sessão ausente. Entre no aplicativo.';}).then(user=>{if(user)refresh();else if(!window.NeoCloud.configured)refresh();else $('#adminStatus').textContent='Entre na sua conta pelo aplicativo.';}).catch(()=>{$('#adminStatus').textContent='Não foi possível verificar a sessão.';});
 
 const campaignHelp={
  title:["Título", "Escreva o título que aparece no topo do pop-up."],
@@ -1032,6 +1032,33 @@ async function mountCampaigns(root){
  root.innerHTML='<section class="card"><div class="neo-campaign-toolbar"><nav class="neo-campaign-switch" aria-label="Canal de campanha"><button type="button" class="primary" data-campaign-action="app" aria-pressed="true">App</button><button type="button" class="secondary" data-campaign-action="whatsapp" aria-pressed="false">WhatsApp</button></nav><div class="neo-campaign-toolbar-actions"><button type="button" class="secondary campaign-manual" aria-label="Ajuda para campanhas" title="Como criar uma campanha" data-campaign-action="manual"><span aria-hidden="true">?</span></button><button type="button" class="primary neo-campaign-new" data-campaign-action="new" aria-label="Criar nova campanha" title="Criar nova campanha"><span aria-hidden="true">+</span><span class="neo-campaign-new-label"> Nova</span></button></div></div><nav class="neo-campaign-crumbs" aria-label="Localização" data-campaign-breadcrumb></nav><nav class="neo-campaign-sections" aria-label="Seção" data-campaign-sections></nav><div class="neo-campaign-actionbar" data-campaign-actionbar></div><button type="button" class="secondary" data-campaign-action="back" hidden>← Voltar à lista</button><p role="status" data-campaign-status></p><details class="space" hidden><summary>Vincular plano a uma conta</summary><form data-campaign-plan class="space"><label>ID da conta<input name="account" required pattern="[a-fA-F0-9-]{36}"></label><label>Código do plano (vazio para desvincular)<input name="plan" pattern="[a-z0-9_-]{1,40}" maxlength="40"></label><button class="secondary" type="submit">Salvar vínculo</button></form></details><dialog data-campaign-edit hidden></dialog><div data-campaign-wa hidden></div><div data-campaign-filters class="neo-campaign-filters"><label>Pesquisar campanhas<input type="search"></label><label>Status<select><option value="">Todos</option><option value="draft">Rascunho</option><option value="active">Ativa</option><option value="scheduled">Agendada</option><option value="paused">Pausada</option><option value="archived">Arquivada</option><option value="expired">Encerrada</option></select></label><label>Canal da campanha<select><option value="">Todos neste canal</option><option value="shared">App e WhatsApp</option><option value="single">Só neste canal</option></select></label></div><div data-campaign-list></div><div data-campaign-results hidden></div><div data-campaign-more aria-live="polite"></div></section>';
  const find=selector=>root.querySelector(selector);
  const status=find('[data-campaign-status]'),editor=find('[data-campaign-edit]'),list=find('[data-campaign-list]');
+ const structured=document.createElement('details');
+ structured.className='space';
+ structured.innerHTML='<summary>Rascunhos estruturados para revisão</summary><div data-structured-list></div>';
+ list.before(structured);
+ const showStructured=()=>!(central&&area==='whatsapp'&&view==='campaigns')&&!screen&&(view==='campaigns'||area==='whatsapp'&&view==='publications');
+ async function refreshStructured(){
+  if(!structured.open||!showStructured()||typeof cloud.campaignEditor!=='function')return;
+  const box=structured.querySelector('[data-structured-list]');
+  try{
+   let entries;
+   try{entries=await cloud.campaignDispatch('review',{});}
+   catch{entries=await cloud.campaignEditor('review');}
+   if(!root.isConnected)return;
+   box.innerHTML=entries.filter(row=>row.channel===area).map(row=>`<article class="monitor-block">
+    <strong>${esc(row.title)}</strong><p class="sub">Versão ${esc(row.revision)} · ${row.state==='tracking'?'Acompanhar destinos':row.state==='app'?'Acompanhar App':'Em revisão, envio bloqueado'}
+    ${row.planned_local?' · '+esc(row.planned_local)+' · '+esc(row.timezone):''} · ${esc(row.destinations)} destino(s)</p>
+    <button type="button" class="secondary" data-campaign-action="structured_resume" data-id="${esc(row.campaign_id)}">Reabrir rascunho</button></article>`).join('')||'<p class="sub">Nenhuma versão neste canal.</p>';
+  }catch{if(root.isConnected)box.textContent='Revisão no servidor indisponível. Rascunhos locais continuam acessíveis.';}
+ }
+ structured.addEventListener('toggle',()=>{void refreshStructured();});
+ const stagingCampaigns=window.NEO_CONFIG?.campaignTestEnabled===true;
+ function openStructured(trigger,row,remote,channel='whatsapp',onSaved=refreshStructured){
+  if(!draftOkay()||whatsapp?.canLeave?.()===false)return;
+  window.NeoCampaignEditor?.open({cloud,row,remote,channel:remote?.channel||channel,trigger,
+   onSaved,onConnect:()=>{showArea('whatsapp');view='connect';updateScreen();writeRoute();}});
+ }
+
  addCampaignHelp(find('[data-campaign-plan]'));
  const views={app:[['campaigns','Campanhas'],['results','Resultados'],['plans','Públicos e planos']],whatsapp:[['campaigns','Campanhas'],['publications','Publicações'],['groups','Grupos'],['connect','NeoPep Connect']]};
  const filterValues={app:[],whatsapp:[]};
@@ -1074,6 +1101,15 @@ async function mountCampaigns(root){
  const bread=find('[data-campaign-breadcrumb]'),sectionNav=find('[data-campaign-sections]'),filters=find('[data-campaign-filters]');
  const plans=find('[data-campaign-plan]').parentElement,wa=find('[data-campaign-wa]'),results=find('[data-campaign-results]');
  const panelIds={campaigns:list,results,plans,publications:wa,groups:wa,connect:wa};
+ const centralHost=document.createElement('section');
+ centralHost.className='campaign-central';centralHost.hidden=true;
+ list.before(centralHost);
+ const central=(stagingCampaigns||window.NEO_CONFIG?.campaignOfficialCentralEnabled===true)&&window.NeoCampaignCentral&&typeof cloud.campaignCentral==='function'
+  ?window.NeoCampaignCentral.mount({root:centralHost,cloud,legacy:()=>rows,
+   openLegacy:(id,trigger)=>{const row=rows.find(item=>item.id===id);if(row&&draftOkay()){openedBy=trigger;edit(row);}},
+   recoverLegacy:(trigger,onSaved)=>openStructured(trigger,undefined,null,'whatsapp',onSaved),
+   onConnect:()=>{showArea('whatsapp');view='connect';updateScreen();writeRoute();}}):null;
+
  let waActive=false;
  function updateScreen(){
   const from=area==='app'?'App':'WhatsApp',selected=views[area].find(([key])=>key===view)?.[1]||'Campanhas';
@@ -1101,16 +1137,20 @@ async function mountCampaigns(root){
    else panel.removeAttribute('aria-labelledby');
   }
   const lists=view==='campaigns'&&!screen;
-  list.hidden=filters.hidden=!lists;sentinel.hidden=!lists&&!(area==='app'&&view==='results'&&!screen);
+  const unified=Boolean(central&&area==='whatsapp'&&lists);
+  centralHost.hidden=!unified;
+  if(unified)void central.load();
+  list.hidden=filters.hidden=!lists||unified;sentinel.hidden=!lists&&!(area==='app'&&view==='results'&&!screen);
   editor.hidden=!screen;plans.hidden=area!=='app'||view!=='plans'||Boolean(screen);
   results.hidden=area!=='app'||view!=='results'||Boolean(screen);
   wa.hidden=area!=='whatsapp'||view==='campaigns'||Boolean(screen);
   const newAction=find('[data-campaign-action=new]');
-  newAction.hidden=Boolean(screen)||view!=='campaigns';
+  newAction.hidden=unified||Boolean(screen)||view!=='campaigns';
   const actionBar=find('[data-campaign-actionbar]');
   if(newAction.parentElement!==actionBar)actionBar.append(newAction);
-  newAction.setAttribute('aria-label','Nova campanha');
-  newAction.innerHTML='<span aria-hidden="true">+</span><span class="neo-campaign-new-label"> Nova campanha</span>';
+  const newLabel=stagingCampaigns&&area==='app'?'Nova campanha de homologação':'Nova campanha';
+  newAction.setAttribute('aria-label',newLabel);
+  newAction.innerHTML='<span aria-hidden="true">+</span><span class="neo-campaign-new-label"> '+newLabel+'</span>';
   find('[data-campaign-action=back]').hidden=!screen;
   if(!wa.hidden){
    if(!whatsapp&&typeof mountCampaignWhatsApp==='function')whatsapp=mountCampaignWhatsApp(wa,{cloud,embedded:true});
@@ -1118,6 +1158,7 @@ async function mountCampaigns(root){
    if(!waActive)whatsapp?.show();
   }
   waActive=!wa.hidden;
+  structured.hidden=!showStructured();if(!structured.hidden)void refreshStructured();
   renderCards();
  }
  function closeEditor(){
@@ -1161,7 +1202,7 @@ async function mountCampaigns(root){
    area=route.area;filters.querySelectorAll('input,select').forEach((control,i)=>{control.value=filterValues[area][i]||'';});
   }
   view=route.view;updateChannel();updateScreen();
-  if(route.screen==='new'){edit({},false);return;}
+  if(route.screen==='new'){if(!(central&&area==='whatsapp'))edit({},false);return;}
   if(!/^[a-f0-9-]{36}$/i.test(route.screen)){if(wasEditing)globalThis.scrollTo?.(0,lastScroll);return;}
   while(root.isConnected&&!rows.some(row=>row.id===route.screen)&&!done&&!loadingPage){await load();}
   const row=rows.find(item=>item.id===route.screen);
@@ -1320,6 +1361,7 @@ async function mountCampaigns(root){
    <p class="sub">${metricText(row)}</p>
    <p class="sub">${row.updated_at?'Alterada em '+esc(new Date(row.updated_at).toLocaleString('pt-BR')):''}</p>
    <div class="neo-campaign-actions"><button type="button" class="primary" data-campaign-action="edit" data-id="${esc(row.id)}">Abrir</button>
+   ${area==='app'&&window.NeoCampaignEditor?`<button type="button" class="secondary" data-campaign-action="structured_copy" data-id="${esc(row.id)}">Criar também no WhatsApp</button>`:''}
    ${row.whatsapp_enabled&&typeof neoWhatsappEye==='function'?neoWhatsappEye('data-campaign-action="preview_wa" data-id="'+esc(row.id)+'"'):''}
    <details class="neo-campaign-menu"><summary aria-label="Mais ações">⋯</summary>${actions.map(action=>
     `<button type="button" class="secondary" data-campaign-action="${action}" data-id="${esc(row.id)}">${{edit:'Editar',duplicate:'Duplicar',pause:'Pausar',activate:'Ativar / agendar',archive:'Arquivar',prepare_wa:'WhatsApp'}[action]}</button>`).join('')}</details></div></article>`;
@@ -1335,7 +1377,7 @@ async function mountCampaigns(root){
    if(!root.isConnected)return;
    offset+=batch.length;done=batch.length<50;
    rows.push(...batch.filter(row=>!rows.some(existing=>existing.id===row.id)));
-   renderCards();whatsapp?.setCampaigns(rows);
+   renderCards();central?.syncLegacy();whatsapp?.setCampaigns(rows);
    sentinel.innerHTML=done?'':'<button type="button" class="secondary" data-campaign-action="more">Carregar mais</button>';
    if(!done&&typeof IntersectionObserver!=='undefined'){
     observer??=new IntersectionObserver(entries=>{
@@ -1367,6 +1409,20 @@ async function mountCampaigns(root){
   const button=event.target.closest('[data-campaign-action]');
   if(!button||busy||!root.isConnected)return;
   const action=button.dataset.campaignAction,id=button.dataset.id;
+  if(action==='structured_resume'){
+   try{
+    const remote=await cloud.campaignEditor('load',{campaign_id:id});
+    if(remote&&root.isConnected)openStructured(button,{id,title:''},remote);
+   }catch{status.textContent='Não foi possível reabrir a versão de revisão.';}
+   return;
+  }
+  if(action==='structured_copy'){const original=rows.find(row=>row.id===id);if(original)openStructured(button,original);return;}
+  if(action==='new'&&stagingCampaigns&&area==='app'&&window.NeoCampaignEditor){
+   openStructured(button,undefined,null,'app');return;
+  }
+  if((action==='new'||action==='edit')&&area==='whatsapp'&&window.NeoCampaignEditor){
+   openStructured(button,rows.find(row=>row.id===id));return;
+  }
   if(action==='app'||action==='whatsapp'){showArea(action);return;}
   if(action==='prepare_wa'){
    const row=rows.find(item=>item.id===id);

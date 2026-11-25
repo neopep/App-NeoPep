@@ -66,16 +66,70 @@ const api={configured,connectTestEnabled:connectEnabled,
  async connectWaGroups(connection,after=null){if(!connectEnabled)throw Error('Canal Windows indisponível.');return ok(await need().rpc('neo_connect_wa_list_groups',{p_connection:connection,p_after:after,p_limit:50}));},
  async connectAdmin(action,data={}){if(!connectEnabled)throw Error('Canal Windows indisponível.');return ok(await need().rpc('neo_connect_admin',{p_action:action,p_data:data}));},
  async connectReleaseURL(path){if(!connectEnabled)throw Error('Canal Windows indisponível.');return ok(await need().storage.from('neo-connect-releases').createSignedUrl(path,120,{download:'NeoPepConnectSetup.exe'})).signedUrl;},
+ async campaignCentral(action,data={}){
+  const version=identityVersion;
+  const result=ok(await need().rpc('neo_campaign_central_v1',{p_action:action,p_data:data}));
+  if(version!==identityVersion)throw Error('A conta mudou.');
+  return result;
+ },
+ async campaignEditor(action,data){const version=identityVersion;const result=ok(await need().rpc('neo_campaign_editor_v1',{p_action:action,p_data:data}));if(version!==identityVersion)throw Error('A conta mudou.');return result;},
+ async campaignRich(action,data={}){
+  const version=identityVersion;
+  const result=ok(await need().rpc('neo_campaign_rich_admin_v1',{p_action:action,p_data:data}));
+  if(version!==identityVersion)throw Error('A conta mudou.');
+  return result;
+ },
+ async campaignMediaUpload(path,jpeg){
+  const sdk=need(),version=identityVersion,owner=user?.id;
+  if(typeof path!=='string'||!new RegExp('^[a-f0-9-]{36}/[a-f0-9-]{36}\\.jpg$').test(path)||
+    path.split('/')[0]!==owner||!jpeg||jpeg.type!=='image/jpeg'||!jpeg.size||jpeg.size>1048576)
+    throw Error('Imagem JPEG ou destino privado inválido. Máximo de 1 MB.');
+  const uploaded=ok(await sdk.storage.from('neo-campaign-images').upload(path,jpeg,{
+   contentType:'image/jpeg',upsert:false,cacheControl:'3600'
+  }));
+  if(version!==identityVersion||user?.id!==owner)throw Error('A conta mudou durante o envio.');
+  return uploaded.path;
+ },
+ async campaignDispatch(action,data){const version=identityVersion;const result=ok(await need().rpc('neo_campaign_dispatch_admin_v1',{p_action:action,p_data:data}));if(version!==identityVersion)throw Error('A conta mudou.');return result;},
+ async campaignTest(action,data={}){
+  const version=identityVersion;
+  const result=ok(await need().rpc('neo_campaign_test_admin_v1',{p_action:action,p_data:data}));
+  if(version!==identityVersion)throw Error('A conta mudou.');
+  return result;
+ },
+ async campaignTestVisit(action,batch=null){
+  const version=identityVersion;
+  const response=await need().rpc('neo_campaign_test_visit_v1',{p_action:action,p_batch:batch});
+  if(version!==identityVersion)throw Error('A conta mudou.');
+  if(['PGRST202','42883'].includes(response.error?.code))return null;
+  return ok(response);
+ },
  async campaignWhatsAppSync(action,id=null,data={}){return ok(await need().rpc('neo_campaign_wa_sync',{p_action:action,p_id:id,p_data:data}));},
  async campaignWhatsApp(action,id=null,data={}){return ok(await need().rpc('neo_campaign_wa',{p_action:action,p_id:id,p_data:data}));},
  async campaignAdmin(action,id=null,data={}){if(action==='activate'&&!campaignsEnabled)throw Error('Ativação de campanhas indisponível.');return ok(await need().rpc('neo_campaign_admin',{p_action:action,p_id:id,p_data:data}));},
  async privacyPreferences(choices=null,complete=false){
-  return ok(await need().rpc('neo_privacy_preferences',{p_choices:choices,p_complete:complete}));
+  const sdk=need(),version=identityVersion;
+  const result=ok(await sdk.rpc('neo_privacy_preferences',{p_choices:choices,p_complete:complete}));
+  if(version!==identityVersion)throw Error('A conta mudou. Reabra suas preferências.');
+  return result;
+ },
+ async personalizationConsent(granted=null){
+  const sdk=need(),version=identityVersion,controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),8000);
+  try{
+   const result=ok(await sdk.rpc('neo_personalization_consent',{p_granted:granted}).abortSignal(controller.signal));
+   if(version!==identityVersion)throw Error('A conta mudou. Reabra suas preferências.');
+   return result;
+  }finally{clearTimeout(timeout);}
  },
  async campaignPushPreference(enabled=null){if(!campaignsEnabled)return false;return ok(await need().rpc('neo_campaign_push_preference',{p_enabled:enabled}));},
  async campaignVisit(action,impression=null){if(!campaignsEnabled)return null;return ok(await need().rpc('neo_campaign_visit',{p_action:action,p_impression:impression}));},get remember(){return rememberSession},get persistenceLimited(){return persistenceLimited},
  async pushDevice(action,subscription,timezone){need();return ok(await client.rpc("neo_push_device",{p_action:action,p_subscription:subscription,p_timezone:timezone||"UTC"}))},
  async shop(action,payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_shop',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou. Reabra a loja.');return data},
+ async shopCosts(action,payload){need();const version=identityVersion;const result=await client.rpc('neo_shop_costs_v1',{p_action:action,p_payload:payload});if(version!==identityVersion)throw Error('A conta mudou. Reabra a loja.');return ok(result)},
+ async shopFinancial(filters){need();const version=identityVersion;const result=await client.rpc('neo_shop_financial_dashboard_v1',{p_filters:filters});if(version!==identityVersion)throw Error('A conta mudou. Reabra a loja.');return ok(result)},
+ async shopReconciliation(action,input){need();const version=identityVersion;const result=await client.rpc('neo_shop_reconciliation_v1',{p_action:action,p_input:input});if(version!==identityVersion)throw Error('A conta mudou. Reabra a loja.');return ok(result)},
+ async shopBulk(action,input){need();const version=identityVersion;const result=await client.rpc('neo_shop_bulk_v1',{p_action:action,p_input:input});if(version!==identityVersion)throw Error('A conta mudou. Reabra a loja.');return ok(result)},
  async shopAddress(action,payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_shop_address',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou. Reabra o checkout.');return data},
  async shopPhotoURL(path){need();return ok(await client.storage.from('neo-shop-products').createSignedUrl(path,600)).signedUrl},
  async uploadShopPhoto(blob){need();if(blob.type!=='image/jpeg'||blob.size>5242880)throw Error('Foto inválida.');const version=identityVersion;const reserved=await api.shop('reserve_photo');ok(await client.storage.from('neo-shop-products').upload(reserved.path,blob,{contentType:'image/jpeg',upsert:false}));if(version!==identityVersion)throw Error('A conta mudou.');return reserved.path},
@@ -100,6 +154,13 @@ const api={configured,connectTestEnabled:connectEnabled,
  async communityAvatarURL(path){need();return ok(await client.storage.from('neo-community-avatars').createSignedUrl(path,3600)).signedUrl},
  async supportMediaURL(file){need();return ok(await client.storage.from('neo-support').createSignedUrl(file.path,60)).signedUrl},
  async uploadSupportMedia(file,thread_id){need();const account=user.id,version=identityVersion;const mime=file.type.split(';')[0];if(!['image/jpeg','application/pdf','text/plain','audio/webm','audio/mp4','audio/ogg'].includes(mime)||!file.size||file.size>10485760)throw Error('Anexo inválido. O limite é 10 MB.');if(mime==='application/pdf'&&await file.slice(0,5).text()!=='%PDF-')throw Error('PDF inválido.');if(mime==='text/plain'&&(await file.text()).includes('\0'))throw Error('Arquivo de texto inválido.');const name=String(file.name||('audio-'+Date.now())).replace(/[\\/\x00-\x1f]/g,'').slice(0,120);const reserved=await api.support('reserve',{thread_id,name,mime,size:file.size});if(version!==identityVersion)throw Error('A conta mudou.');ok(await client.storage.from('neo-support').upload(reserved.path,file,{contentType:mime,upsert:false}));if(version!==identityVersion||account!==user?.id)throw Error('A conta mudou.');return reserved},
+ async supportInbox(){
+  need();const version=identityVersion;
+  const result=await client.rpc('neo_support_inbox_v1');
+  if(version!==identityVersion)throw Error('A conta mudou durante a consulta.');
+  if(['PGRST202','42883'].includes(result.error?.code))return this.support('list');
+  return ok(result);
+ },
  async support(action,payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_support',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou. Reabra a conversa.');return data},
  async communitySettings(action='read',payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_community_settings',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou.');return data},
  async communityActivity(action='status',payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_community_activity',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou.');return data},
@@ -168,11 +229,12 @@ const api={configured,connectTestEnabled:connectEnabled,
  async geoControl(action){need();return ok(await client.rpc('neo_geo_control',{p_action:action}))},
  async adminGeo(users){need();return ok(await client.rpc('neo_admin_geo',{p_users:users}))},
  async captureGeo(){
-  if(official||!config.geoEndpoint)return;
+  const endpoint=official?(config.productionGeoEnabled===true?'/api/location-observe':null):config.geoEndpoint;
+  if(!endpoint)return;
   need();const version=identityVersion,account=user.id;
   const {session}=ok(await client.auth.getSession());
   if(version!==identityVersion||session?.user?.id!==account||!session.access_token)return;
-  const result=await fetch(config.geoEndpoint+'?mode=geo',{method:'POST',headers:{Authorization:'Bearer '+session.access_token}});
+  const result=await fetch(endpoint+(official?'':'?mode=geo'),{method:'POST',headers:{Authorization:'Bearer '+session.access_token}});
   if(version===identityVersion&&result.ok)return result.json();
  },
  async adminOperations(section,days=30,review=null){need();return ok(await client.rpc('neo_admin_operations',{p_section:section,p_days:days,p_review:review}))},
@@ -276,7 +338,23 @@ const api={configured,connectTestEnabled:connectEnabled,
   if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou.');
   return data.signedUrl;
  },
- async beforeAfterBlob(item){
+ async beforeAfterThumbnails(item){
+  const sdk=need(),account=user.id,version=identityVersion;
+  if(item?.user_id!==account||!item.path?.startsWith(account+'/'))
+   throw Error('Comparação privada indisponível.');
+  const ids=[item.before_photo_id,item.after_photo_id];
+  if(ids.some(id=>typeof id!=='string'||!/^[-a-f0-9]{36}$/i.test(id)))return [null,null];
+  const photos=ok(await sdk.from('neo_photos').select('id,path,date,role')
+   .eq('user_id',account).in('id',ids));
+  if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou.');
+  const results=await Promise.allSettled(ids.map((id,index)=>{
+   const photo=photos.find(row=>row.id===id&&row.role==='progress'&&row.date===[item.before_date,item.after_date][index]);
+   return photo?api.photoURL(photo,'thumbnail'):null;
+  }));
+  if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou.');
+  return results.map(result=>result.status==='fulfilled'?result.value:null);
+ },
+ async verifyBeforeAfter(item){
   needsHealth();
   const account=user.id,version=identityVersion;
   if(item?.user_id!==account||!item.path?.startsWith(account+'/')||
@@ -286,6 +364,12 @@ const api={configured,connectTestEnabled:connectEnabled,
    .eq('id',item.id).eq('user_id',account).eq('path',item.path).single());
   if(version!==identityVersion||user?.id!==account||record?.path!==item.path)
    throw Error('A conta mudou ou a comparação não existe mais.');
+ },
+ async beforeAfterBlob(item){
+  needsHealth();
+  const account=user.id,version=identityVersion;
+  await api.verifyBeforeAfter(item);
+  if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou.');
   const blob=ok(await client.storage.from('neo-comparisons').download(item.path));
   if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou.');
   if(blob?.type!=='image/jpeg'||!blob.size||blob.size>5242880)

@@ -11,3 +11,42 @@ test('biblioteca: recentes antes de destaque, filtros globais e acessos reais li
  let v=await lib('view',{id:popular});assert.equal(v.counted,true);assert.equal(v.view_count,undefined);v=await lib('view',{id:popular});assert.equal(v.counted,false);assert.equal(v.view_count,undefined);await assert.rejects(db.query('select * from neo_private.library_visits'),/permission/);await as(db,A);await lib('view',{id:popular});assert.equal((await lib('read',{sort:'popular'})).materials[0].id,popular);assert.equal((await lib('get',{id:popular})).material.view_count,2);await as(db,B);await db.exec('reset role');await db.query("update neo_private.library_visits set view_day=(now() at time zone 'America/Sao_Paulo')::date-1 where material_id=$1 and user_id=$2",[popular,B]);await as(db,B);assert.equal((await lib('view',{id:popular})).view_count,undefined);await assert.rejects(lib('view',{id:'ffffffff-ffff-4fff-8fff-ffffffffffff'}),/não encontrado/);
  await db.exec('reset role');await db.exec(fs.readFileSync('supabase/setup/library-editor.sql','utf8'));await as(db,A);assert.equal((await lib('get',{id:popular})).material.view_count,3);await as(db,B);assert.equal((await lib('read')).materials.some(row=>Object.hasOwn(row,'view_count')),false);await db.exec('reset role');await db.query("select set_config('request.jwt.claim.sub','',false)");await db.exec('set role anon');await assert.rejects(lib('view',{id:popular}),/permission/);
 }finally{await db.close()}});
+
+test('fixados preservam escopo, filtros e destaques, rejeitam conflito e registram auditoria',async()=>{
+ const db=await setup();
+ try{
+  await db.query('insert into auth.users(id) values($1),($2)',[A,B]);
+  for(const account of [A,B]){await as(db,account);await onboard(db);}
+  await db.exec('reset role');
+  await db.exec(fs.readFileSync('supabase/migrations/20261124140000_library_pins.sql','utf8'));
+  await db.query('insert into neo_private.admin_members(user_id) values($1)',[A]);
+  const rows=(await db.query("insert into neo_private.community_materials(title,body,url,featured,created_at) values ('Antiga','Texto','','false','2020-01-01'),('Destaque','Texto','','true','2021-01-01'),('Nova','Link','https://example.test','false','2022-01-01') returning id")).rows;
+  const [old,featured,recent]=rows.map(row=>row.id);
+  const lib=async(action,payload={})=>(await db.query('select neo_library($1,$2) d',[action,payload])).rows[0].d;
+  const ids=async(payload={})=>(await lib('read',payload)).materials.map(row=>row.id);
+  const save=(expected,order)=>lib('pins_save',{expected,order});
+  await as(db,A);
+  assert.deepEqual(await ids(),[recent,featured,old]);
+  assert.deepEqual((await save([],[old])).pins.map(row=>row.id),[old]);
+  await save([old],[old,featured]);
+  await assert.rejects(save([old],[recent]),{code:'40001'});
+  await assert.rejects(save([old,featured],[old,old]),{code:'22023'});
+  await save([old,featured],[featured,old]);
+  assert.deepEqual(await ids(),[featured,old,recent]);
+  assert.deepEqual(await ids({type:'link'}),[recent]);
+  assert.deepEqual(await ids({search:'antiga'}),[old]);
+  assert.deepEqual(await ids({featured_only:true}),[featured]);
+  assert.deepEqual((await lib('featured')).materials.map(row=>row.id),[featured]);
+  await as(db,B);
+  assert.deepEqual(await ids(),[featured,old,recent]);
+  await assert.rejects(lib('pins_list'),{code:'42501'});
+  await assert.rejects(save([featured,old],[]),{code:'42501'});
+  await as(db,A);
+  await save([featured,old],[old]);
+  assert.deepEqual(await ids(),[old,recent,featured]);
+  await db.exec('reset role');
+  assert.equal((await db.query("select count(*)::int as n from neo_private.operations_audit where action='library_pins' and actor=$1",[A])).rows[0].n,4);
+  await db.query('insert into neo_private.member_access_controls(user_id,library_blocked) values ($1,true)',[B]);
+  await as(db,B);await assert.rejects(lib('read'),{code:'42501'});
+ }finally{await db.close();}
+});

@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),{parseHTML}=require('linkedom'),fs=require('fs'),vm=require('vm'),C=require('../dist/core.js');
-function setup(seed={},options={}){const {document,Event}=parseHTML(fs.readFileSync('dist/index.html','utf8'));const data=new Map(Object.entries(seed)),writes=[];let counter=0;const ctx={document,console,Event,localStorage:{getItem:k=>data.get(k)??null,setItem:(k,v)=>{if(options.quota)throw Error('quota');data.set(k,v);writes.push(k)},removeItem:k=>data.delete(k)},location:{hash:'',href:options.url||'https://example.test/',protocol:'https:'},history:{replaceState(a,b,hash){ctx.location.hash=hash}},navigator:{onLine:true},matchMedia:()=>({matches:false,addEventListener(){}}),setInterval(){},setTimeout(){},clearTimeout(){},addEventListener(){},scrollTo(){},confirm:()=>true,prompt:()=>null,URL,Blob,Date:options.date||Date,Number,String,JSON,FormData:class{},crypto:{randomUUID:()=>String(++counter)},NeoCore:C,NeoCloud:{configured:false,init:async()=>null,...options.cloud},NEO_CONFIG:{providers:{google:false,apple:false,email:false}},indexedDB:null};ctx.window=ctx;document.querySelector('#dialog').showModal=function(){this.setAttribute('open','')};document.querySelector('#dialog').close=function(){this.removeAttribute('open');this.dispatchEvent(new Event('close'))};vm.createContext(ctx);vm.runInContext(fs.readFileSync('dist/app.js','utf8'),ctx);return {ctx,document,data,writes,run:code=>vm.runInContext(code,ctx)}}
+function setup(seed={},options={}){const {document,Event}=parseHTML(fs.readFileSync('dist/index.html','utf8'));const data=new Map(Object.entries(seed)),writes=[];let counter=0;let darkSystem=options.darkSystem??false;const systemEvents=[];const ctx={document,console,Event,localStorage:{getItem:k=>data.get(k)??null,setItem:(k,v)=>{if(options.quota)throw Error('quota');data.set(k,v);writes.push(k)},removeItem:k=>data.delete(k)},location:{hash:'',href:options.url||'https://example.test/',protocol:'https:'},history:{replaceState(a,b,hash){ctx.location.hash=hash}},navigator:{onLine:true},matchMedia:query=>({get matches(){return query.includes('color-scheme')&&darkSystem},addEventListener(type,fn){if(query.includes('color-scheme')&&type==='change')systemEvents.push(fn)}}),setInterval(){},setTimeout(){},clearTimeout(){},addEventListener(){},scrollTo(){},confirm:()=>true,prompt:()=>null,URL,Blob,Date:options.date||Date,Number,String,JSON,FormData:class{},crypto:{randomUUID:()=>String(++counter)},NeoCore:C,NeoCloud:{configured:false,init:async()=>null,...options.cloud},NEO_CONFIG:{providers:{google:false,apple:false,email:false}},indexedDB:null};ctx.window=ctx;document.querySelector('#dialog').showModal=function(){this.setAttribute('open','')};document.querySelector('#dialog').close=function(){this.removeAttribute('open');this.dispatchEvent(new Event('close'))};vm.createContext(ctx);vm.runInContext(fs.readFileSync('dist/appearance.js','utf8'),ctx);vm.runInContext(fs.readFileSync('dist/app.js','utf8'),ctx);return {ctx,document,data,writes,setSystem(dark){darkSystem=dark;for(const fn of systemEvents)fn({matches:dark});},run:code=>vm.runInContext(code,ctx)}}
 test('todos os módulos renderizam em DOM e branding não contém Elo fora da migração',async()=>{const a=setup();for(const route of ['inicio','evolucao','registros','diario','aplicacoes','protocolos','calculadora','relatorios','calendario','lembretes','perfil','bemvindo','privacidade','fotos','onboarding','termos']){await a.run(`go('${route}',false)`);assert.ok(a.document.querySelector('#content').textContent.length>50,route)}assert.match(a.document.title,/NeoPep/);assert.equal(a.document.querySelectorAll('#nav button').length,5);assert.equal(a.writes.length,0)});
 test('prévia não migra nem grava elo-v1 automaticamente',()=>{const original=JSON.stringify({weights:[{id:1,date:C.today(),value:81}],measures:[],doses:[],settings:{}});const a=setup({'elo-v1':original});assert.equal(a.data.get('elo-v1'),original);assert.equal(a.writes.length,0);assert.equal(a.run('state.weights.length'),0)});
 test('CRUD local persiste e volta após nova abertura sem sobrescrever Elo',async()=>{const original='original',a=setup({'elo-v1':original});await a.run(`putRecord('weights',{id:'x',date:C.today(),value:80,note:''})`);assert.equal(a.writes.at(-1),'neo-v2');assert.equal(a.data.get('elo-v1'),original);assert.equal(a.run('state.weights.length'),1);const b=setup(Object.fromEntries(a.data));assert.equal(b.run('state.weights[0].value'),80);await a.run(`putRecord('weights',{id:'y',date:C.today(),value:79,note:''})`);assert.equal(a.run('state.weights.length'),1);assert.equal(a.run('state.weights[0].id'),'x');assert.equal(a.run('state.weights[0].value'),79)});
@@ -39,7 +39,9 @@ test('calculadora sincroniza seleção rápida, controles deslizantes e valores 
  assert.equal(node('#dose').value,'');
  assert.equal(node('#calcForm button[type=submit]'),null);
  assert.equal(node('#calc-range-mass').getAttribute('step'),'0.5');
- assert.equal(node('#calc-range-dose').getAttribute('step'),'0.5');
+ assert.equal(node('#calc-range-dose').getAttribute('step'),'0.1');
+ assert.equal(node('.calc-card-volume h2').textContent,'Volume do diluente');
+ assert.match(node('#calc-volume-help').textContent,/volume final efetivo/);
  assert.ok(node('[data-calc-chip=mass][data-value="15"]'));
  assert.deepEqual([...doc.querySelectorAll('.calc-capacities input[type=radio]')].map(input=>input.value),['0.3','0.5','1']);
  assert.equal(doc.querySelectorAll('.calc-capacities .calc-syringe').length,3);
@@ -470,10 +472,225 @@ test('seringas têm comprimento comum, diâmetros diversos e recorte externo da 
  const a=setup();
  for(const [capacity,height] of [[.3,24],[.5,30],[1,38]]){
   const {document}=parseHTML(a.run("syringeSymbol("+capacity+",15,false,15.12345)"));
-  const glass=document.querySelector('rect[stroke="#9a845f"]');
+  const glass=document.querySelector('.calc-syringe-barrel');
+  assert.match(glass.getAttribute('stroke'),/^var\(--calc-art-/);
   assert.equal(glass.getAttribute('width'),capacity===1?'196':'166');assert.equal(glass.getAttribute('height'),String(height));
   const stem=document.querySelector('.calc-external-stem'),id=stem.getAttribute('clip-path').slice(5,-1);
   assert.equal(document.getElementById(id).firstElementChild.getAttribute('width'),glass.getAttribute('x'));
   assert.equal(document.querySelector('.calc-level-label text').textContent,'15,12 UI');
  }
+});
+
+test('aparência usa o sistema na abertura, preserva a escolha manual e permite voltar ao automático',async()=>{
+ const a=setup({}, {darkSystem:true});
+ const theme=app=>app.document.documentElement.dataset.theme;
+ assert.equal(theme(a),'dark');
+ assert.equal(a.data.has('neo-appearance'),false);
+ await a.run("go('inicio',false)");
+ assert.equal(a.document.querySelector('#headerAppearance'),null);
+ await a.run("page='perfil';render()");
+ assert.equal(a.document.querySelector('#themeSelect'),null);
+ assert.ok(a.document.querySelector('.page-back-row .profile-appearance'));
+ const choose=value=>{
+  const button=a.document.querySelector('.profile-appearance [data-appearance="'+value+'"]');
+  button.dispatchEvent(new a.ctx.Event('click',{bubbles:true}));
+  assert.equal(button.getAttribute('aria-pressed'),'true');
+ };
+ choose('light');assert.equal(theme(a),'light');
+ assert.equal(a.data.get('neo-appearance'),'light');
+ a.setSystem(false);a.setSystem(true);assert.equal(theme(a),'light');
+ const reopened=setup(Object.fromEntries(a.data),{darkSystem:true});
+ assert.equal(theme(reopened),'light');
+ a.ctx.NeoCloud.user={id:'account-a'};
+ await a.run("mode='cloud';go('inicio',false)");
+ a.ctx.NeoCloud.user={id:'account-b'};
+ await a.run("go('inicio',false)");
+ assert.equal(theme(a),'light');
+ await a.run("mode='local';state.profile.theme='dark';page='perfil';render()");
+ assert.equal(theme(a),'light');
+ choose('dark');assert.equal(theme(a),'dark');
+ choose('system');a.setSystem(false);assert.equal(theme(a),'light');
+ a.setSystem(true);assert.equal(theme(a),'dark');
+ assert.equal(a.data.get('neo-appearance'),'system');
+ const html=fs.readFileSync('dist/index.html','utf8'),admin=fs.readFileSync('dist/admin/index.html','utf8');
+ for(const file of [html,admin])assert.ok(file.indexOf('appearance.js')>=0&&file.indexOf('appearance.js')<file.indexOf('style.css'));
+});
+
+
+// Testes de regressão do ajuste #43 integrados ao ciclo de lançamento.
+test('card da Home mostra somente o último cálculo salvo da conta e abre a calculadora existente',async()=>{
+ const a=setup(),q=s=>a.document.querySelector(s);
+ const owner='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',other='bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+ const card=()=>q('[data-home-calculator]');
+ const home=()=>a.run("page='inicio';render()");
+ const open=async()=>{card().click();await new Promise(setImmediate);assert.equal(a.run('page'),'calculadora');};
+ a.ctx.NeoCloud.user={id:owner};
+ a.run("mode='cloud'");home();
+ assert.doesNotMatch(card().textContent,/Último cálculo salvo/);
+ assert.equal(card().querySelector('.calc-meniscus'),null);
+ await open();
+ assert.equal(a.document.querySelectorAll('#calcForm [name=capacity]').length,3);
+ function calculate(capacity,dose){
+  q('#mass').value='10';q('#volume').value='1';q('#dose').value=String(dose);
+  a.run(`calcCapacityValue=${capacity};updateCalc()`);
+ }
+ calculate(.3,2.5);home();
+ assert.doesNotMatch(card().textContent,/Último cálculo salvo/);
+ for(const capacity of [.3,.5,1]){
+  await open();calculate(capacity,2.5);q('#calc-save').click();
+  const mark=q('#result [data-calc-piston]').getAttribute('x');
+  home();
+  assert.match(card().textContent,/Último cálculo salvo/);
+  assert.match(card().textContent,/0,25 mL · 25 UI/);
+  assert.equal(card().querySelector('[data-calc-piston]').getAttribute('x'),mark);
+  assert.ok(card().querySelector('[data-graduation="'+Math.round(capacity*100)+'"]'));
+ }
+ await open();
+ q('#calc-saved-list article:last-child [data-calc-saved-action=apply]').click();
+ home();
+ assert.match(card().textContent,/Seringa de 1 mL/);
+ await open();
+ assert.equal(a.run('calcCapacityValue'),.3,'restauração continua respeitando a seleção existente');
+ q('#calc-saved-list article:first-child [data-calc-saved-action=remove]').click();
+ home();assert.match(card().textContent,/Seringa de 0,5 mL/);
+ a.ctx.NeoCloud.user={id:other};home();
+ assert.doesNotMatch(card().textContent,/Último cálculo salvo/);
+ a.ctx.NeoCloud.user={id:owner};home();
+ assert.match(card().textContent,/Seringa de 0,5 mL/);
+ a.run("mode='local'");home();
+ assert.doesNotMatch(card().textContent,/Último cálculo salvo/);
+});
+
+
+// Testes de regressão do ajuste #45 integrados ao ciclo de lançamento.
+test('onboarding oferece localização antes das preferências, grava somente após permissão e permite revogar',async()=>{
+ const account='account-a';
+ const calls=[];
+ const options={cloud:{user:{id:account},onboardingComplete:true,privacyPreferences:async(choices=null,complete=false)=>{
+  calls.push([choices,complete]);return {...preferences,...choices,pending:!complete&&preferences.pending};
+ }}};
+ let nativeCalls=0,preferences={pending:true,location:false,statistics:false,usage:false,campaigns:false};
+ const a=setup({},options),q=selector=>a.document.querySelector(selector),tick=()=>new Promise(setImmediate);
+ a.ctx.NEO_CONFIG.stagingGeoEnabled=true;
+ a.ctx.navigator.geolocation={getCurrentPosition(success){nativeCalls++;success({coords:{get latitude(){throw Error('coordenadas lidas');}}});}};
+ await a.run("mode='cloud';openAccountDestination()");await tick();
+ assert.equal(nativeCalls,0);
+ assert.equal(q('[data-location-intro]').hidden,false);
+ assert.equal(q('#privacyPreferences').hidden,true);
+ q('[data-location-choice=allow]').click();await tick();
+ assert.equal(nativeCalls,1);
+ assert.ok(calls.some(([choice,complete])=>choice?.location===true&&!complete));
+ assert.equal(q('[data-location-intro]').hidden,true);
+ assert.equal(q('#privacyPreferences').hidden,false);
+ assert.equal(q('#privacyPreferences [name=location]'),null);
+ assert.equal(a.data.get('neo-location-onboarding-v1:'+account),'allow');
+
+ const reopened=setup(Object.fromEntries(a.data),options);
+ reopened.ctx.NEO_CONFIG.stagingGeoEnabled=true;
+ await reopened.run("mode='cloud';openAccountDestination()");await tick();
+ assert.equal(reopened.document.querySelector('[data-location-intro]').hidden,true);
+ reopened.ctx.NeoCloud.user={id:'account-b'};
+ await reopened.run("render()");await tick();
+ assert.equal(reopened.document.querySelector('[data-location-intro]').hidden,false);
+ reopened.document.querySelector('[data-location-choice=skip]').click();await tick();
+ assert.equal(reopened.data.get('neo-location-onboarding-v1:account-b'),'skip');
+ assert.equal(nativeCalls,1);
+
+ preferences={...preferences,pending:false,location:true};
+ await a.run("go('permissoes',false)");await tick();
+ const field=q('[name=location]');assert.equal(field.checked,true);
+ field.checked=false;
+ q('#privacyPreferences').dispatchEvent(new a.ctx.Event('submit',{bubbles:true,cancelable:true}));await tick();
+ assert.ok(calls.some(([choice])=>choice?.location===false));
+ assert.equal(nativeCalls,1);
+});
+
+test('onboarding continua com recusa, ausência da API, timeout e recurso desligado',async()=>{
+ for(const outcome of ['denied','unsupported','timeout','disabled']){
+  const calls=[];
+  const a=setup({}, {cloud:{user:{id:'current'},onboardingComplete:true,privacyPreferences:async(choices=null,complete=false)=>{
+   calls.push([choices,complete]);return {pending:!complete,location:false,statistics:false,usage:false,campaigns:false};
+  }}});
+  const q=selector=>a.document.querySelector(selector),tick=()=>new Promise(setImmediate);
+  a.ctx.NEO_CONFIG.stagingGeoEnabled=outcome!=='disabled';
+  let native=0,fallback;
+  if(outcome!=='unsupported')a.ctx.navigator.geolocation={getCurrentPosition(_success,error){native++;if(outcome==='denied')error({code:1});}};
+  a.ctx.setTimeout=(cb,ms)=>{if(ms===8000)fallback=cb;return 1;};
+  await a.run("mode='cloud';openAccountDestination()");await tick();
+  if(outcome!=='disabled'){
+   q('[data-location-choice=allow]').click();
+   if(outcome==='timeout')fallback();
+   await tick();
+  }
+  assert.equal(q('[data-location-intro]').hidden,true,outcome);
+  assert.equal(q('#privacyPreferences').hidden,false,outcome);
+  assert.equal(native,['denied','timeout'].includes(outcome)?1:0);
+  const submit=new a.ctx.Event('submit',{bubbles:true,cancelable:true});
+  Object.defineProperty(submit,'submitter',{value:q('[name=skip]')});
+  q('#privacyPreferences').dispatchEvent(submit);
+  await tick();
+  assert.equal(a.run('page'),'inicio',outcome);
+  assert.equal(calls.some(([choice])=>choice?.location===true),false);
+ }
+});
+
+test('autorização nativa iniciada por outra conta não é aplicada à sessão atual',async()=>{
+ const writes=[];
+ const a=setup({}, {cloud:{user:{id:'account-a'},onboardingComplete:true,privacyPreferences:async choices=>{
+  if(choices)writes.push(choices);
+  return {pending:true,location:false,statistics:false,usage:false,campaigns:false};
+ }}});
+ const tick=()=>new Promise(setImmediate);
+ a.ctx.NEO_CONFIG.stagingGeoEnabled=true;
+ let grant;
+ a.ctx.navigator.geolocation={getCurrentPosition(success){grant=success;}};
+ await a.run("mode='cloud';openAccountDestination()");await tick();
+ a.document.querySelector('[data-location-choice=allow]').click();
+ a.ctx.NeoCloud.user={id:'account-b'};
+ a.run('render()');await tick();
+ grant({coords:{latitude:0}});await tick();
+ assert.deepEqual(writes,[]);
+ assert.equal(a.data.has('neo-location-onboarding-v1:account-a'),false);
+ assert.equal(a.data.has('neo-location-onboarding-v1:account-b'),false);
+ assert.equal(a.document.querySelector('[data-location-intro]').hidden,false);
+});
+
+
+// Testes de regressão do ajuste #46 integrados ao ciclo de lançamento.
+test('personalização é independente, opcional e revisável por conta',async()=>{
+ const decisions=new Map(),calls=[];
+ let account='a',shouldFail=false;
+ const options={cloud:{
+  user:{id:account},onboardingComplete:true,
+  privacyPreferences:async(choices,complete)=>{calls.push(['privacy',choices,complete]);return {pending:!complete,statistics:false,usage:false,campaigns:false,location:false};},
+  personalizationConsent:async choice=>{
+   if(choice!==undefined){calls.push(['personalization',account,choice]);if(shouldFail)throw Error('rede');decisions.set(account,choice);}
+   return {decided:decisions.has(account),granted:decisions.get(account)===true};
+  }
+ }};
+ const a=setup({},options),tick=()=>new Promise(setImmediate),q=sel=>a.document.querySelector(sel);
+ const start=async()=>{await a.run("mode='cloud';openAccountDestination()");await tick();};
+ const choose=async value=>{q('[data-personalization-choice='+value+']').click();await tick();};
+ await start();
+ assert.equal(q('#personalizationTitle').textContent,'Personalize sua experiência');
+ assert.match(q('[data-personalization]').textContent,/Permita que o NeoPep personalize sua experiência e melhore nossas comunicações\./);
+ assert.equal(q('[data-personalization]').hidden,false);
+ assert.equal(q('#privacyPreferences').hidden,true);
+ assert.equal(decisions.size,0);
+ await choose('allow');
+ assert.equal(decisions.get('a'),true);
+ assert.equal(q('#privacyPreferences').hidden,false);
+ assert.equal(calls.some(([action,value])=>action==='privacy'&&value),false);
+ await start();assert.equal(q('[data-personalization]').hidden,true);
+ await a.run("go('permissoes',false)");await tick();
+ assert.equal(q('[data-personalization-choice=deny]').hidden,false);
+ await choose('deny');assert.equal(decisions.get('a'),false);
+ account='b';a.ctx.NeoCloud.user={id:account};
+ await start();assert.equal(q('[data-personalization]').hidden,false);
+ await choose('deny');assert.equal(decisions.get('b'),false);
+ account='c';a.ctx.NeoCloud.user={id:account};shouldFail=true;
+ await start();await choose('allow');
+ assert.equal(decisions.has('c'),false);
+ assert.equal(q('#privacyPreferences').hidden,false);
+ assert.match(q('[data-privacy-notice]').textContent,/Não foi possível confirmar/);
 });
