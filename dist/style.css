@@ -845,3 +845,10 @@ dialog.neo-structured-editor::backdrop{background:#192720}
 .structured-compose-status:empty{display:none}
 .structured-caption-target{outline:2px solid var(--accent);outline-offset:2px}
 .structured-draft-actions{display:flex;gap:.3rem;flex-wrap:wrap}
+
+.campaign-central{display:grid;gap:.65rem}
+.campaign-central[hidden]{display:none}
+.campaign-central h2,.campaign-central h3{overflow-wrap:anywhere}
+.campaign-central-form{display:grid;gap:.8rem;max-width:36rem}
+.campaign-central [data-central-dates]{display:grid;gap:.6rem}
+.structured-campaign-name[data-parent-campaign]::before{content:attr(data-parent-campaign) " › ";font-weight:400}

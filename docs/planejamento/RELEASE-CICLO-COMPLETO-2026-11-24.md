@@ -132,3 +132,9 @@ O seletor Claro, Sistema e Escuro fica no cabeçalho do Perfil e reutiliza a pre
 O compositor mantém o fundo estável, dispõe os painéis acima da área de digitação e renderiza as legendas nos blocos correspondentes. O texto provisório pode ser movido ou usado como legenda. Produtos, materiais e publicações reutilizam as consultas autenticadas existentes. A pesquisa da Comunidade cobre as publicações devolvidas pelo feed autorizado. URLs temporárias de prévia ficam fora dos rascunhos persistidos.
 
 Verificação local com build, check e 437 testes automatizados. Os ensaios Chromium com dados simulados cobriram desktop, iPhone 13 e Pixel 7 emulados. Safari nativo, teclado físico de teste em iPhone e PWA instalada permanecem para homologação. Este refinamento não requer novas migrações nem modifica as autorizações de despacho.
+
+### Etapa 014 — Central Unificada de Campanhas
+
+Campanhas WhatsApp, publicações e mensagens passam a ter navegação e armazenamento próprios no painel de Teste. O editor aprovado continua compondo uma publicação por vez. A agenda agrupa horários de São Paulo e o histórico diferencia cancelamento, falha, incerteza e aceitação pelo cliente. Duplicar e distribuir datas cria rascunhos. Só uma confirmação explícita pode solicitar despacho por Connect. Publicações manuais continuam acessíveis pelo fluxo legado e o canal App permanece independente.
+
+O inventário inicial de Teste encontrou duas campanhas WhatsApp legadas, um registro estruturado, nove revisões, dois lotes ricos e três mensagens. Aplicação, pós-verificação e reversão estão em `release/campaign-central/`. A Etapa 015 segue fora deste release.

@@ -62,6 +62,12 @@ const api={configured,
  async connectWaGroups(connection,after=null){return ok(await need().rpc('neo_connect_wa_list_groups',{p_connection:connection,p_after:after,p_limit:50}));},
  async connectAdmin(action,data={}){return ok(await need().rpc('neo_connect_admin',{p_action:action,p_data:data}));},
  async connectReleaseURL(path){return ok(await need().storage.from('neo-connect-releases').createSignedUrl(path,120,{download:'NeoPepConnectSetup.exe'})).signedUrl;},
+ async campaignCentral(action,data={}){
+  const version=identityVersion;
+  const result=ok(await need().rpc('neo_campaign_central_v1',{p_action:action,p_data:data}));
+  if(version!==identityVersion)throw Error('A conta mudou.');
+  return result;
+ },
  async campaignEditor(action,data){const version=identityVersion;const result=ok(await need().rpc('neo_campaign_editor_v1',{p_action:action,p_data:data}));if(version!==identityVersion)throw Error('A conta mudou.');return result;},
  async campaignRich(action,data={}){
   const version=identityVersion;

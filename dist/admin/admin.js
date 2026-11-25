@@ -1036,7 +1036,7 @@ async function mountCampaigns(root){
  structured.className='space';
  structured.innerHTML='<summary>Rascunhos estruturados para revisão</summary><div data-structured-list></div>';
  list.before(structured);
- const showStructured=()=>!screen&&(view==='campaigns'||area==='whatsapp'&&view==='publications');
+ const showStructured=()=>!(central&&area==='whatsapp'&&view==='campaigns')&&!screen&&(view==='campaigns'||area==='whatsapp'&&view==='publications');
  async function refreshStructured(){
   if(!structured.open||!showStructured()||typeof cloud.campaignEditor!=='function')return;
   const box=structured.querySelector('[data-structured-list]');
@@ -1053,10 +1053,10 @@ async function mountCampaigns(root){
  }
  structured.addEventListener('toggle',()=>{void refreshStructured();});
  const stagingCampaigns=window.NEO_CONFIG?.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co';
- function openStructured(trigger,row,remote,channel='whatsapp'){
+ function openStructured(trigger,row,remote,channel='whatsapp',onSaved=refreshStructured){
   if(!draftOkay()||whatsapp?.canLeave?.()===false)return;
   window.NeoCampaignEditor?.open({cloud,row,remote,channel:remote?.channel||channel,trigger,
-   onSaved:refreshStructured,onConnect:()=>{showArea('whatsapp');view='connect';updateScreen();writeRoute();}});
+   onSaved,onConnect:()=>{showArea('whatsapp');view='connect';updateScreen();writeRoute();}});
  }
 
  addCampaignHelp(find('[data-campaign-plan]'));
@@ -1101,6 +1101,15 @@ async function mountCampaigns(root){
  const bread=find('[data-campaign-breadcrumb]'),sectionNav=find('[data-campaign-sections]'),filters=find('[data-campaign-filters]');
  const plans=find('[data-campaign-plan]').parentElement,wa=find('[data-campaign-wa]'),results=find('[data-campaign-results]');
  const panelIds={campaigns:list,results,plans,publications:wa,groups:wa,connect:wa};
+ const centralHost=document.createElement('section');
+ centralHost.className='campaign-central';centralHost.hidden=true;
+ list.before(centralHost);
+ const central=stagingCampaigns&&window.NeoCampaignCentral&&typeof cloud.campaignCentral==='function'
+  ?window.NeoCampaignCentral.mount({root:centralHost,cloud,legacy:()=>rows,
+   openLegacy:(id,trigger)=>{const row=rows.find(item=>item.id===id);if(row&&draftOkay()){openedBy=trigger;edit(row);}},
+   recoverLegacy:(trigger,onSaved)=>openStructured(trigger,undefined,null,'whatsapp',onSaved),
+   onConnect:()=>{showArea('whatsapp');view='connect';updateScreen();writeRoute();}}):null;
+
  let waActive=false;
  function updateScreen(){
   const from=area==='app'?'App':'WhatsApp',selected=views[area].find(([key])=>key===view)?.[1]||'Campanhas';
@@ -1128,12 +1137,15 @@ async function mountCampaigns(root){
    else panel.removeAttribute('aria-labelledby');
   }
   const lists=view==='campaigns'&&!screen;
-  list.hidden=filters.hidden=!lists;sentinel.hidden=!lists&&!(area==='app'&&view==='results'&&!screen);
+  const unified=Boolean(central&&area==='whatsapp'&&lists);
+  centralHost.hidden=!unified;
+  if(unified)void central.load();
+  list.hidden=filters.hidden=!lists||unified;sentinel.hidden=!lists&&!(area==='app'&&view==='results'&&!screen);
   editor.hidden=!screen;plans.hidden=area!=='app'||view!=='plans'||Boolean(screen);
   results.hidden=area!=='app'||view!=='results'||Boolean(screen);
   wa.hidden=area!=='whatsapp'||view==='campaigns'||Boolean(screen);
   const newAction=find('[data-campaign-action=new]');
-  newAction.hidden=Boolean(screen)||view!=='campaigns';
+  newAction.hidden=unified||Boolean(screen)||view!=='campaigns';
   const actionBar=find('[data-campaign-actionbar]');
   if(newAction.parentElement!==actionBar)actionBar.append(newAction);
   const newLabel=stagingCampaigns&&area==='app'?'Nova campanha de homologação':'Nova campanha';
@@ -1190,7 +1202,7 @@ async function mountCampaigns(root){
    area=route.area;filters.querySelectorAll('input,select').forEach((control,i)=>{control.value=filterValues[area][i]||'';});
   }
   view=route.view;updateChannel();updateScreen();
-  if(route.screen==='new'){edit({},false);return;}
+  if(route.screen==='new'){if(!(central&&area==='whatsapp'))edit({},false);return;}
   if(!/^[a-f0-9-]{36}$/i.test(route.screen)){if(wasEditing)globalThis.scrollTo?.(0,lastScroll);return;}
   while(root.isConnected&&!rows.some(row=>row.id===route.screen)&&!done&&!loadingPage){await load();}
   const row=rows.find(item=>item.id===route.screen);
@@ -1365,7 +1377,7 @@ async function mountCampaigns(root){
    if(!root.isConnected)return;
    offset+=batch.length;done=batch.length<50;
    rows.push(...batch.filter(row=>!rows.some(existing=>existing.id===row.id)));
-   renderCards();whatsapp?.setCampaigns(rows);
+   renderCards();central?.syncLegacy();whatsapp?.setCampaigns(rows);
    sentinel.innerHTML=done?'':'<button type="button" class="secondary" data-campaign-action="more">Carregar mais</button>';
    if(!done&&typeof IntersectionObserver!=='undefined'){
     observer??=new IntersectionObserver(entries=>{

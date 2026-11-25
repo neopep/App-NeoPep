@@ -83,7 +83,7 @@
  };
  const icon=name=>`<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="${paths[name]}"/></svg>`;
  const iconButton=(name,label,attrs='')=>`<button type="button" class="structured-icon" aria-label="${label}" title="${label}" ${attrs}>${icon(name)}</button>`;
- function open({cloud,row={},channel='whatsapp',remote=null,trigger,onSaved,onConnect,fresh=false,readOnly=false,previewBlocks=[],previewImages=new Map(),onEdit,previewModes}){
+ function open({cloud,row={},channel='whatsapp',remote=null,trigger,onSaved,onConnect,fresh=false,readOnly=false,previewBlocks=[],previewImages=new Map(),onEdit,previewModes,publication=null,onClosed}){
   const account=cloud.user?.id;
   const staging=window.NEO_CONFIG?.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co';
   const testApp=staging&&channel==='app';
@@ -92,13 +92,13 @@
   if(!account)return;
   stopOpen?.();
   const source=remote?remote.source_id:(row.id||null);
-  const key='neo-campaign-editor:'+account+':'+channel+':'+(remote?.editor_id||source||'new');
+  const key='neo-campaign-editor:'+account+':'+channel+':'+(publication?publication.campaignId+':'+publication.id:(remote?.editor_id||source||'new'));
   const initial={title:row.title||'',blocks:row.whatsapp_message||row.body?[{id:uuid(),type:'text',text:row.whatsapp_message||row.body}]:[],
-   groups:[],timezone:'America/Sao_Paulo',planned_local:'',audience:'all'};
+   groups:publication?.destination?[publication.destination]:[],timezone:'America/Sao_Paulo',planned_local:'',audience:'all'};
   const recovered=()=>{try{return JSON.parse(localStorage.getItem(key));}catch{return null;}};
   const local=fresh||readOnly?null:recovered();
   const state=local&&(!remote||local.revision>=remote.revision)?local:{
-   editorId:remote?.editor_id||uuid(),revision:remote?.revision||0,remoteId:remote?.campaign_id||null,
+   editorId:remote?.editor_id||publication?.id||uuid(),revision:remote?.revision||0,remoteId:remote?.campaign_id||null,
    draft:remote?.draft||initial
   };
   const draft=state.draft;
@@ -119,8 +119,8 @@
       ${channel==='whatsapp'&&!testWA?tile('repeat','Recorrência','recurrence'):''}${tile('text','Formatação','format')}${tile('gear','Ajustes','settings')}${tile('audio','Áudio indisponível','audio',true)}${tile('text','Formatar seleção','format')}
       ${tile('group','Comunidade','community')}${tile('more','Destinos','destinations')}
     </div>`)}
-    ${pane('settings','Configurações',`<label>Nome da campanha<input name="title" maxlength="120" value="${e(draft.title)}"></label><button type="button" class="secondary" data-editor="name_continue">Salvar nome e continuar</button><p class="sub" data-structured-connection role="status">Conexão ainda não verificada.</p>
-     <div class="inline-actions"><button type="button" class="secondary" data-editor="fresh">Novo rascunho</button>${channel==='whatsapp'?'<button type="button" class="secondary" data-editor="cross">Criar versão App</button>':''}</div>`)}
+    ${pane('settings','Configurações',`<label>${publication?'Nome da publicação':'Nome da campanha'}<input name="title" maxlength="120" value="${e(draft.title)}"></label><button type="button" class="secondary" data-editor="name_continue">Salvar nome e continuar</button><p class="sub" data-structured-connection role="status">Conexão ainda não verificada.</p>
+     <div class="inline-actions">${publication?'':'<button type="button" class="secondary" data-editor="fresh">Novo rascunho</button>'}${channel==='whatsapp'?'<button type="button" class="secondary" data-editor="cross">Criar versão App</button>':''}</div>`)}
     ${channel==='app'?pane('audience','Público App',testApp?'<p>Somente as contas de homologação autorizadas no servidor. Esta campanha não envia push.</p>':'<label>Público App<select name="audience"><option value="all">Todos</option><option value="free">Free</option><option value="premium">Premium</option></select></label><label class="check"><input name="push" type="checkbox"> Solicitar push App para contas com consentimento</label>'):
     pane('groups','Grupos sincronizados','<div class="inline-actions"><button type="button" class="secondary" data-editor="groups">Atualizar grupos e diagnóstico</button><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button></div><label>Pesquisar grupo ou conexão<input name="group_search" type="search"></label><p class="sub" data-editor-group-count></p><div data-editor-groups></div>')}
     ${pane('photo','Foto','<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">No ambiente de Teste, imagens JPEG com legenda podem ser enviadas ao grupo autorizado. Salve a versão antes de publicar.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto</button>')}
@@ -135,14 +135,14 @@
     ${pane('destinations','Acompanhar destinos','<button type="button" class="secondary" data-editor="dispatch_status">Atualizar tentativas</button><div data-dispatch-results></div>')}
    </aside>`;
   dialog.innerHTML=`
-   <header class="structured-header">
+   <header class="structured-header" ${publication?'title="'+e(publication.title)+' › '+e(draft.title||'Nova publicação')+'"':''}>
     ${iconButton('back','Voltar','data-editor="close" autofocus')}<span class="structured-avatar">${icon('group')}</span>
-    <div><h2 id="neo-campaign-structured-title">${channel==='app'?'Rascunho App':e(row.group_name||'Grupo de exemplo')}</h2>
+    <div><h2 id="neo-campaign-structured-title">${channel==='app'?'Rascunho App':e(row.group_name||(publication?'Publicação WhatsApp':'Grupo de exemplo'))}</h2>
     ${!readOnly&&channel==='whatsapp'?'<button type="button" class="text-btn structured-group-more" data-pane-open="groups" data-selected-groups>Selecionar grupos</button>':''}
     <p class="sub">Simulação de campanha · ${channel==='app'?'App':'WhatsApp'}${window.NEO_CONFIG?.appDisplayName==='NeoPep Teste'?' · TESTE':''}</p></div>
     ${readOnly?(onEdit?iconButton('gear','Editar conteúdo','data-editor="edit_preview"'):''):iconButton('save','Registrar rascunho na Central','data-editor="save"')}
    </header>
-   <main class="neo-structured-scroll"><h3 class="structured-campaign-name" data-campaign-name>${e(draft.title)}</h3><div class="neo-structured-preview" aria-label="Conversa simulada" data-editor-preview></div><div class="structured-live" data-editor-live hidden></div></main>
+   <main class="neo-structured-scroll"><h3 class="structured-campaign-name" ${publication?'data-parent-campaign="'+e(publication.title)+'"':''} data-campaign-name>${e(draft.title)}</h3><div class="neo-structured-preview" aria-label="Conversa simulada" data-editor-preview></div><div class="structured-live" data-editor-live hidden></div></main>
    ${readOnly?`<footer>${previewModes?'<label class="structured-preview-mode">Modo da simulação<select name="preview_mode"><option value="web">Painel · compartilhamento manual</option><option value="connect">Connect · imagem com legenda</option></select></label>':''}<p class="sub">Simulação visual. A disponibilidade de envio depende do canal e dos anexos.</p></footer>`:`<footer>
     <p role="status" class="sub structured-compose-status" data-editor-status></p>
     <div class="structured-compose">
@@ -411,7 +411,10 @@
    }).join('')||'<p class="sub">Adicione um bloco para revisar a mensagem.</p>';
    for(const indicator of preview.querySelectorAll('[data-editor-media-status]')){
     const id=indicator.dataset.editorMediaStatus;
-    const asset=previewImages.has(id)?Promise.resolve(previewImages.get(id)):readOnly?Promise.resolve(null):storeMedia('readonly',store=>store.get(mediaKey(id)));
+    const block=draft.blocks.find(item=>item.id===id);
+    const stored=()=>publication&&block?.media_path&&cloud.campaignImageURL?cloud.campaignImageURL(block.media_path):null;
+    const asset=previewImages.has(id)?Promise.resolve(previewImages.get(id)):readOnly?Promise.resolve().then(stored):
+     storeMedia('readonly',store=>store.get(mediaKey(id))).catch(()=>null).then(blob=>blob||stored());
     void asset.then(blob=>{
      if(!current()||version!==revision)return;
      indicator.hidden=Boolean(blob);indicator.textContent=blob?'':'Imagem indisponível neste dispositivo.';
@@ -462,13 +465,13 @@
      'Sem destino elegível na consulta atual. Despacho bloqueado.';
    }catch{if(current()&&token===loadToken){groups=[];renderGroups();connection.textContent='Diagnóstico indisponível. Despacho bloqueado.';}}
   }
-  const richMode=()=>testWA&&(draft.blocks.length!==1||draft.blocks.some(block=>block.type!=='text'||/(https?:\/\/|www\.)/i.test(block.text||''))||
+  const richMode=()=>testWA&&(Boolean(publication)||draft.blocks.length!==1||draft.blocks.some(block=>block.type!=='text'||/(https?:\/\/|www\.)/i.test(block.text||''))||
    draft.blocks.map(block=>block.text||'').join('\n\n').trim().length>160);
   function showGate(){
    if(readOnly)return;
    const clean=state.remoteId&&state.savedDraft===JSON.stringify(draft)&&!message.value.trim()&&!editing;
    const rich=richMode();
-   const enabled=testApp?testGate.enabled&&testGate.destinations>0&&testGate.destinations<=30&&Boolean(testGate.audience_key):
+   const enabled=publication?gates.whatsapp_rich?.ready===true:testApp?testGate.enabled&&testGate.destinations>0&&testGate.destinations<=30&&Boolean(testGate.audience_key):
     testWA?(rich?gates.whatsapp_rich?.ready===true:gates.whatsapp_test?.ready===true):channel==='app'?gates.app_enabled:gates.whatsapp_enabled;
    const textOnly=draft.blocks.length>0&&draft.blocks.every(block=>block.type==='text'&&!/(https?:\/\/|www\.)/i.test(block.text||''));
    const richBlocks=draft.blocks.length>0&&draft.blocks.length<=6&&draft.blocks.every(block=>
@@ -482,7 +485,7 @@
    const eligible=channel==='app'||draft.groups.length>0&&draft.groups.every(id=>groups.some(row=>row.id===id&&row.state==='eligible'));
    const pinned=!testWA||draft.groups.length===1&&draft.groups[0]===gates.whatsapp_test?.destination;
    const short=!testWA||draft.blocks.map(block=>block.text||'').join('\n\n').trim().length<=160;
-   const allow=Boolean(enabled&&clean&&eligible&&pinned&&(rich?richBlocks:textOnly&&short));
+   const allow=Boolean((!publication||rich)&&enabled&&clean&&eligible&&pinned&&(rich?richBlocks:textOnly&&short));
    $('[data-editor=publish]').disabled=!allow||channel==='whatsapp'&&!testWA&&!gates.devices?.some(d=>d.ready);
    $('[data-editor=schedule]').disabled=!allow||!draft.planned_local||testWA&&!(rich?gates.whatsapp_rich?.ready:gates.whatsapp_test?.schedule_ready);
    $('[data-editor-summary]').textContent=dispatchSummary(Boolean(draft.planned_local));
@@ -575,6 +578,7 @@
   async function dispatch(scheduled){
    if(dispatching||!current()||$('[data-editor='+(scheduled?'schedule':'publish')+']').disabled)return;
    const rich=testWA&&richMode();
+   if(publication&&!rich){tell('O envio desta publicação exige Connect compatível e destino Teste autorizado.');return;}
     const action=rich?'publish':channel==='app'?'publish_app':'schedule_whatsapp';
    const base={editor_id:state.editorId,revision:state.revision,local_time:scheduled?draft.planned_local:null};
    const intent=testApp?{...base,confirmed:true,destination_count:testGate.destinations,audience_key:testGate.audience_key}:{...base,
@@ -584,7 +588,7 @@
    const request=state.dispatchAttempt?.fingerprint===fingerprint?state.dispatchAttempt:{fingerprint,id:uuid()};
    state.dispatchAttempt=request;saveLocal();dispatching=true;
    try{
-    const result=testApp?await cloud.campaignTest('publish',{...intent,request_id:request.id}):
+    const result=publication?await cloud.campaignCentral(scheduled?'schedule':'publish',{...intent,request_id:request.id,campaign_id:publication.campaignId,publication_id:publication.id}):testApp?await cloud.campaignTest('publish',{...intent,request_id:request.id}):
      rich?await cloud.campaignRich('publish',{...intent,request_id:request.id}):
      await cloud.campaignDispatch(action,{...intent,request_id:request.id});
     if(!current())return;
@@ -657,8 +661,9 @@
    state.attempt=attempt;
    saveLocal();saving=true;tell('Registrando versão de revisão…');
    try{
-    const result=await endpoint(cloud,'save',{editor_id:state.editorId,request_id:attempt.id,
-     source_id:source,revision:state.revision,channel,draft:snapshot});
+    const payload={editor_id:state.editorId,request_id:attempt.id,source_id:source,revision:state.revision,channel,draft:snapshot};
+    const result=publication?await cloud.campaignCentral('save',{...payload,campaign_id:publication.campaignId,publication_id:publication.id}):
+     await endpoint(cloud,'save',payload);
     if(!current())return;
     state.revision=result.revision;state.remoteId=result.campaign_id;state.attempt=null;
     state.savedDraft=fingerprint;showGate();
@@ -679,7 +684,7 @@
    viewport?.removeEventListener('resize',resize);viewport?.removeEventListener('scroll',resize);
    active=false;previewAbort.abort();if(openedReference)window.NeoLibraryFiles?.close();clearTimeout(pending);clearTimeout(noticeTimer);window.removeEventListener('pagehide',saveLocal);
    for(const url of objectUrls)URL.revokeObjectURL(url);
-   dialog.remove();if(trigger?.isConnected)trigger.focus({preventScroll:true});
+   dialog.remove();onClosed?.();if(trigger?.isConnected)trigger.focus({preventScroll:true});
   }
   function close(){
    if(saving){tell('Aguarde a confirmação do registro.');return false;}
@@ -850,7 +855,11 @@
    if(action==='dispatch_status')void showDispatch();
    if(action==='rich_cancel_batch'){
     if(!window.confirm('Cancelar as mensagens ricas ainda aguardando envio?'))return;
-    try{await cloud.campaignRich('cancel',{batch_id:control.dataset.batch});if(current())void showDispatch();}
+    try{
+     if(publication)await cloud.campaignCentral('cancel',{campaign_id:publication.campaignId,publication_id:publication.id,batch_id:control.dataset.batch});
+     else await cloud.campaignRich('cancel',{batch_id:control.dataset.batch});
+     if(current()){void showDispatch();onSaved?.();}
+    }
     catch{tell('Não foi possível cancelar. Atualize o diagnóstico.');}
     return;
    }
