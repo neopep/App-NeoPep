@@ -238,6 +238,16 @@ test('lembretes padrao: Agora nao continua o onboarding sem ativar ou repetir a 
  assert.equal(a.run("NeoCore.shouldOfferReminderSetup(state,'2026-12-01')"),false);
 });
 
+test('primeiro peso gravado no onboarding nao pede novamente o peso de hoje',()=>{
+ const a=setup();
+ a.run("mode='cloud';Cloud.user={id:'first-weight'};Cloud.onboardingComplete=true;arrivalReady=true;page='inicio';state.profile.consent=true;state.profile.initialWeight=82.35;state.settings.reminderIntroSeen=true;state.settings.reminderScheduleConfigured=true;state.profile.tracking.measures=false;state.profile.tracking.applications=false;state.weights=[{id:'onboarding-initial',date:NeoCore.today(),value:82.35}];checkDailyRecords()");
+ assert.equal(a.document.querySelector('.daily-record-prompt'),null);
+ assert.equal(a.run('NeoCore.metrics(state).current'),82.35);
+ assert.equal(a.run('NeoCore.metrics(state).initial'),82.35);
+ assert.equal(a.run('state.weights.length'),1);
+ assert.equal(a.run('NeoCore.pendingDailyRecords(state).some(x=>x.kind==="weight")'),false);
+});
+
 test('registro de peso e apresentado no fim, depois de lembretes e medidas',async()=>{
  const a=setup();
  a.run("mode='cloud';Cloud.user={id:'weight-last'};Cloud.onboardingComplete=true;arrivalReady=true;page='inicio';state.profile.consent=true;state.settings.reminderIntroSeen=true;state.settings.reminderScheduleConfigured=true;state.settings.measureDay=String(new Date(NeoCore.today()+'T12:00').getDay());state.profile.tracking.applications=false;checkDailyRecords()");
