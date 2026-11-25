@@ -1918,8 +1918,16 @@ function checkDailyRecords(){
  if(window.NeoInstall?.blocking||!owner||!arrivalReady||!Cloud.onboardingComplete||!state.profile.consent||document.visibilityState==='hidden'||['bemvindo','preparar','onboarding','termos','privacidade'].includes(page)){dailyPrompt?.remove();dailyPrompt=null;reminderSetupPrompt?.remove();reminderSetupPrompt=null;return;}
  if(reminderSetupPrompt)return;
  if(busy||formDirty||document.querySelector('.deletion-choice, .neo-campaign-dialog[open]')||$('#dialog').open||$('#dialog').hasAttribute('open')||document.querySelector('[data-arrival]'))return;
- const pending=C.pendingDailyRecords(state).filter(r=>dailyPrompt||!dailySeen.has(r.kind));
- if(!pending.length){dailyPrompt?.remove();dailyPrompt=null;checkReminderSetup();return;}
+ // First finish the optional onboarding reminder confirmation; never interrupt it with weight registration.
+ if(!dailyPrompt&&!dailySeen.has('reminder-setup')&&C.shouldOfferReminderSetup(state)){
+  checkReminderSetup();
+  if(reminderSetupPrompt)return;
+ }
+ const due=C.pendingDailyRecords(state).filter(r=>dailyPrompt||!dailySeen.has(r.kind));
+ // Weight is the final prompt: after reminders and any due measurement/application records.
+ const otherRecords=due.filter(r=>r.kind!=='weight');
+ const pending=otherRecords.length?otherRecords:due.filter(r=>r.kind==='weight');
+ if(!pending.length){dailyPrompt?.remove();dailyPrompt=null;return;}
  const signature=pending.map(r=>r.kind).join(',');if(dailyPrompt?.dataset.signature===signature)return;
  pending.forEach(r=>dailySeen.add(r.kind));
  dailyPrompt?.remove();dailyPrompt=document.createElement('dialog');dailyPrompt.className='daily-record-prompt';dailyPrompt.dataset.signature=signature;dailyPrompt.setAttribute('aria-labelledby','dailyRecordTitle');
