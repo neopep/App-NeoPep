@@ -253,6 +253,7 @@ function calcCapacity(){
      </span>
     </label>`).join('')}
   </div>
+  <p class="sub calc-capacity-guidance">Para volumes pequenos, uma seringa de menor capacidade pode oferecer divisões mais finas e facilitar a leitura. Confira a graduação impressa no seu modelo e confirme a medida com um profissional de saúde. A seringa não define nem altera a dose prescrita.</p>
  </section>`;
 }
 function syringeScale(capacity,units=null){
@@ -1560,7 +1561,9 @@ function mountPersonalization(form,initial,current){
 function privacyPreferencesPage(){
  if(mode!=='cloud'||demo||!Cloud.user)return head('Privacidade e permissões','Entre na sua conta para configurar suas preferências.');
  const initial=page==='permissoes-iniciais';
- const title=initial?'Privacidade e notificações':'Privacidade e permissões';
+ const title=initial?'Suas preferências':'Privacidade e permissões';
+ const device=audienceDevice();
+ const deviceSummary=[device.category==='mobile'?'Celular':device.category==='tablet'?'Tablet':device.category==='desktop'?'Computador':null,device.os,device.browser,device.context==='pwa'?'Aplicativo instalado':device.context==='browser'?'Navegador':null].filter(Boolean).join(' · ');
  return (initial?'<div class="page-head"><h1>'+title+'</h1></div>':head(title,''))+
   (initial?`<section class="card privacy-preferences" data-location-intro hidden aria-labelledby="locationIntroTitle">
    <h2 id="locationIntroTitle" tabindex="-1">Localização opcional</h2>
@@ -1572,15 +1575,17 @@ function privacyPreferencesPage(){
    <p data-location-notice role="status"></p>
   </section>`:'')+
   `<form id="privacyPreferences" class="card privacy-preferences" data-privacy-account="${esc(Cloud.user.id)}" data-privacy-page="${page}">
-  ${initial?'<p class="sub">Escolha como deseja receber notificações e contribuir para melhorar o NeoPep.</p>':''}
+  ${initial?'<p class="sub">Escolha os recursos opcionais que deseja ativar. Você pode mudar depois no Perfil.</p>':''}
   <fieldset disabled aria-label="Permissões opcionais">
   ${privacyOptions.filter(([key])=>!initial||key!=='location').map(([key,label])=>`<label class="privacy-option" for="privacy-${key}"><span>${label}</span><input id="privacy-${key}" name="${key}" type="checkbox" role="switch"></label>`).join('')}
   </fieldset>
+  ${initial?'<button type="button" class="secondary full privacy-choose-all" data-privacy-choose-all>Selecionar todas as opções</button>':''}
+  <p class="sub privacy-device-summary">Dispositivo atual: ${esc(deviceSummary||'Não identificado')}.</p>
   ${initial?'':'<p class="form-help">Ao ativar a localização, o aparelho pedirá autorização. O NeoPep usa apenas a região aproximada da conexão e não envia as coordenadas do aparelho.</p>'}
   <p class="sub" data-privacy-notice role="status">Consultando preferências…</p>
   <a class="text-btn privacy-policy-link" href="#privacidade" target="_blank" rel="noopener">Política de Privacidade</a>
-  <button type="submit" class="primary full" disabled>${initial?'Salvar e continuar':'Salvar preferências'}</button>
-  ${initial?'<button type="submit" name="skip" class="text-btn full" disabled>Continuar sem autorizar</button>':''}
+  <button type="submit" class="primary full" disabled>${initial?'OK, salvar escolhas':'Salvar preferências'}</button>
+  ${initial?'<button type="submit" name="skip" class="text-btn full" disabled>Agora não</button>':''}
   </form>`+personalizationPanel(initial);
 }
 function privacyHelp(form){
@@ -1621,6 +1626,11 @@ function mountPrivacyPreferences(){
  const intro=initial?$('[data-location-intro]'):null;
  const current=()=>Cloud.user?.id===account&&form.isConnected;
  let baseline=null,saving=false;
+ form.querySelector('[data-privacy-choose-all]')?.addEventListener('click',()=>{
+  if(!current()||saving||fields.disabled)return;
+  for(const option of fields.querySelectorAll('input[type=checkbox]:not(:disabled)'))option.checked=true;
+  status.textContent='Opções selecionadas. Confirme em OK para salvar; o aparelho poderá solicitar autorização de notificações.';
+ });
  const showPersonalization=mountPersonalization(form,initial,()=>current()&&!saving);
  function apply(values){
   baseline=values;
@@ -1693,7 +1703,7 @@ function mountPrivacyPreferences(){
   }
   // Start native authorization within the submit gesture, before the network request.
   const wantsCampaigns=choices.campaigns===true;
-  const nativeNotice=wantsCampaigns?Promise.resolve(window.NeoPush?.requestPermission?.()).catch(()=> 'Não foi possível concluir a autorização do aparelho. Confira os ajustes de notificações.'):Promise.resolve('');
+  const nativeNotice=wantsCampaigns?Promise.resolve(window.NeoPush?.enable?.()).then(active=>active?'Notificações ativadas neste dispositivo.':'Confira a ativação de notificações em Lembretes.').catch(error=>error?.message||'O aparelho não autorizou as notificações; confira os ajustes do iPhone.'):Promise.resolve('');
   const locationCheck=choices.location===true?requestDeviceLocation():null;
   saving=true;fields.disabled=true;save.disabled=true;if(skip)skip.disabled=true;
   status.textContent=locationCheck?'Aguardando a permissão do aparelho…':'Salvando preferências…';
