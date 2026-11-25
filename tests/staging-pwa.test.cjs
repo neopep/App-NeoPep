@@ -40,7 +40,7 @@ test('staging installs at the root and keeps the former launch and worker routes
   build({...cycle, VERCEL_PROJECT_ID:'prj_ksWxwsJyKhdR2nW2OiZkwx8hlkdq'});
   const read = (file) => fs.readFileSync(path.join(work, 'dist', file), 'utf8');
   assert.doesNotMatch(fs.readFileSync('dist/style.css','utf8'), /content:"TESTE"/);
-  assert.match(read('style.css'), /content:"TESTE";position:fixed/);
+  assert.match(read('style.css'), /content:"TESTE";display:block/);
   assert.match(read('style.css'), /pointer-events:none/);
   assert.match(read('admin/index.html'), /href="..\/style.css"/);
   const manifest = JSON.parse(read('manifest.webmanifest'));
@@ -60,8 +60,8 @@ test('staging installs at the root and keeps the former launch and worker routes
     URL, self: { registration: { scope }, addEventListener() {} }
   });
   assert.notEqual(cache('https://test.example/'), cache('https://test.example/neo/'));
-  assert.match(cache('https://test.example/'),/pwa-v38$/);
-  assert.match(cache('https://test.example/neo/'),/pwa-v38$/);
+  assert.match(cache('https://test.example/'),/pwa-v39$/);
+  assert.match(cache('https://test.example/neo/'),/pwa-v39$/);
   assert.match(read('sw.js'),/'appearance\.js'/);
   assert.match(read('sw.js'),/'library-video\.js','library-files\.js'/);
   for(const file of ['index.html','neo/index.html']){

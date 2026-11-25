@@ -470,7 +470,8 @@ test('seringas têm comprimento comum, diâmetros diversos e recorte externo da 
  const a=setup();
  for(const [capacity,height] of [[.3,24],[.5,30],[1,38]]){
   const {document}=parseHTML(a.run("syringeSymbol("+capacity+",15,false,15.12345)"));
-  const glass=document.querySelector('rect[stroke="#9a845f"]');
+  const glass=document.querySelector('.calc-syringe-barrel');
+  assert.match(glass.getAttribute('stroke'),/^var\(--calc-art-/);
   assert.equal(glass.getAttribute('width'),capacity===1?'196':'166');assert.equal(glass.getAttribute('height'),String(height));
   const stem=document.querySelector('.calc-external-stem'),id=stem.getAttribute('clip-path').slice(5,-1);
   assert.equal(document.getElementById(id).firstElementChild.getAttribute('width'),glass.getAttribute('x'));

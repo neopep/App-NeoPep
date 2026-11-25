@@ -58,14 +58,12 @@ async function prepare() {
   const css = fs.readFileSync(style, 'utf8').split(marker)[0];
   fs.writeFileSync(style, css + `
 ${marker}
-html::after,dialog[open]::after{
-  content:"TESTE";position:fixed;top:calc(env(safe-area-inset-top,0px) + 4px);left:50%;
-  transform:translateX(-50%);z-index:2147483647;pointer-events:none;
-  color:#e5c886;background:#19150f;border:1px solid #d5ad62;border-radius:999px;
-  padding:2px 9px;font:700 10px/1.3 system-ui,sans-serif;letter-spacing:.13em;opacity:.72;
+body::before{
+  content:"TESTE";display:block;width:max-content;margin:calc(env(safe-area-inset-top,0px) + 4px) auto 4px;
+  pointer-events:none;color:#e5c886;background:#19150f;border:1px solid #d5ad62;border-radius:999px;
+  padding:2px 9px;font:700 10px/1.3 system-ui,sans-serif;letter-spacing:.13em;
 }
-html:has(dialog[open])::after{visibility:hidden}
-html[data-theme=light]::after,html[data-theme=light] dialog[open]::after{color:#142743;background:#edf0f4;border-color:#a8b4cc;opacity:1}
+html[data-theme=light] body::before{color:#142743;background:#edf0f4;border-color:#a8b4cc}
 `);
   // Keep the former launch URL and Auth callback as real pages at the same origin.
   fs.mkdirSync('dist/neo', { recursive: true });
@@ -74,7 +72,7 @@ html[data-theme=light]::after,html[data-theme=light] dialog[open]::after{color:#
   const serviceWorker = 'dist/sw.js';
   const worker = fs.readFileSync(serviceWorker, 'utf8')
     .replace(/^(?:const CACHE_PREFIX=.*;\n)?const CACHE=.*;$/m,
-      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v38';")
+      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v39';")
     .replace(/key\.startsWith\((?:'[^']+'|CACHE_PREFIX)\)/, 'key.startsWith(CACHE_PREFIX)');
   fs.writeFileSync(serviceWorker, worker);
 }

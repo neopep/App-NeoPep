@@ -128,40 +128,40 @@ function calcVial(id){
  return `<svg class="calc-vial" viewBox="0 0 84 100" aria-hidden="true">
  <defs>
   <linearGradient id="${art}-glass">
-   <stop stop-color="#806235" stop-opacity=".65"/><stop offset=".12" stop-color="#e7c88f" stop-opacity=".45"/>
-   <stop offset=".35" stop-color="#e9d7b1" stop-opacity=".12"/><stop offset=".69" stop-color="#f3e4c4" stop-opacity=".08"/>
-   <stop offset=".9" stop-color="#e6c38a" stop-opacity=".32"/><stop offset="1" stop-color="#8c6e43" stop-opacity=".65"/>
+   <stop stop-color="var(--calc-art-ink,#806235)" stop-opacity=".65"/><stop offset=".12" stop-color="var(--calc-art-tint,#e7c88f)" stop-opacity=".45"/>
+   <stop offset=".35" stop-color="var(--calc-art-tint,#e9d7b1)" stop-opacity=".12"/><stop offset=".69" stop-color="var(--calc-art-light,#f3e4c4)" stop-opacity=".08"/>
+   <stop offset=".9" stop-color="var(--calc-art-tint,#e6c38a)" stop-opacity=".32"/><stop offset="1" stop-color="var(--calc-art-edge,#8c6e43)" stop-opacity=".65"/>
   </linearGradient>
   <linearGradient id="${art}-depth" x2="0" y2="1">
-   <stop stop-color="#fff5db" stop-opacity=".2"/><stop offset=".43" stop-color="#a7885e" stop-opacity="0"/>
-   <stop offset="1" stop-color="#6b4b25" stop-opacity=".4"/>
+   <stop stop-color="var(--calc-art-light,#fff5db)" stop-opacity=".2"/><stop offset=".43" stop-color="var(--calc-art-edge,#a7885e)" stop-opacity="0"/>
+   <stop offset="1" stop-color="var(--calc-art-ink,#6b4b25)" stop-opacity=".4"/>
   </linearGradient>
   <linearGradient id="${art}-cap" x2="0" y2="1">
-   <stop stop-color="#f1d5a0"/><stop offset=".25" stop-color="#cfa46a"/><stop offset=".67" stop-color="#927043"/><stop offset="1" stop-color="#b98d50"/>
+   <stop stop-color="var(--calc-art-tint,#f1d5a0)"/><stop offset=".25" stop-color="var(--calc-art-mid,#cfa46a)"/><stop offset=".67" stop-color="var(--calc-art-edge,#927043)"/><stop offset="1" stop-color="var(--calc-art-edge,#b98d50)"/>
   </linearGradient>
   <linearGradient id="${art}-liquid" x2="0" y2="1">
-   <stop stop-color="#fff0c9" stop-opacity=".9"/><stop offset=".08" stop-color="#eacf91" stop-opacity=".84"/>
-   <stop offset=".36" stop-color="#c79549" stop-opacity=".73"/><stop offset="1" stop-color="#91642d" stop-opacity=".86"/>
+   <stop stop-color="var(--calc-art-light,#fff0c9)" stop-opacity=".9"/><stop offset=".08" stop-color="var(--calc-art-tint,#eacf91)" stop-opacity=".84"/>
+   <stop offset=".36" stop-color="var(--calc-art-mid,#c79549)" stop-opacity=".73"/><stop offset="1" stop-color="var(--calc-art-edge,#91642d)" stop-opacity=".86"/>
   </linearGradient>
-  <radialGradient id="${art}-shadow"><stop stop-color="#261b0d" stop-opacity=".36"/><stop offset="1" stop-color="#261b0d" stop-opacity="0"/></radialGradient>
+  <radialGradient id="${art}-shadow"><stop stop-color="var(--calc-art-shadow,#261b0d)" stop-opacity=".36"/><stop offset="1" stop-color="var(--calc-art-shadow,#261b0d)" stop-opacity="0"/></radialGradient>
   <clipPath id="${art}-chamber"><path d="M30 25h24v13l9 10v31q0 6-6 6H27q-6 0-6-6V48l9-10z"/></clipPath>
  </defs>
  <ellipse cx="42" cy="91" rx="30" ry="5" fill="url(#${art}-shadow)"/>
- <path d="${glass}" fill="url(#${art}-glass)" stroke="#ad8f60" stroke-width="1.15"/>
+ <path d="${glass}" fill="url(#${art}-glass)" stroke="var(--calc-art-edge,#ad8f60)" stroke-width="1.15"/>
  <g clip-path="url(#${art}-chamber)">
   <svg data-calc-fill="${id}" x="21" y="85" width="42" height="0" overflow="hidden">
    <rect width="42" height="100%" rx="2" fill="url(#${art}-liquid)"/>
-   <path d="M1 .65Q21 3.8 41 .65" fill="none" stroke="#fff1ce" stroke-opacity=".58" stroke-width=".85"/>
+   <path d="M1 .65Q21 3.8 41 .65" fill="none" stroke="var(--calc-art-light,#fff1ce)" stroke-opacity=".58" stroke-width=".85"/>
   </svg>
   <path d="${glass}" fill="url(#${art}-depth)"/>
-  <path d="M31 27v12l-8 10v28q0 4 3 5m3-32v22" fill="none" stroke="#fff9ed" stroke-width="2" stroke-opacity=".43" stroke-linecap="round"/>
-  <path d="M55 42l6 8v24" fill="none" stroke="#fff3d5" stroke-width="1.3" stroke-opacity=".28" stroke-linecap="round"/>
+  <path d="M31 27v12l-8 10v28q0 4 3 5m3-32v22" fill="none" stroke="var(--calc-art-light,#fff9ed)" stroke-width="2" stroke-opacity=".43" stroke-linecap="round"/>
+  <path d="M55 42l6 8v24" fill="none" stroke="var(--calc-art-light,#fff3d5)" stroke-width="1.3" stroke-opacity=".28" stroke-linecap="round"/>
  </g>
- <path d="M24 82q2 3 6 3h24q4 0 6-3" fill="none" stroke="#fff1cf" stroke-opacity=".65" stroke-width="1.5"/>
+ <path d="M24 82q2 3 6 3h24q4 0 6-3" fill="none" stroke="var(--calc-art-light,#fff1cf)" stroke-opacity=".65" stroke-width="1.5"/>
  <path class="calc-mark" d="M46 52h12m-7 10h7m-12 10h12"/>
- <rect x="23" y="9" width="38" height="15" rx="4" fill="url(#${art}-cap)" stroke="#997447" stroke-width=".85"/>
- <path d="M27 12h30" stroke="#fff1cf" stroke-opacity=".65" stroke-linecap="round"/>
- <path d="M28 15v5m4-5v5m4-5v5m4-5v5m4-5v5m4-5v5m4-5v5m4-5v5" stroke="#6e4d29" stroke-opacity=".35" stroke-width=".7"/>
+ <rect x="23" y="9" width="38" height="15" rx="4" fill="url(#${art}-cap)" stroke="var(--calc-art-edge,#997447)" stroke-width=".85"/>
+ <path d="M27 12h30" stroke="var(--calc-art-light,#fff1cf)" stroke-opacity=".65" stroke-linecap="round"/>
+ <path d="M28 15v5m4-5v5m4-5v5m4-5v5m4-5v5m4-5v5m4-5v5m4-5v5" stroke="var(--calc-art-ink,#6e4d29)" stroke-opacity=".35" stroke-width=".7"/>
  </svg>`;
 }
 function syringeReading(capacity,units){
@@ -191,37 +191,37 @@ function syringeSymbol(capacity,mark=0,compact=false,calculated=null){
  return `<svg class="calc-syringe" viewBox="0 ${compact?'13':'0'} 286 ${compact?'56':'82'}" aria-hidden="true">
  <defs>
   <linearGradient id="${art}-glass" x2="0" y2="1">
-   <stop stop-color="#a68b64" stop-opacity=".6"/><stop offset=".14" stop-color="#fff0d4" stop-opacity=".48"/>
-   <stop offset=".45" stop-color="#e9d7b7" stop-opacity=".09"/><stop offset=".72" stop-color="#bd9f73" stop-opacity=".19"/>
-   <stop offset="1" stop-color="#997e58" stop-opacity=".64"/>
+   <stop stop-color="var(--calc-art-edge,#a68b64)" stop-opacity=".6"/><stop offset=".14" stop-color="var(--calc-art-light,#fff0d4)" stop-opacity=".48"/>
+   <stop offset=".45" stop-color="var(--calc-art-tint,#e9d7b7)" stop-opacity=".09"/><stop offset=".72" stop-color="var(--calc-art-mid,#bd9f73)" stop-opacity=".19"/>
+   <stop offset="1" stop-color="var(--calc-art-edge,#997e58)" stop-opacity=".64"/>
   </linearGradient>
   <linearGradient id="${art}-liquid" x2="0" y2="1">
-   <stop stop-color="#fcdf9e" stop-opacity=".63"/><stop offset=".4" stop-color="var(--calc-fluid-pigment,#c49650)" stop-opacity=".65"/>
+   <stop stop-color="var(--calc-art-tint,#fcdf9e)" stop-opacity=".63"/><stop offset=".4" stop-color="var(--calc-fluid-pigment,#c49650)" stop-opacity=".65"/>
    <stop offset="1" stop-color="var(--calc-fluid-pigment,#c49650)" stop-opacity=".92"/>
   </linearGradient>
   <linearGradient id="${art}-metal" x2="0" y2="1">
-   <stop stop-color="#e5d3b3"/><stop offset=".26" stop-color="#bcaa8d"/>
-   <stop offset=".55" stop-color="#726657"/><stop offset=".82" stop-color="#9d8a71"/><stop offset="1" stop-color="#665c4f"/>
+   <stop stop-color="var(--calc-art-tint,#e5d3b3)"/><stop offset=".26" stop-color="var(--calc-art-mid,#bcaa8d)"/>
+   <stop offset=".55" stop-color="var(--calc-art-ink,#726657)"/><stop offset=".82" stop-color="var(--calc-art-edge,#9d8a71)"/><stop offset="1" stop-color="var(--calc-art-ink,#665c4f)"/>
   </linearGradient>
-  <radialGradient id="${art}-shadow"><stop stop-color="#2c2014" stop-opacity=".33"/><stop offset="1" stop-color="#2c2014" stop-opacity="0"/></radialGradient>
+  <radialGradient id="${art}-shadow"><stop stop-color="var(--calc-art-shadow,#2c2014)" stop-opacity=".33"/><stop offset="1" stop-color="var(--calc-art-shadow,#2c2014)" stop-opacity="0"/></radialGradient>
   <clipPath id="${art}-chamber"><rect x="${start}" y="${top+2}" width="${length}" height="${height-4}" rx="2"/></clipPath>
   <clipPath id="${art}-stem"><rect x="0" y="0" width="${start}" height="82"/></clipPath>
  </defs>
  <ellipse cx="${(start+end)/2}" cy="${bottom+3}" rx="${length/2+4}" ry="5" fill="url(#${art}-shadow)"/>
- <path d="M254 43h24l3-1" fill="none" stroke="#968974" stroke-width="1.4" stroke-linecap="round"/>
+ <path d="M254 43h24l3-1" fill="none" stroke="var(--calc-art-edge,#968974)" stroke-width="1.4" stroke-linecap="round"/>
  <rect x="245" y="39" width="13" height="8" rx="2" fill="url(#${art}-metal)"/>
  <g class="calc-external-stem" clip-path="url(#${art}-stem)">
   <rect x="${grip}" y="41" width="${Math.max(0,piston-grip)}" height="4" rx="2" fill="url(#${art}-metal)"/>
-  <rect x="${grip-3}" y="34" width="5" height="18" rx="2" fill="url(#${art}-metal)" stroke="#736452" stroke-width=".6"/>
+  <rect x="${grip-3}" y="34" width="5" height="18" rx="2" fill="url(#${art}-metal)" stroke="var(--calc-art-ink,#736452)" stroke-width=".6"/>
  </g>
- <rect x="${start}" y="${top}" width="${length}" height="${height}" rx="3" fill="url(#${art}-glass)" stroke="#9a845f" stroke-width="1.15"/>
+ <rect class="calc-syringe-barrel" x="${start}" y="${top}" width="${length}" height="${height}" rx="3" fill="url(#${art}-glass)" stroke="var(--calc-art-edge,#9a845f)" stroke-width="1.15"/>
  <rect x="${start-2}" y="${top-4}" width="4" height="${height+8}" rx="1.5" fill="url(#${art}-metal)"/>
  <g clip-path="url(#${art}-chamber)">
   <rect class="calc-liquid" x="${piston}" y="${top+2}" width="${end-piston}" height="${height-4}" fill="url(#${art}-liquid)"/>
-  <path d="M${start+2} ${top+4}H${end-2}" stroke="#fff7e8" stroke-width="2.6" stroke-opacity=".47" stroke-linecap="round"/>
-  <path d="M${start+1} ${bottom-3}H${end-1}" stroke="#f9e8c9" stroke-width="1.05" stroke-opacity=".43" stroke-linecap="round"/>
+  <path d="M${start+2} ${top+4}H${end-2}" stroke="var(--calc-art-light,#fff7e8)" stroke-width="2.6" stroke-opacity=".47" stroke-linecap="round"/>
+  <path d="M${start+1} ${bottom-3}H${end-1}" stroke="var(--calc-art-light,#f9e8c9)" stroke-width="1.05" stroke-opacity=".43" stroke-linecap="round"/>
  </g>
- ${mark>0?`<path class="calc-meniscus" d="M${piston} ${top+2} Q${piston+3} 43 ${piston} ${bottom-2}" fill="none" stroke="#fff1ce" stroke-opacity=".55"/>`:''}
+ ${mark>0?`<path class="calc-meniscus" d="M${piston} ${top+2} Q${piston+3} 43 ${piston} ${bottom-2}" fill="none" stroke="var(--calc-art-light,#fff1ce)" stroke-opacity=".55"/>`:''}
  <rect data-calc-piston x="${piston-3}" y="${top+2}" width="3" height="${height-4}" rx="1" fill="url(#${art}-metal)"/>
  ${ticks.join('')}
  ${label?`<g class="calc-level-label"><path d="M${labelX} 19L${piston} ${top}"/><rect x="${labelX-labelWidth/2}" y="2" width="${labelWidth}" height="17" rx="5"/><text x="${labelX}" y="14" text-anchor="middle">${label}</text></g>`:''}
