@@ -23,8 +23,8 @@ test('product caption keeps price and photo selection unchanged',()=>{
 test('migration only replaces the dispatcher function without executing sends',()=>{
  const statements=migration.replace(/^--[^\n]*\n/gm,'').trim();
  assert.match(statements,/^CREATE OR REPLACE FUNCTION public\.neo_campaign_rich_admin_v1/);
- assert.match(statements,/\$function\$;$/);
+ assert.match(statements,/\$function\$\s*;$/);
  // Runtime cancellation code is inside the function body; never execute it as a migration.
- assert.doesNotMatch(statements,/\$function\$;\s*(?:UPDATE|INSERT|DELETE|TRUNCATE|SELECT)\b/i);
+ assert.doesNotMatch(statements,/\$function\$\s*;\s*(?:UPDATE|INSERT|DELETE|TRUNCATE|SELECT)\b/i);
  assert.doesNotMatch(statements,/http:\/\//);
 });
