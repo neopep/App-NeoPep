@@ -63,6 +63,23 @@ const api={configured,
  async connectAdmin(action,data={}){return ok(await need().rpc('neo_connect_admin',{p_action:action,p_data:data}));},
  async connectReleaseURL(path){return ok(await need().storage.from('neo-connect-releases').createSignedUrl(path,120,{download:'NeoPepConnectSetup.exe'})).signedUrl;},
  async campaignEditor(action,data){const version=identityVersion;const result=ok(await need().rpc('neo_campaign_editor_v1',{p_action:action,p_data:data}));if(version!==identityVersion)throw Error('A conta mudou.');return result;},
+ async campaignRich(action,data={}){
+  const version=identityVersion;
+  const result=ok(await need().rpc('neo_campaign_rich_admin_v1',{p_action:action,p_data:data}));
+  if(version!==identityVersion)throw Error('A conta mudou.');
+  return result;
+ },
+ async campaignMediaUpload(path,jpeg){
+  const sdk=need(),version=identityVersion,owner=user?.id;
+  if(typeof path!=='string'||!new RegExp('^[a-f0-9-]{36}/[a-f0-9-]{36}\\.jpg$').test(path)||
+    path.split('/')[0]!==owner||!jpeg||jpeg.type!=='image/jpeg'||!jpeg.size||jpeg.size>1048576)
+    throw Error('Imagem JPEG ou destino privado inválido. Máximo de 1 MB.');
+  const uploaded=ok(await sdk.storage.from('neo-campaign-images').upload(path,jpeg,{
+   contentType:'image/jpeg',upsert:false,cacheControl:'3600'
+  }));
+  if(version!==identityVersion||user?.id!==owner)throw Error('A conta mudou durante o envio.');
+  return uploaded.path;
+ },
  async campaignDispatch(action,data){const version=identityVersion;const result=ok(await need().rpc('neo_campaign_dispatch_admin_v1',{p_action:action,p_data:data}));if(version!==identityVersion)throw Error('A conta mudou.');return result;},
  async campaignTest(action,data={}){
   const version=identityVersion;
