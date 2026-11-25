@@ -18,3 +18,13 @@ A conciliação 010.06 e a gestão em massa foram instaladas juntas no ledger of
 A localização oficial usa `api/location-observe.js`, restrito à origem oficial e ao target Production. A configuração exige `NEO_PROD_GEO_ENABLED=1`, `NEO_PROD_SUPABASE_PUBLISHABLE_KEY` e `NEO_PROD_GEO_SERVER_SUPABASE_KEY` no servidor e `productionGeoEnabled: true` na configuração pública somente após comprovar consentimento e funcionamento. As chaves devem ficar no projeto oficial Vercel. Nenhuma coordenada do dispositivo é enviada. A RPC exige registro de consentimento existente e aplica intervalo mínimo entre observações.
 
 A base de rascunhos e versões do editor foi instalada sob o ledger oficial `20261125145355`, SHA-256 `2d3ef567ac648b9b6ab61315f8def011c6d84db397bb1a7753a82d25b8e4f8a5`. O salvamento sob identidade administrativa foi ensaiado em transação revertida. O postflight verificou zero versões persistidas e execução anônima negada. O lote não inclui fila, mídia rica ou Central.
+
+## Central 014 oficial
+
+O renderizador `render-campaigns.cjs` compõe o lote a partir das fontes homologadas e substitui o emissor, a origem dos links e a allowlist. O lote cria a fila, heartbeat, mídia e Central em uma transação. Uma constraint mantém a fila legada desativada. O despacho rico exige habilitação, um titular, conexão e grupo selecionado próprios de Produção, dispositivo aprovado, sessão e presença recentes. Nenhum destino é preenchido na aplicação.
+
+Aplicado no Supabase oficial no ledger `20261125150040`. SHA-256 do SQL: `35d104dd877a0bab4e0c5231b680cda79922128854b8b8629546dc8b5b4e41ad`. O ensaio revertido no servidor oficial criou e recuperou um rascunho, rejeitou outro emissor e confirmou zero lotes com o envio desligado. O ensaio PostgreSQL isolado testou propriedade, idempotência, agendamento e cancelamento. A reversão documentada mantém histórico e bloqueia execução.
+
+O worker homologado contém uma guarda explícita que retorna antes do heartbeat quando o perfil é Produção. Um dispositivo reportando 0.2.12 não remove essa guarda e não prova execução. A operação real continua desativada até validar o binário oficial, o heartbeat, a allowlist e a cadeia de atualização com conta autorizada, sem disparar mensagens automaticamente.
+
+As duas chaves de servidor da localização foram configuradas no target Production do projeto oficial. A flag de coleta não foi habilitada.

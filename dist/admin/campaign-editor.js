@@ -87,7 +87,9 @@
   const account=cloud.user?.id;
   const staging=window.NEO_CONFIG?.campaignTestEnabled===true;
   const testApp=staging&&channel==='app';
-  const testWA=staging&&channel==='whatsapp';
+  const officialWA=window.NEO_CONFIG?.campaignOfficialCentralEnabled===true&&channel==='whatsapp'&&Boolean(publication);
+  const testWA=(staging&&channel==='whatsapp')||officialWA;
+  const authorizedDestination=()=>officialWA?gates.whatsapp_rich?.destination:gates.whatsapp_test?.destination;
 
   if(!account)return;
   stopOpen?.();
@@ -436,7 +438,7 @@
    if(!root)return;
    const query=field('group_search').value.trim().toLocaleLowerCase('pt-BR');
    const entries=new Map(draft.groups.map(id=>[id,{id,name:'Grupo anteriormente selecionado',state:'unavailable'}]));
-   const allowed=gates.whatsapp_test?.destination;
+   const allowed=authorizedDestination();
    for(const row of groups)if(!testWA||!allowed||row.id===allowed)entries.set(row.id,row);
    root.innerHTML=[...entries.values()].filter(row=>`${row.name} ${row.connection||''}`.toLocaleLowerCase('pt-BR').includes(query)).map(row=>{
     const chosen=draft.groups.includes(row.id);
@@ -483,7 +485,7 @@
       ['image','product','document','community'].includes(block.type)?(block.text||'').length<=1000:
       (block.text||'').length<=2000));
    const eligible=channel==='app'||draft.groups.length>0&&draft.groups.every(id=>groups.some(row=>row.id===id&&row.state==='eligible'));
-   const pinned=!testWA||draft.groups.length===1&&draft.groups[0]===gates.whatsapp_test?.destination;
+   const pinned=!testWA||draft.groups.length===1&&draft.groups[0]===authorizedDestination();
    const short=!testWA||draft.blocks.map(block=>block.text||'').join('\n\n').trim().length<=160;
    const allow=Boolean((!publication||rich)&&enabled&&clean&&eligible&&pinned&&(rich?richBlocks:textOnly&&short));
    $('[data-editor=publish]').disabled=!allow||channel==='whatsapp'&&!testWA&&!gates.devices?.some(d=>d.ready);
@@ -583,7 +585,7 @@
    const base={editor_id:state.editorId,revision:state.revision,local_time:scheduled?draft.planned_local:null};
    const intent=testApp?{...base,confirmed:true,destination_count:testGate.destinations,audience_key:testGate.audience_key}:{...base,
     weekly_count:channel==='app'||testWA||!scheduled?1:Number(field('weekly_count').value),push:field('push')?.checked===true,
-    ...(testWA?{homologation:true,confirmed:true}:{})};
+    ...(testWA?{confirmed:true,...(officialWA?{}:{homologation:true})}:{})};
    const fingerprint=JSON.stringify(intent);
    const request=state.dispatchAttempt?.fingerprint===fingerprint?state.dispatchAttempt:{fingerprint,id:uuid()};
    state.dispatchAttempt=request;saveLocal();dispatching=true;
@@ -711,7 +713,7 @@
    if(input.dataset.editorGroup){
     const id=input.dataset.editorGroup;
     if(!input.checked)draft.groups=draft.groups.filter(key=>key!==id);
-    else if((!testWA||id===gates.whatsapp_test?.destination)&&groups.some(row=>row.id===id&&row.state==='eligible')&&draft.groups.length<30&&!draft.groups.some(key=>groupIdentity(key)===groupIdentity(id)))draft.groups.push(id);
+    else if((!testWA||id===authorizedDestination())&&groups.some(row=>row.id===id&&row.state==='eligible')&&draft.groups.length<30&&!draft.groups.some(key=>groupIdentity(key)===groupIdentity(id)))draft.groups.push(id);
     else{input.checked=false;tell('Selecione até 30 destinos elegíveis e distintos.');return;}
     renderGroups();changed();
    }

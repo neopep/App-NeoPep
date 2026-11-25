@@ -7,7 +7,7 @@
     },
     "installed_migrations": {
       "status": "verified",
-      "evidence": "Ledger oficial 20261125144222, 20261125144224, 20261125144225, 20261125144453 e 20261125145240 e 20261125145355. Os quatro gatilhos financeiros novos estão instalados."
+      "evidence": "Ledger oficial 20261125144222, 20261125144224, 20261125144225, 20261125144453 e 20261125145240 20261125145355 e 20261125150040. Os quatro gatilhos financeiros novos estão instalados."
     },
     "financial_contract": {
       "status": "verified",
@@ -19,7 +19,7 @@
     },
     "campaign_central": {
       "status": "pending",
-      "note": "Faltam os contratos de persistência, autorização e agendamento específicos de Produção e o ensaio autenticado."
+      "note": "Contratos instalados com fila desativada e destinos vazios. Falta ensaio autenticado com sessão real e worker oficial."
     },
     "connect_official": {
       "status": "pending",

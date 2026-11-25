@@ -1104,7 +1104,7 @@ async function mountCampaigns(root){
  const centralHost=document.createElement('section');
  centralHost.className='campaign-central';centralHost.hidden=true;
  list.before(centralHost);
- const central=stagingCampaigns&&window.NeoCampaignCentral&&typeof cloud.campaignCentral==='function'
+ const central=(stagingCampaigns||window.NEO_CONFIG?.campaignOfficialCentralEnabled===true)&&window.NeoCampaignCentral&&typeof cloud.campaignCentral==='function'
   ?window.NeoCampaignCentral.mount({root:centralHost,cloud,legacy:()=>rows,
    openLegacy:(id,trigger)=>{const row=rows.find(item=>item.id===id);if(row&&draftOkay()){openedBy=trigger;edit(row);}},
    recoverLegacy:(trigger,onSaved)=>openStructured(trigger,undefined,null,'whatsapp',onSaved),
