@@ -30,15 +30,21 @@
    const start=Date.parse(rule.start+'T00:00:00Z'),horizon=Date.parse(today+'T00:00:00Z')+89*86400000;
    const end=rule.end?Date.parse(rule.end+'T00:00:00Z'):horizon;
    if(!Number.isFinite(start)||!Number.isFinite(end)||end>horizon||start>end||rule.start<today||rule.count<1||rule.count>24)return [];
+   const times=[...new Set(rule.times)].sort();
+   if(times.length!==rule.times.length||!times.length||times.length>8||times.some(time=>!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(time)))return [];
    const dates=[];
    for(let at=start;at<=end&&dates.length<rule.count;at+=86400000){
     const day=new Date(at);
-    const occurrence=day.toISOString().slice(0,10)+'T'+rule.time;
-    if(rule.days.includes(day.getUTCDay())&&occurrence>now)dates.push(occurrence);
+    if(rule.frequency!=='daily'&&!rule.days.includes(day.getUTCDay()))continue;
+    for(const time of times){
+     const occurrence=day.toISOString().slice(0,10)+'T'+time;
+     if(occurrence>now&&dates.length<rule.count)dates.push(occurrence);
+    }
    }
    return dates;
   }
   let loadEpoch=0;
+  const legacyStates=new Map();
   let statusTimer=null,statusRefreshing=false;
   const legacyKey='neo-campaign-editor:'+account+':whatsapp:new';
   const pointer=()=> 'neo-campaign-central:'+account+':'+current;
@@ -93,7 +99,7 @@
    stopStatusPoll();
    screen='list';current=null;detail=null;
    const seen=new Set(rows.map(row=>row.campaign_id));
-   const feed=[...rows,...legacy().filter(row=>row.whatsapp_enabled&&!seen.has(row.id)).map(row=>({...row,campaign_id:row.id,legacy:true}))];
+   const feed=[...rows,...legacy().filter(row=>row.whatsapp_enabled&&!seen.has(row.id)&&!legacyStates.get(row.id)?.deleted).map(row=>({...row,campaign_id:row.id,legacy:true}))];
    const visible=feed.filter(row=>(!filter||campaignState(row)===filter)&&(row.title||'').toLocaleLowerCase('pt-BR').includes(search));
    redraw(`<div class="between"><h2>Campanhas WhatsApp</h2>${button('new','+ Nova campanha','','primary')}</div>
     <div class="inline-actions"><label>Buscar campanha<input type="search" data-central-search value="${escape(search)}"></label><label>Estado<select data-central-filter>
@@ -101,12 +107,22 @@
     ${getLocal(legacyKey)?button('recover','Continuar rascunho anterior'):''}</div><div data-central-feed>
     ${visible.map(row=>`<article class="monitor-block"><div class="between"><h3>${escape(row.title)}</h3><span class="campaign-state">${labels[campaignState(row)]}</span></div>
     <p class="sub">${row.legacy?'Campanha manual · fluxo legado':`${row.publications} publicação(ões) · ${row.drafts} rascunho(s) · ${row.pending||0} pendente(s) · ${row.problems||0} com problema${row.next_at?' · Próxima: '+date(row.next_at):''}`}</p>
-    ${button(row.legacy?'legacy':'open',row.legacy?'Abrir campanha manual':'Abrir campanha',row.campaign_id)}</article>`).join('')||'<p>Nenhuma campanha com esse filtro.</p>'}
+    ${button(row.legacy?'legacy':'open',row.legacy?'Abrir campanha manual':'Abrir campanha',row.campaign_id)}
+    ${row.legacy&&legacyStates.get(row.id)?.can_delete?button('delete_legacy','Excluir campanha manual',row.id):''}</article>`).join('')||'<p>Nenhuma campanha com esse filtro.</p>'}
     </div>${more?button('more','Carregar mais campanhas'):''}`);
+  }
+  async function refreshLegacy(){
+   const ids=[...new Set(legacy().filter(row=>row.whatsapp_enabled).map(row=>row.id))];
+   for(let i=0;i<ids.length;i+=50){
+    const batch=await rpc('legacy_states',{ids:ids.slice(i,i+50)}).catch(()=>null);
+    if(!active()||!Array.isArray(batch))return;
+    for(const id of ids.slice(i,i+50))legacyStates.delete(id);
+    for(const entry of batch)legacyStates.set(entry.id,entry);
+   }
   }
   async function refresh(append=false){
    const epoch=++loadEpoch;
-   const batch=await rpc('list',{offset:append?page:0});
+   const [batch]=await Promise.all([rpc('list',{offset:append?page:0}),refreshLegacy()]);
    if(!active()||epoch!==loadEpoch)return;
    rows=append?[...rows,...batch]:batch;page=rows.length;more=batch.length===50;
    list();
@@ -129,18 +145,19 @@
   function details(){
    screen='detail';
    const editable=!detail.archived_at;
-   const items=detail.publications;
+   const items=view==='history'?detail.publications:detail.publications.filter(pub=>!pub.deleted_at);
    const ordered=[...items].sort((a,b)=>(a.batches[0]?.due_at||a.planned_local||'').localeCompare(b.batches[0]?.due_at||b.planned_local||''));
    const undated=ordered.filter(pub=>!pub.planned_local&&!pub.batches.length);
    const dated=ordered.filter(pub=>!undated.includes(pub));
    const cards=entries=>entries.map(pub=>{
-    const batch=pub.batches[0],locked=pub.legacy_dispatch||Boolean(batch&&(batch.cancelled_at==null||batch.states?.some(value=>value!=='cancelled')));
-    return `<article class="monitor-block" data-central-publication="${escape(pub.id)}"><div class="between"><strong>${escape(pub.title)}</strong><span class="campaign-state">${status(pub)}</span></div>
+    const batch=pub.batches[0],locked=Boolean(pub.deleted_at)||pub.legacy_dispatch||Boolean(batch&&(batch.cancelled_at==null||batch.states?.some(value=>value!=='cancelled')));
+    return `<article class="monitor-block" data-central-publication="${escape(pub.id)}"><div class="between"><strong>${escape(pub.title)}</strong><span class="campaign-state">${pub.deleted_at?'Excluída':status(pub)}</span></div>
      <p class="sub">${batch?date(batch.due_at):local(pub.planned_local)||'Sem data'} · São Paulo · ${pub.kinds?.length||0} mensagem(ns)${pub.kinds?.length?' · '+escape(pub.kinds.join(', ')):''}</p>
      ${view==='agenda'&&editable&&pub.planned_local&&!locked?`<label class="check"><input type="checkbox" name="selected-publication" value="${escape(pub.id)}"> Selecionar para agendar</label>`:''}
      <div class="inline-actions">${button('edit',locked||!editable?'Ver publicação':'Editar publicação',pub.id)}
-     ${editable?button('duplicate_form','Duplicar / distribuir',pub.id)+(typeof cloud.campaignWeekly==='function'?button('weekly_form','Repetir semanalmente',pub.id):''):''}
-     ${batch?.states?.includes('waiting')&&editable?button('cancel','Cancelar pendências',pub.id):''}</div>
+     ${editable&&!pub.deleted_at?button('duplicate_form','Duplicar / distribuir',pub.id)+(typeof cloud.campaignWeekly==='function'?button('weekly_form','Programar repetição',pub.id):''):''}
+     ${batch?.states?.includes('waiting')&&editable&&!pub.deleted_at?button('cancel','Cancelar pendências',pub.id):''}
+     ${editable&&!pub.deleted_at?button('delete_publication','Excluir publicação',pub.id):''}</div>
      ${view==='history'?`<div data-central-history="${escape(pub.id)}">${button('attempts','Ver tentativas e recibos',pub.id)}</div>`:''}</article>`;
    }).join('');
    redraw(`${button('back','‹ Campanhas')}<div class="between"><h2>${escape(detail.title)}</h2>${editable?button('rename','Renomear')+button('archive','Arquivar'):''}${button('delete','Excluir campanha')}</div>
@@ -148,7 +165,7 @@
     <div class="inline-actions">${button('agenda','Agenda','',view==='agenda'?'primary':'secondary')}${button('history','Histórico','',view==='history'?'primary':'secondary')}${button('refresh_status','Atualizar estados')}</div>
     ${view==='agenda'? `<label>Filtrar a partir de<input type="date" data-central-date></label><div data-central-date-list>${cards(dated)||'<p>Sem publicações com data.</p>'}</div>
      <h3>Rascunhos sem data</h3>${cards(undated)||'<p>Sem rascunhos sem data.</p>'}
-     ${weekly.length?`<h3>Repetições semanais</h3>${weekly.map(item=>`<article class="monitor-block">
+     ${weekly.length?`<h3>Repetições programadas</h3>${weekly.map(item=>`<article class="monitor-block">
       <strong>${escape(items.find(pub=>pub.id===item.publication_id)?.title||'Publicação')}</strong>
       <p class="sub">${({scheduled:'Agendada',paused:'Pausada',cancelled:'Cancelada'})[item.state]} · ${escape(item.dates.map(local).join(' · '))}</p>
       <div class="inline-actions">${editable&&item.state!=='cancelled'?button('weekly_edit','Editar datas',item.id)+
@@ -179,10 +196,11 @@
   }
   function weeklyForm(pub,existing){
    const rule=existing?.rule||{};
-   redraw(`${button('open','‹ Agenda',current)}<h2>Repetir semanalmente</h2><p>${escape(pub.title)}</p>
+   redraw(`${button('open','‹ Agenda',current)}<h2>Programar repetição</h2><p>${escape(pub.title)}</p>
     <form data-central-form="weekly" data-id="${escape(pub.id)}" data-request="${crypto.randomUUID()}" data-replace="${escape(existing?.id)}" class="campaign-central-form">
-    <fieldset><legend>Dias da semana</legend><div class="inline-actions">${weekdays.map((day,i)=>`<label class="check"><input type="checkbox" name="days" value="${i}" ${rule.days?.includes(i)?'checked':''}> ${day}</label>`).join('')}</div></fieldset>
-    <label>Horário em São Paulo<input type="time" name="time" value="${escape(rule.time)}" required></label>
+    <label>Frequência<select name="frequency"><option value="weekly">Semanal</option><option value="daily" ${rule.frequency==='daily'?'selected':''}>Diária</option></select></label>
+    <fieldset><legend>Dias da semana (repetição semanal)</legend><div class="inline-actions">${weekdays.map((day,i)=>`<label class="check"><input type="checkbox" name="days" value="${i}" ${rule.days?.includes(i)?'checked':''}> ${day}</label>`).join('')}</div></fieldset>
+    <label>Horários em São Paulo<input name="times" value="${escape(rule.times?.join(', ')||rule.time)}" placeholder="09:00, 18:30" required></label>
     <label>Início<input type="date" name="start" value="${escape(rule.start)}" required></label>
     <label>Término (opcional)<input type="date" name="end" value="${escape(rule.end)}"></label>
     <label>Número máximo de ocorrências<input type="number" name="count" min="1" max="24" value="${rule.count||4}" required></label>
@@ -238,7 +256,7 @@
      if(active()){view='agenda';await load(result.campaign_id);}
     }else if(form.dataset.centralForm==='weekly'){
      const fields=new FormData(form),source=await rpc('load',{publication_id:form.dataset.id});
-     const rule={start:fields.get('start'),end:fields.get('end'),time:fields.get('time'),count:Number(fields.get('count')),
+     const rule={start:fields.get('start'),end:fields.get('end'),frequency:fields.get('frequency'),times:String(fields.get('times')).split(',').map(time=>time.trim()),count:Number(fields.get('count')),
       days:fields.getAll('days').map(Number)};
      const dates=weeklyDates(rule),groups=source?.draft?.groups||[];
      if(!dates.length||!groups.length){show('Confira datas e horários e selecione destinos na publicação.');return;}
@@ -274,6 +292,11 @@
     if(action==='more')await refresh(true);
     if(action==='open'){view='agenda';await load(id);}
     if(action==='legacy')openLegacy(id,control);
+    if(action==='delete_legacy'&&legacyStates.get(id)?.can_delete&&confirm('Excluir a campanha manual e cancelar os lembretes pendentes? O histórico será preservado.')){
+     await rpc('delete_legacy',{campaign_id:id,confirmed:true});
+     legacyStates.set(id,{deleted:true});
+     await refresh();
+    }
     if(action==='recover')recoverLegacy(control,async saved=>{
      if(!saved||!active())return;
      try{const adopted=await rpc('adopt',{campaign_id:saved.campaign_id});await load(adopted.campaign_id);}
@@ -287,7 +310,11 @@
      const id=getLocal(pointer());
      removeLocal('neo-campaign-editor:'+account+':whatsapp:'+current+':'+id);removeLocal(pointer());details();
     }
-    if(action==='edit'&&pub)await editor(id,control,{readOnly:Boolean(detail.archived_at||pub.legacy_dispatch||pub.batches[0]&&
+    if(action==='delete_publication'&&pub&&!pub.deleted_at&&confirm('Excluir esta publicação e cancelar as pendências que ainda não começaram? O histórico será preservado.')){
+     await rpc('delete_publication',{publication_id:pub.id,confirmed:true});
+     await load(current);
+    }
+    if(action==='edit'&&pub)await editor(id,control,{readOnly:Boolean(detail.archived_at||pub.deleted_at||pub.legacy_dispatch||pub.batches[0]&&
      (pub.batches[0].cancelled_at==null||pub.batches[0].states?.some(value=>value!=='cancelled')))});
     if(action==='duplicate_form'&&pub)duplicateForm(pub);
     if(action==='weekly_form'&&pub)weeklyForm(pub);
@@ -319,7 +346,7 @@
      const holder=control.parentElement;
      if(active()&&holder.isConnected)holder.innerHTML=history.map(row=>`<p class="sub">Mensagem ${escape(row.sequence)} · ${labels[row.dispatch_state]||escape(row.dispatch_state)} · ${escape(row.dispatch_attempts)} tentativa(s) · ${row.has_receipt?'Recibo registrado':'Sem recibo'} · ${date(row.scheduled_at)}</p>`).join('')||'<p>Sem tentativas de despacho.</p>';
     }
-   }catch{show('Não foi possível concluir. Confira a autorização, o estado da publicação e o Connect de Teste.');}
+   }catch{show('Não foi possível concluir. Confira a autorização, o estado da publicação e a conexão do NeoPep Connect.');}
    finally{busy=false;}
   });
   root.addEventListener('change',event=>{
@@ -327,7 +354,7 @@
    if(event.target.matches('[data-central-search]')){search=event.target.value.trim().toLocaleLowerCase('pt-BR');list();root.querySelector('[data-central-search]').focus();}
    if(event.target.matches('[data-central-date]'))root.querySelectorAll('[data-central-date-list] article').forEach(node=>{node.hidden=Boolean(event.target.value&&node.dataset.day<event.target.value);});
   });
-  return {async load(){if(!screen){screen='loading';redraw('<p>Consultando campanhas…</p>');try{await refresh();}catch{screen='failed';show('Central indisponível. Atualize o painel para tentar novamente.');}}},syncLegacy(){if(screen==='list'&&!busy)list();}};
+  return {async load(){if(!screen){screen='loading';redraw('<p>Consultando campanhas…</p>');try{await refresh();}catch{screen='failed';show('Central indisponível. Atualize o painel para tentar novamente.');}}},syncLegacy(){if(screen==='list'&&!busy){list();void refreshLegacy().then(()=>{if(screen==='list'&&!busy)list();});}}};
  }
  window.NeoCampaignCentral={mount};
 })();
