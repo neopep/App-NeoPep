@@ -353,8 +353,29 @@
     ${model.image?`<img src="${e(model.image)}" alt="" referrerpolicy="no-referrer">`:''}
     <p class="sub">${e(model.meta||'')}${model.excerpt?' · '+e(model.excerpt):''}</p>
     ${model.file?`<button type="button" class="text-btn" data-editor="open_reference" data-ref="${e(block.ref)}">Abrir na Biblioteca</button>`:''}
+    ${!readOnly&&['PDF','Vídeo'].includes(model.meta)&&!model.image?
+      `<label class="sub">Selecionar capa deste material<input type="file" name="reference_cover" data-ref="${e(block.ref)}" accept="image/jpeg,image/png,image/webp"></label>`:''}
     ${block.type==='community'?'<a href="/#comunidade" target="_blank" rel="noopener noreferrer">Abrir Comunidade</a>':''}
    </section>`;
+  }
+  async function videoCover(src){
+   const video=document.createElement('video');
+   video.crossOrigin='anonymous';video.muted=true;video.playsInline=true;video.preload='auto';
+   try{
+    await new Promise((resolve,reject)=>{
+     const timer=setTimeout(()=>reject(Error('A miniatura do vídeo não ficou pronta.')),8000);
+     video.onloadeddata=()=>{clearTimeout(timer);resolve();};
+     video.onerror=()=>{clearTimeout(timer);reject(Error('Vídeo indisponível para gerar a miniatura.'));};
+     video.src=src;
+    });
+    const scale=Math.min(1,720/Math.max(video.videoWidth,video.videoHeight));
+    if(!Number.isFinite(scale)||video.videoWidth<1)throw Error('Quadro do vídeo indisponível.');
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.max(1,Math.round(video.videoWidth*scale));
+    canvas.height=Math.max(1,Math.round(video.videoHeight*scale));
+    canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+    return canvas.toDataURL('image/jpeg',.82);
+   }finally{video.removeAttribute('src');video.load();}
   }
   function loadReference(block){
    if(contentPreviews.has(block.ref))return;
@@ -370,13 +391,13 @@
      if(typeof cloud.library!=='function')return;
      const row=(await cloud.library('get',{id:block.ref}))?.material;
      if(!current()||!row)return;
-     const file=row.attachments?.[0],mime=file?.mime||'';
+     const file=row.attachments?.find(item=>item.mime==='application/pdf'||item.mime?.startsWith('video/'))||row.attachments?.[0],mime=file?.mime||'';
      model={meta:mime==='application/pdf'?'PDF':mime==='text/plain'?'Documento':mime.startsWith('image/')?'Imagem':mime.startsWith('video/')?'Vídeo':row.url?'Link':'Material',excerpt:(row.body||row.description||'').slice(0,220)};
      if(file&&typeof cloud.libraryMediaURL==='function')try{
       const src=await cloud.libraryMediaURL(file,false);
       model.file={...file,view_url:src};
       if(mime.startsWith('image/'))model.image=src;
-      else if(mime.startsWith('video/'))model.video=src;
+      else if(mime.startsWith('video/'))model.image=await videoCover(src);
       else if(mime==='application/pdf'&&window.NeoLibraryFiles?.pdfCover)model.image=await window.NeoLibraryFiles.pdfCover(src,previewAbort.signal);
       else if(mime==='text/plain'&&!model.excerpt&&Number(file.size)>0&&file.size<=262144){
        const response=await fetch(src,{cache:'no-store',signal:previewAbort.signal});
@@ -617,8 +638,16 @@
   }
   async function uploadRichImages(){
    for(const block of draft.blocks){
-    if(block.type!=='image'||block.media_path)continue;
-    const localImage=await storeMedia('readonly',store=>store.get(mediaKey(block.id)));
+    if(!['image','document'].includes(block.type)||block.media_path)continue;
+    const reference=block.type==='document'?contentPreviews.get(block.ref):null;
+    let localImage;
+    if(block.type==='document'){
+     if(!reference)throw Error('Aguarde a prévia autorizada da Biblioteca antes de salvar.');
+     const mime=reference.file?.mime||'';
+     if(mime!=='application/pdf'&&!mime.startsWith('video/'))continue;
+     if(!reference.image&&!reference.coverBlob)throw Error('A capa não pôde ser gerada. Selecione a capa deste material antes de salvar.');
+     localImage=reference.coverBlob||await (await fetch(reference.image,{signal:previewAbort.signal})).blob();
+    }else localImage=await storeMedia('readonly',store=>store.get(mediaKey(block.id)));
     if(!localImage)throw Error('Imagem não encontrada neste dispositivo. Anexe novamente.');
     const jpeg=await jpegForDispatch(localImage);
     const path=account+'/'+block.id+'.jpg';
@@ -650,7 +679,7 @@
    }
    if(editing||message.value.trim()){tell('Conclua o bloco de texto em edição antes de registrar a versão.');return;}
    if(!draft.title.trim()){tell('Informe o título do rascunho.');return;}
-   if(testWA&&draft.blocks.some(b=>b.type==='image'&&!b.media_path)){
+   if(testWA&&draft.blocks.some(b=>['image','document'].includes(b.type)&&!b.media_path)){
     saving=true;tell('Preparando mídia privada para homologação…');
     try{await uploadRichImages();}catch(error){tell(error.message||'Não foi possível preparar a imagem.');saving=false;return;}
     saving=false;
@@ -714,6 +743,21 @@
     else if((!testWA||id===gates.whatsapp_test?.destination)&&groups.some(row=>row.id===id&&row.state==='eligible')&&draft.groups.length<30&&!draft.groups.some(key=>groupIdentity(key)===groupIdentity(id)))draft.groups.push(id);
     else{input.checked=false;tell('Selecione até 30 destinos elegíveis e distintos.');return;}
     renderGroups();changed();
+   }
+   if(input.name==='reference_cover'){
+    const model=contentPreviews.get(input.dataset.ref),file=input.files?.[0];
+    if(!model||!file||!current())return;
+    if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>10*1024*1024){
+     tell('Escolha uma imagem JPEG, PNG ou WebP de até 10 MB.');return;
+    }
+    try{
+     const jpeg=await jpegForDispatch(file);
+     const data=await new Promise((resolve,reject)=>{
+      const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(jpeg);
+     });
+     if(current()){model.coverBlob=jpeg;model.image=data;render();changed();}
+    }catch{if(current())tell('Não foi possível preparar a capa selecionada.');}
+    return;
    }
    if(input.name!=='media')return;
    const file=input.files?.[0];input.value='';
