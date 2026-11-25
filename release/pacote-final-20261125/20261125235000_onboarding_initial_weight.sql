@@ -24,9 +24,8 @@ begin
  -- A data enviada pelo aplicativo e local ao usuario; codigos legados usam a data do Brasil.
  if p_profile ? 'initialRecordDate' then
   initial_date := p_profile->>'initialRecordDate';
-  if public.neo_valid_date(initial_date) is distinct from true
-   or abs((initial_date::date - (clock_timestamp() at time zone 'America/Sao_Paulo')::date)) > 1
-  then raise exception 'invalid initial weight date';end if;
+  if public.neo_valid_date(initial_date) is distinct from true then raise exception 'invalid initial weight date';end if;
+  if abs((initial_date::date - (clock_timestamp() at time zone 'America/Sao_Paulo')::date)) > 1 then raise exception 'initial weight date too distant';end if;
  else
   initial_date := (clock_timestamp() at time zone 'America/Sao_Paulo')::date::text;
  end if;
