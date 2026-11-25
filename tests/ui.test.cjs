@@ -678,3 +678,24 @@ test('personalização é independente, opcional e revisável por conta',async()
  assert.equal(q('#privacyPreferences').hidden,false);
  assert.match(q('[data-privacy-notice]').textContent,/Não foi possível confirmar/);
 });
+
+
+test('Teste libera Criar conta e mantém cadastro fechado sem flag explícita',async()=>{
+ const build=fs.readFileSync('scripts/build-staging.cjs','utf8');
+ const base=fs.readFileSync('release/multiagent-staging/configure-frontend.cjs','utf8');
+ assert.match(build,/previewRegistration:\s*true/);
+ assert.match(build,/publicRegistration:\s*false/);
+ assert.match(build,/process\.env\.VERCEL_PROJECT_ID !== 'prj_ksWxwsJyKhdR2nW2OiZkwx8hlkdq'/);
+ assert.match(base,/previewRegistration:\s*false/);
+ const a=setup({}, {cloud:{configured:true}});
+ a.ctx.NEO_CONFIG.providers.email=true;
+ a.ctx.NEO_CONFIG.previewRegistration=false;
+ await a.run("authMode='signup';go('bemvindo',false)");
+ assert.ok(a.document.querySelector('#authForm button.primary[disabled]'),'cadastro deve estar bloqueado sem flag');
+ a.ctx.NEO_CONFIG.previewRegistration=true;
+ await a.run("authMode='signup';go('bemvindo',false)");
+ const button=a.document.querySelector('#authForm button.primary');
+ assert.ok(button);
+ assert.equal(button.disabled,false,'botão deve estar habilitado somente no ambiente que autoriza cadastro');
+ assert.match(button.textContent,/Criar conta/);
+});
