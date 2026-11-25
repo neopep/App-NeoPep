@@ -17,10 +17,27 @@
   return 'cancelled';
  }
  function mount({root,cloud,legacy,openLegacy,recoverLegacy,onConnect}){
-  let current=null, detail=null, rows=[], filter='', search='', view='agenda', screen='', busy=false, formKey='', page=0, more=false;
+  let current=null, detail=null, weekly=[], rows=[], filter='', search='', view='agenda', screen='', busy=false, formKey='', page=0, more=false;
   const account=cloud.user.id;
   const active=()=>root.isConnected&&cloud.user?.id===account;
   const rpc=(action,values={})=>cloud.campaignCentral(action,{campaign_id:current,...values});
+  const weeklyRpc=(action,values={})=>cloud.campaignWeekly(action,{campaign_id:current,...values});
+  const weekdays=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  function weeklyDates(rule){
+   const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'})
+    .formatToParts(new Date()).reduce((result,part)=>({...result,[part.type]:part.value}),{});
+   const today=`${parts.year}-${parts.month}-${parts.day}`, now=today+'T'+parts.hour+':'+parts.minute;
+   const start=Date.parse(rule.start+'T00:00:00Z'),horizon=Date.parse(today+'T00:00:00Z')+89*86400000;
+   const end=rule.end?Date.parse(rule.end+'T00:00:00Z'):horizon;
+   if(!Number.isFinite(start)||!Number.isFinite(end)||end>horizon||start>end||rule.start<today||rule.count<1||rule.count>24)return [];
+   const dates=[];
+   for(let at=start;at<=end&&dates.length<rule.count;at+=86400000){
+    const day=new Date(at);
+    const occurrence=day.toISOString().slice(0,10)+'T'+rule.time;
+    if(rule.days.includes(day.getUTCDay())&&occurrence>now)dates.push(occurrence);
+   }
+   return dates;
+  }
   let loadEpoch=0;
   let statusTimer=null,statusRefreshing=false;
   const legacyKey='neo-campaign-editor:'+account+':whatsapp:new';
@@ -122,15 +139,20 @@
      <p class="sub">${batch?date(batch.due_at):local(pub.planned_local)||'Sem data'} · São Paulo · ${pub.kinds?.length||0} mensagem(ns)${pub.kinds?.length?' · '+escape(pub.kinds.join(', ')):''}</p>
      ${view==='agenda'&&editable&&pub.planned_local&&!locked?`<label class="check"><input type="checkbox" name="selected-publication" value="${escape(pub.id)}"> Selecionar para agendar</label>`:''}
      <div class="inline-actions">${button('edit',locked||!editable?'Ver publicação':'Editar publicação',pub.id)}
-     ${editable?button('duplicate_form','Duplicar / distribuir',pub.id):''}
+     ${editable?button('duplicate_form','Duplicar / distribuir',pub.id)+(typeof cloud.campaignWeekly==='function'?button('weekly_form','Repetir semanalmente',pub.id):''):''}
      ${batch?.states?.includes('waiting')&&editable?button('cancel','Cancelar pendências',pub.id):''}</div>
      ${view==='history'?`<div data-central-history="${escape(pub.id)}">${button('attempts','Ver tentativas e recibos',pub.id)}</div>`:''}</article>`;
    }).join('');
-   redraw(`${button('back','‹ Campanhas')}<div class="between"><h2>${escape(detail.title)}</h2>${editable?button('rename','Renomear')+button('archive','Arquivar'):''}</div>
+   redraw(`${button('back','‹ Campanhas')}<div class="between"><h2>${escape(detail.title)}</h2>${editable?button('rename','Renomear')+button('archive','Arquivar'):''}${button('delete','Excluir campanha')}</div>
     <p class="sub">WhatsApp · ${items.length} publicação(ões)${editable?'':' · Arquivada'}</p>
     <div class="inline-actions">${button('agenda','Agenda','',view==='agenda'?'primary':'secondary')}${button('history','Histórico','',view==='history'?'primary':'secondary')}${button('refresh_status','Atualizar estados')}</div>
     ${view==='agenda'? `<label>Filtrar a partir de<input type="date" data-central-date></label><div data-central-date-list>${cards(dated)||'<p>Sem publicações com data.</p>'}</div>
      <h3>Rascunhos sem data</h3>${cards(undated)||'<p>Sem rascunhos sem data.</p>'}
+     ${weekly.length?`<h3>Repetições semanais</h3>${weekly.map(item=>`<article class="monitor-block">
+      <strong>${escape(items.find(pub=>pub.id===item.publication_id)?.title||'Publicação')}</strong>
+      <p class="sub">${({scheduled:'Agendada',paused:'Pausada',cancelled:'Cancelada'})[item.state]} · ${escape(item.dates.map(local).join(' · '))}</p>
+      <div class="inline-actions">${editable&&item.state!=='cancelled'?button('weekly_edit','Editar datas',item.id)+
+       (item.state==='scheduled'?button('weekly_pause','Pausar',item.id):'')+button('weekly_cancel','Cancelar repetição',item.id):''}</div></article>`).join('')}`:''}
      ${editable?`<div class="inline-actions">${getLocal(pointer())?'':button('add','+ Adicionar publicação','','primary')}
       ${getLocal(pointer())?button('resume','Continuar rascunho local')+button('discard','Descartar rascunho local'):''}
       ${dated.length?button('schedule_selected','Revisar e agendar selecionadas'):''}</div>`:''}`:
@@ -141,7 +163,8 @@
   async function load(id){
    current=id;
    const result=await rpc('get');
-   if(active()&&current===id){detail=result;details();}
+   const series=typeof cloud.campaignWeekly==='function'?await weeklyRpc('list').catch(()=>[]):[];
+   if(active()&&current===id){detail=result;weekly=series;details();}
   }
   async function editor(id,trigger,options={}){
    const campaignId=current;
@@ -153,6 +176,18 @@
      if(getLocal(pointer())===id)removeLocal(pointer());
      if(active()&&current===campaignId)void load(campaignId).catch(()=>show('Atualize para conferir a publicação salva.'));
     }});
+  }
+  function weeklyForm(pub,existing){
+   const rule=existing?.rule||{};
+   redraw(`${button('open','‹ Agenda',current)}<h2>Repetir semanalmente</h2><p>${escape(pub.title)}</p>
+    <form data-central-form="weekly" data-id="${escape(pub.id)}" data-request="${crypto.randomUUID()}" data-replace="${escape(existing?.id)}" class="campaign-central-form">
+    <fieldset><legend>Dias da semana</legend><div class="inline-actions">${weekdays.map((day,i)=>`<label class="check"><input type="checkbox" name="days" value="${i}" ${rule.days?.includes(i)?'checked':''}> ${day}</label>`).join('')}</div></fieldset>
+    <label>Horário em São Paulo<input type="time" name="time" value="${escape(rule.time)}" required></label>
+    <label>Início<input type="date" name="start" value="${escape(rule.start)}" required></label>
+    <label>Término (opcional)<input type="date" name="end" value="${escape(rule.end)}"></label>
+    <label>Número máximo de ocorrências<input type="number" name="count" min="1" max="24" value="${rule.count||4}" required></label>
+    <p class="sub">Até 24 ocorrências nos próximos 89 dias. As publicações em andamento mantêm o histórico.</p>
+    <button type="submit" class="primary">Conferir próximas datas</button></form>`);
   }
   function duplicateForm(pub){
    redraw(`${button('open','‹ Agenda',current)}<h2>Duplicar publicação</h2><p>${escape(pub.title)}</p>
@@ -201,6 +236,18 @@
      const fields=new FormData(form);
      const result=await rpc('create',{title:fields.get('title'),destination:fields.get('destination'),request_id:formKey});
      if(active()){view='agenda';await load(result.campaign_id);}
+    }else if(form.dataset.centralForm==='weekly'){
+     const fields=new FormData(form),source=await rpc('load',{publication_id:form.dataset.id});
+     const rule={start:fields.get('start'),end:fields.get('end'),time:fields.get('time'),count:Number(fields.get('count')),
+      days:fields.getAll('days').map(Number)};
+     const dates=weeklyDates(rule),groups=source?.draft?.groups||[];
+     if(!dates.length||!groups.length){show('Confira datas e horários e selecione destinos na publicação.');return;}
+     const catalog=await cloud.campaignWhatsAppSync('catalog');
+     const names=groups.map(id=>catalog.find(group=>group.id===id)?.name||'Destino selecionado');
+     if(!active()||!confirm('Agendar para '+names.join(', ')+'?\n\n'+dates.map(local).join('\n')+'\n\nHorário de São Paulo'))return;
+     await weeklyRpc('schedule',{...rule,dates,publication_id:form.dataset.id,request_id:form.dataset.request,
+      replace_id:form.dataset.replace||null,confirmed:true});
+     await load(current);show('Repetição registrada com '+dates.length+' ocorrência(s).');
     }else if(form.dataset.centralForm==='rename'){
      await rpc('rename',{title:new FormData(form).get('title')});await load(current);
     }else{
@@ -243,6 +290,15 @@
     if(action==='edit'&&pub)await editor(id,control,{readOnly:Boolean(detail.archived_at||pub.legacy_dispatch||pub.batches[0]&&
      (pub.batches[0].cancelled_at==null||pub.batches[0].states?.some(value=>value!=='cancelled')))});
     if(action==='duplicate_form'&&pub)duplicateForm(pub);
+    if(action==='weekly_form'&&pub)weeklyForm(pub);
+    if(action==='weekly_edit'){
+     const item=weekly.find(row=>row.id===id),source=detail.publications.find(row=>row.id===item?.publication_id);
+     if(item&&source)weeklyForm(source,item);
+    }
+    if(['weekly_pause','weekly_cancel'].includes(action)&&confirm('Cancelar os envios pendentes desta repetição?')){
+     await weeklyRpc(action==='weekly_pause'?'pause':'cancel',{request_id:id,confirmed:true});await load(current);
+    }
+
     if(action==='add_date'){
      const fields=root.querySelector('[data-central-dates]');
      if(fields.childElementCount<20)fields.insertAdjacentHTML('beforeend',`<label>Data e horário em São Paulo<input type="datetime-local" name="date" data-request="${crypto.randomUUID()}" required></label>`);
@@ -250,6 +306,7 @@
     if(action==='rename')redraw(`${button('open','‹ Agenda',current)}<h2>Renomear campanha</h2>
      <form data-central-form="rename" class="campaign-central-form"><label>Nome da campanha<input name="title" required maxlength="120" value="${escape(detail.title)}"></label>
      <button class="primary" type="submit">Salvar nome</button></form>`);
+    if(action==='delete'&&confirm('Excluir esta campanha e cancelar os envios futuros? O histórico será preservado.')){await rpc('delete',{confirmed:true});await refresh();}
     if(action==='archive'&&confirm('Arquivar esta campanha e manter seu histórico?')){await rpc('archive');await load(current);}
     if(action==='cancel'&&pub&&confirm('Cancelar somente as mensagens ainda pendentes desta publicação?')){
      await rpc('cancel',{publication_id:id,batch_id:pub.batches[0].id});await load(current);
