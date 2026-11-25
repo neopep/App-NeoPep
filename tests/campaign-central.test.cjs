@@ -97,3 +97,18 @@ test('pacote UX: player neutro e links completos para referencias, sem enviar na
  assert.match(editor,/Ver prévia \(sem enviar\)/);
  assert.match(editor,/A prévia não envia mensagens/);
 });
+
+test('onboarding exibe preferencias inicialmente marcadas sem autorizar antes do OK',()=>{
+ const source=fs.readFileSync('src/app.js','utf8');
+ const built=fs.readFileSync('dist/app.js','utf8');
+ for(const app of [source,built]){
+  assert.match(app,/field\.checked=initial&&values\.pending\?true:values\[key\]===true/);
+  assert.match(app,/data-privacy-select-none/);
+  assert.match(app,/data-privacy-choose-all/);
+  assert.match(app,/option\.checked=false/);
+  assert.match(app,/option\.checked=true/);
+  assert.match(app,/checked!==baseline\[key\]/);
+  assert.match(app,/wantsCampaigns=choices\.campaigns===true/);
+  assert.match(app,/A[s]? permiss[oõ]es s[oã]o salvas|nenhuma nova autoriza[cç][aã]o [eé] salva/i);
+ }
+});
