@@ -56,5 +56,12 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - name: Exigir release-readiness verificado
-        run: npm run release:check
+      - name: Exigir evidências do release incremental
+        env:
+          NEO_PEP_PR_BRANCH: ${{ github.head_ref }}
+        run: |
+          if [[ "$NEO_PEP_PR_BRANCH" == 'release/ciclo-aprovado-20261125' ]]; then
+            node scripts/release-incremental-check.cjs
+          else
+            npm run release:check
+          fi

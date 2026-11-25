@@ -1393,7 +1393,7 @@ let geoAccount=null,geoAllowed=null,geoPending=false,geoNext=0,geoCaptureRequest
 async function syncGeo(){
  const account=mode==='cloud'&&!demo?Cloud.user?.id:null;
  if(geoAccount!==account){geoAccount=account;geoAllowed=null;geoPending=false;geoNext=0;geoCaptureRequested=true}
- const enabled=window.NEO_CONFIG?.stagingGeoEnabled===true;
+ const enabled=locationObservationEnabled();
  if(!account||!Cloud.geoControl||geoPending||document.visibilityState==='hidden'||(!enabled&&page!=='perfil')||Date.now()<geoNext)return;
  geoPending=true;
  try{
@@ -1589,6 +1589,11 @@ function privacyHelp(form){
  if(form.querySelector('[name=location]')?.disabled)messages.push('A localização aproximada ainda está indisponível neste ambiente.');
  return messages.join(' ');
 }
+function locationObservationEnabled(){
+ const config=window.NEO_CONFIG;
+ if(config?.supabaseUrl==='https://cpslafpzjtbpmoxxysaa.supabase.co')return config.productionGeoEnabled===true;
+ return config?.stagingGeoEnabled===true;
+}
 function requestDeviceLocation(){
  return new Promise(resolve=>{
   const timeout=setTimeout(()=>finish(false),8000);
@@ -1624,7 +1629,7 @@ function mountPrivacyPreferences(){
    if(field)field.checked=values[key]===true;
   }
   const locationField=form.querySelector('[name=location]');
-  if(locationField)locationField.disabled=!values.location&&window.NEO_CONFIG?.stagingGeoEnabled!==true;
+  if(locationField)locationField.disabled=!values.location&&!locationObservationEnabled();
   status.textContent=privacyHelp(form);
  }
  async function load(){
@@ -1635,7 +1640,7 @@ function mountPrivacyPreferences(){
    if(initial&&!values.pending){await openAccountDestination(false);return;}
    apply(values);
    fields.disabled=false;
-   if(intro&&!values.location&&window.NEO_CONFIG?.stagingGeoEnabled===true&&!locationChoiceRecorded(account)){
+   if(intro&&!values.location&&locationObservationEnabled()&&!locationChoiceRecorded(account)){
     form.hidden=true;intro.hidden=false;
     intro.querySelector('h2').focus();
    }else await showPersonalization();
@@ -1651,7 +1656,7 @@ function mountPrivacyPreferences(){
   for(const button of intro.querySelectorAll('button'))button.disabled=true;
   let message='';
   try{
-   if(choice==='allow'&&window.NEO_CONFIG?.stagingGeoEnabled===true){
+   if(choice==='allow'&&locationObservationEnabled()){
     intro.querySelector('[data-location-notice]').textContent='Aguardando a autorização do aparelho…';
     const authorized=await requestDeviceLocation();
     if(!current())return;

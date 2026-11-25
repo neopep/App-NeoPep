@@ -229,11 +229,12 @@ const api={configured,connectTestEnabled:connectEnabled,
  async geoControl(action){need();return ok(await client.rpc('neo_geo_control',{p_action:action}))},
  async adminGeo(users){need();return ok(await client.rpc('neo_admin_geo',{p_users:users}))},
  async captureGeo(){
-  if(official||!config.geoEndpoint)return;
+  const endpoint=official?(config.productionGeoEnabled===true?'/api/location-observe':null):config.geoEndpoint;
+  if(!endpoint)return;
   need();const version=identityVersion,account=user.id;
   const {session}=ok(await client.auth.getSession());
   if(version!==identityVersion||session?.user?.id!==account||!session.access_token)return;
-  const result=await fetch(config.geoEndpoint+'?mode=geo',{method:'POST',headers:{Authorization:'Bearer '+session.access_token}});
+  const result=await fetch(endpoint+(official?'':'?mode=geo'),{method:'POST',headers:{Authorization:'Bearer '+session.access_token}});
   if(version===identityVersion&&result.ok)return result.json();
  },
  async adminOperations(section,days=30,review=null){need();return ok(await client.rpc('neo_admin_operations',{p_section:section,p_days:days,p_review:review}))},
