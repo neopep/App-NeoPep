@@ -31,3 +31,23 @@
 5. Preservar constraints e flags financeiras, filas e recibos; somente operar envios após verificação específica de destinos e autorização.
 
 **Status:** escopo visual registrado e aprovado para incluir na rodada; deploys suspensos por decisão do usuário; validação end-to-end pendente.
+
+
+## Auditoria complementar — contadores numéricos
+
+Após a PR #81, foi feita varredura cruzada do CSS e das telas de Comunidade (incluindo Grupos e Conversas), Atendimento, Loja, notificações e Administração. Identificou-se **um item faltante:** `.nav-community-count`, bolinha com número no menu inferior da Comunidade. A classe foi adicionada à mesma regra de azul-marinho do tema claro, preservando posição, contagem, exibição e tema escuro.
+
+| Local | Seletor identificado | Tratamento |
+| --- | --- | --- |
+| Comunidade, menu inferior | `.nav-community-count` | Correção complementar incluída |
+| Comunidade, atalho/cabeçalho | `.community-badge`, `.has-news` | Já coberto |
+| Comunidade → Grupos | `.tab-unread` | Já coberto |
+| Comunidade → Conversas | `.tab-unread` | Já coberto |
+| Aba selecionada de Grupos/Conversas | `.primary .tab-unread` | Já coberto |
+| Atendimento, conversa não lida | `.support-thread-meta b` | Já coberto |
+| Loja, menu inferior | `.nav-shop-count` | Já coberto |
+| Sino de notificações | `.notification-count` | Já coberto |
+| Notificação que desce na tela | `.notification-toast-main > b` | Já coberto |
+| Novo cadastro (admin) | `.admin-signup-badge` | Já coberto |
+
+Paleta: fundo `#142743`, aro/borda `#223F63`, número `#FFFFFF`, exclusivamente em `[data-theme=light]`. Não incluir `.status-pill` ou selos promocionais, que não são contadores de mensagens. Testes agora verificam tanto os seletores CSS quanto as classes presentes nas telas reais. **A correção está apenas no código; nenhuma publicação na Vercel ou em Produção foi efetuada.**
