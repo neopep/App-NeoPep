@@ -124,3 +124,11 @@ A fonte assinada do Windows 0.2.10 (`148f68f927b9b128dcd5518b97dc6ab69f8980cb`) 
 Gates de operação após autorização específica: aplicar a migração desligada no projeto `qnuluspqfazdppciermw`, comprovar a presença de despacho, preencher o vínculo aprovado, ativar apenas a allowlist e avaliar a retirada autorizada da pausa do Connect de Teste. A pausa é compartilhada com o caminho legado de tarefas e deve ser revisada junto ao inventário de pendências. A primeira mensagem real só é criada após confirmação do administrador no editor. O sistema distingue aceite do cliente por recibo, resultado incerto e falha. Validar o recebimento explicitamente no grupo. A autorização por lote e a flag de agenda específica só habilitam a programação após um recibo de publicação imediata nesse grupo. Mídia, legendas e produtos continuam em prévia local.
 
 A reversão desliga a allowlist, cancela pendências desse recorte, marca tentativas iniciadas como incertas e restaura as definições anteriores das duas RPCs com a flag legada desligada. Mantém o histórico. A reversão não recupera uma mensagem já encaminhada ao provedor.
+
+### Refinamento de Perfil, calculadora e editor de campanhas
+
+O seletor Claro, Sistema e Escuro fica no cabeçalho do Perfil e reutiliza a preferência existente. A calculadora identifica o volume do diluente, explica a necessidade de informar o volume final efetivo e oferece passo de 0,1 mg no slider de dose. As notificações do tema claro usam o contraste da paleta atual.
+
+O compositor mantém o fundo estável, dispõe os painéis acima da área de digitação e renderiza as legendas nos blocos correspondentes. O texto provisório pode ser movido ou usado como legenda. Produtos, materiais e publicações reutilizam as consultas autenticadas existentes. A pesquisa da Comunidade cobre as publicações devolvidas pelo feed autorizado. URLs temporárias de prévia ficam fora dos rascunhos persistidos.
+
+Verificação local com build, check e 437 testes automatizados. Os ensaios Chromium com dados simulados cobriram desktop, iPhone 13 e Pixel 7 emulados. Safari nativo, teclado físico de teste em iPhone e PWA instalada permanecem para homologação. Este refinamento não requer novas migrações nem modifica as autorizações de despacho.

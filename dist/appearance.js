@@ -21,6 +21,7 @@ window.NeoAppearance=(()=>{
  function save(next){
   apply(next);
   try{localStorage.setItem(key,preference);}catch{/* The current page can still change appearance. */}
+  document.dispatchEvent(new Event('neo:appearance'));
  }
  apply();
  system.addEventListener?.('change',()=>apply());

@@ -14,7 +14,7 @@ const html=fs.readFileSync(path.join(root,'dist/admin/index.html'),'utf8');
 test('product/library/community blocks can be edited as captions in the same bubble',()=>{
  assert.match(editor,/\['text','image','product','document','community','file','link'\]\.includes\(block\.type\)/);
  assert.match(editor,/data-editor="edit"/);
- assert.match(editor,/captionTarget=id;editing=id;message\.value=''/);
+ assert.match(editor,/captionTarget=id;if\(!keepText\)\{editing=id;message\.value=''/);
  assert.match(editor,/Escreva a legenda deste bloco/);
  assert.match(editor,/edited\.text=text/);
  assert.match(editor,/Legenda adicional:/);
@@ -42,7 +42,7 @@ test('library and community deep links never disclose private signed media URLs'
 });
 
 test('admin loads new iPhone caption editor, while no send is added to the migration',()=>{
- assert.match(html,/campaign-editor\.js\?v=9/);
+ assert.match(html,/campaign-editor\.js\?v=profile-compose-1/);
  const sql=migration.replace(/^--[^\n]*\n/gm,'').trim();
  assert.match(sql,/^CREATE OR REPLACE FUNCTION public\.neo_campaign_rich_admin_v1/);
  assert.match(sql,/\$function\$\s*;$/);

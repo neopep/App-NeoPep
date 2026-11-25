@@ -14,7 +14,14 @@ async function scenario(browser,options){
    window.NEO_CONFIG={supabaseUrl:'https://qnuluspqfazdppciermw.supabase.co'};
    window.confirm=()=>true;window.calls=[];window.failed=false;window.failSave=true;
    window.cloud={
-    user:{id:'admin'},
+    user:{id:'00000000-0000-4000-8000-000000000001'},
+    campaignMediaUpload:async path=>path,
+    library:async()=>({material:{body:'Descrição da Biblioteca',attachments:[{mime:'image/jpeg',size:100,path:'autorizado.jpg'}]}}),
+    libraryMediaURL:async()=> 'https://qnuluspqfazdppciermw.supabase.co/storage/v1/object/sign/neo-library/autorizado.jpg?token=biblioteca',
+    communityInboxV2:async()=>({posts:[
+     {id:'published',status:'published',alias:'Autora',body:'Encontro sobre hábitos',created_at:'2026-11-24T12:00:00Z'},
+     {id:'pending',status:'pending',alias:'Autora',body:'Encontro privado'}
+    ]}),
     campaignWhatsAppSync:async action=>{
      window.calls.push([action]);
      if(window.failed)throw Error('offline');
@@ -49,6 +56,7 @@ async function scenario(browser,options){
      throw Error('Operação inesperada '+action);
     }
    };
+   document.documentElement.dataset.theme='light';
    document.querySelector('#start').onclick=()=>NeoCampaignEditor.open({cloud,trigger:document.querySelector('#start')});
   });
   await page.locator('#start').click();
@@ -56,7 +64,17 @@ async function scenario(browser,options){
   await dialog.getByLabel('Nome da campanha').fill('Campanha de revisão');
   await dialog.getByRole('button',{name:'Salvar nome e continuar'}).click();
   assert.equal(await dialog.locator('[data-campaign-name]').textContent(),'Campanha de revisão');
-  await dialog.getByLabel('Compor texto').fill('Olá mundo');
+  const composer=dialog.getByLabel('Compor texto');
+  await composer.focus();
+  const bold=dialog.getByRole('button',{name:'Negrito',exact:true});
+  await bold.click();
+  assert.equal(await composer.inputValue(),'**');
+  assert.equal(await composer.evaluate(el=>el.selectionStart),1);
+  await composer.pressSequentially('teste');
+  assert.equal(await composer.inputValue(),'*teste*');
+  await bold.click();
+  assert.equal(await composer.evaluate(el=>el.selectionStart),7);
+  await composer.fill('Olá mundo');
   assert.match(await dialog.locator('[data-editor-live]').textContent(),/Olá mundo/);
   await dialog.getByRole('button',{name:'Expandir campo'}).click();
   assert.equal(await dialog.locator('textarea').getAttribute('rows'),'10');
@@ -75,7 +93,7 @@ async function scenario(browser,options){
   await dialog.locator('[name=message]').evaluate(el=>{el.focus();el.setSelectionRange(4,9);el.dispatchEvent(new Event('select'));});
   await dialog.getByRole('button',{name:'Adicionar conteúdo'}).click();
   await dialog.getByRole('button',{name:'Formatar seleção',exact:true}).click();
-  await dialog.getByRole('button',{name:'Negrito'}).click();
+  await dialog.getByRole('button',{name:'Aplicar negrito'}).click();
   await dialog.getByRole('button',{name:'Adicionar texto'}).click();
   assert.equal(await dialog.locator('.neo-structured-text strong').textContent(),'mundo');
   await dialog.locator('.structured-bubble-actions summary').first().click();
@@ -92,25 +110,42 @@ async function scenario(browser,options){
    buffer:Buffer.concat([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR8sAAAAASUVORK5CYII=','base64'),Buffer.alloc(6*1024*1024)])
   });
   await dialog.locator('[data-editor-image]:not([hidden])').waitFor();
-  assert.equal(await dialog.getByRole('button',{name:'Legenda da imagem'}).getAttribute('aria-pressed'),'true');
+  assert.equal(await dialog.getByRole('button',{name:'Editar legenda do bloco'}).getAttribute('aria-pressed'),'true');
   await dialog.getByLabel('Compor texto').fill('Legenda da foto');
   assert.equal(await dialog.locator('[data-editor-image]').locator('..').locator('[data-block-text]').textContent(),'Legenda da foto');
-  const l=dialog.getByRole('button',{name:'Legenda da imagem'});
-  await l.click();
-  assert.equal(await dialog.locator('[data-editor-live]').textContent(),'Legenda da foto');
-  assert.equal(await dialog.locator('[data-editor-image]').locator('..').locator('[data-block-text]').textContent(),'');
+  const l=dialog.getByRole('button',{name:'Editar legenda do bloco'});
   await l.click();
   assert.equal(await dialog.locator('[data-editor-image]').locator('..').locator('[data-block-text]').textContent(),'Legenda da foto');
-  await dialog.getByRole('button',{name:'Atualizar bloco'}).click();
+  await l.click();
+  assert.equal(await dialog.locator('[data-editor-image]').locator('..').locator('[data-block-text]').textContent(),'Legenda da foto');
+  await dialog.getByRole('button',{name:'Salvar legenda do bloco'}).click();
   await dialog.getByRole('button',{name:'Adicionar conteúdo'}).click();
   await dialog.getByRole('button',{name:'Biblioteca',exact:true}).click();
   await dialog.getByRole('button',{name:'Material autorizado'}).click();
+  await dialog.getByText(/Descrição da Biblioteca/).waitFor();
+  await composer.fill('Legenda um');
   await dialog.getByRole('button',{name:'Adicionar conteúdo'}).click();
   await dialog.getByRole('button',{name:'Produto',exact:true}).click();
   await dialog.getByRole('button',{name:/Produto público/}).click();
-  await dialog.locator('.structured-product img').waitFor();
-  assert.match(await dialog.locator('.structured-product').textContent(),/24,90/);
-  assert.equal(await dialog.locator('.structured-product a').getAttribute('href'),'https://teste.app.neopep.com.br/?produto=produto-publico#loja');
+  await composer.fill('Legenda dois');
+  await dialog.getByRole('button',{name:'Salvar legenda do bloco'}).click();
+  await composer.fill('Provisória');
+  await dialog.getByRole('button',{name:'Subir texto provisório'}).click();
+  assert.equal(await composer.inputValue(),'Provisória');
+  await dialog.getByRole('button',{name:'Descer texto provisório'}).click();
+  await composer.fill('');
+  await dialog.getByRole('button',{name:'Adicionar conteúdo'}).click();
+  await dialog.getByRole('button',{name:'Comunidade',exact:true}).click();
+  await dialog.getByLabel('Buscar referências').fill('habitos');
+  await dialog.getByRole('button',{name:'Buscar',exact:true}).click();
+  await dialog.getByRole('button',{name:/Encontro sobre hábitos/}).click();
+  assert.equal(await dialog.getByText(/Encontro privado/).count(),0);
+  await dialog.getByRole('button',{name:'Adicionar conteúdo'}).click();
+  await dialog.getByRole('button',{name:'Produto',exact:true}).click();
+  await dialog.getByRole('button',{name:/Produto público/}).click();
+  await dialog.locator('.structured-product img').last().waitFor();
+  assert.match(await dialog.locator('.structured-product').last().textContent(),/24,90/);
+  assert.equal(await dialog.locator('.structured-product a').last().getAttribute('href'),'https://teste.app.neopep.com.br/?produto=produto-publico#loja');
   await dialog.getByRole('button',{name:'Grupos',exact:true}).click();
   await dialog.getByLabel(/Grupo um/).check();
   assert.equal(await dialog.getByLabel(/Grupo dois/).count(),0);
@@ -120,7 +155,7 @@ async function scenario(browser,options){
   await dialog.getByRole('button',{name:'Configurações',exact:true}).click();
   assert.equal(await dialog.getByLabel('Nome da campanha').inputValue(),'Campanha de revisão');
   await dialog.getByRole('button',{name:'Fechar painel'}).click();
-  assert.equal(await dialog.locator('.neo-structured-bubble').count(),5);
+  assert.equal(await dialog.locator('.neo-structured-bubble').count(),7);
   await dialog.locator('[data-editor-image]:not([hidden])').waitFor();
   await dialog.getByRole('button',{name:'Grupos',exact:true}).click();
   await dialog.getByLabel(/Grupo um/).waitFor();

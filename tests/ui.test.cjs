@@ -39,7 +39,9 @@ test('calculadora sincroniza seleção rápida, controles deslizantes e valores 
  assert.equal(node('#dose').value,'');
  assert.equal(node('#calcForm button[type=submit]'),null);
  assert.equal(node('#calc-range-mass').getAttribute('step'),'0.5');
- assert.equal(node('#calc-range-dose').getAttribute('step'),'0.5');
+ assert.equal(node('#calc-range-dose').getAttribute('step'),'0.1');
+ assert.equal(node('.calc-card-volume h2').textContent,'Volume do diluente');
+ assert.match(node('#calc-volume-help').textContent,/volume final efetivo/);
  assert.ok(node('[data-calc-chip=mass][data-value="15"]'));
  assert.deepEqual([...doc.querySelectorAll('.calc-capacities input[type=radio]')].map(input=>input.value),['0.3','0.5','1']);
  assert.equal(doc.querySelectorAll('.calc-capacities .calc-syringe').length,3);
@@ -485,8 +487,12 @@ test('aparência usa o sistema na abertura, preserva a escolha manual e permite 
  assert.equal(theme(a),'dark');
  assert.equal(a.data.has('neo-appearance'),false);
  await a.run("go('inicio',false)");
+ assert.equal(a.document.querySelector('#headerAppearance'),null);
+ await a.run("page='perfil';render()");
+ assert.equal(a.document.querySelector('#themeSelect'),null);
+ assert.ok(a.document.querySelector('.page-back-row .profile-appearance'));
  const choose=value=>{
-  const button=a.document.querySelector('#headerAppearance [data-appearance="'+value+'"]');
+  const button=a.document.querySelector('.profile-appearance [data-appearance="'+value+'"]');
   button.dispatchEvent(new a.ctx.Event('click',{bubbles:true}));
   assert.equal(button.getAttribute('aria-pressed'),'true');
  };
@@ -499,6 +505,8 @@ test('aparência usa o sistema na abertura, preserva a escolha manual e permite 
  await a.run("mode='cloud';go('inicio',false)");
  a.ctx.NeoCloud.user={id:'account-b'};
  await a.run("go('inicio',false)");
+ assert.equal(theme(a),'light');
+ await a.run("mode='local';state.profile.theme='dark';page='perfil';render()");
  assert.equal(theme(a),'light');
  choose('dark');assert.equal(theme(a),'dark');
  choose('system');a.setSystem(false);assert.equal(theme(a),'light');

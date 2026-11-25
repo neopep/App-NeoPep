@@ -28,6 +28,14 @@ const dist=path.resolve(__dirname,'../dist');
   await other.goto('https://theme.test/');
   await other.evaluate(()=>NeoAppearance.save('light'));
   await page.waitForFunction(()=>document.documentElement.dataset.theme==='light');
+  const toast=await page.evaluate(()=>{
+   const node=document.createElement('article');node.className='notification-toast';
+   node.innerHTML='<button class="notification-toast-main"><span class="notification-toast-icon">A</span><span class="notification-toast-copy"><strong>Atendimento solicitado</strong><small>Abra o atendimento</small></span></button><span class="notification-toast-progress"></span>';
+   document.body.append(node);
+   const css=selector=>getComputedStyle(selector?node.querySelector(selector):node);
+   return {surface:css().backgroundColor,primary:css('strong').color,secondary:css('small').color,icon:css('.notification-toast-icon').color,progress:css('.notification-toast-progress').backgroundColor};
+  });
+  assert.deepEqual(toast,{surface:'rgba(248, 251, 255, 0.96)',primary:'rgb(23, 43, 73)',secondary:'rgb(64, 87, 117)',icon:'rgb(33, 67, 109)',progress:'rgb(82, 108, 154)'});
   console.log('Tema antes do CSS, persistência, atualização do sistema e sincronização entre abas aprovados.');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});
