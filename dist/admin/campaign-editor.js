@@ -344,7 +344,7 @@
     (enabled?'Homologação App · '+testGate.destinations+' conta(s) autorizada(s) · somente no aplicativo, sem push.':'Homologação App indisponível. Use a simulação enquanto a lista e a ativação aguardam aprovação.'):
     testWA?(enabled?'Homologação WhatsApp · somente o grupo autorizado e texto sem links de até 160 caracteres. '+
      (gates.whatsapp_test.schedule_ready?'Agendamento liberado.':'Agendamento aguarda o comprovante imediato e liberação específica.'):
-     'WhatsApp em simulação. Aguarde a liberação do grupo e a presença de despacho do Connect.'):enabled?
+     'WhatsApp em simulação. No NeoPep Connect do Windows (perfil TESTE), habilite Preparar envios de campanha nas Configurações, verifique a sessão conectada e aguarde o diagnóstico. O envio real depende também da liberação da pausa do servidor.'):enabled?
     'O despacho exige uma versão registrada, somente texto e destinos autorizados. Aceitação pelo cliente não confirma entrega.':
     'Envio e agendamento automáticos bloqueados. Somente texto no contrato de despacho.';
   }
