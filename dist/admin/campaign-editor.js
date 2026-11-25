@@ -480,9 +480,20 @@
     if(!localImage)throw Error('Imagem não encontrada neste dispositivo. Anexe novamente.');
     const jpeg=await jpegForDispatch(localImage);
     const path=account+'/'+block.id+'.jpg';
-    await cloud.campaignMediaUpload(path,jpeg);
+    // O SDK oficial e regenerado a partir de src/cloud.js. Aceitar tambem o
+    // uploader legado enquanto abas PWA com um bundle antigo estiverem abertas.
+    let stored;
+    if(typeof cloud.campaignMediaUpload==='function'){
+     stored=await cloud.campaignMediaUpload(path,jpeg);
+    }else if(typeof cloud.uploadCampaignImage==='function'){
+     stored=await cloud.uploadCampaignImage(jpeg);
+    }else{
+     throw Error('Versão antiga do aplicativo carregada. Reabra o NeoPep Teste e tente salvar novamente.');
+    }
     if(!current())throw Error('Sua conta mudou durante o upload.');
-    block.media_path=path;saveLocal();
+    if(typeof stored!=='string'||!new RegExp('^[a-f0-9-]{36}/[a-f0-9-]{36}\\.jpg$').test(stored)
+      ||stored.split('/')[0]!==account)throw Error('O upload não retornou um caminho privado válido.');
+    block.media_path=stored;saveLocal();
    }
   }
   async function saveRemote(){
