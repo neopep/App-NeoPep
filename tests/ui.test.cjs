@@ -696,6 +696,6 @@ test('Teste libera Criar conta e mantém cadastro fechado sem flag explícita',a
  await a.run("authMode='signup';go('bemvindo',false)");
  const button=a.document.querySelector('#authForm button.primary');
  assert.ok(button);
- assert.equal(button.disabled,false,'botão deve estar habilitado somente no ambiente que autoriza cadastro');
+ assert.equal(button.hasAttribute('disabled'),false,'botão deve estar habilitado somente no ambiente que autoriza cadastro');
  assert.match(button.textContent,/Criar conta/);
 });
