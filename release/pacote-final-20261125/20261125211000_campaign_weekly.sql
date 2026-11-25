@@ -76,6 +76,11 @@ begin
   return jsonb_build_object('id',series.id,'reused',true);
  end if;
 
+ result:=public.neo_campaign_central_v1('load',jsonb_build_object('campaign_id',campaign,'publication_id',source));
+ if (result->>'revision')::integer is distinct from (p_data->>'source_revision')::integer
+ or coalesce((result->>'revision')::integer,0)<1 then
+  raise exception 'campaign_weekly_source_changed' using errcode='40001';
+ end if;
  start_date:=(p_data->>'start')::date;
  end_date:=coalesce(nullif(p_data->>'end','')::date,(now() at time zone 'America/Sao_Paulo')::date+89);
  cutoff:=coalesce(nullif(p_data->>'count','')::integer,24);

@@ -31,7 +31,7 @@ test('Central oficial preserva propriedade, isolamento, idempotência e cancelam
   await db.exec(cases.replace(" desired text;"," desired text; fixture_series uuid; series_rule jsonb; result jsonb; jpeg_material uuid:=gen_random_uuid(); jpeg_publication uuid:=gen_random_uuid(); cover text;").replace(" perform public.neo_campaign_central_v1('archive',parent);",`
    fixture_series:=gen_random_uuid();
    series_rule:=parent||jsonb_build_object('publication_id',publication,'request_id',fixture_series,
-    'confirmed',true,'start',(now() at time zone 'America/Sao_Paulo')::date+7,
+    'confirmed',true,'source_revision',1,'start',(now() at time zone 'America/Sao_Paulo')::date+7,
     'end',(now() at time zone 'America/Sao_Paulo')::date+15,
     'time','10:00','count',2,
     'days',jsonb_build_array(extract(dow from (now() at time zone 'America/Sao_Paulo')::date+7)::int),

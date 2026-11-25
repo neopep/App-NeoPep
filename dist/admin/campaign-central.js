@@ -245,7 +245,7 @@
      const catalog=await cloud.campaignWhatsAppSync('catalog');
      const names=groups.map(id=>catalog.find(group=>group.id===id)?.name||'Destino selecionado');
      if(!active()||!confirm('Agendar para '+names.join(', ')+'?\n\n'+dates.map(local).join('\n')+'\n\nHorário de São Paulo'))return;
-     await weeklyRpc('schedule',{...rule,dates,publication_id:form.dataset.id,request_id:form.dataset.request,
+     await weeklyRpc('schedule',{...rule,dates,publication_id:form.dataset.id,source_revision:source.revision,request_id:form.dataset.request,
       replace_id:form.dataset.replace||null,confirmed:true});
      await load(current);show('Repetição registrada com '+dates.length+' ocorrência(s).');
     }else if(form.dataset.centralForm==='rename'){
