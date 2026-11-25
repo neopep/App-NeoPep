@@ -388,6 +388,10 @@
    root.textContent='Consultando destinos…';
    try{
     const rows=testApp?await cloud.campaignTest('status',{editor_id:state.editorId}):await cloud.campaignDispatch(channel==='app'?'app_status':'status',{editor_id:state.editorId});
+    let richRows=[];
+    if(testWA&&typeof cloud.campaignRich==='function'){
+     try{richRows=await cloud.campaignRich('status',{editor_id:state.editorId});}catch{}
+    }
     if(!current())return;
     if(testApp){
      const labels={available:'Disponível no aplicativo',scheduled:'Programada',offered:'Oferecida ao aplicativo',displayed:'Exibição confirmada',cancelled:'Cancelada',revoked:'Conta removida',paused:'Pausada',expired:'Expirada'};
@@ -404,7 +408,11 @@
       ${row.status==='active'&&new Date(row.starts_at)>new Date()?'<button type="button" class="secondary" data-editor="reschedule" data-batch="'+e(row.id)+'">Mover horário App</button> <button type="button" class="secondary" data-editor="cancel_batch" data-batch="'+e(row.id)+'">Cancelar App</button>':''}</article>`).join('')||'Nenhuma publicação App registrada.';
      return;
     }
-    root.innerHTML=rows.map(row=>`<article class="monitor-block">
+    const richHtml=richRows.map(row=>`<article class="monitor-block">
+     <strong>Bloco ${e(row.sequence)} · ${e(labels[row.kind]||row.kind)} · ${e(outcomes[row.dispatch_state]||row.dispatch_state)}</strong>
+     <p class="sub">Programado: ${e(new Date(row.scheduled_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}))} · ${e(row.dispatch_attempts)} tentativa(s) · ${row.has_receipt?'Recibo registrado':'Sem recibo'}</p>
+     ${row.dispatch_state==='waiting'?'<button type="button" class="secondary" data-editor="rich_cancel_batch" data-batch="'+e(row.batch_id)+'">Cancelar blocos pendentes</button>':''}</article>`).join('');
+    root.innerHTML=richHtml+rows.map(row=>`<article class="monitor-block">
      <strong>${e(row.dispatch_jid)} · ${e(outcomes[row.dispatch_state]||row.dispatch_state)}</strong>
      <p class="sub">Operação ${e(row.id)} · ${e(new Date(row.dispatch_due).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}))} · ${e(row.dispatch_attempts)} tentativa(s)${row.dispatch_cancel_requested?' · Cancelamento solicitado':''}</p>
      <ul>${row.attempts.map(a=>`<li>${e(a.event)} · ${e(new Date(a.recorded_at).toLocaleString('pt-BR'))}${a.receipt_id?' · Recibo '+e(a.receipt_id):''}</li>`).join('')}</ul>
@@ -673,6 +681,12 @@
     const scheduled=pendingDispatch;closeSheet();void dispatch(scheduled);
    }
    if(action==='dispatch_status')void showDispatch();
+   if(action==='rich_cancel_batch'){
+    if(!window.confirm('Cancelar as mensagens ricas ainda aguardando envio?'))return;
+    try{await cloud.campaignRich('cancel',{batch_id:control.dataset.batch});if(current())void showDispatch();}
+    catch{tell('Não foi possível cancelar. Atualize o diagnóstico.');}
+    return;
+   }
    if(action==='cancel_batch'||action==='reschedule'){
     if(action==='cancel_batch'&&!window.confirm('Cancelar os destinos ainda pendentes do lote?'))return;
     if(action==='reschedule'&&!draft.planned_local){tell('Informe o novo horário planejado.');return;}
