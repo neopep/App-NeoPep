@@ -426,6 +426,57 @@ sealed partial class Connect : Form {
             p_action=action,p_device=Value(local,"device"),p_secret=Value(local,"secret"),p_data=data
         },true);
     }
+    Task<Dictionary<string,object>> RichCampaign(string action,object data) {
+        return Post("/rest/v1/rpc/neo_campaign_rich_device_v1",new {
+            p_action=action,p_device=Value(local,"device"),p_secret=Value(local,"secret"),p_data=data
+        },true);
+    }
+    async Task<byte[]> LoadRichCampaignJpeg(string bucket,string path) {
+        if(profile.IsProduction||(bucket!="neo-campaign-images"&&bucket!="neo-shop-products")
+           ||path==null||!System.Text.RegularExpressions.Regex.IsMatch(path,
+               @"\A[a-f0-9-]{36}/[a-f0-9-]{36}[.]jpg\z",System.Text.RegularExpressions.RegexOptions.CultureInvariant))
+            throw new InvalidOperationException();
+        using(var client=new UpdateBrokerClient()){
+            client.Headers["Authorization"]="Bearer "+access;
+            client.Headers["apikey"]=profile.PublishableKey;
+            var data=await client.DownloadDataTaskAsync(profile.Endpoint(
+                "/storage/v1/object/authenticated/"+bucket+"/"+path));
+            if(data==null||data.Length<4||data.Length>1048576||data[0]!=0xff||data[1]!=0xd8||data[2]!=0xff)
+                throw new InvalidOperationException();
+            return data;
+        }
+    }
+    async Task TickRichCampaign(WhatsApp window,Guid connection) {
+        // Somente a versao nova conhece a fila rica. O servidor exige allowlist e gate de Teste.
+        if(profile.IsProduction||!window.CampaignSessionReady)return;
+        var lease=await RichCampaign("claim",new {});
+        if(lease==null)return;
+        var id=Value(lease,"id");var fence=Value(lease,"fence");
+        var started=false;
+        var outcome=Tuple.Create("uncertain",(string)null);
+        try {
+            var job=await RichCampaign("start",new {id=id,fence=fence});
+            if(job==null)return;
+            started=true;
+            Guid request;
+            if(whatsapp==window&&window.CampaignConnection==connection&&window.CampaignSessionReady
+                &&Guid.TryParse(fence,out request)){
+                var kind=Value(job,"kind");
+                if(kind=="image"||(kind=="product"&&!String.IsNullOrEmpty(Value(job,"media_path")))){
+                    var bytes=await LoadRichCampaignJpeg(Value(job,"media_bucket"),Value(job,"media_path"));
+                    if(whatsapp==window&&window.CampaignSessionReady)
+                        outcome=await window.DispatchCampaignImageAsync(request,Value(job,"group_jid"),Value(job,"text"),bytes);
+                }else if(kind=="text"||kind=="link"||kind=="product"){
+                    outcome=await window.DispatchCampaignTextAsync(request,Value(job,"group_jid"),Value(job,"text"));
+                }
+            }
+        }catch(Exception){Record("rich_campaign_uncertain");}
+        finally{
+            if(started)try{await RichCampaign("finish",new {id=id,fence=fence,
+                outcome=outcome.Item1,receipt_id=outcome.Item2});}
+            catch(Exception){Record("rich_campaign_finalization_uncertain");}
+        }
+    }
     async Task TickCampaignDispatch() {
         // Explicit local opt-in and a disabled-by-default server gate are both required.
         if(profile.IsProduction||(Value(local,"campaign_worker_enabled")!="1" && Environment.GetEnvironmentVariable("NEO_CONNECT_CAMPAIGN_WORKER")!="1"))return;
@@ -438,7 +489,12 @@ sealed partial class Connect : Form {
             var gate=await CampaignDispatch("heartbeat",new {connection_id=connection,bridge_version="wa-text-v1",session_ready=ready});
             if(gate==null||!gate.ContainsKey("enabled")||!Convert.ToBoolean(gate["enabled"])||!ready)return;
             var lease=await CampaignDispatch("claim",new {});
-            if(lease==null||whatsapp!=window||window.CampaignConnection!=connection||!window.CampaignSessionReady)return;
+            if(lease==null){
+                if(whatsapp==window&&window.CampaignConnection==connection&&window.CampaignSessionReady)
+                    await TickRichCampaign(window,connection);
+                return;
+            }
+            if(whatsapp!=window||window.CampaignConnection!=connection||!window.CampaignSessionReady)return;
             var id=Value(lease,"id");var fence=Value(lease,"fence");
             var job=await CampaignDispatch("start",new {id=id,fence=fence});
             if(job==null)return;
