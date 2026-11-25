@@ -253,6 +253,7 @@ test('lembretes padrao: OK ativa horarios existentes sem navegar para configurac
  assert.equal(a.run('savedIntro.settings.reminderScheduleConfigured'),true);
  assert.equal(a.run('page'),'inicio');
  assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
+ a.run("Cloud.hasConsent=()=>true");
  assert.match(a.run('profilePage()'),/data-go="lembretes"/);
 });
 
@@ -718,8 +719,9 @@ test('personalização é independente, opcional e revisável por conta',async()
 test('Teste libera Criar conta e mantém cadastro fechado sem flag explícita',async()=>{
  const build=fs.readFileSync('scripts/build-staging.cjs','utf8');
  const base=fs.readFileSync('release/multiagent-staging/configure-frontend.cjs','utf8');
- assert.match(build,/previewRegistration:\s*true/);
- assert.match(build,/pwa-v48-capas-campanhas/,'PWA precisa receber configuração nova após deploy');
+ assert.match(build,/previewRegistration:\s*Boolean\(captchaSiteKey\)/);
+ assert.match(build,/captchaRequired:\s*Boolean\(captchaSiteKey\)/);
+ assert.match(build,/pwa-v49-lembretes-padrao/,'PWA precisa receber configuração nova após deploy');
  assert.match(build,/publicRegistration:\s*false/);
  assert.match(build,/process\.env\.VERCEL_PROJECT_ID !== 'prj_ksWxwsJyKhdR2nW2OiZkwx8hlkdq'/);
  assert.match(base,/previewRegistration:\s*false/);
