@@ -852,3 +852,36 @@ dialog.neo-structured-editor::backdrop{background:#192720}
 .campaign-central-form{display:grid;gap:.8rem;max-width:36rem}
 .campaign-central [data-central-dates]{display:grid;gap:.6rem}
 .structured-campaign-name[data-parent-campaign]::before{content:attr(data-parent-campaign) " › ";font-weight:400}
+
+
+/* NeoPep: interruptores neutros no tema claro e vídeo com cinza translúcido. */
+[data-theme=light] .privacy-option input::before{background:#e9edf1;border-color:#c5ccd5}
+[data-theme=light] .privacy-option input::after{background:#f9fafb;box-shadow:0 1px 4px #27364f26;outline:1px solid #cbd2da}
+[data-theme=light] .privacy-option input:checked::before{background:#a8b7cb;border-color:#a8b7cb}
+[data-theme=light] .privacy-option input:checked::after{background:#fff;outline-color:#c9d1da}
+[data-theme=dark] .privacy-option input:checked::after{background:#2a2a26}
+.privacy-choose-all{margin:.7rem 0 .45rem}
+.privacy-device-summary{margin:.45rem 0;font-size:.82rem;color:var(--muted)}
+.calc-capacity-guidance{margin:.8rem 0 0;line-height:1.55;color:var(--muted);font-size:.84rem}
+.library-video-shell{--video-gold:#edf0f2}
+.library-video-shell button{background:rgba(94,98,104,.33);color:#f4f5f7;border-color:rgba(240,241,243,.32);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.library-video-title,.library-video-status{background:rgba(80,82,87,.53);color:#f5f5f6;backdrop-filter:blur(12px)}
+.library-video-controls{background:rgba(85,87,92,.38);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.library-video-shell input[type=range]{accent-color:#dce0e3}
+
+
+/* Acompanhamento opt-in por frasco no navegador: não substitui prescrição. */
+.calc-vial-overview{grid-column:1/-1;display:grid;gap:.65rem}
+.calc-vial-overview h2{margin:0;font-size:1.15rem}
+.calc-vial-overview>label{display:grid;gap:.3rem;font-size:.84rem;color:var(--muted)}
+.calc-vial-overview select{width:100%;min-height:44px}
+.calc-vial-overview .sub{margin:.2rem 0;color:var(--muted)}
+.calc-vial-display{display:flex;gap:1.15rem;align-items:center;padding:.65rem;background:var(--soft);border-radius:16px}
+.calc-vial-facts{min-width:0;display:grid;gap:.4rem;font-size:.88rem}
+.calc-vial-facts strong{color:var(--ink)}
+.calc-tracked-vial{position:relative;flex:none;isolation:isolate;overflow:hidden;width:72px;height:94px;border:2px solid var(--accent);border-top-width:7px;border-radius:12px 12px 18px 18px;box-shadow:inset 0 0 10px #9faabd40,0 3px 14px #2222;background:var(--surface)}
+.calc-tracked-vial::before{content:'';position:absolute;inset:0;border-radius:inherit;box-shadow:inset 9px 0 14px #ffffff65;z-index:1;pointer-events:none}
+.calc-tracked-liquid{position:absolute;inset-inline:0;bottom:0;height:var(--vial-fill,0%);min-height:0;background:linear-gradient(120deg,rgba(154,164,191,.34),rgba(114,139,174,.72));transition:height .26s ease}
+.calc-vial-actions{display:flex;flex-wrap:wrap;gap:.55rem}
+.calc-vial-actions button{min-height:44px}
+@media(prefers-reduced-motion:reduce){.calc-tracked-liquid{transition:none}}
