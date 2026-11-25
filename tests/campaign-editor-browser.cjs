@@ -31,7 +31,8 @@ async function scenario(browser,options){
     },
     campaignDispatch:async(action,input)=>{
      window.calls.push([action,input]);
-     if(action==='diagnostics')return {whatsapp_enabled:false,app_enabled:true,devices:[]};
+     if(action==='diagnostics')return {whatsapp_enabled:false,app_enabled:true,devices:[],whatsapp_test:{destination:'connection:g1',ready:window.waReady===true,schedule_ready:false}};
+     if(action==='schedule_whatsapp')return {batch_id:'wa-fixture'};
      if(action==='publish_app')return {batch_id:'batch-app'};
      if(action==='app_status')return [{id:'batch-app',title:'App',status:'active',starts_at:'2099-01-01',push_requested:false}];
      throw Error('Ação inesperada');
@@ -112,7 +113,7 @@ async function scenario(browser,options){
   assert.equal(await dialog.locator('.structured-product a').getAttribute('href'),'https://teste.app.neopep.com.br/?produto=produto-publico#loja');
   await dialog.getByRole('button',{name:'Grupos',exact:true}).click();
   await dialog.getByLabel(/Grupo um/).check();
-  assert.equal(await dialog.getByLabel(/Grupo dois/).isDisabled(),true);
+  assert.equal(await dialog.getByLabel(/Grupo dois/).count(),0);
   await dialog.getByRole('button',{name:'Voltar',exact:true}).click();
   await dialog.waitFor({state:'detached'});
   await page.locator('#start').click();
@@ -181,6 +182,26 @@ async function scenario(browser,options){
   await dialog.getByText('Só para simulação').waitFor();
   assert.equal(await dialog.locator('[name=message]').count(),0);
   assert.equal(await dialog.locator('.neo-structured-bubble').count(),1);
+  await dialog.getByRole('button',{name:'Voltar',exact:true}).click();
+  await dialog.waitFor({state:'detached'});
+  await page.evaluate(()=>{window.waReady=true;window.failed=false;NeoCampaignEditor.open({cloud,fresh:true,row:{title:'Teste de texto'}});});
+  await dialog.getByRole('button',{name:'Grupos',exact:true}).click();
+  await dialog.getByLabel(/Grupo um/).check();
+  assert.equal(await dialog.getByLabel(/Grupo dois/).count(),0);
+  await dialog.getByRole('button',{name:'Fechar painel'}).click();
+  await dialog.getByLabel('Compor texto').fill('Teste de homologação NeoPep.');
+  await dialog.getByRole('button',{name:'Adicionar texto'}).click();
+  await dialog.getByRole('button',{name:'Registrar rascunho na Central'}).click();
+  await dialog.getByText(/Versão 1 registrada/).waitFor();
+  await dialog.getByRole('button',{name:'Publicar agora'}).click();
+  await dialog.getByText('Tem certeza de que deseja publicar esta campanha agora?').waitFor();
+  assert.equal(await page.evaluate(()=>calls.some(([action])=>action==='schedule_whatsapp')),false);
+  await dialog.getByRole('button',{name:'Confirmar',exact:true}).click();
+  await dialog.getByText(/wa-fixture/).waitFor();
+  const waIntent=await page.evaluate(()=>calls.find(([action])=>action==='schedule_whatsapp')[1]);
+  assert.equal(waIntent.homologation,true);
+  assert.equal(waIntent.confirmed,true);
+  assert.equal(waIntent.local_time,null);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  }finally{await page.close();}
 }

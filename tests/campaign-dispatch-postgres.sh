@@ -39,6 +39,11 @@ homologation=release/campaign-homologation
 "${db[@]}" -f - < tests/campaign-homologation.sql
 "${db[@]}" < "$homologation/rollback.sql"
 test "$("${db[@]}" -c "select has_function_privilege('authenticated','public.neo_campaign_test_visit_v1(text,uuid)','execute')")" = f
+wa=release/campaign-wa-homologation
+"${db[@]}" < "$wa/20261125023000_campaign_wa_homologation.sql"
+"${db[@]}" -f - < tests/campaign-wa-homologation.sql
+"${db[@]}" < "$wa/rollback.sql"
+
 "${db[@]}" < "$dispatch/rollback.sql"
 test "$("${db[@]}" -c "select has_function_privilege('authenticated','public.neo_campaign_dispatch_device_v1(text,uuid,text,jsonb)','execute')")" = f
 test "$("${db[@]}" -c "select count(*) from neo_private.campaign_push_delivery")" = 0

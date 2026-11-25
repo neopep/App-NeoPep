@@ -86,6 +86,7 @@
   const account=cloud.user?.id;
   const staging=window.NEO_CONFIG?.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co';
   const testApp=staging&&channel==='app';
+  const testWA=staging&&channel==='whatsapp';
 
   if(!account)return;
   stopOpen?.();
@@ -114,7 +115,7 @@
     ${pane('menu','Adicionar ou configurar',`<div class="structured-tiles">
       ${tile('text','Texto','compose')}${tile('photo','Foto','photo')}${tile('file','Documento','file')}${tile('link','Link','link')}
       ${tile('product','Produto','product')}${tile('book','Biblioteca','document')}${channel==='whatsapp'?tile('group','Grupos','groups'):tile('audience','Público','audience')}${tile('clock','Agendar','schedule')}
-      ${channel==='whatsapp'?tile('repeat','Recorrência','recurrence'):''}${tile('text','Formatação','format')}${tile('gear','Ajustes','settings')}${tile('audio','Áudio indisponível','audio',true)}${tile('text','Formatar seleção','format')}
+      ${channel==='whatsapp'&&!testWA?tile('repeat','Recorrência','recurrence'):''}${tile('text','Formatação','format')}${tile('gear','Ajustes','settings')}${tile('audio','Áudio indisponível','audio',true)}${tile('text','Formatar seleção','format')}
       ${tile('group','Comunidade','community')}${tile('more','Destinos','destinations')}
     </div>`)}
     ${pane('settings','Configurações',`<label>Nome da campanha<input name="title" maxlength="120" value="${e(draft.title)}"></label><button type="button" class="secondary" data-editor="name_continue">Salvar nome e continuar</button><p class="sub" data-structured-connection role="status">Conexão ainda não verificada.</p>
@@ -128,7 +129,7 @@
     ${pane('catalog','Referências','<label>Buscar referências<input name="catalog_search" type="search" maxlength="100"></label><button type="button" class="secondary" data-editor="catalog_search">Buscar</button><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
     ${pane('schedule','Publicação e horário','<label>Horário planejado (São Paulo)<input name="planned_local" type="datetime-local" value="'+e(draft.planned_local)+'"></label><p data-editor-summary class="sub"></p><div class="inline-actions"><button type="button" class="secondary" data-editor="schedule" disabled>Programar</button><button type="button" class="secondary" data-editor="simulate">Simular publicação</button></div><p role="status" class="sub" data-editor-simulation></p><p class="sub" data-dispatch-gate></p>')}
     ${pane('confirmation','Confirmar campanha','<p data-confirm-question></p><p class="sub" data-confirm-summary></p><p class="structured-confirm-content" data-confirm-content></p><button type="button" class="primary" data-editor="confirm_dispatch">Confirmar</button> <button type="button" class="secondary" data-editor="sheet_close">Voltar à composição</button>')}
-    ${channel==='whatsapp'?pane('recurrence','Recorrência','<label>Ocorrências semanais<input name="weekly_count" type="number" min="1" max="6" step="1" value="1"></label>'):''}
+    ${channel==='whatsapp'&&!testWA?pane('recurrence','Recorrência','<label>Ocorrências semanais<input name="weekly_count" type="number" min="1" max="6" step="1" value="1"></label>'):''}
     ${pane('format','Formatação do trecho selecionado','<div class="inline-actions"><button type="button" class="secondary" data-format="*">Negrito</button><button type="button" class="secondary" data-format="_">Itálico</button><button type="button" class="secondary" data-format="~">Riscado</button><button type="button" class="secondary" data-format="&#96;">Monoespaçado</button></div>')}
     ${pane('destinations','Acompanhar destinos','<button type="button" class="secondary" data-editor="dispatch_status">Atualizar tentativas</button><div data-dispatch-results></div>')}
    </aside>`;
@@ -298,10 +299,11 @@
    if(!root)return;
    const query=field('group_search').value.trim().toLocaleLowerCase('pt-BR');
    const entries=new Map(draft.groups.map(id=>[id,{id,name:'Grupo anteriormente selecionado',state:'unavailable'}]));
-   for(const row of groups)entries.set(row.id,row);
+   const allowed=gates.whatsapp_test?.destination;
+   for(const row of groups)if(!testWA||!allowed||row.id===allowed)entries.set(row.id,row);
    root.innerHTML=[...entries.values()].filter(row=>`${row.name} ${row.connection||''}`.toLocaleLowerCase('pt-BR').includes(query)).map(row=>{
     const chosen=draft.groups.includes(row.id);
-    return `<label class="check"><input type="checkbox" data-editor-group="${e(row.id)}" ${chosen?'checked':''} ${!chosen&&row.state!=='eligible'?'disabled':''}>
+    return `<label class="check"><input type="checkbox" data-editor-group="${e(row.id)}" ${chosen?'checked':''} ${!chosen&&(row.state!=='eligible'||testWA&&row.id!==allowed)?'disabled':''}>
     <span>${e(row.name)} · ${e(row.connection||'Conexão sem evidência')} · ${e(states[row.state]||'Estado desconhecido')}
     ${row.participant_count==null?'':' · '+e(row.participant_count)+' participantes'}
     ${row.last_synced_at?' · '+e(new Date(row.last_synced_at).toLocaleString('pt-BR')):''}</span></label>`;
@@ -329,16 +331,20 @@
   function showGate(){
    if(readOnly)return;
    const clean=state.remoteId&&state.savedDraft===JSON.stringify(draft)&&!message.value.trim()&&!editing;
-   const enabled=testApp?testGate.enabled&&testGate.destinations>0&&testGate.destinations<=30&&Boolean(testGate.audience_key):staging?false:channel==='app'?gates.app_enabled:gates.whatsapp_enabled;
+   const enabled=testApp?testGate.enabled&&testGate.destinations>0&&testGate.destinations<=30&&Boolean(testGate.audience_key):testWA?gates.whatsapp_test?.ready===true:channel==='app'?gates.app_enabled:gates.whatsapp_enabled;
    const textOnly=draft.blocks.length>0&&draft.blocks.every(block=>block.type==='text'&&!/(https?:\/\/|www\.)/i.test(block.text||''));
    const eligible=channel==='app'||draft.groups.length>0&&draft.groups.every(id=>groups.some(row=>row.id===id&&row.state==='eligible'));
-   const allow=Boolean(enabled&&clean&&textOnly&&eligible);
-   $('[data-editor=publish]').disabled=!allow||channel==='whatsapp'&&!gates.devices?.some(d=>d.ready);
-   $('[data-editor=schedule]').disabled=!allow||!draft.planned_local;
+   const pinned=!testWA||draft.groups.length===1&&draft.groups[0]===gates.whatsapp_test?.destination;
+   const short=!testWA||draft.blocks.map(block=>block.text||'').join('\n\n').trim().length<=160;
+   const allow=Boolean(enabled&&clean&&textOnly&&eligible&&pinned&&short);
+   $('[data-editor=publish]').disabled=!allow||channel==='whatsapp'&&!testWA&&!gates.devices?.some(d=>d.ready);
+   $('[data-editor=schedule]').disabled=!allow||!draft.planned_local||testWA&&!gates.whatsapp_test?.schedule_ready;
    $('[data-editor-summary]').textContent=dispatchSummary(Boolean(draft.planned_local));
    $('[data-dispatch-gate]').textContent=testApp?
     (enabled?'Homologação App · '+testGate.destinations+' conta(s) autorizada(s) · somente no aplicativo, sem push.':'Homologação App indisponível. Use a simulação enquanto a lista e a ativação aguardam aprovação.'):
-    staging?'WhatsApp em simulação no ambiente de Teste. Nenhum grupo recebe mensagens.':enabled?
+    testWA?(enabled?'Homologação WhatsApp · somente o grupo autorizado e texto sem links de até 160 caracteres. '+
+     (gates.whatsapp_test.schedule_ready?'Agendamento liberado.':'Agendamento aguarda o comprovante imediato e liberação específica.'):
+     'WhatsApp em simulação. Aguarde a liberação do grupo e a presença de despacho do Connect.'):enabled?
     'O despacho exige uma versão registrada, somente texto e destinos autorizados. Aceitação pelo cliente não confirma entrega.':
     'Envio e agendamento automáticos bloqueados. Somente texto no contrato de despacho.';
   }
@@ -359,7 +365,7 @@
       ${d.bridge_version?' · '+d.bridge_version:''}`).join(' / ');
     }
    }catch{if(current())gates={};}
-   if(current())showGate();
+   if(current()){if(testWA)renderGroups();showGate();}
   }
   const outcomes={waiting:'Aguardando',leased:'Em preparação',started:'Em processamento',accepted:'Aceito pelo cliente',
    uncertain:'Resultado incerto · revisar',failed:'Falhou',cancelled:'Cancelado'};
@@ -386,9 +392,9 @@
     }
     root.innerHTML=rows.map(row=>`<article class="monitor-block">
      <strong>${e(row.dispatch_jid)} · ${e(outcomes[row.dispatch_state]||row.dispatch_state)}</strong>
-     <p class="sub">${e(new Date(row.dispatch_due).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}))} · ${e(row.dispatch_attempts)} tentativa(s)${row.dispatch_cancel_requested?' · Cancelamento solicitado':''}</p>
-     <ul>${row.attempts.map(a=>`<li>${e(a.event)} · ${e(new Date(a.recorded_at).toLocaleString('pt-BR'))}</li>`).join('')}</ul>
-     ${row.dispatch_state==='waiting'?'<button type="button" class="secondary" data-editor="reschedule" data-batch="'+e(row.dispatch_batch)+'" data-publication="'+e(row.id)+'">Mover para o horário planejado</button>':''}
+     <p class="sub">Operação ${e(row.id)} · ${e(new Date(row.dispatch_due).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}))} · ${e(row.dispatch_attempts)} tentativa(s)${row.dispatch_cancel_requested?' · Cancelamento solicitado':''}</p>
+     <ul>${row.attempts.map(a=>`<li>${e(a.event)} · ${e(new Date(a.recorded_at).toLocaleString('pt-BR'))}${a.receipt_id?' · Recibo '+e(a.receipt_id):''}</li>`).join('')}</ul>
+     ${row.dispatch_state==='waiting'&&!testWA?'<button type="button" class="secondary" data-editor="reschedule" data-batch="'+e(row.dispatch_batch)+'" data-publication="'+e(row.id)+'">Mover para o horário planejado</button>':''}
      ${['waiting','leased','started'].includes(row.dispatch_state)?'<button type="button" class="secondary" data-editor="cancel_batch" data-batch="'+e(row.dispatch_batch)+'">Cancelar lote</button>':''}</article>`).join('')||'Nenhum destino agendado neste rascunho.';
    }catch{if(current())root.textContent='Histórico de despacho indisponível.';}
   }
@@ -411,15 +417,16 @@
    const action=channel==='app'?'publish_app':'schedule_whatsapp';
    const base={editor_id:state.editorId,revision:state.revision,local_time:scheduled?draft.planned_local:null};
    const intent=testApp?{...base,confirmed:true,destination_count:testGate.destinations,audience_key:testGate.audience_key}:{...base,
-    weekly_count:channel==='app'||!scheduled?1:Number(field('weekly_count').value),push:field('push')?.checked===true};
+    weekly_count:channel==='app'||testWA||!scheduled?1:Number(field('weekly_count').value),push:field('push')?.checked===true,
+    ...(testWA?{homologation:true,confirmed:true}:{})};
    const fingerprint=JSON.stringify(intent);
    const request=state.dispatchAttempt?.fingerprint===fingerprint?state.dispatchAttempt:{fingerprint,id:uuid()};
    state.dispatchAttempt=request;saveLocal();dispatching=true;
    try{
-    if(testApp)await cloud.campaignTest('publish',{...intent,request_id:request.id});
-    else await cloud.campaignDispatch(action,{...intent,request_id:request.id});
+    const result=testApp?await cloud.campaignTest('publish',{...intent,request_id:request.id}):
+     await cloud.campaignDispatch(action,{...intent,request_id:request.id});
     if(!current())return;
-    saveLocal();tell(testApp?'Campanha App de homologação registrada. Confirme a exibição em Acompanhar destinos.':channel==='app'?'Campanha App registrada.':'Ocorrências registradas. Confira os resultados por destino.');
+    saveLocal();tell(testApp?'Campanha App de homologação registrada. Confirme a exibição em Acompanhar destinos.':channel==='app'?'Campanha App registrada.':'Ocorrência registrada'+(result?.batch_id?' · '+result.batch_id:'')+'. Confira os resultados por destino.');
     onSaved?.();
    }catch{tell('Não foi possível confirmar a operação. Repita os mesmos dados para reconciliar.');}
    finally{dispatching=false;}
@@ -483,7 +490,7 @@
    if(input.dataset.editorGroup){
     const id=input.dataset.editorGroup;
     if(!input.checked)draft.groups=draft.groups.filter(key=>key!==id);
-    else if(groups.some(row=>row.id===id&&row.state==='eligible')&&draft.groups.length<30&&!draft.groups.some(key=>groupIdentity(key)===groupIdentity(id)))draft.groups.push(id);
+    else if((!testWA||id===gates.whatsapp_test?.destination)&&groups.some(row=>row.id===id&&row.state==='eligible')&&draft.groups.length<30&&!draft.groups.some(key=>groupIdentity(key)===groupIdentity(id)))draft.groups.push(id);
     else{input.checked=false;tell('Selecione até 30 destinos elegíveis e distintos.');return;}
     renderGroups();changed();
    }
