@@ -4,7 +4,16 @@ const { staging, verifyStagingKey, writeConfig } = require('../release/multiagen
 
 async function prepare() {
   const branch = process.env.VERCEL_GIT_COMMIT_REF;
-  if (process.env.VERCEL === '1' && !['staging', 'staging/permanente'].includes(branch)) {
+  const integratedBranch = ['homologacao/loja-010-04-010-05','desenvolvimento/ajuste-010-06-conciliacao','desenvolvimento/ajuste-011-gerenciamento-massa','homologacao/ciclo-completo-2026-11-24','fix/nov25-ux-syringe-consent-media-test','fix/pacote-final-teste-20261125','fix/test-vial-cover-20261125'].includes(branch);
+  if (integratedBranch && (process.env.VERCEL_PROJECT_ID !== 'prj_ksWxwsJyKhdR2nW2OiZkwx8hlkdq'
+      || !/^[a-f0-9]{40}$/.test(process.env.VERCEL_GIT_COMMIT_SHA || ''))) {
+    throw new Error('A integração financeira exige o projeto Vercel de Teste e um SHA Git.');
+  }
+  // Nunca servir o build de Teste com cadastro aberto em outro projeto.
+  if (process.env.VERCEL === '1' && process.env.VERCEL_PROJECT_ID !== 'prj_ksWxwsJyKhdR2nW2OiZkwx8hlkdq') {
+    throw new Error('O cadastro de homologação exige o projeto Vercel NeoPep Teste.');
+  }
+  if (process.env.VERCEL === '1' && !integratedBranch && !['staging', 'staging/permanente'].includes(branch)) {
     throw new Error('Branch inválida para a publicação de homologação.');
   }
 
@@ -19,6 +28,10 @@ async function prepare() {
   const base = context.window.NEO_CONFIG;
   const config = {
     ...base,
+    // O cadastro por e-mail é permitido somente na homologação.
+    // A configuração de Produção continua com publicRegistration=false.
+    publicRegistration: false,
+    previewRegistration: true,
     appDisplayName: 'NeoPep Teste',
     legacyPushScope: '/neo/',
     stagingGeoEnabled: process.env.NEO_STAGING_GEO_ENABLED === '1' && !!process.env.NEO_STAGING_SERVER_SUPABASE_KEY,
@@ -53,13 +66,12 @@ async function prepare() {
   const css = fs.readFileSync(style, 'utf8').split(marker)[0];
   fs.writeFileSync(style, css + `
 ${marker}
-html::after,dialog[open]::after{
-  content:"TESTE";position:fixed;top:calc(env(safe-area-inset-top,0px) + 4px);left:50%;
-  transform:translateX(-50%);z-index:2147483647;pointer-events:none;
-  color:#e5c886;background:#19150f;border:1px solid #d5ad62;border-radius:999px;
-  padding:2px 9px;font:700 10px/1.3 system-ui,sans-serif;letter-spacing:.13em;opacity:.72;
+body::before{
+  content:"TESTE";display:block;width:max-content;margin:calc(env(safe-area-inset-top,0px) + 4px) auto 4px;
+  pointer-events:none;color:#e5c886;background:#19150f;border:1px solid #d5ad62;border-radius:999px;
+  padding:2px 9px;font:700 10px/1.3 system-ui,sans-serif;letter-spacing:.13em;
 }
-html:has(dialog[open])::after{visibility:hidden}
+html[data-theme=light] body::before{color:#142743;background:#edf0f4;border-color:#a8b4cc}
 `);
   // Keep the former launch URL and Auth callback as real pages at the same origin.
   fs.mkdirSync('dist/neo', { recursive: true });
@@ -67,8 +79,8 @@ html:has(dialog[open])::after{visibility:hidden}
 
   const serviceWorker = 'dist/sw.js';
   const worker = fs.readFileSync(serviceWorker, 'utf8')
-    .replace(/^const CACHE=.*;$/m,
-      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v31';")
+    .replace(/^(?:const CACHE_PREFIX=.*;\n)?const CACHE=.*;$/m,
+      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v46-cadastro-onboarding';")
     .replace(/key\.startsWith\((?:'[^']+'|CACHE_PREFIX)\)/, 'key.startsWith(CACHE_PREFIX)');
   fs.writeFileSync(serviceWorker, worker);
 }

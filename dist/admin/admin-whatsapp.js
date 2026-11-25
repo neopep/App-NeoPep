@@ -45,6 +45,30 @@ function neoWhatsappEye(attributes=''){
  <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="2.7"/></svg> Ver prévia no WhatsApp</button>`;
 }
 function neoWhatsappPreview({cloud,read,trigger,form,onEdit,resolve}){
+ if(window.NeoCampaignEditor?.preview){
+  let stopped=false,close;
+  const account=cloud.user?.id;
+  void Promise.resolve().then(async()=>{
+   if(resolve)try{await resolve();}catch{}
+   if(stopped||!account||cloud.user?.id!==account)return;
+   const row=read()||{};
+   const safeLocal=/^\/(assets|campaign-media)\/[\w./-]+$/.test(row.image_url||'')&&!row.image_url.includes('..')?row.image_url:null;
+   const image=row.file?.size?row.file:row.image_path&&cloud.campaignImageURL?cloud.campaignImageURL(row.image_path).catch(()=>safeLocal):safeLocal;
+   const previewModes=mode=>{
+    const payload=neoWhatsappPayload(row,mode),images=new Map(),blocks=[];
+    if(payload.imageInBubble||payload.separateMedia){
+     blocks.push({id:'legacy-image',type:'image',layout:payload.imageInBubble?'caption':'separate',text:payload.imageInBubble?payload.text:''});
+     images.set('legacy-image',image);
+    }
+    if(payload.text&&!payload.imageInBubble)blocks.unshift({id:'legacy-text',type:'text',text:payload.text});
+    for(const [index,item] of payload.attachments.entries())blocks.push({id:'legacy-file-'+index,type:'file',name:item.name});
+    return {blocks,images};
+   };
+   close=window.NeoCampaignEditor.preview({cloud,trigger,row,previewModes,onEdit});
+  });
+  return ()=>{stopped=true;close?.();};
+ }
+
  const modal=document.createElement('dialog');
  modal.className='neo-wa-dialog';modal.setAttribute('aria-label','Ver prévia no WhatsApp');
  modal.innerHTML=`<div class="neo-wa-dialog-tools"><button type="button" data-wa-close autofocus>← Voltar</button>
@@ -213,11 +237,12 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  const syncPicker=embedded?mountSyncedCampaignGroups(q('[data-wa-sync-recipients]'),{cloud,picking:true}):null;
  if(cloud.connectTestEnabled===false)connect.querySelector('[data-connect-root]').textContent='Canal Windows indisponível neste ambiente.';
  let connectPanel;
- connect.addEventListener('toggle',()=>{
-  if(connectPanel||cloud.connectTestEnabled===false||!connect.open||typeof mountNeoConnect!=='function')return;
-  connectPanel=mountNeoConnect(q('[data-connect-root]'),cloud);
+ function loadConnect(){
+  if(cloud.connectTestEnabled===false||typeof mountNeoConnect!=='function')return;
+  connectPanel??=mountNeoConnect(q('[data-connect-root]'),cloud);
   void connectPanel.load();
- });
+ }
+ connect.addEventListener('toggle',()=>{if(!embedded&&connect.open)loadConnect();});
  const groupForm=q('[data-wa-group]'),form=q('[data-wa-publication]'),select=form.querySelector('[name=campaign_id]');
  help(groupForm,'wa-group');help(q('[data-wa-group-search]'),'wa-search');help(form,'wa-form');help(q('[data-wa-queue]').parentElement,'wa-queue');
  const queue=q('[data-wa-queue]').parentElement,groupList=q('[data-wa-groups]'),groupSearchForm=q('[data-wa-group-search]');
@@ -248,9 +273,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
   if(!connect.hidden){
    connect.open=true;
    connect.querySelector('summary').hidden=true;
-   if(!connectPanel&&cloud.connectTestEnabled!==false&&typeof mountNeoConnect==='function'){
-    connectPanel=mountNeoConnect(q('[data-connect-root]'),cloud);void connectPanel.load();
-   }
+   if(next!==previousView||!connectPanel)loadConnect();
   }
   if(groups&&syncCatalog&&next!==previousView)void syncCatalog.load();
   groupContainer.hidden=!groups;

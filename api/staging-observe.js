@@ -22,8 +22,12 @@ function headerText(raw,length){
 }
 module.exports=async function handler(req,res){
  res.setHeader('Cache-Control','private, no-store');
- if(process.env.VERCEL_GIT_COMMIT_REF!=='staging/permanente')return res.status(404).end();
+ const branch=process.env.VERCEL_GIT_COMMIT_REF;
  const mode=req.query?.mode,service=process.env.NEO_STAGING_SERVER_SUPABASE_KEY;
+ const staging=branch==='staging/permanente';
+ const cycleGeo=mode==='geo'&&(branch==='homologacao/ciclo-completo-2026-11-24'||
+  branch==='fix/pacote-final-teste-20261125'&&process.env.VERCEL_PROJECT_ID==='prj_ksWxwsJyKhdR2nW2OiZkwx8hlkdq');
+ if(!staging&&!cycleGeo)return res.status(404).end();
  const auth=req.headers.authorization;
  if(mode==='snapshot'){
   if(req.method!=='GET')return res.status(405).end();

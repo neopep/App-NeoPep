@@ -176,3 +176,7 @@ dialog[data-campaign-edit] .neo-campaign-editor-head{position:sticky;top:0;z-ind
  dialog[data-campaign-edit] .neo-campaign-editor-head h3{font-size:1.2rem}
  dialog[data-campaign-edit] :is(input,textarea,select){font-size:16px}
 }
+
+[data-theme=light] :is(.neo-wa-dialog,.neo-wa-phone,.neo-wa-chat,.neo-wa-thread){color:var(--ink);background:var(--soft);border-color:var(--border)}
+[data-theme=light] :is(.neo-wa-dialog button,.neo-wa-dialog select){color:var(--ink);background:var(--solid);border-color:var(--border)}
+[data-theme=light] .neo-wa-dialog .primary{color:var(--solid);background:var(--accent)}

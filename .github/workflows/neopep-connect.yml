@@ -2,7 +2,7 @@ name: NeoPep Connect Windows
 
 on:
   push:
-    branches: [desenvolvimento/connect-windows-02, desenvolvimento/connect-whatsapp-grupos, desenvolvimento/connect-windows-campanhas-v026, desenvolvimento/connect-dois-ambientes, desenvolvimento/connect-turnstile]
+    branches: [desenvolvimento/connect-windows-02, desenvolvimento/connect-whatsapp-grupos, desenvolvimento/connect-windows-campanhas-v026, desenvolvimento/connect-dois-ambientes, desenvolvimento/connect-turnstile, desenvolvimento/ajuste-013-windows-qa, desenvolvimento/ajuste-013-diagnostico-sessao, homologacao/ciclo-completo-2026-11-24]
     paths: ['connect/windows/**', 'connect/whatsapp-lab/**', '.github/workflows/neopep-connect.yml']
   pull_request:
     branches: [staging/permanente, desenvolvimento/connect-windows-02, desenvolvimento/connect-windows-campanhas-v025]
@@ -19,9 +19,9 @@ permissions:
 
 jobs:
   windows:
-    if: contains(fromJSON('["desenvolvimento/connect-windows-02","desenvolvimento/connect-whatsapp-grupos","desenvolvimento/connect-windows-campanhas-v026","desenvolvimento/connect-windows-026-integracao-staging","desenvolvimento/connect-dois-ambientes","desenvolvimento/connect-turnstile"]'), github.event.pull_request.head.ref || github.ref_name)
+    if: contains(fromJSON('["desenvolvimento/connect-windows-02","desenvolvimento/connect-whatsapp-grupos","desenvolvimento/connect-windows-campanhas-v026","desenvolvimento/connect-windows-026-integracao-staging","desenvolvimento/connect-dois-ambientes","desenvolvimento/connect-turnstile","desenvolvimento/ajuste-013-windows-qa","desenvolvimento/ajuste-013-diagnostico-sessao","homologacao/ciclo-completo-2026-11-24"]'), github.event.pull_request.head.ref || github.ref_name)
     env:
-      CONNECT_TEST_VERSION: ${{ (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/connect-turnstile' && '0.2.8' || (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/connect-dois-ambientes' && '0.2.7' || contains(fromJSON('["desenvolvimento/connect-windows-campanhas-v026","desenvolvimento/connect-windows-026-integracao-staging"]'), (github.event.pull_request.head.ref || github.ref_name)) && '0.2.6' || (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/connect-whatsapp-grupos' && '0.2.4' || '0.2.2' }}
+      CONNECT_TEST_VERSION: ${{ (github.event.pull_request.head.ref || github.ref_name) == 'homologacao/ciclo-completo-2026-11-24' && '0.2.12' || (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/ajuste-013-diagnostico-sessao' && '0.2.10' || (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/ajuste-013-windows-qa' && '0.2.8' || (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/connect-turnstile' && '0.2.8' || (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/connect-dois-ambientes' && '0.2.7' || contains(fromJSON('["desenvolvimento/connect-windows-campanhas-v026","desenvolvimento/connect-windows-026-integracao-staging"]'), (github.event.pull_request.head.ref || github.ref_name)) && '0.2.6' || (github.event.pull_request.head.ref || github.ref_name) == 'desenvolvimento/connect-whatsapp-grupos' && '0.2.4' || '0.2.2' }}
     runs-on: windows-2022
     timeout-minutes: 15
     steps:
@@ -39,6 +39,25 @@ jobs:
         run: |
           node --test connect/windows/production-update-contract.test.cjs
           if ($LASTEXITCODE) { throw 'Contrato do broker de Produção inválido' }
+      - name: Testar diagnóstico seguro da sessão WhatsApp
+        shell: powershell
+        run: |
+          node --test connect/windows/wa-session-diagnostic.test.cjs
+          if ($LASTEXITCODE) { throw 'Falha na proteção do diagnóstico da sessão' }
+      - name: Validar opt-in explícito do worker no perfil Teste
+        shell: powershell
+        run: |
+          node --test connect/windows/campaign-worker-optin.test.cjs
+          if ($LASTEXITCODE) { throw 'Contrato de opt-in do worker inválido' }
+      - name: Validar contratos de campanhas ricas no Teste
+        shell: powershell
+        run: |
+          node --test connect/windows/rich-campaign-contract.test.cjs
+          if ($LASTEXITCODE) { throw 'Contrato de campanha rica invalido' }
+          node --check dist/admin/campaign-editor.js
+          if ($LASTEXITCODE) { throw 'Editor de campanha invalido' }
+          node --check dist/cloud.js
+          if ($LASTEXITCODE) { throw 'Cloud de campanha invalido' }
       - name: Instalar e auditar dependências de runtime
         working-directory: connect/whatsapp-lab
         shell: powershell

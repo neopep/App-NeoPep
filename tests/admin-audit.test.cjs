@@ -107,4 +107,16 @@ test('rota de observação bloqueia cron sem token e transmite só a localizaç�
  assert.ok(!calls.some(call=>JSON.stringify(call).includes('192.0.2.100')));
  assert.equal((await hit('snapshot','GET','Bearer '+env.CRON_SECRET)).code,200);
  assert.deepEqual(JSON.parse(calls.at(-1).body),{p_action:'scheduled_snapshot'});
+ env.VERCEL_GIT_COMMIT_REF='homologacao/ciclo-completo-2026-11-24';
+ const baseline=calls.length;
+ assert.equal((await hit('snapshot','GET','Bearer '+env.CRON_SECRET)).code,404);
+ assert.equal((await hit('geo','POST','Bearer inválido')).code,401);
+ assert.equal(calls.length,baseline);
+ assert.equal((await hit('geo','POST','Bearer valid.fixture')).code,200);
+ assert.equal(calls.at(-1).url,'https://qnuluspqfazdppciermw.supabase.co/rest/v1/rpc/neo_geo_observe');
+ assert.equal(calls.at(-1).headers.Authorization,'Bearer server-fixture');
+ delete env.NEO_STAGING_SERVER_SUPABASE_KEY;
+ assert.equal((await hit('geo','POST','Bearer valid.fixture')).body.configured,false);
+ env.VERCEL_GIT_COMMIT_REF='main';
+ assert.equal((await hit('geo','POST','Bearer valid.fixture')).code,404);
 });
