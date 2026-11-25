@@ -287,6 +287,21 @@ sealed partial class WhatsApp : Form {
         }catch{return Tuple.Create("uncertain",(string)null);}
         finally{automatedSend=null;automatedRequest=Guid.Empty;sendingText=false;UpdateComposer();}
     }
+    public async Task<Tuple<string,string>> DispatchCampaignImageAsync(Guid request,string group,string caption,byte[] jpeg) {
+        if(!CampaignSessionReady||pendingSend!=Guid.Empty||automatedSend!=null||!selected.Contains(group)
+            ||caption==null||caption.Length>2000||jpeg==null||jpeg.Length<4||jpeg.Length>1048576
+            ||jpeg[0]!=0xff||jpeg[1]!=0xd8||jpeg[2]!=0xff||request==Guid.Empty
+            ||canPublish==null||!canPublish())return Tuple.Create("refused",(string)null);
+        var completion=new TaskCompletionSource<Tuple<string,string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        automatedSend=completion;automatedRequest=request;sendingText=true;UpdateComposer();
+        try {
+            pipe.WriteLine(json.Serialize(new {action="send_image",request_id=request.ToString(),
+                group_jid=group,text=caption,image=Convert.ToBase64String(jpeg)}));
+            return await Task.WhenAny(completion.Task,Task.Delay(TimeSpan.FromSeconds(35)))==completion.Task
+                ? await completion.Task : Tuple.Create("uncertain",(string)null);
+        }catch{return Tuple.Create("uncertain",(string)null);}
+        finally{automatedSend=null;automatedRequest=Guid.Empty;sendingText=false;UpdateComposer();}
+    }
     void ClearGroups(){
         sync.Enabled=false;
         groupRows.Clear();selected.Clear();groupReadAt=null;RenderGroups();
