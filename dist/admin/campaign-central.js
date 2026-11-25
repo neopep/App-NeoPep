@@ -66,12 +66,10 @@
     <button type="submit" class="primary">Criar campanha</button></form>`);
    root.querySelector('[name=title]').focus();
    try{
-    const diagnostics=await cloud.campaignRich('diagnostics',{});
     const groups=await cloud.campaignWhatsAppSync('catalog');
-    const group=groups.find(item=>item.id===diagnostics.destination&&item.state==='eligible');
-    if(group&&active()&&screen==='create')root.querySelector('[data-central-destination]').innerHTML=
-     `<label>Grupo padrão para novas publicações<select name="destination"><option value="">Escolher depois</option>
-     <option value="${escape(group.id)}">${escape(group.name)}</option></select></label>`;
+    const ready=groups.filter(item=>item.state==='eligible');
+    if(active()&&screen==='create')root.querySelector('[data-central-destination]').textContent=
+     ready.length+' grupo(s) sincronizado(s). Escolha até 30 destinos individualmente em cada publicação.';
    }catch{}
 
   }
@@ -130,19 +128,22 @@
    const selected=[...root.querySelectorAll('[name=selected-publication]:checked')].map(element=>detail.publications.find(pub=>pub.id===element.value));
    if(!selected.length){show('Selecione uma ou mais publicações.');return;}
    const diagnostics=await cloud.campaignRich('diagnostics',{});
-   if(!diagnostics.ready){show('Agendamento indisponível. Confira o Connect de Teste e o grupo autorizado.');return;}
+   if(!diagnostics.ready){show('Agendamento indisponível. Confirme o Connect de Produção e os grupos sincronizados.');return;}
    const hydrated=await Promise.all(selected.map(async pub=>({pub,revision:await rpc('load',{publication_id:pub.id})})));
    const groups=await cloud.campaignWhatsAppSync?.('catalog')||[];
-   const destination=Array.isArray(groups)?groups.find(group=>group.id===diagnostics.destination)?.name:null;
+   const authorized=Array.isArray(diagnostics.destinations)?diagnostics.destinations:[];
+   const destinations=Array.isArray(groups)?groups.filter(group=>authorized.includes(group.id)):[];
    if(!active())return;
-   if(!confirm(`Agendar em ${detail.title} para ${destination||'o único grupo WhatsApp autorizado em Teste'}?\n\n`+
+   if(!confirm(`Agendar em ${detail.title}? Os destinatários são os grupos selecionados em cada publicação (até ${Math.min(30,destinations.length)} autorizados nesta conexão).\n\n`+
     selected.map(pub=>`${pub.title} · ${local(pub.planned_local)} (São Paulo) · ${pub.kinds?.length||0} mensagem(ns)`).join('\n')))return;
    const outcomes=[];
    for(const {pub,revision} of hydrated){
     if(!active())return;
     try{
-     if(!revision||revision.revision!==pub.revision||revision.draft.groups.length!==1||
-        revision.draft.groups[0]!==diagnostics.destination)throw Error('revision');
+     if(!revision||revision.revision!==pub.revision||!Array.isArray(revision.draft.groups)||
+        revision.draft.groups.length<1||revision.draft.groups.length>30||
+        new Set(revision.draft.groups).size!==revision.draft.groups.length||
+        !revision.draft.groups.every(id=>authorized.includes(id)&&groups.some(g=>g.id===id&&g.state==='eligible')))throw Error('revision');
      const key='neo-campaign-central-intent:'+account+':'+pub.id+':'+pub.revision+':'+pub.planned_local;
      const request=getLocal(key)||crypto.randomUUID();setLocal(key,request);
      await rpc('schedule',{publication_id:pub.id,revision:pub.revision,request_id:request,local_time:pub.planned_local,confirmed:true});
