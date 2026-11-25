@@ -218,23 +218,80 @@ test('formulário do lembrete permite associar aplicação sem depender do títu
  assert.equal(a.document.querySelector('[name=title]').value,'Meu cuidado semanal');
 });
 
-test('orientação de lembretes vem depois das pendências e salva pular na conta',async()=>{
+test('lembretes padrao: Agora nao continua o onboarding sem ativar ou repetir a tela',async()=>{
  const a=setup();a.run("mode='cloud';Cloud.user={id:'intro-skip'};Cloud.onboardingComplete=true;arrivalReady=true;page='inicio';state.profile.consent=true;state.profile.tracking.measures=false;state.profile.tracking.applications=false;window.savedIntro=null;Cloud.saveProfile=async(p,settings)=>{window.savedIntro={...state,profile:p,settings}};Cloud.load=async()=>window.savedIntro;checkDailyRecords()");
- assert.ok(a.document.querySelector('[data-daily-later]'));assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
- a.document.querySelector('[data-daily-later]').click();a.run('checkDailyRecords()');
- assert.match(a.document.querySelector('.reminder-setup-prompt').textContent,/sininho no topo/);
- a.document.querySelector('[data-reminder-setup=skip]').click();
- for(let i=0;i<12;i++)await Promise.resolve();
- assert.equal(a.run('savedIntro.settings.reminderIntroSeen'),true);assert.equal(a.run('savedIntro.settings.reminderSetupPromptDate'),C.today());
+ assert.ok(!a.document.querySelector('[data-daily-later]'));
+ const prompt=a.document.querySelector('.reminder-setup-prompt');
+ assert.ok(prompt);assert.match(prompt.textContent,/Configurações de lembretes padrão/);
+ assert.match(prompt.textContent,/Perfil → Lembretes/);
+ prompt.querySelector('[data-reminder-setup=skip]').click();
+ for(let i=0;i<16;i++)await Promise.resolve();
+ assert.equal(a.run('savedIntro.settings.reminderIntroSeen'),true);
+ assert.equal(a.run('savedIntro.settings.enabled'),false);
+ assert.equal(a.run('savedIntro.settings.reminderScheduleConfigured'),false);
+ assert.equal(a.run('page'),'inicio');
  assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
- a.run('resetDailyVisit();checkDailyRecords()');assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
+ a.run('checkDailyRecords()');
+ assert.match(a.document.querySelector('.daily-record-item h3').textContent,/Peso/);
+ a.run('resetDailyVisit();checkDailyRecords()');
+ assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
+ assert.equal(a.run("NeoCore.shouldOfferReminderSetup(state,'2026-12-01')"),false);
 });
 
-test('orientação inicial abre configuração pelo mesmo destino do sininho',async()=>{
- const a=setup();a.run("mode='cloud';Cloud.user={id:'intro-configure'};Cloud.onboardingComplete=true;arrivalReady=true;page='inicio';state.profile.consent=true;state.profile.tracking.weight=false;state.profile.tracking.measures=false;state.profile.tracking.applications=false;window.savedIntro=null;Cloud.saveProfile=async(p,settings)=>{window.savedIntro={...state,profile:p,settings}};Cloud.load=async()=>window.savedIntro;checkDailyRecords()");
- a.document.querySelector('[data-reminder-setup=configure]').click();for(let i=0;i<12;i++)await Promise.resolve();
- assert.equal(a.run('page'),'lembretes');assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
- assert.equal(a.document.querySelector('#bell').dataset.go,'lembretes');
+test('primeiro peso gravado no onboarding nao pede novamente o peso de hoje',()=>{
+ const a=setup();
+ a.run("mode='cloud';Cloud.user={id:'first-weight'};Cloud.onboardingComplete=true;arrivalReady=true;page='inicio';state.profile.consent=true;state.profile.initialWeight=82.35;state.settings.reminderIntroSeen=true;state.settings.reminderScheduleConfigured=true;state.profile.tracking.measures=false;state.profile.tracking.applications=false;state.weights=[{id:'onboarding-initial',date:NeoCore.today(),value:82.35}];checkDailyRecords()");
+ assert.equal(a.document.querySelector('.daily-record-prompt'),null);
+ assert.equal(a.run('NeoCore.metrics(state).current'),82.35);
+ assert.equal(a.run('NeoCore.metrics(state).initial'),82.35);
+ assert.equal(a.run('state.weights.length'),1);
+ assert.equal(a.run('NeoCore.pendingDailyRecords(state).some(x=>x.kind==="weight")'),false);
+});
+
+test('registro de peso e apresentado no fim, depois de lembretes e medidas',async()=>{
+ const a=setup();
+ a.run("mode='cloud';Cloud.user={id:'weight-last'};Cloud.onboardingComplete=true;arrivalReady=true;page='inicio';state.profile.consent=true;state.settings.reminderIntroSeen=true;state.settings.reminderScheduleConfigured=true;state.settings.measureDay=String(new Date(NeoCore.today()+'T12:00').getDay());state.profile.tracking.applications=false;checkDailyRecords()");
+ const first=a.document.querySelector('.daily-record-prompt');
+ assert.ok(first);
+ assert.deepEqual([...first.querySelectorAll('.daily-record-item h3')].map(x=>x.textContent),['Medidas']);
+ assert.equal(first.querySelector('[data-daily-register=weight]'),null);
+ first.querySelector('[data-daily-later]').click();a.run('checkDailyRecords()');
+ const last=a.document.querySelector('.daily-record-prompt');
+ assert.ok(last);
+ assert.deepEqual([...last.querySelectorAll('.daily-record-item h3')].map(x=>x.textContent),['Peso']);
+ last.querySelector('[data-daily-later]').click();a.run('checkDailyRecords()');
+ assert.equal(a.document.querySelector('.daily-record-prompt'),null);
+});
+
+test('lembretes padrao: OK ativa horarios existentes sem navegar para configuracoes',async()=>{
+ const a=setup();a.run("mode='cloud';Cloud.user={id:'intro-accept'};Cloud.onboardingComplete=true;arrivalReady=true;page='inicio';state.profile.consent=true;state.profile.tracking.weight=false;state.profile.tracking.measures=false;state.profile.tracking.applications=false;window.savedIntro=null;Cloud.saveProfile=async(p,settings)=>{window.savedIntro={...state,profile:p,settings}};Cloud.load=async()=>window.savedIntro;checkDailyRecords()");
+ const prompt=a.document.querySelector('.reminder-setup-prompt');
+ assert.ok(prompt);assert.match(prompt.textContent,/08:00/);assert.match(prompt.textContent,/09:00/);
+ assert.match(prompt.textContent,/segundas-feiras/);
+ assert.equal(a.document.querySelector('[data-reminder-setup=configure]'),null);
+ prompt.querySelector('[data-reminder-setup=accept]').click();
+ for(let i=0;i<16;i++)await Promise.resolve();
+ assert.equal(a.run('savedIntro.settings.weightTime'),'08:00');
+ assert.equal(a.run('savedIntro.settings.measureTime'),'09:00');
+ assert.equal(a.run('savedIntro.settings.measureDay'),'1');
+ assert.equal(a.run('savedIntro.settings.enabled'),true);
+ assert.equal(a.run('savedIntro.settings.reminderIntroSeen'),true);
+ assert.equal(a.run('savedIntro.settings.reminderScheduleConfigured'),true);
+ assert.equal(a.run('page'),'inicio');
+ assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
+ a.run("Cloud.hasConsent=()=>true");
+ assert.match(a.run('profilePage()'),/data-go="lembretes"/);
+});
+
+test('falha de rede ao escolher lembretes nao impede continuar a sequencia na sessao',async()=>{
+ const a=setup();a.run("mode='cloud';Cloud.user={id:'intro-network'};Cloud.onboardingComplete=true;arrivalReady=true;page='inicio';state.profile.consent=true;state.profile.tracking.weight=false;state.profile.tracking.measures=false;state.profile.tracking.applications=false;Cloud.saveProfile=async()=>{throw Error('offline')};checkDailyRecords()");
+ assert.ok(a.document.querySelector('.reminder-setup-prompt'));
+ a.document.querySelector('[data-reminder-setup=skip]').click();
+ for(let i=0;i<12;i++)await Promise.resolve();
+ assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
+ assert.equal(a.run('page'),'inicio');
+ a.run('checkDailyRecords()');
+ assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
 });
 
 test('recuperação consome CAPTCHA, explica expiração e impede reenvio logo após sucesso',async()=>{
