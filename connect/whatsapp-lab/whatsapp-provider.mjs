@@ -100,6 +100,20 @@ export async function createBaileysProvider(
     throw Error('Imagem ou legenda inválida.');
    return sendToParticipatingGroup(groupJid,{image,caption:caption.trim(),mimetype:'image/jpeg'});
   },
+  async sendDocument(groupJid,caption,document,fileName){
+   if(typeof caption!=='string'||caption.length>2000||!Buffer.isBuffer(document)
+      ||document.length<8||document.length>20*1024*1024
+      ||document.subarray(0,5).toString('ascii')!=='%PDF-'
+      ||typeof fileName!=='string'||!/^.{1,115}\\.pdf$/i.test(fileName)
+      ||/[\\/\\\\\\x00-\\x1f\\x7f]/.test(fileName))throw Error('PDF ou nome de arquivo inválido.');
+   return sendToParticipatingGroup(groupJid,{document,fileName,mimetype:'application/pdf',caption:caption.trim()});
+  },
+  async sendVideo(groupJid,caption,video){
+   if(typeof caption!=='string'||caption.length>2000||!Buffer.isBuffer(video)
+      ||video.length<12||video.length>20*1024*1024
+      ||video.subarray(4,8).toString('ascii')!=='ftyp')throw Error('Vídeo MP4 inválido.');
+   return sendToParticipatingGroup(groupJid,{video,mimetype:'video/mp4',caption:caption.trim()});
+  },
   async forget(){
    closed=true;connected=false;cancel(reconnectTimer);
    const current=socket;socket=null;keys.clear();onCredentials(null);
