@@ -45,7 +45,7 @@ sealed partial class WhatsApp : Form {
     Guid automatedRequest;
     readonly HashSet<string> sentRequests=new HashSet<string>(StringComparer.Ordinal);
     Dictionary<string,object> localVault;
-    readonly JavaScriptSerializer json=new JavaScriptSerializer { MaxJsonLength=16*1024*1024 };
+    readonly JavaScriptSerializer json=new JavaScriptSerializer { MaxJsonLength=36*1024*1024 };
     Process process;
     StreamWriter pipe;
     bool closing,forgetting,ready;
@@ -299,6 +299,33 @@ sealed partial class WhatsApp : Form {
                 group_jid=group,text=caption,image=Convert.ToBase64String(jpeg)}));
             return await Task.WhenAny(completion.Task,Task.Delay(TimeSpan.FromSeconds(35)))==completion.Task
                 ? await completion.Task : Tuple.Create("uncertain",(string)null);
+        }catch{return Tuple.Create("uncertain",(string)null);}
+        finally{automatedSend=null;automatedRequest=Guid.Empty;sendingText=false;UpdateComposer();}
+    }
+    public async Task<Tuple<string,string>> DispatchCampaignAttachmentAsync(Guid request,string group,string caption,
+        string kind,string fileName,byte[] bytes) {
+        if(!CampaignSessionReady||pendingSend!=Guid.Empty||automatedSend!=null||!selected.Contains(group)
+            ||request==Guid.Empty||String.IsNullOrWhiteSpace(caption)||caption.Length>2000
+            ||bytes==null||bytes.Length<8||bytes.Length>20*1024*1024
+            ||(kind!="pdf"&&kind!="video")||canPublish==null||!canPublish())
+            return Tuple.Create("refused",(string)null);
+        if(kind=="pdf"&&
+           (bytes[0]!=37||bytes[1]!=80||bytes[2]!=68||bytes[3]!=70||bytes[4]!=45
+            ||String.IsNullOrWhiteSpace(fileName)||fileName.Length>120
+            ||!System.Text.RegularExpressions.Regex.IsMatch(fileName,
+               @"\A[^/\\\x00-\x1f\x7f]{1,116}\.pdf\z",
+               System.Text.RegularExpressions.RegexOptions.IgnoreCase)))
+            return Tuple.Create("refused",(string)null);
+        if(kind=="video"&&(bytes.Length<12||bytes[4]!=102||bytes[5]!=116||bytes[6]!=121||bytes[7]!=112))
+            return Tuple.Create("refused",(string)null);
+        var completion=new TaskCompletionSource<Tuple<string,string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        automatedSend=completion;automatedRequest=request;sendingText=true;UpdateComposer();
+        try {
+            pipe.WriteLine(json.Serialize(new {action=kind=="pdf"?"send_pdf":"send_video",
+                request_id=request.ToString(),group_jid=group,text=caption,
+                file_name=kind=="pdf"?fileName:null,data=Convert.ToBase64String(bytes)}));
+            return await Task.WhenAny(completion.Task,Task.Delay(TimeSpan.FromSeconds(120)))==completion.Task
+                ?await completion.Task:Tuple.Create("uncertain",(string)null);
         }catch{return Tuple.Create("uncertain",(string)null);}
         finally{automatedSend=null;automatedRequest=Guid.Empty;sendingText=false;UpdateComposer();}
     }
