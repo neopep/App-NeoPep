@@ -7,7 +7,7 @@
  const labels={draft:'Rascunho',scheduled:'Agendada',waiting:'Aguardando',active:'Ativa',in_progress:'Em processamento',completed:'Concluída',accepted:'Aceita pelo cliente',refused:'Recusada',uncertain:'Incerta',cancelled:'Cancelada',archived:'Arquivada',legacy:'Manual legado'};
  function state(pub){
   const batch=pub.batches[0];
-  if(!batch)return 'draft';
+  if(!batch)return pub.legacy_dispatch?'legacy':'draft';
   const states=batch.states||[];
   if(states.includes('uncertain'))return 'uncertain';
   if(states.includes('leased')||states.includes('started'))return 'in_progress';
@@ -83,7 +83,7 @@
    const undated=ordered.filter(pub=>!pub.planned_local&&!pub.batches.length);
    const dated=ordered.filter(pub=>!undated.includes(pub));
    const cards=entries=>entries.map(pub=>{
-    const batch=pub.batches[0],locked=Boolean(batch&&(batch.cancelled_at==null||batch.states?.some(value=>value!=='cancelled')));
+    const batch=pub.batches[0],locked=pub.legacy_dispatch||Boolean(batch&&(batch.cancelled_at==null||batch.states?.some(value=>value!=='cancelled')));
     return `<article class="monitor-block"><div class="between"><strong>${escape(pub.title)}</strong><span class="campaign-state">${status(pub)}</span></div>
      <p class="sub">${batch?date(batch.due_at):local(pub.planned_local)||'Sem data'} · São Paulo · ${pub.kinds?.length||0} mensagem(ns)${pub.kinds?.length?' · '+escape(pub.kinds.join(', ')):''}</p>
      ${view==='agenda'&&editable&&pub.planned_local&&!locked?`<label class="check"><input type="checkbox" name="selected-publication" value="${escape(pub.id)}"> Selecionar para agendar</label>`:''}
@@ -201,7 +201,7 @@
      const id=getLocal(pointer());
      removeLocal('neo-campaign-editor:'+account+':whatsapp:'+current+':'+id);removeLocal(pointer());details();
     }
-    if(action==='edit'&&pub)await editor(id,control,{readOnly:Boolean(detail.archived_at||pub.batches[0]&&
+    if(action==='edit'&&pub)await editor(id,control,{readOnly:Boolean(detail.archived_at||pub.legacy_dispatch||pub.batches[0]&&
      (pub.batches[0].cancelled_at==null||pub.batches[0].states?.some(value=>value!=='cancelled')))});
     if(action==='duplicate_form'&&pub)duplicateForm(pub);
     if(action==='add_date'){
@@ -217,7 +217,9 @@
     }
     if(action==='schedule_selected')await scheduleSelected();
     if(action==='attempts'&&pub){
-     const history=await cloud.campaignRich('status',{editor_id:pub.editor_id});
+     const rich=await cloud.campaignRich('status',{editor_id:pub.editor_id});
+     const legacy=pub.legacy_dispatch?await cloud.campaignDispatch('status',{editor_id:pub.editor_id}):[];
+     const history=[...rich,...legacy.map((row,index)=>({...row,sequence:index+1,has_receipt:row.attempts?.some(attempt=>Boolean(attempt.receipt_id))}))];
      const holder=control.parentElement;
      if(active()&&holder.isConnected)holder.innerHTML=history.map(row=>`<p class="sub">Mensagem ${escape(row.sequence)} · ${labels[row.dispatch_state]||escape(row.dispatch_state)} · ${escape(row.dispatch_attempts)} tentativa(s) · ${row.has_receipt?'Recibo registrado':'Sem recibo'} · ${date(row.scheduled_at)}</p>`).join('')||'<p>Sem tentativas de despacho.</p>';
     }

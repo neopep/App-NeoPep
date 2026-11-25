@@ -60,6 +60,7 @@ begin
   raise exception 'campaign_central_requires_rich_dispatch' using errcode='55000';
  end if;
  if exists(select 1 from neo_private.campaign_central_groups where campaign_id=linked.campaign_id and archived_at is not null)
+   or exists(select 1 from neo_private.campaign_dispatch_batch where editor_id=linked.editor_id)
    or exists(select 1 from neo_private.campaign_wa_rich_batches b where b.editor_id=linked.editor_id
       and (b.cancelled_at is null or exists(select 1 from neo_private.campaign_wa_rich_messages m
         where m.batch_id=b.id and m.state<>'cancelled'))) then
@@ -177,6 +178,7 @@ begin
    'archived_at',parent.archived_at,'default_destination',parent.default_destination,
    'publications',coalesce((select jsonb_agg(jsonb_build_object('id',pub.id,'editor_id',pub.editor_id,
      'revision',v.revision,'title',v.draft->>'title','planned_local',v.draft->>'planned_local',
+     'legacy_dispatch',exists(select 1 from neo_private.campaign_dispatch_batch l where l.editor_id=pub.editor_id and l.owner_id=actor),
      'kinds', (select jsonb_agg(item->>'type') from jsonb_array_elements(v.draft->'blocks') item),
      'batches',coalesce((select jsonb_agg(jsonb_build_object('id',b.id,'revision',b.revision,'due_at',b.due_at,
        'cancelled_at',b.cancelled_at,'states',(select jsonb_agg(m.state order by m.sequence)
