@@ -16,7 +16,14 @@ for(const name of ['appearance.js','config.js','core.js','cloud.js','captcha.js'
   code=code.replace('assets/photo-example-${i+1}.png','${'+JSON.stringify(examples)+'[i]}');
  }
  code=code.replaceAll('assets/logo-neopep.png',inlinePng('assets/logo-neopep.png')).replace(/assets\/icon.svg/g,inlineSvg('assets/icon.svg')).replace(/<\/script/gi,'<\\/script');
- html=html.replace(`<script src="${name}"></script>`,()=>'<script>'+code+'</script>');
+ const prefix='<script src="'+name;
+ const start=html.indexOf(prefix);
+ if(start<0)throw Error('Script obrigatório ausente na prévia portátil: '+name);
+ const closing='"></script>';
+ const end=html.indexOf(closing,start);
+ if(end<0||end-start>prefix.length+90)throw Error('Tag de script inválida na prévia portátil: '+name);
+ const existing=html.slice(start,end+closing.length);
+ html=html.replace(existing,()=>'<script>'+code+'</script>');
 }
 for(const asset of ['logo-neopep.png','favicon-32.png','apple-touch-icon.png'])html=html.replaceAll('assets/'+asset,inlinePng('assets/'+asset));
 fs.mkdirSync('artifacts',{recursive:true});fs.writeFileSync('artifacts/NeoPeptideos-previa.html',html);
