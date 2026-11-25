@@ -22,6 +22,7 @@
   const active=()=>root.isConnected&&cloud.user?.id===account;
   const rpc=(action,values={})=>cloud.campaignCentral(action,{campaign_id:current,...values});
   let loadEpoch=0;
+  let statusTimer=null,statusRefreshing=false;
   const legacyKey='neo-campaign-editor:'+account+':whatsapp:new';
   const pointer=()=> 'neo-campaign-central:'+account+':'+current;
   const getLocal=key=>{try{return localStorage.getItem(key);}catch{return null;}};
@@ -29,6 +30,40 @@
   const removeLocal=key=>{try{localStorage.removeItem(key);}catch{}};
   function show(message){if(active())root.querySelector('[data-central-status]').textContent=message;}
   function status(pub){return labels[state(pub)];}
+  function stopStatusPoll(){if(statusTimer!==null){clearTimeout(statusTimer);statusTimer=null;}}
+  async function refreshVisibleStatus(force=false){
+   if(statusRefreshing||!active()||screen!=='detail'||!current||(!force&&busy)||root.hidden||document.visibilityState==='hidden')return;
+   const campaignId=current;
+   statusRefreshing=true;
+   try{
+    const latest=await cloud.campaignCentral('get',{campaign_id:campaignId});
+    if(!active()||current!==campaignId||screen!=='detail')return;
+    detail=latest;
+    for(const pub of latest.publications||[]){
+     const node=[...root.querySelectorAll('[data-central-publication]')]
+      .find(article=>article.dataset.centralPublication===pub.id);
+     if(!node)continue;
+     const badge=node.querySelector('.campaign-state');
+     if(badge)badge.textContent=status(pub);
+     if(!pub.batches[0]?.states?.includes('waiting'))node.querySelector('[data-central="cancel"]')?.remove();
+    }
+    if(force)show('Estados atualizados a partir do servidor.');
+   }catch{if(force)show('Não foi possível atualizar os estados. Verifique a conexão e tente novamente.');}
+   finally{statusRefreshing=false;}
+  }
+  function scheduleStatusPoll(){
+   stopStatusPoll();
+   if(!active()||screen!=='detail'||!detail)return;
+   const states=detail.publications.map(pub=>state(pub));
+   const interval=states.some(value=>value==='waiting'||value==='in_progress')?10000:
+    states.includes('scheduled')?30000:null;
+   if(interval===null)return;
+   statusTimer=setTimeout(async()=>{
+    statusTimer=null;
+    await refreshVisibleStatus();
+    if(active()&&screen==='detail')scheduleStatusPoll();
+   },interval);
+  }
   function campaignState(row){
    if(row.archived_at)return 'archived';
    if(row.legacy)return row.status==='archived'?'archived':row.status==='active'?'active':row.status==='draft'?'draft':'legacy';
@@ -38,6 +73,7 @@
    if(active())root.innerHTML='<p class="sub" role="status" data-central-status></p>'+content;
   }
   function list(){
+   stopStatusPoll();
    screen='list';current=null;detail=null;
    const seen=new Set(rows.map(row=>row.campaign_id));
    const feed=[...rows,...legacy().filter(row=>row.whatsapp_enabled&&!seen.has(row.id)).map(row=>({...row,campaign_id:row.id,legacy:true}))];
@@ -82,7 +118,7 @@
    const dated=ordered.filter(pub=>!undated.includes(pub));
    const cards=entries=>entries.map(pub=>{
     const batch=pub.batches[0],locked=pub.legacy_dispatch||Boolean(batch&&(batch.cancelled_at==null||batch.states?.some(value=>value!=='cancelled')));
-    return `<article class="monitor-block"><div class="between"><strong>${escape(pub.title)}</strong><span class="campaign-state">${status(pub)}</span></div>
+    return `<article class="monitor-block" data-central-publication="${escape(pub.id)}"><div class="between"><strong>${escape(pub.title)}</strong><span class="campaign-state">${status(pub)}</span></div>
      <p class="sub">${batch?date(batch.due_at):local(pub.planned_local)||'Sem data'} · São Paulo · ${pub.kinds?.length||0} mensagem(ns)${pub.kinds?.length?' · '+escape(pub.kinds.join(', ')):''}</p>
      ${view==='agenda'&&editable&&pub.planned_local&&!locked?`<label class="check"><input type="checkbox" name="selected-publication" value="${escape(pub.id)}"> Selecionar para agendar</label>`:''}
      <div class="inline-actions">${button('edit',locked||!editable?'Ver publicação':'Editar publicação',pub.id)}
@@ -92,7 +128,7 @@
    }).join('');
    redraw(`${button('back','‹ Campanhas')}<div class="between"><h2>${escape(detail.title)}</h2>${editable?button('rename','Renomear')+button('archive','Arquivar'):''}</div>
     <p class="sub">WhatsApp · ${items.length} publicação(ões)${editable?'':' · Arquivada'}</p>
-    <div class="inline-actions">${button('agenda','Agenda','',view==='agenda'?'primary':'secondary')}${button('history','Histórico','',view==='history'?'primary':'secondary')}</div>
+    <div class="inline-actions">${button('agenda','Agenda','',view==='agenda'?'primary':'secondary')}${button('history','Histórico','',view==='history'?'primary':'secondary')}${button('refresh_status','Atualizar estados')}</div>
     ${view==='agenda'? `<label>Filtrar a partir de<input type="date" data-central-date></label><div data-central-date-list>${cards(dated)||'<p>Sem publicações com data.</p>'}</div>
      <h3>Rascunhos sem data</h3>${cards(undated)||'<p>Sem rascunhos sem data.</p>'}
      ${editable?`<div class="inline-actions">${getLocal(pointer())?'':button('add','+ Adicionar publicação','','primary')}
@@ -100,6 +136,7 @@
       ${dated.length?button('schedule_selected','Revisar e agendar selecionadas'):''}</div>`:''}`:
      `${cards(ordered)||'<p>Sem publicações registradas.</p>'}<h3>Eventos da campanha</h3><ul>${detail.events.map(event=>`<li>${date(event.recorded_at)} · ${({created:'Campanha criada',save:'Versão salva',duplicate:'Duplicada',schedule:'Agendada',publish:'Publicação solicitada',cancel:'Cancelamento solicitado',archived:'Arquivada',renamed:'Campanha renomeada'})[event.event]||escape(event.event)}${event.revision?' · versão '+escape(event.revision):''}</li>`).join('')}</ul>`}`);
    if(view==='agenda')root.querySelectorAll('[data-central-date-list] article').forEach((node,index)=>{node.dataset.day=(dated[index].batches[0]?.due_at?new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo'}).format(new Date(dated[index].batches[0].due_at)):dated[index].planned_local||'').slice(0,10);});
+   scheduleStatusPoll();
   }
   async function load(id){
    current=id;
@@ -196,6 +233,7 @@
      catch{show('O rascunho foi salvo. Consulte também as versões de revisão na aba Publicações.');}
     });
     if(action==='agenda'||action==='history'){view=action;await load(current);}
+    if(action==='refresh_status')await refreshVisibleStatus(true);
     if(action==='add')await editor(crypto.randomUUID(),control,{new:true,fresh:true});
     if(action==='resume'&&getLocal(pointer()))await editor(getLocal(pointer()),control);
     if(action==='discard'&&confirm('Descartar a digitação local desta campanha?')){
