@@ -50,3 +50,18 @@ test('uma conta conectada durante a exclusão da anterior não tem sua sessão e
  a.sdk.functions={invoke:async()=>{a.calls.find(c=>c[0]==='listener')[1]('SIGNED_IN',{user:{id:'new-user',email:'new@example.invalid'}});return {data:{deleted:true}}}};
  await a.api.deleteAccount('test-password','captcha',original.id);assert.equal(a.api.user.id,'new-user');assert.equal(a.calls.filter(c=>c[0]==='signout').length,0);
 });
+
+test('peso inicial do cadastro e enviado uma unica vez, com data local, na RPC transacional',async()=>{
+ const a=adapter(),calls=[];
+ await a.api.init(()=>{});
+ a.sdk.rpc=async(name,payload)=>{calls.push({name,payload});return {data:null,error:null}};
+ const profile={name:'Pessoa Teste',height:170,initialWeight:83.45,goal:76,consent:true};
+ await a.api.onboard(profile,C.blank().settings,true,true);
+ assert.equal(calls.length,1,'cadastro e peso devem ser uma unica operacao');
+ assert.equal(calls[0].name,'neo_complete_onboarding');
+ assert.equal(calls[0].payload.p_profile.initialWeight,83.45);
+ assert.equal(calls[0].payload.p_profile.initialRecordDate,C.today());
+ assert.equal(calls[0].payload.p_health,true);
+ assert.equal(calls[0].payload.p_terms,true);
+ assert.equal(profile.initialRecordDate,undefined,'o campo transitorio nao deve alterar o perfil do formulario');
+});
