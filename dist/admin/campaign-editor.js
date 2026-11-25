@@ -507,7 +507,15 @@
   }
   async function saveRemote(){
    if(saving||!current())return;
-   if((editing&&!draft.blocks.some(block=>block.id===editing&&block.type==='image'&&!block.text&&!message.value.trim()))||message.value.trim()){tell('Adicione ou conclua o bloco em edição antes de registrar a versão.');return;}
+   const editingBlock=editing&&draft.blocks.find(block=>block.id===editing);
+   if(editingBlock&&['image','product','document','community','link','file'].includes(editingBlock.type)){
+    const caption=message.value.trim();
+    const max=editingBlock.type==='link'?160:1000;
+    if(caption.length>max){tell('A legenda deste item deve ter no máximo '+max+' caracteres.');return;}
+    editingBlock.text=caption;editing=null;message.value='';
+    composeAction();render();changed();
+   }
+   if(editing||message.value.trim()){tell('Conclua o bloco de texto em edição antes de registrar a versão.');return;}
    if(!draft.title.trim()){tell('Informe o título do rascunho.');return;}
    if(testWA&&draft.blocks.some(b=>b.type==='image'&&!b.media_path)){
     saving=true;tell('Preparando mídia privada para homologação…');
@@ -677,7 +685,11 @@
    if(action==='caption'){
     const selected=draft.blocks.find(row=>row.id===captionTarget&&['image','product','document','community','file','link'].includes(row.type));
     if(!selected)return;
-    if(editing===selected.id){editing=null;message.value='';}
+    if(editing===selected.id){
+     const next=message.value.trim();
+     if(next.length>1000){tell('A legenda pode ter até 1.000 caracteres.');return;}
+     selected.text=next;editing=null;message.value='';
+    }
     else{
      if(message.value.trim()&&editing!==selected.id){tell('Conclua o texto em edição antes de trocar de legenda.');return;}
      editing=selected.id;
@@ -729,7 +741,7 @@
    }
    if(action==='catalog_search')void searchCatalog();
    if(action==='reference'&&catalogRows[index]){
-    if(message.value.trim()&&editing){tell('Conclua a legenda em edição antes de adicionar outra referência.');return;}
+    if(message.value.trim()){tell('Conclua o texto ou legenda que está digitando antes de adicionar outra referência.');return;}
     const row=catalogRows[index];
     const id=uuid();
     if(draft.blocks.length>=32){tell('Limite de 32 blocos por rascunho.');return;}
