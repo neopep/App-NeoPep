@@ -30,3 +30,26 @@ test('central adota revisões, salva publicações separadas e protege os agenda
  }catch(error){delete error.query;throw error;}
  finally{await db.close();}
 });
+
+test('selecao de grupos no editor oficial aceita a allowlist multigrupos no iPhone',()=>{
+ const vm=require('node:vm');
+ const source=fs.readFileSync('dist/admin/campaign-editor.js','utf8');
+ const declaration=source.match(/const groupSelectable=id=>([^;\n]+);/);
+ assert.ok(declaration,'helper de selecao de grupos precisa existir');
+ const choose=(id,{testWA,officialWA,destinations=[],pinned=null})=>
+  vm.runInNewContext('(id)=>'+declaration[1],{
+   testWA,officialWA,officialDestinations:()=>destinations,
+   authorizedDestination:()=>pinned
+  })(id);
+ const first='12345678-1234-1234-1234-123456789012:111@g.us';
+ const second='12345678-1234-1234-1234-123456789012:222@g.us';
+ const unknown='12345678-1234-1234-1234-123456789012:333@g.us';
+ for(const id of [first,second])assert.equal(choose(id,{testWA:true,officialWA:true,destinations:[first,second]}),true);
+ assert.equal(choose(unknown,{testWA:true,officialWA:true,destinations:[first,second]}),false);
+ assert.equal(choose(first,{testWA:true,officialWA:true,destinations:[]}),false);
+ assert.equal(choose(second,{testWA:true,officialWA:false,pinned:first}),false);
+ assert.equal(choose(first,{testWA:true,officialWA:false,pinned:first}),true);
+ assert.equal(choose(unknown,{testWA:false,officialWA:false}),true);
+ assert.match(source,/groupSelectable\(row\.id\)/,'checkbox e autorizacao devem coincidir');
+ assert.match(source,/else if\(groupSelectable\(id\)&&groups\.some/,'clique deve usar mesma allowlist');
+});
