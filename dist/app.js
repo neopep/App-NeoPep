@@ -20,8 +20,25 @@ let state=C.blank(),localState=C.blank(),demo=false,mode='local',page='inicio',p
 try{const raw=localStorage.getItem(KEY);if(raw)localState=C.validateBackup(JSON.parse(raw));state=localState}catch(e){localError='Não foi possível ler os dados locais. O conteúdo original foi preservado; exporte a cópia bruta antes de continuar.'}
 let legacyExists=false;try{legacyExists=!!localStorage.getItem(LEGACY)}catch{}
 function toast(t){$('#toast').textContent=t;$('#toast').style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').style.display='none',5000)}
-let appearance='dark';try{const saved=localStorage.getItem('neo-appearance');if(['light','dark','system'].includes(saved))appearance=saved}catch{}
-function applyTheme(){const p=appearance;const dark=p==='dark'||(p==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=dark?'dark':'light';document.querySelector('meta[name=theme-color]').content=dark?'#111210':'#f0f4fc'}
+function applyTheme(){window.NeoAppearance?.apply();}
+function saveAppearance(value){window.NeoAppearance?.save(value);}
+const appearanceModes=[
+ ['light','Claro','sun'],['system','Seguir sistema','monitor'],['dark','Escuro','moon']
+];
+icons.monitor='M3 4h18v12H3V4Zm9 12v4m-4 0h8';
+function appearanceMenu(){
+ return `<details class="profile-appearance"><summary class="icon-btn" aria-label="Aparência" title="Aparência">${icon('monitor')}</summary><div role="group" aria-label="Aparência">${appearanceModes.map(([value,label,image])=>`<button type="button" class="text-btn" data-appearance="${value}" aria-pressed="${window.NeoAppearance?.value===value}">${icon(image)} ${value==='system'?'Automático':label}</button>`).join('')}</div></details>`;
+}
+document.addEventListener('neo:appearance',()=>{
+ for(const button of document.querySelectorAll('.profile-appearance [data-appearance]'))button.setAttribute('aria-pressed',String(button.dataset.appearance===window.NeoAppearance.value));
+});
+document.addEventListener('click',event=>{
+ const button=event.target.closest('.profile-appearance [data-appearance]');
+ const value=button?.dataset.appearance;
+ if(!appearanceModes.some(([mode])=>mode===value))return;
+ saveAppearance(value);
+ const menu=button.closest('details');menu.open=false;menu.querySelector('summary')?.focus();
+});
 function persist(next){if(demo){state=C.validateBackup(next);return}if(mode!=='local')throw Error('Operação local indisponível nesta conta.');if(localError)throw Error('Exporte e recupere os dados locais antes de gravar.');const valid=C.validateBackup(next);try{localStorage.setItem(KEY,JSON.stringify(valid))}catch{throw Error('Não foi possível salvar neste dispositivo. O armazenamento pode estar cheio ou indisponível. Exporte um backup.')}state=valid;localState=valid}
 function localConsent(){return state.profile.consent||confirm('Estes registros podem conter dados de saúde. Você autoriza guardá-los neste navegador? Em dispositivos compartilhados, outras pessoas poderão acessá-los. Você pode exportar e excluir os dados no Perfil.')}
 function download(name,data,type){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([data],{type}));a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000)}
@@ -35,7 +52,7 @@ async function backup(){const gen=loadGeneration,snapshot=JSON.parse(JSON.string
  }};
 }if(gen!==loadGeneration)throw Error('O modo ou conta mudou durante a exportação. Tente novamente.');download((demo?'DEMONSTRACAO-':'')+'neopeptideos-backup-'+C.today()+'.json',JSON.stringify({...snapshot,accountMetadata,exportedAt:new Date().toISOString()},null,2),'application/json');if(!demo)backupDone=true;toast('Backup exportado. Na nuvem inclui consentimentos e recibos. As fotos são exportadas separadamente.');}
 function legacyBackup(){const raw=localStorage.getItem(LEGACY);if(!raw)throw Error('Nenhum registro anterior encontrado neste navegador.');download('neopeptideos-registros-anteriores-'+C.today()+'.json',raw,'application/json');legacyBackupDone=true;toast('Backup dos registros anteriores exportado.');render()}
-function head(title,sub,action=''){return `${!['inicio','bemvindo','comunidade','loja'].includes(page)?'<button class="text-btn page-back" data-back="auto">‹ Voltar</button>':''}<div class="page-head"><div><div class="eyebrow">${new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'})}</div><h1>${title}</h1><p class="sub">${sub}</p></div>${action}</div>`}
+function head(title,sub,action=''){return `${!['inicio','bemvindo','comunidade','loja'].includes(page)?`<div class="page-back-row"><button class="text-btn page-back" data-back="auto">‹ Voltar</button>${page==='perfil'?appearanceMenu():''}</div>`:''}<div class="page-head"><div><div class="eyebrow">${new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'})}</div><h1>${title}</h1><p class="sub">${sub}</p></div>${action}</div>`}
 const addBtn=(kind,label)=>`<button class="primary" data-add="${kind}" aria-label="${label}">${icon('plus')}<span>${label}</span></button>`;
 const empty=(title,detail,action='',i='trend')=>`<div class="empty">${icon(i)}<strong>${title}</strong><span>${detail}</span>${action}</div>`;
 function periods(){return `<div class="segmented" role="group" aria-label="Período do gráfico">${[['7','7 dias'],['30','30 dias'],['90','90 dias'],['183','6 meses'],['365','1 ano'],['all','Tudo']].map(([v,l])=>`<button data-period="${v}" class="${period===v?'active':''}" aria-pressed="${period===v}">${l}</button>`).join('')}</div>`}
@@ -59,7 +76,7 @@ function journeyProgress(m){const j=C.weightJourney(m),delta=m.current!=null&&m.
 let homeDetailsOpen=false;
 function setHomeDetails(open){if(open&&!homeDetailsOpen)engagementTrack('home_journey_expand','inicio');homeDetailsOpen=!!open;const panel=document.getElementById('homeJourneyDetails'),button=document.querySelector('[data-home-details]');if(panel)panel.hidden=!homeDetailsOpen;if(button){button.setAttribute('aria-expanded',String(homeDetailsOpen));button.querySelector('span').textContent=homeDetailsOpen?'Ocultar acompanhamento':'Ver meu acompanhamento';}if(page==='inicio'){if(!open)comparisonPrepared.fill(null);hydratePhotoImages();}}
 function homeJourneyDetails(done){return stats(true,true)+comparisonCard(true)+`<div class="home-today"><section class="card"><div class="card-head"><div><h2>Seu cuidado de hoje</h2><p class="sub">Um momento para você.</p></div><span class="tag">${done?icon('check'):'Hoje'}</span></div>${dailyTasks(done)}<button class="text-btn full" data-go="lembretes">${icon('bell')} Personalizar lembretes</button></section></div><div class="space"><section class="card"><div class="card-head"><h2>Seus últimos passos</h2><button class="text-btn" data-go="registros">Ver todos</button></div>${recent().length?recent().map(r=>`<div class="task"><div class="task-icon">${icon(r.icon)}</div><div><b>${r.title}</b><small>${esc(r.detail.slice(0,75))} · ${date(r.date)}</small></div><button class="icon-btn" data-go="${r.route}" aria-label="Ver ${r.title}">${icon('chevron')}</button></div>`).join(''):empty('Seu primeiro passo pode ser hoje','Registre um peso, medida ou momento do seu dia.','','journal')}</section></div>`}
-function overview(){const m=C.metrics(state),name=state.profile.name.trim().split(/\s+/)[0],hour=new Date().getHours(),greeting=hour<12?'Bom dia':hour<18?'Boa tarde':'Boa noite',next=C.nextReminders(state)[0],done=state.weights.some(r=>r.date===C.today());return head(greeting+(name?', '+esc(name):'')+'.','Um novo dia para acompanhar sua evolução.','')+`<section class="card home-journey"><div class="card-head"><h2>Uma jornada com propósito</h2><div class="home-quick-actions"><button class="primary home-quick-add" data-add="weight" aria-label="Adicionar registro de peso">${icon('plus')}</button><button class="home-dose-shortcut" data-go="calculadora" aria-label="Dose: abrir calculadora">${icon('calc')}<span>Dose</span></button></div></div>${m.goal?journeyProgress(m):`<p class="sub">Defina uma meta pessoal e acompanhe a distância entre seu ponto de partida e seu objetivo.</p><button class="text-btn" data-go="perfil">Definir minha meta ${icon('arrow')}</button>`}<div class="task"><div class="task-icon">${icon('clock')}</div><div><b>Próximo lembrete</b><small>${next?esc(next.title)+' · '+next.next.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'Nenhum lembrete'}</small></div></div><button type="button" class="secondary full home-details-toggle" data-home-details aria-controls="homeJourneyDetails" aria-expanded="${homeDetailsOpen}"><span>${homeDetailsOpen?'Ocultar acompanhamento':'Ver meu acompanhamento'}</span>${icon('chevron')}</button></section>`+`<div id="homeJourneyDetails" class="home-journey-details" role="region" aria-label="Resumo e registros da sua jornada" ${homeDetailsOpen?'':'hidden'}>${homeJourneyDetails(done)}</div>`+(window.NeoLibrary?.home?.()||'')+`<section class="card" aria-labelledby="homeNutritionTitle"><h2 id="homeNutritionTitle">Minha alimentação</h2><p class="sub">Em breve</p></section>`+(window.NeoShop?.home?.()||'')+`<div class="card insight space"><div class="task-icon">${icon('calc')}</div><div style="flex:1"><h3>Clareza em cada cálculo.</h3><p class="sub">Converta a dose prescrita em volume e marcações U-100.</p></div><button class="icon-btn" data-go="calculadora" aria-label="Abrir calculadora">${icon('arrow')}</button></div>`}
+function overview(){const m=C.metrics(state),name=state.profile.name.trim().split(/\s+/)[0],hour=new Date().getHours(),greeting=hour<12?'Bom dia':hour<18?'Boa tarde':'Boa noite',next=C.nextReminders(state)[0],done=state.weights.some(r=>r.date===C.today());return head(greeting+(name?', '+esc(name):'')+'.','Um novo dia para acompanhar sua evolução.','')+`<section class="card home-journey"><div class="card-head"><h2>Uma jornada com propósito</h2><div class="home-quick-actions"><button class="primary home-quick-add" data-add="weight" aria-label="Adicionar registro de peso">${icon('plus')}</button><button class="home-dose-shortcut" data-go="calculadora" aria-label="Dose: abrir calculadora">${icon('calc')}<span>Dose</span></button></div></div>${m.goal?journeyProgress(m):`<p class="sub">Defina uma meta pessoal e acompanhe a distância entre seu ponto de partida e seu objetivo.</p><button class="text-btn" data-go="perfil">Definir minha meta ${icon('arrow')}</button>`}<div class="task"><div class="task-icon">${icon('clock')}</div><div><b>Próximo lembrete</b><small>${next?esc(next.title)+' · '+next.next.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'Nenhum lembrete'}</small></div></div><button type="button" class="secondary full home-details-toggle" data-home-details aria-controls="homeJourneyDetails" aria-expanded="${homeDetailsOpen}"><span>${homeDetailsOpen?'Ocultar acompanhamento':'Ver meu acompanhamento'}</span>${icon('chevron')}</button></section>`+`<div id="homeJourneyDetails" class="home-journey-details" role="region" aria-label="Resumo e registros da sua jornada" ${homeDetailsOpen?'':'hidden'}>${homeJourneyDetails(done)}</div>`+(window.NeoLibrary?.home?.()||'')+`<section class="card" aria-labelledby="homeNutritionTitle"><h2 id="homeNutritionTitle">Minha alimentação</h2><p class="sub">Em breve</p></section>`+(window.NeoShop?.home?.({cloud:mode==='cloud'&&!demo,user:Cloud.user})||'')+homeCalculatorCard()}
 function historyTable(type,rows=state[type]){const preferences=historyPrefs[type]||{query:'',from:'',to:'',page:0};const searchable=rows.map(r=>type==='doses'?{...r,protocolName:state.protocols.find(p=>p.id===r.protocolId)?.name||''}:r),data=C.filterRecords(searchable,preferences).reverse(),size=12,pages=Math.max(1,Math.ceil(data.length/size)),current=Math.min(preferences.page||0,pages-1),start=current*size;const headers={weights:['Data','Peso','Gordura','Nota'],measures:['Data','Cintura','Quadril','Peito','Braço','Coxa','Gordura'],doses:['Data','Produto','Dose informada','Local','Protocolo','Nota'],journal:['Data','Bem-estar','Energia','Sono','Apetite','Água','Atividade','Nota'],protocols:['Início','Nome','Fim','Status','Observações'],reminders:['Início','Título','Horário','Repetição','Status']};const value=(n,u,display=fmt)=>n==null?'—':display(n)+' '+u;
 const values=r=>type==='weights'?[date(r.date),value(r.value,unit(),weight),value(r.fat,'%'),r.note]:type==='measures'?[date(r.date),...['waist','hip','chest','arm','thigh'].map(k=>value(r[k],measureUnit(),cm)),value(r.fat,'%')]:type==='doses'?[date(r.date),r.product,fmt(r.amount,4)+' '+r.unit,r.site,r.protocolName||(r.protocolId?'Protocolo não disponível':'Sem vínculo'),r.note]:type==='journal'?[date(r.date),value(r.wellbeing,'/ 5'),value(r.energy,'/ 5'),value(r.sleep,'h'),value(r.appetite,'/ 5'),value(r.water,'L'),value(r.activity,'min'),r.note]:type==='protocols'?[date(r.date),r.name,r.end?date(r.end):'—',r.status==='active'?'Em acompanhamento':'Encerrado',r.note]:[date(r.date),r.title,r.time,{once:'Uma vez',daily:'Diário',weekly:'Semanal'}[r.repeat],r.enabled?'Ativo':'Pausado'];
 const actions=r=>`<button class="text-btn" data-edit="${type}:${esc(r.id)}" aria-label="Editar registro de ${date(r.date)}">Editar</button>${type==='reminders'?`<button class="text-btn" data-toggle-reminder="${esc(r.id)}">${r.enabled?'Pausar':'Ativar'}</button>`:''}<button class="delete" data-delete="${type}:${esc(r.id)}" aria-label="Excluir registro de ${date(r.date)}">${icon('trash')}</button>`;
@@ -75,8 +92,8 @@ function protocolCards(){return state.protocols.map(p=>{const applications=C.sor
 function protocols(){return head('Seu histórico de protocolos.','Organize datas e informações cadastradas por você.',addBtn('protocol','Novo protocolo'))+`<div class="notice">Este espaço organiza registros pessoais. Não cria esquemas de administração nem recomenda mudanças de dose.</div>${state.protocols.length?`<div class="two-cols">${protocolCards()}</div>`:''}<section class="card space"><h2>Protocolos registrados</h2>${historyTable('protocols')}</section>`}
 const calcFields={
  mass:{label:'Massa total do frasco',unit:'mg',max:60,step:.5,choices:[5,10,15,20,40,60]},
- volume:{label:'Volume final da solução',unit:'mL',max:5,step:.01,choices:[1,2,3,5]},
- dose:{label:'Dose informada',unit:'mg',max:10,step:.5,choices:[.5,1,1.5,2,2.5,3,3.5,5,7.5,10]}
+ volume:{label:'Volume do diluente',unit:'mL',max:5,step:.01,choices:[1,2,3,5]},
+ dose:{label:'Dose informada',unit:'mg',max:10,step:.1,choices:[.5,1,1.5,2,2.5,3,3.5,5,7.5,10]}
 };
 const calcMinimum=.000001;
 // Reference configurations of standard-scale U-100 syringes. Other models can differ.
@@ -102,40 +119,40 @@ function calcVial(id){
  return `<svg class="calc-vial" viewBox="0 0 84 100" aria-hidden="true">
  <defs>
   <linearGradient id="${art}-glass">
-   <stop stop-color="#806235" stop-opacity=".65"/><stop offset=".12" stop-color="#e7c88f" stop-opacity=".45"/>
-   <stop offset=".35" stop-color="#e9d7b1" stop-opacity=".12"/><stop offset=".69" stop-color="#f3e4c4" stop-opacity=".08"/>
-   <stop offset=".9" stop-color="#e6c38a" stop-opacity=".32"/><stop offset="1" stop-color="#8c6e43" stop-opacity=".65"/>
+   <stop stop-color="var(--calc-art-ink,#806235)" stop-opacity=".65"/><stop offset=".12" stop-color="var(--calc-art-tint,#e7c88f)" stop-opacity=".45"/>
+   <stop offset=".35" stop-color="var(--calc-art-tint,#e9d7b1)" stop-opacity=".12"/><stop offset=".69" stop-color="var(--calc-art-light,#f3e4c4)" stop-opacity=".08"/>
+   <stop offset=".9" stop-color="var(--calc-art-tint,#e6c38a)" stop-opacity=".32"/><stop offset="1" stop-color="var(--calc-art-edge,#8c6e43)" stop-opacity=".65"/>
   </linearGradient>
   <linearGradient id="${art}-depth" x2="0" y2="1">
-   <stop stop-color="#fff5db" stop-opacity=".2"/><stop offset=".43" stop-color="#a7885e" stop-opacity="0"/>
-   <stop offset="1" stop-color="#6b4b25" stop-opacity=".4"/>
+   <stop stop-color="var(--calc-art-light,#fff5db)" stop-opacity=".2"/><stop offset=".43" stop-color="var(--calc-art-edge,#a7885e)" stop-opacity="0"/>
+   <stop offset="1" stop-color="var(--calc-art-ink,#6b4b25)" stop-opacity=".4"/>
   </linearGradient>
   <linearGradient id="${art}-cap" x2="0" y2="1">
-   <stop stop-color="#f1d5a0"/><stop offset=".25" stop-color="#cfa46a"/><stop offset=".67" stop-color="#927043"/><stop offset="1" stop-color="#b98d50"/>
+   <stop stop-color="var(--calc-art-tint,#f1d5a0)"/><stop offset=".25" stop-color="var(--calc-art-mid,#cfa46a)"/><stop offset=".67" stop-color="var(--calc-art-edge,#927043)"/><stop offset="1" stop-color="var(--calc-art-edge,#b98d50)"/>
   </linearGradient>
   <linearGradient id="${art}-liquid" x2="0" y2="1">
-   <stop stop-color="#fff0c9" stop-opacity=".9"/><stop offset=".08" stop-color="#eacf91" stop-opacity=".84"/>
-   <stop offset=".36" stop-color="#c79549" stop-opacity=".73"/><stop offset="1" stop-color="#91642d" stop-opacity=".86"/>
+   <stop stop-color="var(--calc-art-light,#fff0c9)" stop-opacity=".9"/><stop offset=".08" stop-color="var(--calc-art-tint,#eacf91)" stop-opacity=".84"/>
+   <stop offset=".36" stop-color="var(--calc-art-mid,#c79549)" stop-opacity=".73"/><stop offset="1" stop-color="var(--calc-art-edge,#91642d)" stop-opacity=".86"/>
   </linearGradient>
-  <radialGradient id="${art}-shadow"><stop stop-color="#261b0d" stop-opacity=".36"/><stop offset="1" stop-color="#261b0d" stop-opacity="0"/></radialGradient>
+  <radialGradient id="${art}-shadow"><stop stop-color="var(--calc-art-shadow,#261b0d)" stop-opacity=".36"/><stop offset="1" stop-color="var(--calc-art-shadow,#261b0d)" stop-opacity="0"/></radialGradient>
   <clipPath id="${art}-chamber"><path d="M30 25h24v13l9 10v31q0 6-6 6H27q-6 0-6-6V48l9-10z"/></clipPath>
  </defs>
  <ellipse cx="42" cy="91" rx="30" ry="5" fill="url(#${art}-shadow)"/>
- <path d="${glass}" fill="url(#${art}-glass)" stroke="#ad8f60" stroke-width="1.15"/>
+ <path d="${glass}" fill="url(#${art}-glass)" stroke="var(--calc-art-edge,#ad8f60)" stroke-width="1.15"/>
  <g clip-path="url(#${art}-chamber)">
   <svg data-calc-fill="${id}" x="21" y="85" width="42" height="0" overflow="hidden">
    <rect width="42" height="100%" rx="2" fill="url(#${art}-liquid)"/>
-   <path d="M1 .65Q21 3.8 41 .65" fill="none" stroke="#fff1ce" stroke-opacity=".58" stroke-width=".85"/>
+   <path d="M1 .65Q21 3.8 41 .65" fill="none" stroke="var(--calc-art-light,#fff1ce)" stroke-opacity=".58" stroke-width=".85"/>
   </svg>
   <path d="${glass}" fill="url(#${art}-depth)"/>
-  <path d="M31 27v12l-8 10v28q0 4 3 5m3-32v22" fill="none" stroke="#fff9ed" stroke-width="2" stroke-opacity=".43" stroke-linecap="round"/>
-  <path d="M55 42l6 8v24" fill="none" stroke="#fff3d5" stroke-width="1.3" stroke-opacity=".28" stroke-linecap="round"/>
+  <path d="M31 27v12l-8 10v28q0 4 3 5m3-32v22" fill="none" stroke="var(--calc-art-light,#fff9ed)" stroke-width="2" stroke-opacity=".43" stroke-linecap="round"/>
+  <path d="M55 42l6 8v24" fill="none" stroke="var(--calc-art-light,#fff3d5)" stroke-width="1.3" stroke-opacity=".28" stroke-linecap="round"/>
  </g>
- <path d="M24 82q2 3 6 3h24q4 0 6-3" fill="none" stroke="#fff1cf" stroke-opacity=".65" stroke-width="1.5"/>
+ <path d="M24 82q2 3 6 3h24q4 0 6-3" fill="none" stroke="var(--calc-art-light,#fff1cf)" stroke-opacity=".65" stroke-width="1.5"/>
  <path class="calc-mark" d="M46 52h12m-7 10h7m-12 10h12"/>
- <rect x="23" y="9" width="38" height="15" rx="4" fill="url(#${art}-cap)" stroke="#997447" stroke-width=".85"/>
- <path d="M27 12h30" stroke="#fff1cf" stroke-opacity=".65" stroke-linecap="round"/>
- <path d="M28 15v5m4-5v5m4-5v5m4-5v5m4-5v5m4-5v5m4-5v5m4-5v5" stroke="#6e4d29" stroke-opacity=".35" stroke-width=".7"/>
+ <rect x="23" y="9" width="38" height="15" rx="4" fill="url(#${art}-cap)" stroke="var(--calc-art-edge,#997447)" stroke-width=".85"/>
+ <path d="M27 12h30" stroke="var(--calc-art-light,#fff1cf)" stroke-opacity=".65" stroke-linecap="round"/>
+ <path d="M28 15v5m4-5v5m4-5v5m4-5v5m4-5v5m4-5v5m4-5v5m4-5v5" stroke="var(--calc-art-ink,#6e4d29)" stroke-opacity=".35" stroke-width=".7"/>
  </svg>`;
 }
 function syringeReading(capacity,units){
@@ -165,37 +182,37 @@ function syringeSymbol(capacity,mark=0,compact=false,calculated=null){
  return `<svg class="calc-syringe" viewBox="0 ${compact?'13':'0'} 286 ${compact?'56':'82'}" aria-hidden="true">
  <defs>
   <linearGradient id="${art}-glass" x2="0" y2="1">
-   <stop stop-color="#a68b64" stop-opacity=".6"/><stop offset=".14" stop-color="#fff0d4" stop-opacity=".48"/>
-   <stop offset=".45" stop-color="#e9d7b7" stop-opacity=".09"/><stop offset=".72" stop-color="#bd9f73" stop-opacity=".19"/>
-   <stop offset="1" stop-color="#997e58" stop-opacity=".64"/>
+   <stop stop-color="var(--calc-art-edge,#a68b64)" stop-opacity=".6"/><stop offset=".14" stop-color="var(--calc-art-light,#fff0d4)" stop-opacity=".48"/>
+   <stop offset=".45" stop-color="var(--calc-art-tint,#e9d7b7)" stop-opacity=".09"/><stop offset=".72" stop-color="var(--calc-art-mid,#bd9f73)" stop-opacity=".19"/>
+   <stop offset="1" stop-color="var(--calc-art-edge,#997e58)" stop-opacity=".64"/>
   </linearGradient>
   <linearGradient id="${art}-liquid" x2="0" y2="1">
-   <stop stop-color="#fcdf9e" stop-opacity=".63"/><stop offset=".4" stop-color="var(--calc-fluid-pigment,#c49650)" stop-opacity=".65"/>
+   <stop stop-color="var(--calc-art-tint,#fcdf9e)" stop-opacity=".63"/><stop offset=".4" stop-color="var(--calc-fluid-pigment,#c49650)" stop-opacity=".65"/>
    <stop offset="1" stop-color="var(--calc-fluid-pigment,#c49650)" stop-opacity=".92"/>
   </linearGradient>
   <linearGradient id="${art}-metal" x2="0" y2="1">
-   <stop stop-color="#e5d3b3"/><stop offset=".26" stop-color="#bcaa8d"/>
-   <stop offset=".55" stop-color="#726657"/><stop offset=".82" stop-color="#9d8a71"/><stop offset="1" stop-color="#665c4f"/>
+   <stop stop-color="var(--calc-art-tint,#e5d3b3)"/><stop offset=".26" stop-color="var(--calc-art-mid,#bcaa8d)"/>
+   <stop offset=".55" stop-color="var(--calc-art-ink,#726657)"/><stop offset=".82" stop-color="var(--calc-art-edge,#9d8a71)"/><stop offset="1" stop-color="var(--calc-art-ink,#665c4f)"/>
   </linearGradient>
-  <radialGradient id="${art}-shadow"><stop stop-color="#2c2014" stop-opacity=".33"/><stop offset="1" stop-color="#2c2014" stop-opacity="0"/></radialGradient>
+  <radialGradient id="${art}-shadow"><stop stop-color="var(--calc-art-shadow,#2c2014)" stop-opacity=".33"/><stop offset="1" stop-color="var(--calc-art-shadow,#2c2014)" stop-opacity="0"/></radialGradient>
   <clipPath id="${art}-chamber"><rect x="${start}" y="${top+2}" width="${length}" height="${height-4}" rx="2"/></clipPath>
   <clipPath id="${art}-stem"><rect x="0" y="0" width="${start}" height="82"/></clipPath>
  </defs>
  <ellipse cx="${(start+end)/2}" cy="${bottom+3}" rx="${length/2+4}" ry="5" fill="url(#${art}-shadow)"/>
- <path d="M254 43h24l3-1" fill="none" stroke="#968974" stroke-width="1.4" stroke-linecap="round"/>
+ <path d="M254 43h24l3-1" fill="none" stroke="var(--calc-art-edge,#968974)" stroke-width="1.4" stroke-linecap="round"/>
  <rect x="245" y="39" width="13" height="8" rx="2" fill="url(#${art}-metal)"/>
  <g class="calc-external-stem" clip-path="url(#${art}-stem)">
   <rect x="${grip}" y="41" width="${Math.max(0,piston-grip)}" height="4" rx="2" fill="url(#${art}-metal)"/>
-  <rect x="${grip-3}" y="34" width="5" height="18" rx="2" fill="url(#${art}-metal)" stroke="#736452" stroke-width=".6"/>
+  <rect x="${grip-3}" y="34" width="5" height="18" rx="2" fill="url(#${art}-metal)" stroke="var(--calc-art-ink,#736452)" stroke-width=".6"/>
  </g>
- <rect x="${start}" y="${top}" width="${length}" height="${height}" rx="3" fill="url(#${art}-glass)" stroke="#9a845f" stroke-width="1.15"/>
+ <rect class="calc-syringe-barrel" x="${start}" y="${top}" width="${length}" height="${height}" rx="3" fill="url(#${art}-glass)" stroke="var(--calc-art-edge,#9a845f)" stroke-width="1.15"/>
  <rect x="${start-2}" y="${top-4}" width="4" height="${height+8}" rx="1.5" fill="url(#${art}-metal)"/>
  <g clip-path="url(#${art}-chamber)">
   <rect class="calc-liquid" x="${piston}" y="${top+2}" width="${end-piston}" height="${height-4}" fill="url(#${art}-liquid)"/>
-  <path d="M${start+2} ${top+4}H${end-2}" stroke="#fff7e8" stroke-width="2.6" stroke-opacity=".47" stroke-linecap="round"/>
-  <path d="M${start+1} ${bottom-3}H${end-1}" stroke="#f9e8c9" stroke-width="1.05" stroke-opacity=".43" stroke-linecap="round"/>
+  <path d="M${start+2} ${top+4}H${end-2}" stroke="var(--calc-art-light,#fff7e8)" stroke-width="2.6" stroke-opacity=".47" stroke-linecap="round"/>
+  <path d="M${start+1} ${bottom-3}H${end-1}" stroke="var(--calc-art-light,#f9e8c9)" stroke-width="1.05" stroke-opacity=".43" stroke-linecap="round"/>
  </g>
- ${mark>0?`<path class="calc-meniscus" d="M${piston} ${top+2} Q${piston+3} 43 ${piston} ${bottom-2}" fill="none" stroke="#fff1ce" stroke-opacity=".55"/>`:''}
+ ${mark>0?`<path class="calc-meniscus" d="M${piston} ${top+2} Q${piston+3} 43 ${piston} ${bottom-2}" fill="none" stroke="var(--calc-art-light,#fff1ce)" stroke-opacity=".55"/>`:''}
  <rect data-calc-piston x="${piston-3}" y="${top+2}" width="3" height="${height-4}" rx="1" fill="url(#${art}-metal)"/>
  ${ticks.join('')}
  ${label?`<g class="calc-level-label"><path d="M${labelX} 19L${piston} ${top}"/><rect x="${labelX-labelWidth/2}" y="2" width="${labelWidth}" height="17" rx="5"/><text x="${labelX}" y="14" text-anchor="middle">${label}</text></g>`:''}
@@ -205,10 +222,10 @@ function calcField(id){
  const {label,unit,max,step,choices}=calcFields[id];
  return `<section class="card calc-card calc-card-${id}">
   <h2>${label}</h2>${id==='dose'?'':calcVial(id)}
-  ${id==='volume'?'<p class="sub">Informe o volume final confirmado, que pode diferir do diluente adicionado.</p>':''}
+  ${id==='volume'?'<p class="sub" id="calc-volume-help">Use o volume final efetivo no cálculo. Se ele diferir do volume de diluente adicionado, informe o volume final.</p>':''}
   <label for="calc-range-${id}" class="calc-range-label">Ajustar ${label.toLocaleLowerCase('pt-BR')}</label>
   <div class="calc-slider"><output class="calc-bubble" data-calc-bubble="${id}" aria-hidden="true">—</output>
-   <input id="calc-range-${id}" data-calc-range="${id}" type="range" min="0" max="${max}" step="${step}" value="0" aria-valuetext="Não informado">
+   <input id="calc-range-${id}" data-calc-range="${id}" type="range" min="0" max="${max}" step="${step}" value="0" aria-valuetext="Não informado" ${id==='volume'?'aria-describedby="calc-volume-help"':''}>
   </div>
   <div class="calc-limits" aria-hidden="true"><span>0</span><span data-calc-max="${id}">${calcNumber(max)} ${unit}</span></div>
   ${id==='dose'?'<p class="sub" id="calc-dose-limit"></p>':''}
@@ -304,7 +321,7 @@ function calculator(){
 function calcSliderConfig(id){
  if(id!=='dose')return calcFields[id];
  const unit=$('#doseUnit').value,multiplier=unit==='mcg'?1000:1;
- const step=unit==='mg'?.5:Number($('#calcDoseStep').value||.1)*multiplier;
+ const step=unit==='mg'?calcFields.dose.step:Number($('#calcDoseStep').value||.1)*multiplier;
  const mass=Number($('#mass').value),volume=Number($('#volume').value);
  const limit=(mass/volume)*calcCapacityValue*multiplier;
  const known=mass>=calcMinimum&&volume>=calcMinimum&&Number.isFinite(limit)&&limit>0;
@@ -421,6 +438,35 @@ function readCalcSaved(key){
  });
  return {items,last:items.some(item=>item.id===value.last)?value.last:null};
 }
+function homeCalculatorContent(){
+ let latest=null;
+ if(mode==='cloud'&&!demo){
+  const key=calcStorageKey();
+  // Saving prepends a record. The "last" pointer can also select an older one.
+  if(key)try{latest=readCalcSaved(key).items[0]||null;}catch{/* The card remains usable without storage. */}
+ }
+ const capacity=latest?.capacity??1;
+ const units=latest?.units??null;
+ const reading=latest?syringeReading(capacity,units):null;
+ return `<span class="home-calculator-title">Calculadora de volume</span>
+  ${syringeSymbol(capacity,reading?.mark,false,units)}
+  ${latest?`<span class="home-calculator-details">Último cálculo salvo · ${esc(new Date(latest.savedAt).toLocaleDateString('pt-BR'))}<br>
+   ${calcDisplay(latest.ml)} mL · ${calcDisplay(units)} UI · Seringa de ${calcDisplay(capacity)} mL
+   ${reading.outside?'<br>Fora da capacidade da seringa':reading.between?'<br>Desenho na marca inferior':''}</span>`:
+   '<span class="home-calculator-details">Abra a calculadora para converter valores em volume e graduação U-100.</span>'}
+  <span class="home-calculator-link">Abrir calculadora ${icon('arrow')}</span>`;
+}
+function homeCalculatorCard(){
+ return `<button type="button" class="card space home-calculator" data-home-calculator data-go="calculadora">${homeCalculatorContent()}</button>`;
+}
+window.addEventListener('storage',event=>{
+ if(page!=='inicio'||mode!=='cloud'||demo||event.storageArea!==localStorage)return;
+ const key=calcStorageKey();
+ if(key&&(event.key===key||event.key===null)){
+  const card=$('[data-home-calculator]');
+  if(card)card.innerHTML=homeCalculatorContent();
+ }
+});
 function renderCalcSaved(saved){
  const list=$('#calc-saved-list');
  if(!list)return;
@@ -1449,39 +1495,116 @@ const privacyOptions=[
  ['campaigns','Notificações de campanhas'],
  ['location','Localização aproximada']
 ];
+function personalizationPanel(initial){
+ return `<section class="card privacy-preferences personalization-panel" data-personalization hidden aria-labelledby="personalizationTitle">
+  <h2 id="personalizationTitle" tabindex="-1">Personalize sua experiência</h2>
+  <p>Permita que o NeoPep personalize sua experiência e melhore nossas comunicações.</p>
+  <p class="sub">Sua escolha é opcional. Estatísticas, campanhas e permissões do aparelho têm controles próprios.</p>
+  <div class="personalization-actions">
+   <button type="button" class="primary" data-personalization-choice="allow">Permitir personalização</button>
+   <button type="button" class="text-btn" data-personalization-choice="deny">${initial?'Agora não':'Revogar personalização'}</button>
+  </div><p role="status" data-personalization-status></p>
+ </section>`;
+}
+function mountPersonalization(form,initial,current){
+ const panel=$('[data-personalization]');
+ if(!panel||!Cloud.personalizationConsent)return async()=>{};
+ const allow=panel.querySelector('[data-personalization-choice=allow]');
+ const deny=panel.querySelector('[data-personalization-choice=deny]');
+ const status=panel.querySelector('[data-personalization-status]');
+ const notice=form.querySelector('[data-privacy-notice]');
+ let busy=false;
+ function revealPreferences(message){
+  panel.hidden=true;
+  form.hidden=false;
+  if(message)notice.textContent=message;
+  form.querySelector('button.primary').focus();
+ }
+ function paint(result){
+  if(initial&&result.decided)return;
+  panel.hidden=false;
+  if(initial){
+   form.hidden=true;
+   panel.querySelector('h2').focus();
+  }else{
+   allow.hidden=result.granted===true;
+   deny.hidden=result.granted!==true;
+   status.textContent=result.granted?'Personalização autorizada.':'Personalização desativada.';
+  }
+ }
+ panel.addEventListener('click',async event=>{
+  const choice=event.target.closest('[data-personalization-choice]')?.dataset.personalizationChoice;
+  if(!choice||busy||panel.hidden||!current())return;
+  busy=true;allow.disabled=deny.disabled=true;
+  status.textContent='Salvando sua escolha…';
+  try{
+   const result=await Cloud.personalizationConsent(choice==='allow');
+   if(!current())return;
+   if(initial)revealPreferences();else paint(result);
+  }catch{
+   if(!current())return;
+   const message='Não foi possível confirmar a escolha. Você pode revisá-la em Privacidade e permissões.';
+   if(initial)revealPreferences(message);else status.textContent=message;
+  }finally{
+   busy=false;
+   if(current())allow.disabled=deny.disabled=false;
+  }
+ });
+ return async function showPersonalization(){
+  try{
+   const result=await Cloud.personalizationConsent();
+   if(current())paint(result);
+  }catch{/* Older deployments and network failures leave this optional step closed. */}
+ };
+}
 function privacyPreferencesPage(){
  if(mode!=='cloud'||demo||!Cloud.user)return head('Privacidade e permissões','Entre na sua conta para configurar suas preferências.');
  const initial=page==='permissoes-iniciais';
  const title=initial?'Privacidade e notificações':'Privacidade e permissões';
  return (initial?'<div class="page-head"><h1>'+title+'</h1></div>':head(title,''))+
+  (initial?`<section class="card privacy-preferences" data-location-intro hidden aria-labelledby="locationIntroTitle">
+   <h2 id="locationIntroTitle" tabindex="-1">Localização opcional</h2>
+   <p>Você pode permitir a localização para personalizar sua experiência com base na região aproximada da sua conexão.</p>
+   <p>O aparelho pedirá autorização. O NeoPep não guarda as coordenadas do dispositivo nem rastreia seus deslocamentos.</p>
+   <p>Você pode mudar sua escolha em Perfil → Privacidade e permissões.</p>
+   <div class="privacy-location-actions"><button type="button" class="primary" data-location-choice="allow">Permitir localização</button>
+   <button type="button" class="text-btn" data-location-choice="skip">Agora não</button></div>
+   <p data-location-notice role="status"></p>
+  </section>`:'')+
   `<form id="privacyPreferences" class="card privacy-preferences" data-privacy-account="${esc(Cloud.user.id)}" data-privacy-page="${page}">
   ${initial?'<p class="sub">Escolha como deseja receber notificações e contribuir para melhorar o NeoPep.</p>':''}
   <fieldset disabled aria-label="Permissões opcionais">
-  ${privacyOptions.map(([key,label])=>`<label class="privacy-option" for="privacy-${key}"><span>${label}</span><input id="privacy-${key}" name="${key}" type="checkbox" role="switch"></label>`).join('')}
+  ${privacyOptions.filter(([key])=>!initial||key!=='location').map(([key,label])=>`<label class="privacy-option" for="privacy-${key}"><span>${label}</span><input id="privacy-${key}" name="${key}" type="checkbox" role="switch"></label>`).join('')}
   </fieldset>
-  <p class="form-help">Se você ativar a localização, o aparelho pedirá permissão. O NeoPep usa apenas a região aproximada da conexão e não envia as coordenadas do aparelho.</p>
+  ${initial?'':'<p class="form-help">Ao ativar a localização, o aparelho pedirá autorização. O NeoPep usa apenas a região aproximada da conexão e não envia as coordenadas do aparelho.</p>'}
   <p class="sub" data-privacy-notice role="status">Consultando preferências…</p>
   <a class="text-btn privacy-policy-link" href="#privacidade" target="_blank" rel="noopener">Política de Privacidade</a>
   <button type="submit" class="primary full" disabled>${initial?'Salvar e continuar':'Salvar preferências'}</button>
-  ${initial?'<button type="submit" name="skip" class="text-btn full">Continuar sem autorizar</button>':''}
-  </form>`;
+  ${initial?'<button type="submit" name="skip" class="text-btn full" disabled>Continuar sem autorizar</button>':''}
+  </form>`+personalizationPanel(initial);
 }
 function privacyHelp(form){
  const messages=[];
  if(window.Notification?.permission==='denied')messages.push('Notificações bloqueadas. Para liberá-las, abra os ajustes de notificações do aparelho ou do navegador.');
- if(form.elements.location.disabled)messages.push('A localização aproximada ainda está indisponível neste ambiente.');
+ if(form.querySelector('[name=location]')?.disabled)messages.push('A localização aproximada ainda está indisponível neste ambiente.');
  return messages.join(' ');
 }
 function requestDeviceLocation(){
  return new Promise(resolve=>{
+  const timeout=setTimeout(()=>finish(false),8000);
+  function finish(allowed){clearTimeout(timeout);resolve(allowed);}
   try{
    const geo=navigator.geolocation;
-   if(!geo){resolve(false);return;}
-   geo.getCurrentPosition(()=>resolve(true),()=>resolve(false),{
+   if(!geo){finish(false);return;}
+   geo.getCurrentPosition(()=>finish(true),()=>finish(false),{
     enableHighAccuracy:false,maximumAge:0,timeout:8000
    });
-  }catch{resolve(false);}
+  }catch{finish(false);}
  });
+}
+function locationOnboardingKey(account){return 'neo-location-onboarding-v1:'+account;}
+function locationChoiceRecorded(account){
+ try{return ['allow','skip'].includes(localStorage.getItem(locationOnboardingKey(account)));}catch{return false;}
 }
 function mountPrivacyPreferences(){
  const form=$('#privacyPreferences');
@@ -1490,12 +1613,18 @@ function mountPrivacyPreferences(){
  const account=Cloud.user.id,initial=page==='permissoes-iniciais',fields=form.querySelector('fieldset');
  const status=form.querySelector('[data-privacy-notice]'),save=form.querySelector('button.primary');
  const skip=form.querySelector('[name=skip]');
+ const intro=initial?$('[data-location-intro]'):null;
  const current=()=>Cloud.user?.id===account&&form.isConnected;
  let baseline=null,saving=false;
+ const showPersonalization=mountPersonalization(form,initial,()=>current()&&!saving);
  function apply(values){
   baseline=values;
-  for(const [key] of privacyOptions)form.elements[key].checked=values[key]===true;
-  form.elements.location.disabled=!values.location&&window.NEO_CONFIG?.stagingGeoEnabled!==true;
+  for(const [key] of privacyOptions){
+   const field=form.querySelector('[name='+key+']');
+   if(field)field.checked=values[key]===true;
+  }
+  const locationField=form.querySelector('[name=location]');
+  if(locationField)locationField.disabled=!values.location&&window.NEO_CONFIG?.stagingGeoEnabled!==true;
   status.textContent=privacyHelp(form);
  }
  async function load(){
@@ -1506,11 +1635,47 @@ function mountPrivacyPreferences(){
    if(initial&&!values.pending){await openAccountDestination(false);return;}
    apply(values);
    fields.disabled=false;
+   if(intro&&!values.location&&window.NEO_CONFIG?.stagingGeoEnabled===true&&!locationChoiceRecorded(account)){
+    form.hidden=true;intro.hidden=false;
+    intro.querySelector('h2').focus();
+   }else await showPersonalization();
   }catch{
    if(current()&&!saving)status.textContent='Não foi possível consultar as preferências. Tente novamente.';
   }
-  if(current()&&!saving)save.disabled=false;
+  if(current()&&!saving){save.disabled=false;if(skip)skip.disabled=false;}
  }
+ intro?.addEventListener('click',async event=>{
+  const choice=event.target.closest('[data-location-choice]')?.dataset.locationChoice;
+  if(!choice||!current()||saving||intro.hidden)return;
+  saving=true;
+  for(const button of intro.querySelectorAll('button'))button.disabled=true;
+  let message='';
+  try{
+   if(choice==='allow'&&window.NEO_CONFIG?.stagingGeoEnabled===true){
+    intro.querySelector('[data-location-notice]').textContent='Aguardando a autorização do aparelho…';
+    const authorized=await requestDeviceLocation();
+    if(!current())return;
+    if(authorized){
+     const values=await Cloud.privacyPreferences({location:true});
+     if(!current())return;
+     apply(values);
+     geoAccount=account;geoAllowed=values.location;geoNext=0;geoCaptureRequested=values.location;
+     if(values.location)void syncGeo();
+    }else message='A localização está desativada. Você pode tentar novamente no Perfil.';
+   }
+  }catch{
+   message='Não foi possível ativar a localização agora. Você pode tentar novamente no Perfil.';
+  }finally{
+   saving=false;
+   if(current()){
+    try{localStorage.setItem(locationOnboardingKey(account),choice);}catch{}
+    intro.hidden=true;form.hidden=false;
+    if(message)status.textContent=message;
+    await showPersonalization();
+    if(!form.hidden)save.focus();
+   }
+  }
+ });
  form.addEventListener('submit',async event=>{
   event.preventDefault();
   if(!current()||saving)return;
@@ -1518,7 +1683,8 @@ function mountPrivacyPreferences(){
   if(!skipping&&!baseline){await load();return;}
   const choices={};
   if(!skipping)for(const [key] of privacyOptions){
-   if(form.elements[key].checked!==baseline[key])choices[key]=form.elements[key].checked;
+   const field=form.querySelector('[name='+key+']');
+   if(field&&!field.disabled&&field.checked!==baseline[key])choices[key]=field.checked;
   }
   // Start native authorization within the submit gesture, before the network request.
   const wantsCampaigns=choices.campaigns===true;
@@ -1563,7 +1729,7 @@ function mountPrivacyPreferences(){
  });
  void load();
 }
-function profilePage(){const p={...state.profile,theme:appearance,consent:mode==='cloud'&&!demo?Cloud.hasConsent('health'):state.profile.consent};return head('Seu espaço, do seu jeito.','Perfil, preferências e controle dos seus dados.')+`<div class="two-cols"><section class="card"><div class="profile-head"><div class="avatar">${avatarURL?`<img src="${esc(avatarURL)}" alt="Sua foto">`:esc(p.name.slice(0,1).toUpperCase()||'N')}</div><div><h2>${esc(p.name||'Como podemos chamar você?')}</h2><p class="sub">${mode==='cloud'?esc(Cloud.user?.email||'Conta conectada'):'Perfil local · neste navegador'}</p><button class="text-btn" data-add="avatar">Alterar foto</button></div></div><form id="profileForm"><label>Nome<input name="name" value="${esc(p.name)}" maxlength="100" autocomplete="given-name" required placeholder="Seu nome"></label>${mode==='cloud'?`<label>E-mail da conta<input type="email" disabled value="${esc(Cloud.user?.email||'')}"></label>`:''}<div class="form-grid"><label class="profile-birth-date">Nascimento (opcional)<input name="birthDate" type="date" value="${esc(p.birthDate)}" max="${C.today()}"></label><label class="profile-height">Altura (cm)<input name="height" type="number" min="40" max="260" step="0.1" inputmode="decimal" value="${p.height??''}"></label><label>Peso inicial (kg)<input name="initialWeight" type="number" min="1" max="650" step="0.01" inputmode="decimal" value="${p.initialWeight??''}"></label><label>Meta de peso (kg)<input name="goal" type="number" min="1" max="650" step="0.01" inputmode="decimal" value="${p.goal??''}"></label></div><div class="form-grid"><label>Unidades de exibição<select name="units"><option value="metric" ${p.units==='metric'?'selected':''}>kg e cm</option><option value="imperial" ${p.units==='imperial'?'selected':''}>lb e polegadas</option></select></label><label>Aparência<select name="theme" id="themeSelect">${[['system','Automática'],['light','Clara'],['dark','Escura']].map(([v,t])=>`<option value="${v}" ${p.theme===v?'selected':''}>${t}</option>`).join('')}</select></label></div><p class="form-help">Os formulários guardam valores em kg e cm; a preferência altera a exibição de peso e medidas.</p>${mode!=='cloud'||demo?profilePermissions(p):''}${trackingFields(p)}<button class="primary full">Salvar perfil</button></form></section><section><div class="card"><h2>Conta e sincronização</h2>${mode==='cloud'&&!Cloud.onboardingComplete?'<button class="primary full space" data-go="onboarding">Concluir cadastro inicial</button>':''}<p class="sub space">${mode==='cloud'?'Sua conta está conectada. Alterações confirmadas são persistidas na nuvem.':'Você está no modo local. Os dados deste dispositivo não são enviados à nuvem automaticamente.'}</p>${mode==='cloud'?`<button class="secondary full space" id="refresh">${icon('refresh')} Atualizar dados da nuvem</button><button class="text-btn full" id="logout">${icon('logout')} Sair da conta</button><button class="text-btn full" id="logoutAll">Sair de todos os dispositivos</button>`:`<button class="primary full space" data-go="bemvindo">${icon('user')} Entrar ou criar conta</button><p class="not-configured space">${Cloud.configured?'Integração configurada; valide o acesso na sua conta.':'Apple, Google e e-mail aguardam configuração externa.'}</p>`}</div><div class="profile-settings space"><details class="card profile-setting"><summary><span class="profile-setting-icon">${icon('download')}</span><span>Meus dados<small>Exportar, importar e excluir</small></span><span class="profile-setting-chevron" aria-hidden="true">⌄</span></summary><div class="profile-setting-content"><div class="profile-data-actions"><button class="secondary" id="backup">${icon('download')} Exportar backup</button><button class="secondary" id="restore">Importar backup</button><button class="secondary" id="csv">Exportar planilha</button></div><p class="sub space">O backup inclui seu perfil e registros. As fotos são exportadas separadamente na galeria. A importação adiciona registros sem apagar os existentes ou substituir seu perfil.</p><button class="text-btn" data-go="fotos">Abrir minhas fotos</button>${legacyExists&&!demo?`<details class="space"><summary>Recuperar registros anteriores</summary><p class="sub">Exporte o original antes de revisar a importação.</p><button class="secondary space" id="legacyBackup">Exportar registros originais</button><button class="secondary space" id="legacyImport" ${legacyBackupDone?'':'disabled'}>Revisar importação</button></details>`:''}${localError?'<button class="secondary full space" id="rawBackup">Exportar dados locais brutos</button>':''}<div class="danger-zone">${mode==='cloud'?'<button class="delete" id="deleteAccount">Excluir minha conta</button><p class="sub">A exclusão é permanente e exige confirmação de identidade. Exportar os dados antes é opcional.</p>':'<button class="delete" id="clearLocal">Excluir dados deste dispositivo</button><p class="sub">A exclusão é permanente e afeta os dados locais neste navegador. Exportar antes é opcional.</p>'}</div></div></details>${mode==='cloud'&&!demo?`<button type="button" class="card profile-setting privacy-setting-link" data-go="permissoes"><span class="profile-setting-icon">${icon('shield')}</span><span>Privacidade e permissões</span><span class="profile-setting-chevron" aria-hidden="true">›</span></button>`:''}<details class="card profile-setting"><summary><span class="profile-setting-icon">${icon('shield')}</span><span>Dados de saúde e fotos<small>Autorizações e documentos</small></span><span class="profile-setting-chevron" aria-hidden="true">⌄</span></summary><div class="profile-setting-content">${mode==='cloud'&&!demo?profilePermissions(p):'<p class="sub">Você controla os dados que registra. Consulte os documentos e as opções de exclusão em Meus dados.</p>'}${mode==='cloud'?'<div class="privacy-controls"><button class="text-btn" id="withdrawHealth">Retirar autorização de saúde</button><button class="text-btn" id="withdrawPhotos">Retirar autorização de fotos</button></div><p class="sub">Retirar uma autorização bloqueia novas gravações correspondentes; não apaga automaticamente os dados anteriores.</p>':''}<div class="privacy-documents"><button class="text-btn" data-go="termos">Termos de uso</button><button class="text-btn" data-go="privacidade">Política de Privacidade</button></div></div></details><details class="card profile-setting"><summary><span class="profile-setting-icon">${icon('download')}</span><span>Instalar aplicativo<small>Adicionar à tela inicial</small></span><span class="profile-setting-chevron" aria-hidden="true">⌄</span></summary><div class="profile-setting-content">${window.NeoInstall?.guide()||'<p class="sub">Abra o menu do navegador e escolha adicionar à tela inicial.</p>'}</div></details></div></section></div>`}
+function profilePage(){const p={...state.profile,consent:mode==='cloud'&&!demo?Cloud.hasConsent('health'):state.profile.consent};return head('Seu espaço, do seu jeito.','Perfil, preferências e controle dos seus dados.')+`<div class="two-cols"><section class="card"><div class="profile-head"><div class="avatar">${avatarURL?`<img src="${esc(avatarURL)}" alt="Sua foto">`:esc(p.name.slice(0,1).toUpperCase()||'N')}</div><div><h2>${esc(p.name||'Como podemos chamar você?')}</h2><p class="sub">${mode==='cloud'?esc(Cloud.user?.email||'Conta conectada'):'Perfil local · neste navegador'}</p><button class="text-btn" data-add="avatar">Alterar foto</button></div></div><form id="profileForm"><label>Nome<input name="name" value="${esc(p.name)}" maxlength="100" autocomplete="given-name" required placeholder="Seu nome"></label>${mode==='cloud'?`<label>E-mail da conta<input type="email" disabled value="${esc(Cloud.user?.email||'')}"></label>`:''}<div class="form-grid"><label class="profile-birth-date">Nascimento (opcional)<input name="birthDate" type="date" value="${esc(p.birthDate)}" max="${C.today()}"></label><label class="profile-height">Altura (cm)<input name="height" type="number" min="40" max="260" step="0.1" inputmode="decimal" value="${p.height??''}"></label><label>Peso inicial (kg)<input name="initialWeight" type="number" min="1" max="650" step="0.01" inputmode="decimal" value="${p.initialWeight??''}"></label><label>Meta de peso (kg)<input name="goal" type="number" min="1" max="650" step="0.01" inputmode="decimal" value="${p.goal??''}"></label></div><div class="form-grid"><label>Unidades de exibição<select name="units"><option value="metric" ${p.units==='metric'?'selected':''}>kg e cm</option><option value="imperial" ${p.units==='imperial'?'selected':''}>lb e polegadas</option></select></label></div><p class="form-help">Os formulários guardam valores em kg e cm; a preferência altera a exibição de peso e medidas.</p>${mode!=='cloud'||demo?profilePermissions(p):''}${trackingFields(p)}<button class="primary full">Salvar perfil</button></form></section><section><div class="card"><h2>Conta e sincronização</h2>${mode==='cloud'&&!Cloud.onboardingComplete?'<button class="primary full space" data-go="onboarding">Concluir cadastro inicial</button>':''}<p class="sub space">${mode==='cloud'?'Sua conta está conectada. Alterações confirmadas são persistidas na nuvem.':'Você está no modo local. Os dados deste dispositivo não são enviados à nuvem automaticamente.'}</p>${mode==='cloud'?`<button class="secondary full space" id="refresh">${icon('refresh')} Atualizar dados da nuvem</button><button class="text-btn full" id="logout">${icon('logout')} Sair da conta</button><button class="text-btn full" id="logoutAll">Sair de todos os dispositivos</button>`:`<button class="primary full space" data-go="bemvindo">${icon('user')} Entrar ou criar conta</button><p class="not-configured space">${Cloud.configured?'Integração configurada; valide o acesso na sua conta.':'Apple, Google e e-mail aguardam configuração externa.'}</p>`}</div><div class="profile-settings space"><details class="card profile-setting"><summary><span class="profile-setting-icon">${icon('download')}</span><span>Meus dados<small>Exportar, importar e excluir</small></span><span class="profile-setting-chevron" aria-hidden="true">⌄</span></summary><div class="profile-setting-content"><div class="profile-data-actions"><button class="secondary" id="backup">${icon('download')} Exportar backup</button><button class="secondary" id="restore">Importar backup</button><button class="secondary" id="csv">Exportar planilha</button></div><p class="sub space">O backup inclui seu perfil e registros. As fotos são exportadas separadamente na galeria. A importação adiciona registros sem apagar os existentes ou substituir seu perfil.</p><button class="text-btn" data-go="fotos">Abrir minhas fotos</button>${legacyExists&&!demo?`<details class="space"><summary>Recuperar registros anteriores</summary><p class="sub">Exporte o original antes de revisar a importação.</p><button class="secondary space" id="legacyBackup">Exportar registros originais</button><button class="secondary space" id="legacyImport" ${legacyBackupDone?'':'disabled'}>Revisar importação</button></details>`:''}${localError?'<button class="secondary full space" id="rawBackup">Exportar dados locais brutos</button>':''}<div class="danger-zone">${mode==='cloud'?'<button class="delete" id="deleteAccount">Excluir minha conta</button><p class="sub">A exclusão é permanente e exige confirmação de identidade. Exportar os dados antes é opcional.</p>':'<button class="delete" id="clearLocal">Excluir dados deste dispositivo</button><p class="sub">A exclusão é permanente e afeta os dados locais neste navegador. Exportar antes é opcional.</p>'}</div></div></details>${mode==='cloud'&&!demo?`<button type="button" class="card profile-setting privacy-setting-link" data-go="permissoes"><span class="profile-setting-icon">${icon('shield')}</span><span>Privacidade e permissões</span><span class="profile-setting-chevron" aria-hidden="true">›</span></button>`:''}<details class="card profile-setting"><summary><span class="profile-setting-icon">${icon('shield')}</span><span>Dados de saúde e fotos<small>Autorizações e documentos</small></span><span class="profile-setting-chevron" aria-hidden="true">⌄</span></summary><div class="profile-setting-content">${mode==='cloud'&&!demo?profilePermissions(p):'<p class="sub">Você controla os dados que registra. Consulte os documentos e as opções de exclusão em Meus dados.</p>'}${mode==='cloud'?'<div class="privacy-controls"><button class="text-btn" id="withdrawHealth">Retirar autorização de saúde</button><button class="text-btn" id="withdrawPhotos">Retirar autorização de fotos</button></div><p class="sub">Retirar uma autorização bloqueia novas gravações correspondentes; não apaga automaticamente os dados anteriores.</p>':''}<div class="privacy-documents"><button class="text-btn" data-go="termos">Termos de uso</button><button class="text-btn" data-go="privacidade">Política de Privacidade</button></div></div></details><details class="card profile-setting"><summary><span class="profile-setting-icon">${icon('download')}</span><span>Instalar aplicativo<small>Adicionar à tela inicial</small></span><span class="profile-setting-chevron" aria-hidden="true">⌄</span></summary><div class="profile-setting-content">${window.NeoInstall?.guide()||'<p class="sub">Abra o menu do navegador e escolha adicionar à tela inicial.</p>'}</div></details></div></section></div>`}
 function rememberRecovery(stage){try{window.sessionStorage?.setItem('neo-recovery-request',JSON.stringify({email:authEmail,stage,requestedAt:Date.now()}));}catch{}}
 function clearRecovery(){try{window.sessionStorage?.removeItem('neo-recovery-request');}catch{}}
 function restoreRecovery(){try{const saved=JSON.parse(window.sessionStorage?.getItem('neo-recovery-request')||'null');if(!saved||!/^\S+@\S+\.\S+$/.test(saved.email)||!Number.isFinite(saved.requestedAt)||Date.now()-saved.requestedAt>3600000||saved.requestedAt>Date.now()||!['verifycode','newpassword'].includes(saved.stage))return;authEmail=saved.email;authMode=saved.stage;recoveryFlow=true;resetNextAt=saved.stage==='verifycode'?saved.requestedAt+60000:0;page='bemvindo';}catch{}}
@@ -1708,6 +1874,29 @@ function syncCampaign(){
   },{once:true});
  }).catch(()=>{if(owner===campaignOwner)campaignChecked=true;}).finally(()=>{if(owner===campaignOwner)campaignPending=false;});
 }
+// A campanha de homologação usa apenas a caixa interna de Teste, separada da fila oficial.
+if(window.NEO_CONFIG?.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co'&&Cloud.campaignTestVisit){
+ let testCampaignPending=false;
+ async function syncTestCampaign(){
+  const owner=Cloud.user?.id;
+  if(!owner||testCampaignPending||!campaignReady()||campaignBlocked())return;
+  testCampaignPending=true;
+  try{
+   const item=await Cloud.campaignTestVisit('next');
+   if(!item||owner!==Cloud.user?.id||!campaignReady()||campaignBlocked())return;
+   const dialog=document.createElement('dialog');
+   if(typeof dialog.showModal!=='function')return;
+   dialog.className='neo-campaign-dialog';
+   dialog.setAttribute('aria-labelledby','neoTestCampaignTitle');
+   dialog.innerHTML=`<p class="sub">Campanha de homologação</p><h2 id="neoTestCampaignTitle">${esc(item.title)}</h2><p>${esc(item.body)}</p><form method="dialog"><button type="submit" class="secondary" autofocus>Fechar</button></form>`;
+   dialog.addEventListener('close',()=>{dialog.remove();if(campaignDialog===dialog)campaignDialog=null;},{once:true});
+   document.body.append(dialog);dialog.showModal();campaignDialog=dialog;
+   await Cloud.campaignTestVisit('displayed',item.id);
+  }catch{}finally{testCampaignPending=false;}
+ }
+ setInterval(()=>void syncTestCampaign(),45000);
+ window.addEventListener('focus',()=>void syncTestCampaign());
+}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='hidden')syncCampaign();});
 function render(){applyTheme();void Promise.resolve().then(syncCampaign);void Promise.resolve().then(syncAudience);void Promise.resolve().then(syncEngagement);void Promise.resolve().then(syncGeo);if(sessionLoading){
  document.body.classList.add('auth-screen');
@@ -1761,8 +1950,42 @@ function paintAvatarCrop(){
  if(!canvas||!avatarCropImage?.naturalWidth)return;
  drawAvatarCrop(canvas,avatarCropImage,avatarCropRect(avatarCropImage.naturalWidth,avatarCropImage.naturalHeight,avatarCrop));
 }
-async function encodePhoto(file,{maxBytes=25*1024*1024,edge=1800,quality=.88,crop=false}={}){const imageType=String(file?.type||'').toLowerCase(),imageName=String(file?.name||'').toLowerCase();if(!file||!file.size||file.size>maxBytes||!(imageType.startsWith('image/')||/\.(jpe?g|png|webp|heic|heif|avif)$/i.test(imageName)))throw Error('Escolha uma foto de até '+Math.round(maxBytes/1024/1024)+' MB.');const framing=crop?{...avatarCrop}:null;const url=URL.createObjectURL(file);try{const img=new Image();await new Promise((res,rej)=>{img.onload=res;img.onerror=()=>rej(Error(/\.(heic|heif)$/i.test(imageName)||/hei[cf]/.test(imageType)?'Este aparelho não conseguiu converter a foto HEIC. Nas opções da foto, escolha Mais compatível ou JPEG e tente novamente.':'Não foi possível decodificar esta imagem.'));img.src=url});if(img.width*img.height>100000000)throw Error('Imagem grande demais. Reduza a resolução.');const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');if(crop){const rect=avatarCropRect(img.naturalWidth,img.naturalHeight,framing);canvas.width=canvas.height=Math.max(1,Math.min(1200,Math.round(rect[2])));drawAvatarCrop(canvas,img,rect)}else{const scale=Math.min(1,edge/Math.max(img.width,img.height));canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));ctx.drawImage(img,0,0,canvas.width,canvas.height)}return await new Promise((res,rej)=>canvas.toBlob(b=>b?res(b):rej(Error('Falha ao converter a imagem para JPEG.')),'image/jpeg',quality))}finally{URL.revokeObjectURL(url)}}
-function sanitizePhoto(file,maxBytes){return encodePhoto(file,{maxBytes,crop:formKind==='avatar'})}
+async function encodePhoto(file,{maxBytes=25*1024*1024,edge=1800,quality=.88,crop=false}={}){
+ const type=String(file?.type||'').toLowerCase(),name=String(file?.name||'').toLowerCase();
+ const suffix=name.match(/\.(jpe?g|png|webp|heic|heif|avif)$/)?.[1];
+ if(!file?.size||file.size>maxBytes||!(type.startsWith('image/')||suffix))
+  throw Error('Escolha uma foto de até '+Math.round(maxBytes/1024/1024)+' MB.');
+ const isHeif=/hei[cf]/.test(type)||/^hei[cf]$/.test(suffix||'');
+ const source=suffix&&!type.startsWith('image/')?new Blob([file],{type:'image/'+(/^jpe?g$/.test(suffix)?'jpeg':suffix)}):file;
+ const framing=crop?{...avatarCrop}:null,url=URL.createObjectURL(source);
+ let image,bitmap;
+ try{
+  try{
+   image=await new Promise((resolve,reject)=>{
+    const native=new Image();native.onload=()=>resolve(native);native.onerror=reject;native.src=url;
+   });
+  }catch{
+   if(!crop&&typeof createImageBitmap==='function'){
+    try{image=bitmap=await createImageBitmap(source);}catch{}
+   }
+   if(!image)throw Error(isHeif?'Não foi possível converter a foto HEIC neste navegador. Exporte uma cópia em JPEG e tente novamente.':'Não foi possível decodificar esta imagem.');
+  }
+  const width=image.naturalWidth||image.width,height=image.naturalHeight||image.height;
+  if(!width||!height||width*height>100000000)throw Error('Não foi possível usar a resolução desta imagem.');
+  const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');
+  if(crop){
+   const rect=avatarCropRect(width,height,framing);
+   canvas.width=canvas.height=Math.max(1,Math.min(1200,Math.round(rect[2])));
+   drawAvatarCrop(canvas,image,rect);
+  }else{
+   const scale=Math.min(1,edge/Math.max(width,height));
+   canvas.width=Math.max(1,Math.round(width*scale));canvas.height=Math.max(1,Math.round(height*scale));
+   ctx.drawImage(image,0,0,canvas.width,canvas.height);
+  }
+  return await new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(Error('Falha ao converter a imagem para JPEG.')),'image/jpeg',quality));
+ }finally{bitmap?.close();URL.revokeObjectURL(url);}
+}
+function sanitizePhoto(file,maxBytes){return encodePhoto(file,{maxBytes})}
 let photoBatch=[];
 function clearPhotoBatch(){
  for(const item of photoBatch)URL.revokeObjectURL(item.preview);
@@ -1929,7 +2152,7 @@ document.addEventListener('input',event=>{
  paintAvatarCrop();
 });
 document.addEventListener('click',event=>{if(!event.target.closest?.('[data-add="avatar"]'))return;setTimeout(()=>{const button=document.querySelector('#saveRecord');if(button)button.textContent=avatarURL?'Alterar foto':'Salvar foto'},0)});
-$('#recordForm').addEventListener('submit',async e=>{e.preventDefault();if(busy)return;busy=true;$('#saveRecord').disabled=true;$('#saveRecord').textContent='Salvando…';let savedWarning='';try{if(formKind==='photo'){await submitPhotoBatch(e.target);return}const f=new FormData(e.target),r=Object.fromEntries(f);r.id=editing?.id||draftRecordId||uid();if(formKind==='avatar'){if(mode==='cloud'&&!state.profile.consent)throw Error('Complete seu perfil e consentimento antes de enviar fotos.');if(demo)throw Error('Fotos reais não são adicionadas à demonstração.');if(!localConsent())return;const generation=loadGeneration;const blob=await sanitizePhoto(f.get('photo'));if(generation!==loadGeneration)throw Error('A conta mudou. Abra novamente o formulário.');if(!C.validDate(r.date)||r.date>C.today())throw Error('Data inválida.');const role=formKind==='avatar'?'avatar':'progress';let uploaded=null;if(mode==='cloud'){if(!f.has('photoConsent'))throw Error('Confirme a autorização para fotografias.');await authorizePhotoUpload(e.target);const thumbnail=await encodePhoto(blob,{edge:160,quality:.68});requirePhotoOwner(e.target);uploaded=await Cloud.uploadPhoto(blob,r.date,role,thumbnail);requirePhotoOwner(e.target);}else await photoStore('put',{id:r.id,date:r.date,role,blob,thumbnail:await encodePhoto(blob,{edge:160,quality:.68}),created_at:new Date().toISOString()});if(role==='avatar'&&uploaded?.url){avatarURL=uploaded.url;photoList=photoList.filter(p=>p.role!=='avatar').concat(uploaded);window.NeoCommunity?.refreshIdentity?.();if(uploaded.communitySynced===false)savedWarning='Foto aplicada ao perfil. A foto da comunidade não foi atualizada; tente alterar a foto novamente.'}else try{await loadPhotos()}catch{savedWarning='Foto salva. Não foi possível atualizar a galeria; use Atualizar fotos para conferir.'}}else{if(formKind==='reminder'){r.title=C.reminderTitle(r.recordTarget,r.title);r.enabled=f.has('enabled');r.weekday=new Date(r.date+'T12:00').getDay()}if(!await putRecord(kindType[formKind],r))return;}formDirty=false;$('#dialog').close();render();toast(savedWarning||(demo?'Alteração apenas na demonstração.':'Registro salvo. Mais um passo na sua jornada.'))}catch(e){if(mode==='cloud'&&!demo)Cloud.reportError?.(formKind==='photo'||formKind==='avatar'?'photo_failed':'profile_failed');$('#formError').textContent=e.message}finally{busy=false;$('#saveRecord').disabled=false;$('#saveRecord').textContent='Salvar registro';if(formKind==='photo')paintPhotoBatch()}});
+$('#recordForm').addEventListener('submit',async e=>{e.preventDefault();if(busy)return;busy=true;$('#saveRecord').disabled=true;$('#saveRecord').textContent='Salvando…';let savedWarning='';try{if(formKind==='photo'){await submitPhotoBatch(e.target);return}const f=new FormData(e.target),r=Object.fromEntries(f);r.id=editing?.id||draftRecordId||uid();if(formKind==='avatar'){if(mode==='cloud'&&!state.profile.consent)throw Error('Complete seu perfil e consentimento antes de enviar fotos.');if(demo)throw Error('Fotos reais não são adicionadas à demonstração.');if(!localConsent())return;const generation=loadGeneration;const blob=await encodePhoto(f.get('photo'),{crop:true});if(generation!==loadGeneration)throw Error('A conta mudou. Abra novamente o formulário.');if(!C.validDate(r.date)||r.date>C.today())throw Error('Data inválida.');const role=formKind==='avatar'?'avatar':'progress';let uploaded=null;if(mode==='cloud'){if(!f.has('photoConsent'))throw Error('Confirme a autorização para fotografias.');await authorizePhotoUpload(e.target);const thumbnail=await encodePhoto(blob,{edge:160,quality:.68});requirePhotoOwner(e.target);uploaded=await Cloud.uploadPhoto(blob,r.date,role,thumbnail);requirePhotoOwner(e.target);}else await photoStore('put',{id:r.id,date:r.date,role,blob,thumbnail:await encodePhoto(blob,{edge:160,quality:.68}),created_at:new Date().toISOString()});if(role==='avatar'&&uploaded?.url){avatarURL=uploaded.url;photoList=photoList.filter(p=>p.role!=='avatar').concat(uploaded);window.NeoCommunity?.refreshIdentity?.();if(uploaded.communitySynced===false)savedWarning='Foto aplicada ao perfil. A foto da comunidade não foi atualizada; tente alterar a foto novamente.'}else try{await loadPhotos()}catch{savedWarning='Foto salva. Não foi possível atualizar a galeria; use Atualizar fotos para conferir.'}}else{if(formKind==='reminder'){r.title=C.reminderTitle(r.recordTarget,r.title);r.enabled=f.has('enabled');r.weekday=new Date(r.date+'T12:00').getDay()}if(!await putRecord(kindType[formKind],r))return;}formDirty=false;$('#dialog').close();render();toast(savedWarning||(demo?'Alteração apenas na demonstração.':'Registro salvo. Mais um passo na sua jornada.'))}catch(e){if(mode==='cloud'&&!demo)Cloud.reportError?.(formKind==='photo'||formKind==='avatar'?'photo_failed':'profile_failed');$('#formError').textContent=e.message}finally{busy=false;$('#saveRecord').disabled=false;$('#saveRecord').textContent='Salvar registro';if(formKind==='photo')paintPhotoBatch()}});
 $('#close').onclick=()=>{if(!busy)$('#dialog').close()};
 $('#dialog').addEventListener('cancel',event=>{if(busy)event.preventDefault()});
 async function importReview(candidate){const incoming=C.validateBackup(candidate);const preview=C.merge(state,incoming);migrationCandidate=incoming;formKind='migration';editing=null;$('#dialogTitle').textContent='Revisar importação';$('#fields').innerHTML=`<p class="sub">${preview.added} registros novos · ${preview.skipped} duplicados ignorados.</p><div class="notice">Os registros existentes e seu perfil serão preservados. Nada será removido. ${mode==='cloud'?'Os novos registros serão enviados à conta '+esc(Cloud.user?.email||'conectada')+'.':'Os novos registros ficarão neste navegador.'}</div><button type="button" class="secondary full" id="migrationBackup">1. Exportar backup atual</button><label class="check space"><input type="checkbox" id="migrationConsent">Confirmo a importação aditiva e o armazenamento dos registros neste destino.</label><button type="button" class="primary full" id="confirmMigration">2. Importar registros</button>`;$('#formError').textContent='';$('#saveRecord').hidden=true;$('#dialog').showModal();}
@@ -1961,10 +2184,10 @@ document.addEventListener('click',e=>{const b=e.target.closest('button');const t
 document.addEventListener('submit',e=>{const type=e.target.dataset.historyFilter;if(!type)return;e.preventDefault();const values=Object.fromEntries(new FormData(e.target));try{C.filterRecords(state[type],values);historyPrefs[type]={...values,page:0};formDirty=false;render()}catch(err){toast(err.message)}});
 document.addEventListener('change',e=>{if(e.target.id==='measureSeries'){selectedMeasure=e.target.value;render()}if(e.target.id==='protocolFilter'){selectedProtocol=e.target.value;delete historyPrefs.doses;render()}});
 document.addEventListener('focusin',e=>{const tip=e.target.closest('[data-tip]');if(tip){const target=tip.closest('.card').querySelector('.chart-tip');if(target)target.textContent=tip.dataset.tip}});
-document.addEventListener('submit',e=>{const form=e.target;if(!['calcForm','profileForm','settingsForm','authForm','onboardingForm'].includes(form.id))return;e.preventDefault();if(form.id==='calcForm'){if(!engagementCalcStarted){engagementCalcStarted=true;engagementTrack('calculator_started','calculadora')}updateCalc(true);return}action(async()=>{const f=new FormData(form),data=Object.fromEntries(f),submit=form.querySelector('button[type=submit],button.primary');if(submit)submit.disabled=true;try{if(form.id==='onboardingForm'){if(mode!=='cloud'||demo)throw Error('Entre na sua conta real para concluir o cadastro.');const p=C.profile({...state.profile,...data,consent:f.has('health'),tracking:Object.fromEntries(['weight','measures','journal','photos','applications'].map(k=>[k,f.has('track_'+k)]))});await Cloud.onboard(p,state.settings,f.has('health'),f.has('terms'));engagementTrack('onboarding_completed','onboarding');formDirty=false;await reloadCloud();window.NeoArrival?.arm(Cloud.user.id,true);await openAccountDestination()}if(form.id==='profileForm'){const p=C.profile({...state.profile,...data,tracking:Object.fromEntries(['weight','measures','journal','photos','applications'].map(k=>[k,f.has('track_'+k)])),consent:mode==='cloud'&&!demo?Cloud.hasConsent('health'):f.has('consent')});if(!p.consent)throw Error('Para guardar o perfil, confirme o consentimento. Você pode excluir seus dados para retirá-lo.');if(mode==='cloud'&&!demo){await Cloud.saveProfile(p,state.settings);engagementTrack('profile_updated','perfil');await reloadCloud()}else persist({...state,profile:p});if(!demo){appearance=p.theme;try{localStorage.setItem('neo-appearance',appearance)}catch{}}formDirty=false;render();toast('Perfil atualizado.')}if(form.id==='settingsForm'){const settings=C.validateBackup({settings:{...state.settings,...data,reminderScheduleConfigured:true}}).settings;if(mode==='cloud'&&!demo){await Cloud.saveProfile(state.profile,settings);engagementTrack('reminder_settings_saved','lembretes');await reloadCloud()}else persist({...state,settings});formDirty=false;toast('Horários salvos. Atualize sua agenda se necessário.')}if(form.id==='authForm'){const intent=authMode;if(intent==='reset'&&Date.now()<resetNextAt)throw Error('Aguarde um minuto antes de pedir outro código. Confira também sua caixa de entrada e o spam.');if($('#authError'))$('#authError').textContent='';if(intent==='reset'&&submit)submit.textContent='Enviando…';if(intent==='newpassword'&&data.password!==data.confirmPassword)throw Error('As senhas não conferem. Digite a mesma senha nos dois campos.');if(intent==='signup'&&!f.has('consent'))throw Error('Aceite os Termos de Uso para criar a conta.');authEmail=String(data.email||authEmail).trim();if(intent==='verifycode')data.email=authEmail;if(['signup','login'].includes(intent))authRemember=f.has('remember');authMessage='';const result=await Cloud.email(intent,data.email,data.password,data.name,{code:data.code,captchaToken:['verifycode','newpassword'].includes(intent)?undefined:window.NeoCaptcha?.take?window.NeoCaptcha.take():window.NeoCaptcha?.token,remember:authRemember});window.NeoCaptcha?.reset();if(intent==='signup'){const password=form.querySelector('[name=password]');if(password)password.value='';formDirty=false;if(result.session){authMessage='';const account=result.session.user||result.user||Cloud.user;if(account)await authChanged('SIGNED_IN',account)}else{authMode='login';authMessage='Enviamos um link para confirmar seu e-mail. Abra a mensagem e confirme o cadastro antes de entrar.';if(page==='bemvindo')render()}}if(intent==='reset'){resetNextAt=Date.now()+60000;recoveryFlow=true;authMode='verifycode';rememberRecovery('verifycode');authMessage='Se houver uma conta com esse e-mail, você receberá um código para recuperar sua senha.';formDirty=false;render()}if(intent==='verifycode'){if(!result.session||(!result.session.user&&!result.user))throw Error('Código inválido ou expirado. Solicite um novo.');signedInAccountId=(result.session?.user||result.user).id;mode='cloud';authMode='newpassword';rememberRecovery('newpassword');authMessage='';formDirty=false;await go('bemvindo');}if(intent==='login'&&result.session){formDirty=false;const account=result.session.user||result.user||Cloud.user;if(account)await authChanged('SIGNED_IN',account)}if(intent==='newpassword'){formDirty=false;form.querySelectorAll('input[name=password],input[name=confirmPassword]').forEach(input=>input.value='');clearRecovery();try{await reloadCloud();recoveryFlow=false;authMode='login';authMessage='';if(Cloud.onboardingComplete)await openAccountDestination();else await go('preparar');toast('Senha atualizada. Você já está no seu aplicativo.')}catch{recoveryFlow=false;signedInAccountId=null;authMode='login';authMessage='Sua senha foi atualizada. Entre com a nova senha para continuar.';await go('bemvindo');}}}}catch(err){if(form.id==='authForm'&&$('#authError')){$('#authError').textContent=authMode==='verifycode'&&(/otp|token|expired|invalid/i.test(String(err.code||'')+' '+err.message))?'Código inválido ou expirado. Confira o código ou solicite um novo.':/captcha|timeout-or-duplicate/i.test(String(err.code||'')+' '+err.message)?'A verificação de segurança expirou ou já foi usada. Faça a nova verificação e tente novamente. Se já recebeu o e-mail, use o link recebido.':'Não foi possível concluir: '+err.message;window.NeoCaptcha?.reset();}else if(form.id==='onboardingForm'&&$('#onboardingError'))$('#onboardingError').textContent=err.message;else throw err}finally{if(submit)submit.disabled=form.id==='authForm'&&authMode==='reset'&&Date.now()<resetNextAt;updateResetCooldown();}})});
+document.addEventListener('submit',e=>{const form=e.target;if(!['calcForm','profileForm','settingsForm','authForm','onboardingForm'].includes(form.id))return;e.preventDefault();if(form.id==='calcForm'){if(!engagementCalcStarted){engagementCalcStarted=true;engagementTrack('calculator_started','calculadora')}updateCalc(true);return}action(async()=>{const f=new FormData(form),data=Object.fromEntries(f),submit=form.querySelector('button[type=submit],button.primary');if(submit)submit.disabled=true;try{if(form.id==='onboardingForm'){if(mode!=='cloud'||demo)throw Error('Entre na sua conta real para concluir o cadastro.');const p=C.profile({...state.profile,...data,consent:f.has('health'),tracking:Object.fromEntries(['weight','measures','journal','photos','applications'].map(k=>[k,f.has('track_'+k)]))});await Cloud.onboard(p,state.settings,f.has('health'),f.has('terms'));engagementTrack('onboarding_completed','onboarding');formDirty=false;await reloadCloud();window.NeoArrival?.arm(Cloud.user.id,true);await openAccountDestination()}if(form.id==='profileForm'){const p=C.profile({...state.profile,...data,tracking:Object.fromEntries(['weight','measures','journal','photos','applications'].map(k=>[k,f.has('track_'+k)])),consent:mode==='cloud'&&!demo?Cloud.hasConsent('health'):f.has('consent')});if(!p.consent)throw Error('Para guardar o perfil, confirme o consentimento. Você pode excluir seus dados para retirá-lo.');if(mode==='cloud'&&!demo){await Cloud.saveProfile(p,state.settings);engagementTrack('profile_updated','perfil');await reloadCloud()}else persist({...state,profile:p});formDirty=false;render();toast('Perfil atualizado.')}if(form.id==='settingsForm'){const settings=C.validateBackup({settings:{...state.settings,...data,reminderScheduleConfigured:true}}).settings;if(mode==='cloud'&&!demo){await Cloud.saveProfile(state.profile,settings);engagementTrack('reminder_settings_saved','lembretes');await reloadCloud()}else persist({...state,settings});formDirty=false;toast('Horários salvos. Atualize sua agenda se necessário.')}if(form.id==='authForm'){const intent=authMode;if(intent==='reset'&&Date.now()<resetNextAt)throw Error('Aguarde um minuto antes de pedir outro código. Confira também sua caixa de entrada e o spam.');if($('#authError'))$('#authError').textContent='';if(intent==='reset'&&submit)submit.textContent='Enviando…';if(intent==='newpassword'&&data.password!==data.confirmPassword)throw Error('As senhas não conferem. Digite a mesma senha nos dois campos.');if(intent==='signup'&&!f.has('consent'))throw Error('Aceite os Termos de Uso para criar a conta.');authEmail=String(data.email||authEmail).trim();if(intent==='verifycode')data.email=authEmail;if(['signup','login'].includes(intent))authRemember=f.has('remember');authMessage='';const result=await Cloud.email(intent,data.email,data.password,data.name,{code:data.code,captchaToken:['verifycode','newpassword'].includes(intent)?undefined:window.NeoCaptcha?.take?window.NeoCaptcha.take():window.NeoCaptcha?.token,remember:authRemember});window.NeoCaptcha?.reset();if(intent==='signup'){const password=form.querySelector('[name=password]');if(password)password.value='';formDirty=false;if(result.session){authMessage='';const account=result.session.user||result.user||Cloud.user;if(account)await authChanged('SIGNED_IN',account)}else{authMode='login';authMessage='Enviamos um link para confirmar seu e-mail. Abra a mensagem e confirme o cadastro antes de entrar.';if(page==='bemvindo')render()}}if(intent==='reset'){resetNextAt=Date.now()+60000;recoveryFlow=true;authMode='verifycode';rememberRecovery('verifycode');authMessage='Se houver uma conta com esse e-mail, você receberá um código para recuperar sua senha.';formDirty=false;render()}if(intent==='verifycode'){if(!result.session||(!result.session.user&&!result.user))throw Error('Código inválido ou expirado. Solicite um novo.');signedInAccountId=(result.session?.user||result.user).id;mode='cloud';authMode='newpassword';rememberRecovery('newpassword');authMessage='';formDirty=false;await go('bemvindo');}if(intent==='login'&&result.session){formDirty=false;const account=result.session.user||result.user||Cloud.user;if(account)await authChanged('SIGNED_IN',account)}if(intent==='newpassword'){formDirty=false;form.querySelectorAll('input[name=password],input[name=confirmPassword]').forEach(input=>input.value='');clearRecovery();try{await reloadCloud();recoveryFlow=false;authMode='login';authMessage='';if(Cloud.onboardingComplete)await openAccountDestination();else await go('preparar');toast('Senha atualizada. Você já está no seu aplicativo.')}catch{recoveryFlow=false;signedInAccountId=null;authMode='login';authMessage='Sua senha foi atualizada. Entre com a nova senha para continuar.';await go('bemvindo');}}}}catch(err){if(form.id==='authForm'&&$('#authError')){$('#authError').textContent=authMode==='verifycode'&&(/otp|token|expired|invalid/i.test(String(err.code||'')+' '+err.message))?'Código inválido ou expirado. Confira o código ou solicite um novo.':/captcha|timeout-or-duplicate/i.test(String(err.code||'')+' '+err.message)?'A verificação de segurança expirou ou já foi usada. Faça a nova verificação e tente novamente. Se já recebeu o e-mail, use o link recebido.':'Não foi possível concluir: '+err.message;window.NeoCaptcha?.reset();}else if(form.id==='onboardingForm'&&$('#onboardingError'))$('#onboardingError').textContent=err.message;else throw err}finally{if(submit)submit.disabled=form.id==='authForm'&&authMode==='reset'&&Date.now()<resetNextAt;updateResetCooldown();}})});
 $('#restoreFile').addEventListener('change',e=>action(async()=>{const file=e.target.files[0];if(!file)return;if(file.size>20*1024*1024)throw Error('Backup grande demais. Limite de 20 MB.');await importReview(JSON.parse(await file.text()))}));
 document.addEventListener('input',e=>{if(e.target.closest('form'))formDirty=true});
-window.addEventListener('hashchange',()=>{const p=location.hash.slice(1);if(routes[p])go(p,false)});window.addEventListener('online',()=>{render();if(mode==='cloud'&&!demo)action(reloadCloud)});window.addEventListener('offline',render);matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>applyTheme());
+window.addEventListener('hashchange',()=>{const p=location.hash.slice(1);if(routes[p])go(p,false)});window.addEventListener('online',()=>{render();if(mode==='cloud'&&!demo)action(reloadCloud)});window.addEventListener('offline',render);
 let swReloadAllowed=false;
 const reminded={};setInterval(()=>{if(demo||document.visibilityState!=='visible'||!state.settings.enabled)return;const now=new Date();for(const r of C.nextReminders(state,new Date(now.getTime()-60000))){if(r.next>now||now-r.next>60000||reminded[r.id]===C.today())continue;reminded[r.id]=C.today();toast(r.title);if('Notification'in window&&Notification.permission==='granted'){try{new Notification('NeoPep',{body:'Abra o aplicativo para registrar sua evolução.'})}catch{}}}},15000);
 navigator.serviceWorker?.addEventListener?.('message',event=>{

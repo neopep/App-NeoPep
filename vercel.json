@@ -59,7 +59,9 @@
   ],
   "git": {
     "deploymentEnabled": {
-      "release/preparacao-paridade-producao-20261122": true
+      "release/preparacao-paridade-producao-20261122": true,
+      "release/ciclo-aprovado-20261125": false,
+      "homologacao/ciclo-completo-2026-11-24": false
     }
   }
 }

@@ -4,7 +4,12 @@ const { staging, verifyStagingKey, writeConfig } = require('../release/multiagen
 
 async function prepare() {
   const branch = process.env.VERCEL_GIT_COMMIT_REF;
-  if (process.env.VERCEL === '1' && !['staging', 'staging/permanente'].includes(branch)) {
+  const integratedBranch = ['homologacao/loja-010-04-010-05','desenvolvimento/ajuste-010-06-conciliacao','desenvolvimento/ajuste-011-gerenciamento-massa','homologacao/ciclo-completo-2026-11-24'].includes(branch);
+  if (integratedBranch && (process.env.VERCEL_PROJECT_ID !== 'prj_ksWxwsJyKhdR2nW2OiZkwx8hlkdq'
+      || !/^[a-f0-9]{40}$/.test(process.env.VERCEL_GIT_COMMIT_SHA || ''))) {
+    throw new Error('A integração financeira exige o projeto Vercel de Teste e um SHA Git.');
+  }
+  if (process.env.VERCEL === '1' && !integratedBranch && !['staging', 'staging/permanente'].includes(branch)) {
     throw new Error('Branch inválida para a publicação de homologação.');
   }
 
@@ -20,10 +25,6 @@ async function prepare() {
   const config = {
     ...base,
     appDisplayName: 'NeoPep Teste',
-    connectTestEnabled: true,
-    connectReleaseFunction: 'connect-release-draft',
-    geoEndpoint: '/api/staging-observe',
-    monitorEndpoint: '/api/admin-monitor',
     legacyPushScope: '/neo/',
     stagingGeoEnabled: process.env.NEO_STAGING_GEO_ENABLED === '1' && !!process.env.NEO_STAGING_SERVER_SUPABASE_KEY,
     stagingBuild: /^[a-f0-9]{40}$/.test(process.env.VERCEL_GIT_COMMIT_SHA || '') ? {
@@ -48,19 +49,31 @@ async function prepare() {
     const html = fs.readFileSync(path, 'utf8')
       .replace(/<title>([^<]*?)(?: — Homologação)?<\/title>/, (_, title) => '<title>' + title.replace(/NeoPep(?! Teste)/, 'NeoPep Teste') + '</title>')
       .replace('name="apple-mobile-web-app-title" content="NeoPep"', 'name="apple-mobile-web-app-title" content="NeoPep Teste"')
-      .replaceAll('cpslafpzjtbpmoxxysaa', 'qnuluspqfazdppciermw')
+      .replaceAll('cpslafpzjtbpmoxxysaa.supabase.co', 'qnuluspqfazdppciermw.supabase.co')
       .replaceAll('https://*.supabase.co', staging)
       .replaceAll('wss://*.supabase.co', staging.replace('https:', 'wss:'));
     fs.writeFileSync(path, html);
   }
+  const style = 'dist/style.css';
+  const marker = '/* Identificação exclusiva da homologação */';
+  const css = fs.readFileSync(style, 'utf8').split(marker)[0];
+  fs.writeFileSync(style, css + `
+${marker}
+body::before{
+  content:"TESTE";display:block;width:max-content;margin:calc(env(safe-area-inset-top,0px) + 4px) auto 4px;
+  pointer-events:none;color:#e5c886;background:#19150f;border:1px solid #d5ad62;border-radius:999px;
+  padding:2px 9px;font:700 10px/1.3 system-ui,sans-serif;letter-spacing:.13em;
+}
+html[data-theme=light] body::before{color:#142743;background:#edf0f4;border-color:#a8b4cc}
+`);
   // Keep the former launch URL and Auth callback as real pages at the same origin.
   fs.mkdirSync('dist/neo', { recursive: true });
   fs.copyFileSync('dist/index.html', 'dist/neo/index.html');
 
   const serviceWorker = 'dist/sw.js';
   const worker = fs.readFileSync(serviceWorker, 'utf8')
-    .replace(/^const CACHE=.*;$/m,
-      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v23';")
+    .replace(/^(?:const CACHE_PREFIX=.*;\n)?const CACHE=.*;$/m,
+      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v43';")
     .replace(/key\.startsWith\((?:'[^']+'|CACHE_PREFIX)\)/, 'key.startsWith(CACHE_PREFIX)');
   fs.writeFileSync(serviceWorker, worker);
 }

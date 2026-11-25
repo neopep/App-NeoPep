@@ -1,0 +1,51 @@
+name: Auditoria integração do ciclo 24-11 (sem deploy)
+on:
+  push:
+    branches: [homologacao/ciclo-completo-2026-11-24]
+    paths: ['.github/workflows/merge-cycle-audit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  merge-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Auditar integração Git real de cada delta sem push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "NeoPep CI merge audit"
+          git config user.email "ci-merge-audit@users.noreply.github.com"
+          echo "AUDITORIA_CICLO | BASE $(git rev-parse HEAD)"
+          for entry in \
+            "006 desenvolvimento/ajuste-006-miniatura-pdf" \
+            "008 desenvolvimento/ajuste-008-fixar-biblioteca" \
+            "009 desenvolvimento/ajuste-009-seringa-home" \
+            "003 desenvolvimento/ajuste-003-tema-claro" \
+            "001 desenvolvimento/ajuste-001-localizacao" \
+            "002 desenvolvimento/ajuste-002-personalizacao" \
+            "005 desenvolvimento/ajuste-005-comparacoes-grupo" \
+            "007 desenvolvimento/ajuste-007-atendimento-loja" \
+            "013 desenvolvimento/ajuste-013-diagnostico-sessao"
+          do
+            id="${entry%% *}"
+            branch="${entry#* }"
+            echo "::group::AJUSTE_${id}"
+            git fetch --no-tags --depth=100 origin "refs/heads/$branch:refs/remotes/origin/$branch" > /dev/null 2>&1
+            if git merge --no-ff -m "CI test #$id" "refs/remotes/origin/$branch" > /tmp/neopep-merge.log 2>&1; then
+              echo "RESULTADO_${id}=LIMPO"
+              git diff HEAD~1 HEAD --name-only | sed 's/^/ALTERADO: /' | head -70
+            else
+              echo "RESULTADO_${id}=CONFLITO"
+              git diff --name-only --diff-filter=U | sed 's/^/CONFLITO: /'
+              sed -n '1,40p' /tmp/neopep-merge.log
+              git merge --abort || true
+            fi
+            echo "::endgroup::"
+          done
+          echo "AUDITORIA_SEM_PUSH_NEM_DEPLOY"

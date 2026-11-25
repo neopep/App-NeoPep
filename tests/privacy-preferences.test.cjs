@@ -127,7 +127,7 @@ test('consulta nativa pede localização aproximada e descarta as coordenadas',a
  const app=readFileSync('src/app.js','utf8');
  const source=app.slice(app.indexOf('function requestDeviceLocation()'),app.indexOf('function mountPrivacyPreferences()'));
  const native=async geolocation=>vm.runInNewContext(source+'\nrequestDeviceLocation()',{
-  navigator:{geolocation}
+  navigator:{geolocation},setTimeout,clearTimeout
  });
  let calls=0;
  assert.equal(await native({getCurrentPosition(success,_error,options){
@@ -139,4 +139,41 @@ test('consulta nativa pede localização aproximada e descarta as coordenadas',a
  assert.equal(calls,1);
  assert.equal(await native({getCurrentPosition(_success,error){error({code:1});}}),false);
  assert.equal(await native(undefined),false);
+});
+
+test('personalização registra decisão versionada, data, revogação e isolamento por conta',async()=>{
+ const db=new PGlite();
+ try{
+  await db.exec(`
+   create role authenticated;create role anon;create schema auth;create schema neo_private;
+   create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+   create function public.neo_has_consent(text) returns boolean language sql stable as $$select auth.uid() is not null and $1='terms'$$;
+   create function neo_private.take_limit(text,integer,integer) returns boolean language sql as $$select true$$;
+   create table public.neo_consent_events(
+    id bigint generated always as identity primary key,user_id uuid not null,purpose text not null,
+    version text not null,granted boolean not null,changed_at timestamptz not null default now());
+   grant usage on schema auth to authenticated;
+   alter table public.neo_consent_events enable row level security;
+   create policy own_events on public.neo_consent_events for select to authenticated using(user_id=auth.uid());
+   grant select on public.neo_consent_events to authenticated;
+  `);
+  const sql=migration('20261124150000_personalization_consent');
+  await db.exec(sql);await db.exec(sql);
+  const as=async id=>{await db.exec('reset role');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[id]);await db.exec('set role authenticated');};
+  const rpc=async(value=null)=>(await db.query('select neo_personalization_consent($1) as d',[value])).rows[0].d;
+  await db.exec('set role anon');await assert.rejects(rpc(),{code:'42501'});
+  await as(alice);
+  assert.deepEqual(await rpc(),{purpose:'optional_personalization',version:'2026-11-personalization-v1',decided:false,granted:false,changed_at:null});
+  const allowed=await rpc(true);
+  assert.equal(allowed.granted,true);assert.ok(Number.isFinite(Date.parse(allowed.changed_at)));
+  assert.deepEqual(await rpc(true),allowed);
+  await as(bob);assert.equal((await rpc()).decided,false);
+  await rpc(false);assert.equal((await rpc()).granted,false);
+  const ledger=()=>db.query('select purpose,granted from public.neo_consent_events order by id').then(r=>r.rows);
+  assert.deepEqual(await ledger(),[{purpose:'optional_personalization',granted:false}]);
+  await as(alice);assert.equal((await rpc()).granted,true);
+  await rpc(false);assert.equal((await rpc()).granted,false);
+  assert.deepEqual(await ledger(),[{purpose:'optional_personalization',granted:true},{purpose:'optional_personalization',granted:false}]);
+  await assert.rejects(db.query('update public.neo_consent_events set granted=true'),{code:'42501'});
+ }finally{await db.close();}
 });
