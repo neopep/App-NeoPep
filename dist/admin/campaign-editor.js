@@ -27,6 +27,7 @@
  function linkFor(block){
   if(block.type==='product')return '';
   if(block.type==='document')return '/?material='+encodeURIComponent(block.ref)+'#comunidade';
+  if(block.type==='community')return '/#comunidade';
   return validLink(block.url);
  }
  async function prepareImage(file,quality){
@@ -179,12 +180,14 @@
   function composeAction(){
    const action=$('[data-editor=text]');
    if(!action)return;
-   const image=draft.blocks.find(block=>block.id===captionTarget&&block.type==='image');
+   const target=draft.blocks.find(block=>block.id===captionTarget&&['image','product','document','community','file','link'].includes(block.type));
    const caption=$('[data-editor=caption]');
-   caption.disabled=!image;
-   caption.setAttribute('aria-pressed',String(Boolean(image&&editing===image.id)));
-   action.setAttribute('aria-label',editing?'Atualizar bloco':'Adicionar texto');
-   action.title=editing?'Atualizar bloco':'Adicionar texto à simulação';
+   caption.disabled=!target;
+   caption.setAttribute('aria-pressed',String(Boolean(target&&editing===target.id)));
+   caption.setAttribute('aria-label',target?'Editar legenda do bloco':'Selecionar um bloco para editar a legenda');
+   message.placeholder=editing?'Escreva a legenda deste bloco…':'Escreva sua mensagem…';
+   action.setAttribute('aria-label',editing?'Salvar legenda do bloco':'Adicionar texto');
+   action.title=editing?'Salvar legenda no mesmo bloco':'Adicionar texto à simulação';
   }
   composeAction();
   function closeSheet(focus=true){
@@ -232,7 +235,7 @@
    const price=(product.price_cents/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
    return `<section class="structured-product">
     ${product.image?`<img src="${e(product.image)}" alt="" referrerpolicy="no-referrer">`:''}
-    <strong>${e(product.label)}</strong><span>${e(price)} · Disponível</span>
+    <strong>${e(product.label)}</strong><span><strong>${e(price)}</strong> · Disponível</span>
     ${product.link?`<a href="${e(product.link)}" target="_blank" rel="noopener noreferrer">${e(product.link)}</a>`:''}</section>`;
   }
   function loadProduct(block,verified=null){
@@ -269,10 +272,12 @@
      ${block.type==='image'?'<p class="sub" data-editor-media-status="'+e(block.id)+'" hidden></p>':''}
      ${block.type!=='product'&&(block.label||block.type==='file'&&block.name)?`<strong>${e(block.label||'Documento')}</strong>`:''}
      ${block.type==='product'?productCard(block):''}
+     ${['product','document','community','file','link'].includes(block.type)&&block.text?
+       '<p class="sub">Legenda adicional:</p>':''}
      <div class="neo-structured-text" data-block-text>${formatted(block.text)}</div>
      ${link?`<span class="neo-wa-link">${e(link)}</span>`:''}
      ${readOnly?'':`<details class="structured-bubble-actions"><summary aria-label="Opções da mensagem">⋯</summary><div class="inline-actions">
-      ${['text','image'].includes(block.type)?`<button type="button" class="text-btn" data-editor="edit" data-index="${index}">Editar</button>`:''}
+      ${['text','image','product','document','community','file','link'].includes(block.type)?`<button type="button" class="text-btn" data-editor="edit" data-index="${index}">${block.type==='text'?'Editar texto':'Editar legenda'}</button>`:''}
       ${['duplicate','up','down','delete'].map((a,i)=>`<button type="button" class="text-btn" data-editor="${a}" data-index="${index}" ${a==='up'&&!index||a==='down'&&index===draft.blocks.length-1?'disabled':''}>${['Duplicar','Subir','Descer','Excluir'][i]}</button>`).join('')}
      </div></details>`}</article>`;
    }).join('')||'<p class="sub">Adicione um bloco para revisar a mensagem.</p>';
@@ -338,9 +343,13 @@
     testWA?(rich?gates.whatsapp_rich?.ready===true:gates.whatsapp_test?.ready===true):channel==='app'?gates.app_enabled:gates.whatsapp_enabled;
    const textOnly=draft.blocks.length>0&&draft.blocks.every(block=>block.type==='text'&&!/(https?:\/\/|www\.)/i.test(block.text||''));
    const richBlocks=draft.blocks.length>0&&draft.blocks.length<=6&&draft.blocks.every(block=>
-    ['text','image','link','product'].includes(block.type)&&
-     (block.type!=='image'||Boolean(block.media_path))&&(block.type!=='link'||Boolean(validLink(block.url)))&&
-     (block.type!=='product'||Boolean(block.ref))&&(block.text||'').length<=2000);
+    ['text','image','link','product','document','community'].includes(block.type)&&
+     (block.type!=='image'||Boolean(block.media_path))&&
+     (block.type!=='link'||Boolean(validLink(block.url)))&&
+     (!['product','document','community'].includes(block.type)||Boolean(block.ref))&&
+     (block.type==='link'?(block.text||'').length<=160:
+      ['image','product','document','community'].includes(block.type)?(block.text||'').length<=1000:
+      (block.text||'').length<=2000));
    const eligible=channel==='app'||draft.groups.length>0&&draft.groups.every(id=>groups.some(row=>row.id===id&&row.state==='eligible'));
    const pinned=!testWA||draft.groups.length===1&&draft.groups[0]===gates.whatsapp_test?.destination;
    const short=!testWA||draft.blocks.map(block=>block.text||'').join('\n\n').trim().length<=160;
@@ -350,7 +359,7 @@
    $('[data-editor-summary]').textContent=dispatchSummary(Boolean(draft.planned_local));
    $('[data-dispatch-gate]').textContent=testApp?
     (enabled?'Homologação App · '+testGate.destinations+' conta(s) autorizada(s) · somente no aplicativo, sem push.':'Homologação App indisponível. Use a simulação enquanto a lista e a ativação aguardam aprovação.'):
-    testWA?(enabled?(rich?'Homologação rica · até 6 blocos de texto, imagem JPEG, produto ou link HTTPS, somente no grupo autorizado. ':
+    testWA?(enabled?(rich?'Homologação rica · até 6 blocos: texto, imagem JPEG, produto, Biblioteca, Comunidade e link HTTPS, com legendas editáveis, somente no grupo autorizado. ':
      'Homologação WhatsApp · somente o grupo autorizado e texto sem links de até 160 caracteres. ')+
      ((rich?gates.whatsapp_rich?.ready:gates.whatsapp_test.schedule_ready)?'Agendamento disponível.':'Agendamento indisponível.'):
      'WhatsApp em simulação. Confira o Connect e o grupo autorizado.'):enabled?
@@ -666,13 +675,14 @@
     quality.value=modes[(modes.indexOf(quality.value)+1)%modes.length];changed();return;
    }
    if(action==='caption'){
-    const image=draft.blocks.find(row=>row.id===captionTarget&&row.type==='image');
-    if(!image)return;
-    if(editing===image.id){
-     image.text='';image.layout='separate';editing=null;
-    }else{
-     if(message.value.trim()&&image.text&&message.value!==image.text){tell('Confirme o texto em edição antes de trocar a legenda.');return;}
-     editing=image.id;image.layout='caption';message.value=message.value||image.text||'';
+    const selected=draft.blocks.find(row=>row.id===captionTarget&&['image','product','document','community','file','link'].includes(row.type));
+    if(!selected)return;
+    if(editing===selected.id){editing=null;message.value='';}
+    else{
+     if(message.value.trim()&&editing!==selected.id){tell('Conclua o texto em edição antes de trocar de legenda.');return;}
+     editing=selected.id;
+     if(selected.type==='image')selected.layout='caption';
+     message.value=selected.text||'';
     }
     composeAction();render();changed();message.focus();return;
    }
@@ -719,10 +729,25 @@
    }
    if(action==='catalog_search')void searchCatalog();
    if(action==='reference'&&catalogRows[index]){
-    const row=catalogRows[index];if(add({type:row.kind,ref:row.id,label:row.label}))closeSheet();
+    if(message.value.trim()&&editing){tell('Conclua a legenda em edição antes de adicionar outra referência.');return;}
+    const row=catalogRows[index];
+    const id=uuid();
+    if(draft.blocks.length>=32){tell('Limite de 32 blocos por rascunho.');return;}
+    draft.blocks.push({id,type:row.kind,ref:row.id,label:row.label,text:''});
+    captionTarget=id;editing=id;message.value='';
+    render();changed();composeAction();closeSheet();
+    tell('Item adicionado. Escreva a legenda e toque na seta para salvá-la junto ao item.');
+    message.focus();
    }
    if(action==='text'){
     const text=message.value.trim();
+    if(editing){
+     const activeBlock=draft.blocks.find(row=>row.id===editing);
+     if(activeBlock&&['image','product','document','community'].includes(activeBlock.type)&&text.length>1000){
+      tell('A legenda deste bloco pode ter até 1.000 caracteres.');return;
+     }
+     if(activeBlock?.type==='link'&&text.length>160){tell('A legenda do link pode ter até 160 caracteres.');return;}
+    }
     if(!text&&!editing){tell('Digite o texto do bloco.');return;}
     if(editing){
      const edited=draft.blocks.find(row=>row.id===editing);
@@ -731,7 +756,14 @@
     }else if(!add({type:'text',text}))return;
     message.value='';paintLive();message.focus();
    }
-   if(action==='edit'&&block){if(editing!==block.id&&message.value.trim()){tell('Confirme o texto em edição antes de trocar de bloco.');return;}if(block.type==='image'){captionTarget=block.id;block.layout='caption';}editing=block.id;message.value=block.text||'';composeAction();message.focus();changed();}
+   if(action==='edit'&&block){
+    if(editing!==block.id&&message.value.trim()){tell('Conclua o texto em edição antes de trocar de bloco.');return;}
+    if(['image','product','document','community','file','link'].includes(block.type)){
+     captionTarget=block.id;if(block.type==='image')block.layout='caption';
+    }
+    editing=block.id;message.value=block.text||'';
+    composeAction();message.focus();changed();
+   }
    if(action==='duplicate'&&block){
     if(draft.blocks.length>=32){tell('Limite de 32 blocos por rascunho.');return;}
     const copy={...block,id:uuid()};
