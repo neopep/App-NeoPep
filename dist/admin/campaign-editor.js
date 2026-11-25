@@ -85,7 +85,7 @@
  const iconButton=(name,label,attrs='')=>`<button type="button" class="structured-icon" aria-label="${label}" title="${label}" ${attrs}>${icon(name)}</button>`;
  function open({cloud,row={},channel='whatsapp',remote=null,trigger,onSaved,onConnect,fresh=false,readOnly=false,previewBlocks=[],previewImages=new Map(),onEdit,previewModes,publication=null,onClosed}){
   const account=cloud.user?.id;
-  const staging=window.NEO_CONFIG?.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co';
+  const staging=window.NEO_CONFIG?.campaignTestEnabled===true;
   const testApp=staging&&channel==='app';
   const testWA=staging&&channel==='whatsapp';
 
@@ -139,7 +139,7 @@
     ${iconButton('back','Voltar','data-editor="close" autofocus')}<span class="structured-avatar">${icon('group')}</span>
     <div><h2 id="neo-campaign-structured-title">${channel==='app'?'Rascunho App':e(row.group_name||(publication?'Publicação WhatsApp':'Grupo de exemplo'))}</h2>
     ${!readOnly&&channel==='whatsapp'?'<button type="button" class="text-btn structured-group-more" data-pane-open="groups" data-selected-groups>Selecionar grupos</button>':''}
-    <p class="sub">Simulação de campanha · ${channel==='app'?'App':'WhatsApp'}${window.NEO_CONFIG?.appDisplayName==='NeoPep Teste'?' · TESTE':''}</p></div>
+    <p class="sub">Simulação de campanha · ${channel==='app'?'App':'WhatsApp'}${staging?' · TESTE':''}</p></div>
     ${readOnly?(onEdit?iconButton('gear','Editar conteúdo','data-editor="edit_preview"'):''):iconButton('save','Registrar rascunho na Central','data-editor="save"')}
    </header>
    <main class="neo-structured-scroll"><h3 class="structured-campaign-name" ${publication?'data-parent-campaign="'+e(publication.title)+'"':''} data-campaign-name>${e(draft.title)}</h3><div class="neo-structured-preview" aria-label="Conversa simulada" data-editor-preview></div><div class="structured-live" data-editor-live hidden></div></main>
@@ -325,7 +325,7 @@
     const approved=verified||(await endpoint(cloud,'catalog',{kind:'product',search:block.label||''})).find(row=>row.id===block.ref);
     if(!approved||!Number.isFinite(approved.price_cents)||!current())return;
     const origin=location.origin;
-    const link=['https://teste.app.neopep.com.br','https://app.neopep.com.br'].includes(origin)
+    const link=origin===(window.NEO_CONFIG?.campaignPublicOrigin||'https://app.neopep.com.br')
      ?new URL('/?produto='+encodeURIComponent(block.ref)+'#loja',origin).href:'';
     let image='';
     if(typeof cloud.shop==='function'&&typeof cloud.shopPhotoURL==='function'){
@@ -630,7 +630,7 @@
     }else if(typeof cloud.uploadCampaignImage==='function'){
      stored=await cloud.uploadCampaignImage(jpeg);
     }else{
-     throw Error('Versão antiga do aplicativo carregada. Reabra o NeoPep Teste e tente salvar novamente.');
+     throw Error('Versão antiga do aplicativo carregada. Reabra o NeoPep e tente salvar novamente.');
     }
     if(!current())throw Error('Sua conta mudou durante o upload.');
     if(typeof stored!=='string'||!new RegExp('^[a-f0-9-]{36}/[a-f0-9-]{36}\\.jpg$').test(stored)

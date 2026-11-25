@@ -25,6 +25,8 @@ async function prepare() {
   const config = {
     ...base,
     appDisplayName: 'NeoPep Teste',
+    campaignTestEnabled: true,
+    campaignPublicOrigin: 'https://teste.app.neopep.com.br',
     legacyPushScope: '/neo/',
     stagingGeoEnabled: process.env.NEO_STAGING_GEO_ENABLED === '1' && !!process.env.NEO_STAGING_SERVER_SUPABASE_KEY,
     stagingBuild: /^[a-f0-9]{40}$/.test(process.env.VERCEL_GIT_COMMIT_SHA || '') ? {

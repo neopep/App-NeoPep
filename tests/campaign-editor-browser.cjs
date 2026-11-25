@@ -11,7 +11,7 @@ async function scenario(browser,options){
   await page.addStyleTag({path:path.join(dist,'style.css')});
   await page.addScriptTag({path:path.join(dist,'admin/campaign-editor.js')});
   await page.evaluate(()=>{
-   window.NEO_CONFIG={supabaseUrl:'https://qnuluspqfazdppciermw.supabase.co'};
+   window.NEO_CONFIG={supabaseUrl:'https://qnuluspqfazdppciermw.supabase.co',campaignTestEnabled:true,campaignPublicOrigin:'https://teste.app.neopep.com.br'};
    window.confirm=()=>true;window.calls=[];window.failed=false;window.failSave=true;
    window.cloud={
     user:{id:'00000000-0000-4000-8000-000000000001'},

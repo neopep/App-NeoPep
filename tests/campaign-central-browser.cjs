@@ -13,7 +13,7 @@ async function scenario(browser,profile){
   for(const file of ['campaign-editor.js','campaign-central.js'])await page.addScriptTag({path:path.join(__dirname,'../dist/admin',file)});
   await page.addStyleTag({path:path.join(__dirname,'../dist/style.css')});
   await page.evaluate(()=>{
-   window.NEO_CONFIG={supabaseUrl:'https://qnuluspqfazdppciermw.supabase.co'};
+   window.NEO_CONFIG={supabaseUrl:'https://qnuluspqfazdppciermw.supabase.co',campaignTestEnabled:true,campaignPublicOrigin:'https://teste.app.neopep.com.br'};
    window.campaignCalls=[];
    const campaigns=new Map(),publications=new Map();
    const cloud={user:{id:'fixture-admin'},campaignWhatsAppSync:async()=>[{id:'connection:group',name:'Grupo homologado',state:'eligible'}],

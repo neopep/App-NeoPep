@@ -1875,7 +1875,7 @@ function syncCampaign(){
  }).catch(()=>{if(owner===campaignOwner)campaignChecked=true;}).finally(()=>{if(owner===campaignOwner)campaignPending=false;});
 }
 // A campanha de homologação usa apenas a caixa interna de Teste, separada da fila oficial.
-if(window.NEO_CONFIG?.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co'&&Cloud.campaignTestVisit){
+if(window.NEO_CONFIG?.campaignTestEnabled===true&&Cloud.campaignTestVisit){
  let testCampaignPending=false;
  async function syncTestCampaign(){
   const owner=Cloud.user?.id;

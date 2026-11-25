@@ -87,7 +87,7 @@ test('auditoria restringe ingestão, preserva primeiro local e separa custos de 
 });
 
 test('rota de observação bloqueia cron sem token e transmite só a localização da hospedagem',async()=>{
- const source=fs.readFileSync('api/staging-observe.js','utf8');
+ const source=fs.readFileSync('release/production/staging-api/staging-observe.js','utf8');
  const calls=[],env={VERCEL_GIT_COMMIT_REF:'staging/permanente',NEO_STAGING_GEO_ENABLED:'1',CRON_SECRET:'x'.repeat(40),
   NEO_STAGING_SUPABASE_PUBLISHABLE_KEY:'public-fixture',NEO_STAGING_SERVER_SUPABASE_KEY:'server-fixture'};
  const ctx={module:{exports:{}},require,process:{env},Buffer,AbortSignal,fetch:async(url,options)=>{

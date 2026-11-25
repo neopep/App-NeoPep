@@ -72,7 +72,7 @@ test('normalização de tokens preserva totais e não divulga entrada ou respost
 });
 
 test('backend externo verifica administração e rejeita um projeto Vercel que não seja staging',async()=>{
- const source=fs.readFileSync('api/admin-monitor.js','utf8');
+ const source=fs.readFileSync('release/production/staging-api/admin-monitor.js','utf8');
  const calls=[],env={VERCEL_GIT_COMMIT_REF:'staging/permanente',NEO_STAGING_SUPABASE_PUBLISHABLE_KEY:'public-test',
   NEO_MONITOR_VERCEL_TOKEN:'backend-fixture',NEO_MONITOR_VERCEL_PROJECT_ID:'fixture'};
  let admin=false;

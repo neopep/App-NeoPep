@@ -1052,7 +1052,7 @@ async function mountCampaigns(root){
   }catch{if(root.isConnected)box.textContent='Revisão no servidor indisponível. Rascunhos locais continuam acessíveis.';}
  }
  structured.addEventListener('toggle',()=>{void refreshStructured();});
- const stagingCampaigns=window.NEO_CONFIG?.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co';
+ const stagingCampaigns=window.NEO_CONFIG?.campaignTestEnabled===true;
  function openStructured(trigger,row,remote,channel='whatsapp',onSaved=refreshStructured){
   if(!draftOkay()||whatsapp?.canLeave?.()===false)return;
   window.NeoCampaignEditor?.open({cloud,row,remote,channel:remote?.channel||channel,trigger,
