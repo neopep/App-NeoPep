@@ -1052,9 +1052,10 @@ async function mountCampaigns(root){
   }catch{if(root.isConnected)box.textContent='Revisão no servidor indisponível. Rascunhos locais continuam acessíveis.';}
  }
  structured.addEventListener('toggle',()=>{void refreshStructured();});
- function openStructured(trigger,row,remote){
+ const stagingCampaigns=window.NEO_CONFIG?.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co';
+ function openStructured(trigger,row,remote,channel='whatsapp'){
   if(!draftOkay()||whatsapp?.canLeave?.()===false)return;
-  window.NeoCampaignEditor?.open({cloud,row,remote,channel:remote?.channel||'whatsapp',trigger,
+  window.NeoCampaignEditor?.open({cloud,row,remote,channel:remote?.channel||channel,trigger,
    onSaved:refreshStructured,onConnect:()=>{showArea('whatsapp');view='connect';updateScreen();writeRoute();}});
  }
 
@@ -1135,8 +1136,9 @@ async function mountCampaigns(root){
   newAction.hidden=Boolean(screen)||view!=='campaigns';
   const actionBar=find('[data-campaign-actionbar]');
   if(newAction.parentElement!==actionBar)actionBar.append(newAction);
-  newAction.setAttribute('aria-label','Nova campanha');
-  newAction.innerHTML='<span aria-hidden="true">+</span><span class="neo-campaign-new-label"> Nova campanha</span>';
+  const newLabel=stagingCampaigns&&area==='app'?'Nova campanha de homologação':'Nova campanha';
+  newAction.setAttribute('aria-label',newLabel);
+  newAction.innerHTML='<span aria-hidden="true">+</span><span class="neo-campaign-new-label"> '+newLabel+'</span>';
   find('[data-campaign-action=back]').hidden=!screen;
   if(!wa.hidden){
    if(!whatsapp&&typeof mountCampaignWhatsApp==='function')whatsapp=mountCampaignWhatsApp(wa,{cloud,embedded:true});
@@ -1403,6 +1405,9 @@ async function mountCampaigns(root){
    return;
   }
   if(action==='structured_copy'){const original=rows.find(row=>row.id===id);if(original)openStructured(button,original);return;}
+  if(action==='new'&&stagingCampaigns&&area==='app'&&window.NeoCampaignEditor){
+   openStructured(button,undefined,null,'app');return;
+  }
   if((action==='new'||action==='edit')&&area==='whatsapp'&&window.NeoCampaignEditor){
    openStructured(button,rows.find(row=>row.id===id));return;
   }
