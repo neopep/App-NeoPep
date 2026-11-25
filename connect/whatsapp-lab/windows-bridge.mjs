@@ -48,27 +48,40 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
       if(revision===generation&&state==='conectado')output('groups',rows.filter(row=>/^[0-9-]+@g\.us$/.test(row?.id))
        .map(row=>({id:row.id,name:String(row.name||'Sem nome').slice(0,120),members:Number.isSafeInteger(row.members)&&row.members>=0?row.members:null})));
      }finally{checking=false;}
-    }else if((message.action==='send_text'||message.action==='send_image')){
+    }else if(['send_text','send_image','send_pdf','send_video'].includes(message.action)){
      const requestId=typeof message.request_id==='string'&&/^[a-f0-9-]{36}$/i.test(message.request_id)?message.request_id:null;
      if(!requestId)return;
      if(sending||state!=='conectado'||!current){
       output('send_result',{request_id:requestId,status:'rejected',reason:'Envio indisponível ou em andamento.'});return;
      }
      const jid=message.group_jid,text=message.text;
-     const isImage=message.action==='send_image';
-     const base64=message.image;
-     let image;
-     if(isImage&&typeof base64==='string'&&base64.length<=1398104&&base64.length%4===0&&/^[A-Za-z0-9+/]+={0,2}$/.test(base64)){
+     const isImage=message.action==='send_image',isPdf=message.action==='send_pdf',isVideo=message.action==='send_video';
+     const isAttachment=isPdf||isVideo;
+     const base64=isAttachment?message.data:message.image;
+     let binary;
+     const maxBytes=isAttachment?20*1024*1024:1024*1024;
+     const maxBase64=4*Math.ceil(maxBytes/3);
+     if((isImage||isAttachment)&&typeof base64==='string'&&base64.length<=maxBase64
+       &&base64.length%4===0&&/^[A-Za-z0-9+/]+={0,2}$/.test(base64)){
       const bytes=Buffer.from(base64,'base64');
-      if(bytes.length>=4&&bytes.length<=1024*1024&&bytes[0]===255&&bytes[1]===216&&bytes.at(-2)===255&&bytes.at(-1)===217)image=bytes;
+      if(bytes.length>0&&bytes.length<=maxBytes){
+       const jpeg=isImage&&bytes.length>=4&&bytes[0]===255&&bytes[1]===216&&bytes.at(-2)===255&&bytes.at(-1)===217;
+       const pdf=isPdf&&bytes.length>=8&&bytes.subarray(0,5).toString('ascii')==='%PDF-';
+       const video=isVideo&&bytes.length>=12&&bytes.subarray(4,8).toString('ascii')==='ftyp';
+       if(jpeg||pdf||video)binary=bytes;
+      }
      }
+     const fileName=isPdf?message.file_name:null;
+     const validFileName=!isPdf||(typeof fileName==='string'&&/^[^\/\\\x00-\x1f\x7f]{1,116}\.pdf$/i.test(fileName));
      if(typeof jid!=='string'||!/^[0-9-]{1,64}@g\.us$/.test(jid)
-       ||typeof text!=='string'||text.length>2000||(isImage?!image:!text.trim())){
-      output('send_result',{request_id:requestId,status:'rejected',reason:'Grupo ou texto inválido.'});return;
+       ||typeof text!=='string'||text.length>2000||(isImage||isAttachment?!binary:!text.trim())||!validFileName){
+      output('send_result',{request_id:requestId,status:'rejected',reason:'Grupo, legenda ou arquivo inválido.'});return;
      }
      sending=true;const revision=generation,provider=current;
      try{
-      const receipt=isImage?await provider.sendImage(jid,text,image):await provider.sendText(jid,text);
+      const receipt=isImage?await provider.sendImage(jid,text,binary):isPdf?
+       await provider.sendDocument(jid,text,binary,fileName):isVideo?
+       await provider.sendVideo(jid,text,binary):await provider.sendText(jid,text);
       output('send_result',{request_id:requestId,status:revision===generation&&state==='conectado'?'accepted':'uncertain',
        message_id:String(receipt?.messageId??'').slice(0,160)});
      }catch{
@@ -97,7 +110,7 @@ if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){
  process.on('unhandledRejection',()=>{void stop()});
  let pending=Promise.resolve();
  lines.on('line',line=>{
-  if(line.length>16*1024*1024)return;
+  if(line.length>36*1024*1024)return;
   pending=pending.then(async()=>{try{await bridge.receive(JSON.parse(line));}catch{}});
  });
 }
