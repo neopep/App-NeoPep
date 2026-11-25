@@ -231,6 +231,7 @@ test('lembretes padrao: Agora nao continua o onboarding sem ativar ou repetir a 
  assert.equal(a.run('savedIntro.settings.reminderScheduleConfigured'),false);
  assert.equal(a.run('page'),'inicio');
  assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
+ a.run('checkDailyRecords()');
  assert.match(a.document.querySelector('.daily-record-item h3').textContent,/Peso/);
  a.run('resetDailyVisit();checkDailyRecords()');
  assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
