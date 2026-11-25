@@ -1709,7 +1709,7 @@ function privacyPreferencesPage(){
   <fieldset disabled aria-label="Permissões opcionais">
   ${privacyOptions.filter(([key])=>!initial||key!=='location').map(([key,label])=>`<label class="privacy-option" for="privacy-${key}"><span>${label}</span><input id="privacy-${key}" name="${key}" type="checkbox" role="switch"></label>`).join('')}
   </fieldset>
-  ${initial?'<button type="button" class="secondary full privacy-choose-all" data-privacy-choose-all>Selecionar todas as opções</button>':''}
+  ${initial?'<button type="button" class="secondary full privacy-select-none" data-privacy-select-none>Desmarcar todas</button><button type="button" class="text-btn full privacy-choose-all" data-privacy-choose-all>Selecionar todas</button>':''}
   <p class="sub privacy-device-summary">Dispositivo atual: ${esc(deviceSummary||'Não identificado')}.</p>
   ${initial?'':'<p class="form-help">Ao ativar a localização, o aparelho pedirá autorização. O NeoPep usa apenas a região aproximada da conexão e não envia as coordenadas do aparelho.</p>'}
   <p class="sub" data-privacy-notice role="status">Consultando preferências…</p>
@@ -1759,18 +1759,23 @@ function mountPrivacyPreferences(){
  form.querySelector('[data-privacy-choose-all]')?.addEventListener('click',()=>{
   if(!current()||saving||fields.disabled)return;
   for(const option of fields.querySelectorAll('input[type=checkbox]:not(:disabled)'))option.checked=true;
-  status.textContent='Opções selecionadas. Confirme em OK para salvar; o aparelho poderá solicitar autorização de notificações.';
+  status.textContent='Opções marcadas. As permissões só serão salvas após confirmar OK.';
+ });
+ form.querySelector('[data-privacy-select-none]')?.addEventListener('click',()=>{
+  if(!current()||saving||fields.disabled)return;
+  for(const option of fields.querySelectorAll('input[type=checkbox]:not(:disabled)'))option.checked=false;
+  status.textContent='Opções desmarcadas. Confirme em OK para registrar sua escolha ou toque em Agora não.';
  });
  const showPersonalization=mountPersonalization(form,initial,()=>current()&&!saving);
  function apply(values){
   baseline=values;
   for(const [key] of privacyOptions){
    const field=form.querySelector('[name='+key+']');
-   if(field)field.checked=values[key]===true;
+   if(field)field.checked=initial&&values.pending?true:values[key]===true;
   }
   const locationField=form.querySelector('[name=location]');
   if(locationField)locationField.disabled=!values.location&&!locationObservationEnabled();
-  status.textContent=privacyHelp(form);
+  status.textContent=initial&&values.pending?'Todas as opções estão marcadas para sua revisão, mas nenhuma nova autorização é salva antes de tocar em OK. Você pode desmarcar uma a uma ou todas.':privacyHelp(form);
  }
  async function load(){
   status.textContent='Consultando preferências…';
