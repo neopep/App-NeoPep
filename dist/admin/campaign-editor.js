@@ -428,7 +428,8 @@
   }
   async function dispatch(scheduled){
    if(dispatching||!current()||$('[data-editor='+(scheduled?'schedule':'publish')+']').disabled)return;
-   const action=channel==='app'?'publish_app':'schedule_whatsapp';
+   const rich=testWA&&richMode();
+    const action=rich?'publish':channel==='app'?'publish_app':'schedule_whatsapp';
    const base={editor_id:state.editorId,revision:state.revision,local_time:scheduled?draft.planned_local:null};
    const intent=testApp?{...base,confirmed:true,destination_count:testGate.destinations,audience_key:testGate.audience_key}:{...base,
     weekly_count:channel==='app'||testWA||!scheduled?1:Number(field('weekly_count').value),push:field('push')?.checked===true,
@@ -438,6 +439,7 @@
    state.dispatchAttempt=request;saveLocal();dispatching=true;
    try{
     const result=testApp?await cloud.campaignTest('publish',{...intent,request_id:request.id}):
+     rich?await cloud.campaignRich('publish',{...intent,request_id:request.id}):
      await cloud.campaignDispatch(action,{...intent,request_id:request.id});
     if(!current())return;
     saveLocal();tell(testApp?'Campanha App de homologação registrada. Confirme a exibição em Acompanhar destinos.':channel==='app'?'Campanha App registrada.':'Ocorrência registrada'+(result?.batch_id?' · '+result.batch_id:'')+'. Confira os resultados por destino.');
@@ -445,10 +447,45 @@
    }catch{tell('Não foi possível confirmar a operação. Repita os mesmos dados para reconciliar.');}
    finally{dispatching=false;}
   }
+  async function jpegForDispatch(blob){
+   const url=URL.createObjectURL(blob),img=new Image();
+   try{
+    await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('Imagem ilegível. Selecione um JPEG.'));img.src=url;});
+    for(const edge of [1280,960,720,480]){
+     const scale=Math.min(1,edge/Math.max(img.naturalWidth,img.naturalHeight));
+     const canvas=document.createElement('canvas');
+     canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));
+     canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
+     const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);
+     for(const quality of [.82,.68,.52]){
+      const file=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error('Erro convertendo JPEG.')),'image/jpeg',quality));
+      if(file.size>=4&&file.size<=1048576)return file;
+     }
+    }
+    throw Error('Imagem acima do limite de 1 MB após otimização.');
+   }finally{URL.revokeObjectURL(url);}
+  }
+  async function uploadRichImages(){
+   for(const block of draft.blocks){
+    if(block.type!=='image'||block.media_path)continue;
+    const localImage=await storeMedia('readonly',store=>store.get(mediaKey(block.id)));
+    if(!localImage)throw Error('Imagem não encontrada neste dispositivo. Anexe novamente.');
+    const jpeg=await jpegForDispatch(localImage);
+    const path=account+'/'+block.id+'.jpg';
+    await cloud.campaignMediaUpload(path,jpeg);
+    if(!current())throw Error('Sua conta mudou durante o upload.');
+    block.media_path=path;saveLocal();
+   }
+  }
   async function saveRemote(){
    if(saving||!current())return;
    if((editing&&!draft.blocks.some(block=>block.id===editing&&block.type==='image'&&!block.text&&!message.value.trim()))||message.value.trim()){tell('Adicione ou conclua o bloco em edição antes de registrar a versão.');return;}
    if(!draft.title.trim()){tell('Informe o título do rascunho.');return;}
+   if(testWA&&draft.blocks.some(b=>b.type==='image'&&!b.media_path)){
+    saving=true;tell('Preparando mídia privada para homologação…');
+    try{await uploadRichImages();}catch(error){tell(error.message||'Não foi possível preparar a imagem.');saving=false;return;}
+    saving=false;
+   }
    const snapshot=JSON.parse(JSON.stringify(draft));
    const fingerprint=JSON.stringify(snapshot);
    const attempt=state.attempt?.fingerprint===fingerprint?state.attempt:{fingerprint,id:uuid()};
