@@ -20,8 +20,11 @@ test('product caption keeps price and photo selection unchanged',()=>{
  assert.ok(migration.includes("length(body)>2000"));
 });
 
-test('migration does not resend or mutate previously accepted campaigns',()=>{
- assert.match(migration,/CREATE OR REPLACE FUNCTION public\.neo_campaign_rich_admin_v1/);
- assert.doesNotMatch(migration,/\b(?:UPDATE|DELETE FROM|TRUNCATE)\s+neo_private\.campaign_wa_rich_messages\b/i);
- assert.doesNotMatch(migration,/http:\/\//);
+test('migration only replaces the dispatcher function without executing sends',()=>{
+ const statements=migration.replace(/^--[^\n]*\n/gm,'').trim();
+ assert.match(statements,/^CREATE OR REPLACE FUNCTION public\.neo_campaign_rich_admin_v1/);
+ assert.match(statements,/\$function\$;$/);
+ // Runtime cancellation code is inside the function body; never execute it as a migration.
+ assert.doesNotMatch(statements,/\$function\$;\s*(?:UPDATE|INSERT|DELETE|TRUNCATE|SELECT)\b/i);
+ assert.doesNotMatch(statements,/http:\/\//);
 });
