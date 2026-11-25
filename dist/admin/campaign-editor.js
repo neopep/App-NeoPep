@@ -328,23 +328,32 @@
      'Sem destino elegível na consulta atual. Despacho bloqueado.';
    }catch{if(current()&&token===loadToken){groups=[];renderGroups();connection.textContent='Diagnóstico indisponível. Despacho bloqueado.';}}
   }
+  const richMode=()=>testWA&&(draft.blocks.length!==1||draft.blocks.some(block=>block.type!=='text'||/(https?:\/\/|www\.)/i.test(block.text||''))||
+   draft.blocks.map(block=>block.text||'').join('\n\n').trim().length>160);
   function showGate(){
    if(readOnly)return;
    const clean=state.remoteId&&state.savedDraft===JSON.stringify(draft)&&!message.value.trim()&&!editing;
-   const enabled=testApp?testGate.enabled&&testGate.destinations>0&&testGate.destinations<=30&&Boolean(testGate.audience_key):testWA?gates.whatsapp_test?.ready===true:channel==='app'?gates.app_enabled:gates.whatsapp_enabled;
+   const rich=richMode();
+   const enabled=testApp?testGate.enabled&&testGate.destinations>0&&testGate.destinations<=30&&Boolean(testGate.audience_key):
+    testWA?(rich?gates.whatsapp_rich?.ready===true:gates.whatsapp_test?.ready===true):channel==='app'?gates.app_enabled:gates.whatsapp_enabled;
    const textOnly=draft.blocks.length>0&&draft.blocks.every(block=>block.type==='text'&&!/(https?:\/\/|www\.)/i.test(block.text||''));
+   const richBlocks=draft.blocks.length>0&&draft.blocks.length<=6&&draft.blocks.every(block=>
+    ['text','image','link','product'].includes(block.type)&&
+     (block.type!=='image'||Boolean(block.media_path))&&(block.type!=='link'||Boolean(validLink(block.url)))&&
+     (block.type!=='product'||Boolean(block.ref))&&(block.text||'').length<=2000);
    const eligible=channel==='app'||draft.groups.length>0&&draft.groups.every(id=>groups.some(row=>row.id===id&&row.state==='eligible'));
    const pinned=!testWA||draft.groups.length===1&&draft.groups[0]===gates.whatsapp_test?.destination;
    const short=!testWA||draft.blocks.map(block=>block.text||'').join('\n\n').trim().length<=160;
-   const allow=Boolean(enabled&&clean&&textOnly&&eligible&&pinned&&short);
+   const allow=Boolean(enabled&&clean&&eligible&&pinned&&(rich?richBlocks:textOnly&&short));
    $('[data-editor=publish]').disabled=!allow||channel==='whatsapp'&&!testWA&&!gates.devices?.some(d=>d.ready);
-   $('[data-editor=schedule]').disabled=!allow||!draft.planned_local||testWA&&!gates.whatsapp_test?.schedule_ready;
+   $('[data-editor=schedule]').disabled=!allow||!draft.planned_local||testWA&&!(rich?gates.whatsapp_rich?.ready:gates.whatsapp_test?.schedule_ready);
    $('[data-editor-summary]').textContent=dispatchSummary(Boolean(draft.planned_local));
    $('[data-dispatch-gate]').textContent=testApp?
     (enabled?'Homologação App · '+testGate.destinations+' conta(s) autorizada(s) · somente no aplicativo, sem push.':'Homologação App indisponível. Use a simulação enquanto a lista e a ativação aguardam aprovação.'):
-    testWA?(enabled?'Homologação WhatsApp · somente o grupo autorizado e texto sem links de até 160 caracteres. '+
-     (gates.whatsapp_test.schedule_ready?'Agendamento liberado.':'Agendamento aguarda o comprovante imediato e liberação específica.'):
-     'WhatsApp em simulação. No NeoPep Connect do Windows (perfil TESTE), habilite Preparar envios de campanha nas Configurações, verifique a sessão conectada e aguarde o diagnóstico. O envio real depende também da liberação da pausa do servidor.'):enabled?
+    testWA?(enabled?(rich?'Homologação rica · até 6 blocos de texto, imagem JPEG, produto ou link HTTPS, somente no grupo autorizado. ':
+     'Homologação WhatsApp · somente o grupo autorizado e texto sem links de até 160 caracteres. ')+
+     ((rich?gates.whatsapp_rich?.ready:gates.whatsapp_test.schedule_ready)?'Agendamento disponível.':'Agendamento indisponível.'):
+     'WhatsApp em simulação. Confira o Connect e o grupo autorizado.'):enabled?
     'O despacho exige uma versão registrada, somente texto e destinos autorizados. Aceitação pelo cliente não confirma entrega.':
     'Envio e agendamento automáticos bloqueados. Somente texto no contrato de despacho.';
   }
@@ -360,6 +369,11 @@
     const result=await cloud.campaignDispatch('diagnostics',{});
     if(!current())return;
     gates=result||{};
+    if(testWA&&typeof cloud.campaignRich==='function'){
+     try{gates.whatsapp_rich=await cloud.campaignRich('diagnostics');}
+     catch{gates.whatsapp_rich={ready:false};}
+     if(!current())return;
+    }
     if(channel==='whatsapp'&&gates.devices?.length){
      connection.textContent=gates.devices.map(d=>`${d.label} · ${d.ready?'Sessão recente':'Offline ou não verificada'}
       ${d.bridge_version?' · '+d.bridge_version:''}`).join(' / ');
