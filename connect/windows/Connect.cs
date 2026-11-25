@@ -471,11 +471,10 @@ sealed partial class Connect : Form {
                 }
             }
         }catch(Exception){Record("rich_campaign_uncertain");}
-        finally{
-            if(started)try{await RichCampaign("finish",new {id=id,fence=fence,
-                outcome=outcome.Item1,receipt_id=outcome.Item2});}
-            catch(Exception){Record("rich_campaign_finalization_uncertain");}
-        }
+        // C# 5 / .NET Framework: nao usar await no bloco finally.
+        if(started)try{await RichCampaign("finish",new {id=id,fence=fence,
+            outcome=outcome.Item1,receipt_id=outcome.Item2});}
+        catch(Exception){Record("rich_campaign_finalization_uncertain");}
     }
     async Task TickCampaignDispatch() {
         // Explicit local opt-in and a disabled-by-default server gate are both required.
