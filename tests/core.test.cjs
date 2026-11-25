@@ -70,11 +70,13 @@ test('orientação inicial de lembretes é persistida e validada separadamente d
  assert.throws(()=>C.validateBackup({settings:{reminderIntroSeen:'true'}}));
 });
 
-test('convite de configuração aparece uma vez por dia até salvar horários',()=>{
+test('convite de lembretes aparece somente ate uma decisao, preservando horario escolhido',()=>{
  const s=C.blank();assert.equal(C.shouldOfferReminderSetup(s,'2026-11-14'),true);
- s.settings.reminderIntroSeen=true;s.settings.reminderSetupPromptDate='2026-11-14';
- assert.equal(C.shouldOfferReminderSetup(s,'2026-11-14'),false);
+ s.settings.reminderSetupPromptDate='2026-11-14';
  assert.equal(C.shouldOfferReminderSetup(s,'2026-11-15'),true);
+ s.settings.reminderIntroSeen=true;
+ assert.equal(C.shouldOfferReminderSetup(s,'2026-11-14'),false);
+ assert.equal(C.shouldOfferReminderSetup(s,'2026-11-15'),false);
  const copy=C.validateBackup(s);assert.equal(copy.settings.reminderSetupPromptDate,'2026-11-14');
  copy.settings.reminderScheduleConfigured=true;assert.equal(C.shouldOfferReminderSetup(copy,'2026-11-15'),false);
  s.settings.measureDay='3';assert.equal(C.shouldOfferReminderSetup(s,'2026-11-15'),false);
