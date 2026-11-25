@@ -1882,7 +1882,7 @@ let workspaceEntered=false;
 let dailySeen=new Set(),dailyOwner='',dailyDate='',dailyPrompt=null,reminderSetupPrompt=null;
 function resetDailyVisit(){reminderSetupPrompt?.remove();reminderSetupPrompt=null;dailySeen.clear();dailyDate=C.today();dailyPrompt?.remove();dailyPrompt=null;}
 function checkReminderSetup(){
- if(!C.shouldOfferReminderSetup(state)||reminderSetupPrompt||page==='lembretes')return;
+ if(dailySeen.has('reminder-setup')||!C.shouldOfferReminderSetup(state)||reminderSetupPrompt||page==='lembretes')return;
  const account=Cloud.user?.id,prompt=document.createElement('dialog');reminderSetupPrompt=prompt;const defaults=C.blank().settings;prompt.className='daily-record-prompt reminder-setup-prompt';prompt.setAttribute('aria-labelledby','reminderSetupTitle');
  prompt.innerHTML=`<p class="eyebrow">SUA ROTINA, DO SEU JEITO</p><h2 id="reminderSetupTitle">Configurações de lembretes padrão</h2><p class="sub">Podemos usar estes horários padrão para organizar seus registros:</p><div class="notice"><p><strong>Peso:</strong> todos os dias às ${esc(defaults.weightTime)}.</p><p><strong>Medidas:</strong> segundas-feiras às ${esc(defaults.measureTime)}.</p></div><p class="sub space">Você poderá alterar os dias, horários e avisos a qualquer momento em <strong>Perfil → Lembretes</strong>. As notificações no aparelho dependem da permissão do sistema.</p><div class="space"><button type="button" class="primary full" data-reminder-setup="accept">OK</button><button type="button" class="secondary full space" data-reminder-setup="skip">Agora não</button></div><p class="error" role="status" data-reminder-setup-status></p>`;
  let saving=false;
