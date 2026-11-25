@@ -449,6 +449,42 @@ sealed partial class Connect : Form {
             return data;
         }
     }
+    async Task<byte[]> LoadRichCampaignAttachment(string bucket,string path,string kind) {
+        // O servidor só fornece o caminho de um material explicitamente permitido.
+        // Nenhum URL assinado, segredo ou arquivo privado é incluído na mensagem.
+        if(!SessionReady()||!deviceApproved||bucket!="neo-library"||path==null
+            ||(kind!="video"&&kind!="pdf")
+            ||!System.Text.RegularExpressions.Regex.IsMatch(path,
+                @"\A[a-f0-9-]{36}/[a-f0-9-]{36}\.(pdf|mp4)\z",
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant)
+            ||!path.EndsWith(kind=="pdf"?".pdf":".mp4",StringComparison.Ordinal))
+            throw new InvalidOperationException("Anexo privado inválido.");
+        var request=(HttpWebRequest)WebRequest.Create(profile.Endpoint("/storage/v1/object/authenticated/neo-library/"+path));
+        request.AllowAutoRedirect=false;
+        request.Timeout=30000;
+        request.ReadWriteTimeout=30000;
+        request.Headers["Authorization"]="Bearer "+access;
+        request.Headers["apikey"]=profile.PublishableKey;
+        using(var response=(HttpWebResponse)await request.GetResponseAsync())
+        using(var stream=response.GetResponseStream())
+        using(var data=new MemoryStream()){
+            const int limit=20*1024*1024;
+            if(response.StatusCode!=HttpStatusCode.OK||response.ContentLength>limit)
+                throw new IOException("Anexo indisponível ou acima do limite.");
+            var buffer=new byte[32768];
+            int n;
+            while((n=await stream.ReadAsync(buffer,0,buffer.Length))!=0){
+                if(data.Length+n>limit)throw new IOException("Anexo maior que 20 MB.");
+                data.Write(buffer,0,n);
+            }
+            var bytes=data.ToArray();
+            if(kind=="pdf"&&(bytes.Length<8||bytes[0]!=37||bytes[1]!=80||bytes[2]!=68||bytes[3]!=70||bytes[4]!=45))
+                throw new IOException("PDF inválido.");
+            if(kind=="video"&&(bytes.Length<12||bytes[4]!=102||bytes[5]!=116||bytes[6]!=121||bytes[7]!=112))
+                throw new IOException("Vídeo MP4 inválido.");
+            return bytes;
+        }
+    }
     async Task TickRichCampaign(WhatsApp window,Guid connection) {
         // Em ambos os perfis, a fila rica exige opt-in local, JWT do ambiente e gate/allowlist do servidor.
         if(Value(local,"campaign_worker_enabled")!="1"||!deviceApproved||!SessionReady()||!window.CampaignSessionReady)return;
@@ -469,6 +505,11 @@ sealed partial class Connect : Form {
                     var bytes=await LoadRichCampaignJpeg(Value(job,"media_bucket"),Value(job,"media_path"));
                     if(whatsapp==window&&window.CampaignSessionReady)
                         outcome=await window.DispatchCampaignImageAsync(request,Value(job,"group_jid"),Value(job,"text"),bytes);
+                }else if(kind=="pdf"||kind=="video"){
+                    var bytes=await LoadRichCampaignAttachment(Value(job,"media_bucket"),Value(job,"media_path"),kind);
+                    if(whatsapp==window&&window.CampaignSessionReady)
+                        outcome=await window.DispatchCampaignAttachmentAsync(request,Value(job,"group_jid"),
+                            Value(job,"text"),kind,Value(job,"media_name"),bytes);
                 }else if(kind=="text"||kind=="link"||kind=="product"||kind=="document"||kind=="community"){
                     outcome=await window.DispatchCampaignTextAsync(request,Value(job,"group_jid"),Value(job,"text"));
                 }
