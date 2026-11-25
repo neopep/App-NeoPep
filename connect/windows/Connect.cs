@@ -42,6 +42,7 @@ sealed partial class Connect : Form {
     readonly ComboBox accounts = new ComboBox();
     readonly Label state = new Label();
     readonly CheckBox startup = new CheckBox();
+    readonly CheckBox testCampaignWorker = new CheckBox();
     readonly NotifyIcon tray = new NotifyIcon();
     readonly System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
     readonly ICampaignProvider provider = new SimulatedProvider();
@@ -149,6 +150,25 @@ sealed partial class Connect : Form {
         };
         if(!profile.IsProduction)settings.Controls.Add(startup);state.AutoSize=true;overview.Controls.Add(state);
         LoadVault();local.Remove("key");
+        if(!profile.IsProduction){
+            // A escolha e guardada no cofre DPAPI do perfil Teste, nunca em uma variavel global.
+            testCampaignWorker.Text="Preparar envios de campanha (TESTE)";
+            testCampaignWorker.AutoSize=true;
+            testCampaignWorker.Checked=Value(local,"campaign_worker_enabled")=="1";
+            testCampaignWorker.CheckedChanged+=delegate {
+                if(testCampaignWorker.Checked && MessageBox.Show(
+                    "Habilitar o worker apenas neste perfil TESTE? O envio real ainda exige uma campanha confirmada, um grupo autorizado e os bloqueios liberados no servidor.",
+                    "Homologação de campanhas WhatsApp",MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question)!=DialogResult.Yes){
+                    testCampaignWorker.Checked=false;
+                    return;
+                }
+                local["campaign_worker_enabled"]=testCampaignWorker.Checked?"1":"0";
+                try{Save();}
+                catch(Exception){Record("campaign_worker_preference_unsaved");local["campaign_worker_enabled"]="0";testCampaignWorker.Checked=false;}
+            };
+            settings.Controls.Add(testCampaignWorker);
+        }
         var theme=new ComboBox{DropDownStyle=ComboBoxStyle.DropDownList,Width=210};
         theme.Items.AddRange(new object[]{"Claro","Escuro","Seguir sistema"});
         string savedTheme=Value(local,"theme");
@@ -408,7 +428,7 @@ sealed partial class Connect : Form {
     }
     async Task TickCampaignDispatch() {
         // Explicit local opt-in and a disabled-by-default server gate are both required.
-        if(profile.IsProduction||Environment.GetEnvironmentVariable("NEO_CONNECT_CAMPAIGN_WORKER")!="1")return;
+        if(profile.IsProduction||(Value(local,"campaign_worker_enabled")!="1" && Environment.GetEnvironmentVariable("NEO_CONNECT_CAMPAIGN_WORKER")!="1"))return;
         var window=whatsapp;
         if(window==null||window.CampaignConnection==Guid.Empty)return;
         try {
