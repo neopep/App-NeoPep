@@ -1883,6 +1883,29 @@ function syncCampaign(){
   },{once:true});
  }).catch(()=>{if(owner===campaignOwner)campaignChecked=true;}).finally(()=>{if(owner===campaignOwner)campaignPending=false;});
 }
+// A campanha de homologação usa apenas a caixa interna de Teste, separada da fila oficial.
+if(window.NEO_CONFIG?.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co'&&Cloud.campaignTestVisit){
+ let testCampaignPending=false;
+ async function syncTestCampaign(){
+  const owner=Cloud.user?.id;
+  if(!owner||testCampaignPending||!campaignReady()||campaignBlocked())return;
+  testCampaignPending=true;
+  try{
+   const item=await Cloud.campaignTestVisit('next');
+   if(!item||owner!==Cloud.user?.id||!campaignReady()||campaignBlocked())return;
+   const dialog=document.createElement('dialog');
+   if(typeof dialog.showModal!=='function')return;
+   dialog.className='neo-campaign-dialog';
+   dialog.setAttribute('aria-labelledby','neoTestCampaignTitle');
+   dialog.innerHTML=`<p class="sub">Campanha de homologação</p><h2 id="neoTestCampaignTitle">${esc(item.title)}</h2><p>${esc(item.body)}</p><form method="dialog"><button type="submit" class="secondary" autofocus>Fechar</button></form>`;
+   dialog.addEventListener('close',()=>{dialog.remove();if(campaignDialog===dialog)campaignDialog=null;},{once:true});
+   document.body.append(dialog);dialog.showModal();campaignDialog=dialog;
+   await Cloud.campaignTestVisit('displayed',item.id);
+  }catch{}finally{testCampaignPending=false;}
+ }
+ setInterval(()=>void syncTestCampaign(),45000);
+ window.addEventListener('focus',()=>void syncTestCampaign());
+}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='hidden')syncCampaign();});
 function render(){applyTheme();void Promise.resolve().then(syncCampaign);void Promise.resolve().then(syncAudience);void Promise.resolve().then(syncEngagement);void Promise.resolve().then(syncGeo);if(sessionLoading){
  document.body.classList.add('auth-screen');

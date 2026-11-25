@@ -104,3 +104,13 @@ O cliente preserva o consentimento e a revogação pelas RPCs autenticadas. O ba
 - Os gradientes e contornos da calculadora usam tokens responsivos ao tema. A matemática permanece a mesma. A identificação TESTE usa o fluxo de layout, com indicação no cabeçalho do compositor.
 - Homologação de despacho: App e WhatsApp estão desabilitados no Supabase Teste. O público App é definido por plano ou por todos, sem coorte exclusiva de homologação. O Connect está pausado. A confirmação real permanece condicionada ao contrato e às permissões existentes. O modo Simular exercita a preparação de forma local e não cria campanha nem agendamento.
 - A RPC de prévias de conversas do lote anterior consta no ledger de Teste como `20261124233537_support_inbox_previews_20261124`. Este refinamento não exige SQL adicional.
+
+### Homologação isolada de publicação e agenda
+
+A migração direcionada `release/campaign-homologation/20261125020000_campaign_homologation.sql` adiciona uma caixa App exclusiva de Teste. O servidor exige autenticação com emissor do Supabase Teste, administrador para gravar, uma versão App própria, confirmação e a revisão da lista privada. Cada versão aceita um lote. A repetição do mesmo pedido devolve seu ID. Os destinatários são fixados no registro e revalidados antes de oferecer ou confirmar a exibição. A config nasce desligada e a lista nasce vazia.
+
+A entrega ocorre quando a conta autorizada consulta o app aberto, a partir do horário definido em São Paulo. A consulta não exige worker ou cron. O histórico diferencia programada, disponível, oferecida, exibição confirmada, cancelada, revogada e expirada. A exibição confirmada é um recibo do cliente e não mede leitura humana. A campanha vence após 24h. Esta caixa não entra na fila legada, não gera push e não aceita links, anexos ou referências.
+
+Pré-verificar o catálogo com `preflight.sql` exclusivamente no projeto `qnuluspqfazdppciermw`. A aplicação de SQL exige autorização específica. Mesmo depois de migrar, vincular apenas contas dedicadas e conferir o emissor das sessões em homologação antes de autorizar a ativação. O rollback desativa o recurso e revoga execução das duas RPCs, preservando registros. Deixar as flags legadas desligadas.
+
+WhatsApp permanece simulado em Teste. O contrato atual aceita texto e exige versão, grupo elegível, Connect recente com Bridge capaz, sessão pronta e pausa desativada. O catálogo identifica grupos sincronizados e sua elegibilidade técnica, sem comprovar autorização para disparo real. Mídias e referências não entram na esteira real. Liberar um ensaio externo requer aprovação específica e uma lista separada de grupos dedicados, sessão e dispositivo comprovados.

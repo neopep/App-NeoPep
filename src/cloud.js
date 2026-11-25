@@ -64,6 +64,19 @@ const api={configured,
  async connectReleaseURL(path){return ok(await need().storage.from('neo-connect-releases').createSignedUrl(path,120,{download:'NeoPepConnectSetup.exe'})).signedUrl;},
  async campaignEditor(action,data){const version=identityVersion;const result=ok(await need().rpc('neo_campaign_editor_v1',{p_action:action,p_data:data}));if(version!==identityVersion)throw Error('A conta mudou.');return result;},
  async campaignDispatch(action,data){const version=identityVersion;const result=ok(await need().rpc('neo_campaign_dispatch_admin_v1',{p_action:action,p_data:data}));if(version!==identityVersion)throw Error('A conta mudou.');return result;},
+ async campaignTest(action,data={}){
+  const version=identityVersion;
+  const result=ok(await need().rpc('neo_campaign_test_admin_v1',{p_action:action,p_data:data}));
+  if(version!==identityVersion)throw Error('A conta mudou.');
+  return result;
+ },
+ async campaignTestVisit(action,batch=null){
+  const version=identityVersion;
+  const response=await need().rpc('neo_campaign_test_visit_v1',{p_action:action,p_batch:batch});
+  if(version!==identityVersion)throw Error('A conta mudou.');
+  if(['PGRST202','42883'].includes(response.error?.code))return null;
+  return ok(response);
+ },
  async campaignWhatsAppSync(action,id=null,data={}){return ok(await need().rpc('neo_campaign_wa_sync',{p_action:action,p_id:id,p_data:data}));},
  async campaignWhatsApp(action,id=null,data={}){return ok(await need().rpc('neo_campaign_wa',{p_action:action,p_id:id,p_data:data}));},
  async campaignAdmin(action,id=null,data={}){return ok(await need().rpc('neo_campaign_admin',{p_action:action,p_id:id,p_data:data}));},

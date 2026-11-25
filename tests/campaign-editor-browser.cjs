@@ -11,6 +11,7 @@ async function scenario(browser,options){
   await page.addStyleTag({path:path.join(dist,'style.css')});
   await page.addScriptTag({path:path.join(dist,'admin/campaign-editor.js')});
   await page.evaluate(()=>{
+   window.NEO_CONFIG={supabaseUrl:'https://qnuluspqfazdppciermw.supabase.co'};
    window.confirm=()=>true;window.calls=[];window.failed=false;window.failSave=true;
    window.cloud={
     user:{id:'admin'},
@@ -19,6 +20,14 @@ async function scenario(browser,options){
      if(window.failed)throw Error('offline');
      return [{id:'connection:g1',state:'eligible',name:'Grupo um',connection:'Conta A'},
       {id:'connection:g2',state:'disconnected',name:'Grupo dois',connection:'Conta B'}];
+    },
+    campaignTest:async(action,input)=>{
+     window.calls.push(['test:'+action,input]);
+     if(action==='diagnostics')return {enabled:true,destinations:2,audience_key:'verified-list'};
+     if(action==='publish')return {batch_id:'test-app'};
+     if(action==='status')return [{id:'test-app',title:'App de homologação',starts_at:'2099-01-01',recipients:[{account_id:'fixture',status:'scheduled'}]}];
+     if(action==='cancel')return {ok:true};
+     throw Error('Ação inesperada');
     },
     campaignDispatch:async(action,input)=>{
      window.calls.push([action,input]);
@@ -140,23 +149,30 @@ async function scenario(browser,options){
   await dialog.getByRole('button',{name:'Criar versão App'}).click();
   await dialog.getByRole('heading',{name:'Rascunho App'}).waitFor();
   await dialog.getByRole('button',{name:'Público',exact:true}).click();
-  await dialog.locator('[name=audience]').selectOption('premium');
+  await dialog.getByText('Somente as contas de homologação autorizadas no servidor. Esta campanha não envia push.').waitFor();
   await dialog.getByRole('button',{name:'Fechar painel'}).click();
   await dialog.getByRole('button',{name:'Registrar rascunho na Central'}).click();
   await dialog.getByText(/Versão 1 registrada/).waitFor();
   const app=await page.evaluate(()=>calls.filter(([action])=>action==='save').at(-1)[1]);
-  assert.equal(app.channel,'app');assert.equal(app.draft.audience,'premium');assert.deepEqual(app.draft.groups,[]);
+  assert.equal(app.channel,'app');assert.equal(app.draft.audience,'all');assert.deepEqual(app.draft.groups,[]);
   await dialog.getByRole('button',{name:'Publicar agora'}).click();
   await dialog.getByText('Tem certeza de que deseja publicar esta campanha agora?').waitFor();
-  assert.equal(await page.evaluate(()=>calls.some(([action])=>action==='publish_app')),false);
+  assert.equal(await page.evaluate(()=>calls.some(([action])=>action==='test:publish')),false);
   await dialog.getByRole('button',{name:'Confirmar',exact:true}).click();
   // The mock must receive only the App dispatch and no external notification.
-  await dialog.getByText('Campanha App registrada.').waitFor();
-  assert.equal(await page.evaluate(()=>calls.find(([action])=>action==='publish_app')[1].push),false);
+  await dialog.getByText(/Campanha App de homologação registrada/).waitFor();
+  const payload=await page.evaluate(()=>calls.find(([action])=>action==='test:publish')[1]);
+  assert.equal(payload.confirmed,true);
+  assert.equal(payload.destination_count,2);
+  assert.equal(payload.audience_key,'verified-list');
+  assert.equal('push' in payload,false);
+  assert.equal(await page.evaluate(()=>calls.some(([action])=>action==='publish_app')),false);
   await dialog.getByRole('button',{name:'Adicionar conteúdo'}).click();
   await dialog.getByRole('button',{name:'Destinos',exact:true}).click();
   await dialog.getByRole('button',{name:'Atualizar tentativas'}).click();
-  await dialog.getByText('App · Programada').waitFor();
+  await dialog.getByText('fixture · Programada').waitFor();
+  await dialog.getByRole('button',{name:'Cancelar campanha de Teste'}).click();
+  assert.equal(await page.evaluate(()=>calls.find(([action])=>action==='test:cancel')[1].batch_id),'test-app');
 
   await dialog.getByRole('button',{name:'Fechar painel'}).click();
   await dialog.getByRole('button',{name:'Voltar',exact:true}).click();

@@ -84,6 +84,9 @@
  const iconButton=(name,label,attrs='')=>`<button type="button" class="structured-icon" aria-label="${label}" title="${label}" ${attrs}>${icon(name)}</button>`;
  function open({cloud,row={},channel='whatsapp',remote=null,trigger,onSaved,onConnect,fresh=false,readOnly=false,previewBlocks=[],previewImages=new Map(),onEdit,previewModes}){
   const account=cloud.user?.id;
+  const staging=window.NEO_CONFIG?.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co';
+  const testApp=staging&&channel==='app';
+
   if(!account)return;
   stopOpen?.();
   const source=remote?remote.source_id:(row.id||null);
@@ -116,7 +119,7 @@
     </div>`)}
     ${pane('settings','Configurações',`<label>Nome da campanha<input name="title" maxlength="120" value="${e(draft.title)}"></label><button type="button" class="secondary" data-editor="name_continue">Salvar nome e continuar</button><p class="sub" data-structured-connection role="status">Conexão ainda não verificada.</p>
      <div class="inline-actions"><button type="button" class="secondary" data-editor="fresh">Novo rascunho</button>${channel==='whatsapp'?'<button type="button" class="secondary" data-editor="cross">Criar versão App</button>':''}</div>`)}
-    ${channel==='app'?pane('audience','Público App','<label>Público App<select name="audience"><option value="all">Todos</option><option value="free">Free</option><option value="premium">Premium</option></select></label><label class="check"><input name="push" type="checkbox"> Solicitar push App para contas com consentimento</label>'):
+    ${channel==='app'?pane('audience','Público App',testApp?'<p>Somente as contas de homologação autorizadas no servidor. Esta campanha não envia push.</p>':'<label>Público App<select name="audience"><option value="all">Todos</option><option value="free">Free</option><option value="premium">Premium</option></select></label><label class="check"><input name="push" type="checkbox"> Solicitar push App para contas com consentimento</label>'):
     pane('groups','Grupos sincronizados','<div class="inline-actions"><button type="button" class="secondary" data-editor="groups">Atualizar grupos e diagnóstico</button><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button></div><label>Pesquisar grupo ou conexão<input name="group_search" type="search"></label><p class="sub" data-editor-group-count></p><div data-editor-groups></div>')}
     ${pane('photo','Foto','<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">Imagens na simulação local. O despacho automático aceita apenas texto.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto</button>')}
     ${pane('file','Documento','<button type="button" class="secondary" data-editor="choose_document">Escolher PDF ou TXT</button>')}
@@ -162,6 +165,7 @@
   const objectUrls=new Set(),sheet=$('[data-editor-sheet]');
   let sheetTrigger=null,catalogKind='document',captionTarget=state.captionTarget||null,pendingDispatch=null;
   const products=new Map();let shopCatalog;
+  let testGate={};
   let gates={},dispatching=false,groups=[],pending,active=true,editing=null,removed=null,saving=false,revision=0,loadToken=0,catalogToken=0,selection=[0,0],catalogRows=[];
   const current=()=>active&&cloud.user?.id===account;
   const mediaKey=id=>account+':'+state.editorId+':'+id;
@@ -325,18 +329,26 @@
   function showGate(){
    if(readOnly)return;
    const clean=state.remoteId&&state.savedDraft===JSON.stringify(draft)&&!message.value.trim()&&!editing;
-   const enabled=channel==='app'?gates.app_enabled:gates.whatsapp_enabled;
+   const enabled=testApp?testGate.enabled&&testGate.destinations>0&&testGate.destinations<=30&&Boolean(testGate.audience_key):staging?false:channel==='app'?gates.app_enabled:gates.whatsapp_enabled;
    const textOnly=draft.blocks.length>0&&draft.blocks.every(block=>block.type==='text'&&!/(https?:\/\/|www\.)/i.test(block.text||''));
    const eligible=channel==='app'||draft.groups.length>0&&draft.groups.every(id=>groups.some(row=>row.id===id&&row.state==='eligible'));
    const allow=Boolean(enabled&&clean&&textOnly&&eligible);
    $('[data-editor=publish]').disabled=!allow||channel==='whatsapp'&&!gates.devices?.some(d=>d.ready);
    $('[data-editor=schedule]').disabled=!allow||!draft.planned_local;
    $('[data-editor-summary]').textContent=dispatchSummary(Boolean(draft.planned_local));
-   $('[data-dispatch-gate]').textContent=enabled?
+   $('[data-dispatch-gate]').textContent=testApp?
+    (enabled?'Homologação App · '+testGate.destinations+' conta(s) autorizada(s) · somente no aplicativo, sem push.':'Homologação App indisponível. Use a simulação enquanto a lista e a ativação aguardam aprovação.'):
+    staging?'WhatsApp em simulação no ambiente de Teste. Nenhum grupo recebe mensagens.':enabled?
     'O despacho exige uma versão registrada, somente texto e destinos autorizados. Aceitação pelo cliente não confirma entrega.':
     'Envio e agendamento automáticos bloqueados. Somente texto no contrato de despacho.';
   }
   async function refreshGate(){
+   if(testApp){
+    try{const result=await cloud.campaignTest?.('diagnostics');if(current())testGate=result||{};}
+    catch{if(current())testGate={};}
+    if(current())showGate();
+    return;
+   }
    if(typeof cloud.campaignDispatch!=='function')return;
    try{
     const result=await cloud.campaignDispatch('diagnostics',{});
@@ -355,8 +367,16 @@
    const root=$('[data-dispatch-results]');
    root.textContent='Consultando destinos…';
    try{
-    const rows=await cloud.campaignDispatch(channel==='app'?'app_status':'status',{editor_id:state.editorId});
+    const rows=testApp?await cloud.campaignTest('status',{editor_id:state.editorId}):await cloud.campaignDispatch(channel==='app'?'app_status':'status',{editor_id:state.editorId});
     if(!current())return;
+    if(testApp){
+     const labels={available:'Disponível no aplicativo',scheduled:'Programada',offered:'Oferecida ao aplicativo',displayed:'Exibição confirmada',cancelled:'Cancelada',revoked:'Conta removida',paused:'Pausada',expired:'Expirada'};
+     root.innerHTML=rows.map(row=>`<article class="monitor-block"><strong>${e(row.title)}</strong>
+      <p class="sub">${e(new Date(row.starts_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}))} · somente homologação</p>
+      <ul>${row.recipients.map(recipient=>`<li>${e(recipient.account_id)} · ${e(labels[recipient.status]||recipient.status)}</li>`).join('')}</ul>
+      ${row.cancelled_at?'':`<button type="button" class="secondary" data-editor="cancel_batch" data-batch="${e(row.id)}">Cancelar campanha de Teste</button>`}</article>`).join('')||'Nenhuma campanha de homologação registrada.';
+     return;
+    }
     if(channel==='app'){
      root.innerHTML=rows.map(row=>`<article class="monitor-block">
       <strong>${e(row.title)} · ${row.cancelled_at?'Cancelada':row.status==='active'&&new Date(row.starts_at)>new Date()?'Programada':e(row.status)}</strong>
@@ -374,7 +394,7 @@
   }
   function dispatchSummary(scheduled){
    const names=draft.groups.map(id=>groups.find(group=>group.id===id)?.name||'Grupo indisponível');
-   const destinations=channel==='app'?('Público: '+({all:'Todos',free:'Free',premium:'Premium'}[draft.audience]||'Todos')):`${names.length} grupo(s)${names.length?' · '+names.join(', '):''}`;
+   const destinations=testApp?'Somente '+(testGate.destinations||0)+' conta(s) de homologação · sem push':channel==='app'?('Público: '+({all:'Todos',free:'Free',premium:'Premium'}[draft.audience]||'Todos')):`${names.length} grupo(s)${names.length?' · '+names.join(', '):''}`;
    const when=scheduled&&draft.planned_local?draft.planned_local.replace('T',' ')+' (São Paulo)':'Agora';
    const description=draft.blocks.map(block=>labels[block.type]||block.type).join(', ')||'Sem conteúdo';
    return [destinations,when,`${draft.blocks.length} bloco(s): ${description}`].join(' · ');
@@ -389,15 +409,17 @@
   async function dispatch(scheduled){
    if(dispatching||!current()||$('[data-editor='+(scheduled?'schedule':'publish')+']').disabled)return;
    const action=channel==='app'?'publish_app':'schedule_whatsapp';
-   const intent={editor_id:state.editorId,revision:state.revision,local_time:scheduled?draft.planned_local:null,
+   const base={editor_id:state.editorId,revision:state.revision,local_time:scheduled?draft.planned_local:null};
+   const intent=testApp?{...base,confirmed:true,destination_count:testGate.destinations,audience_key:testGate.audience_key}:{...base,
     weekly_count:channel==='app'||!scheduled?1:Number(field('weekly_count').value),push:field('push')?.checked===true};
    const fingerprint=JSON.stringify(intent);
    const request=state.dispatchAttempt?.fingerprint===fingerprint?state.dispatchAttempt:{fingerprint,id:uuid()};
    state.dispatchAttempt=request;saveLocal();dispatching=true;
    try{
-    await cloud.campaignDispatch(action,{...intent,request_id:request.id});
+    if(testApp)await cloud.campaignTest('publish',{...intent,request_id:request.id});
+    else await cloud.campaignDispatch(action,{...intent,request_id:request.id});
     if(!current())return;
-    saveLocal();tell(channel==='app'?'Campanha App registrada.':'Ocorrências registradas. Confira os resultados por destino.');
+    saveLocal();tell(testApp?'Campanha App de homologação registrada. Confirme a exibição em Acompanhar destinos.':channel==='app'?'Campanha App registrada.':'Ocorrências registradas. Confira os resultados por destino.');
     onSaved?.();
    }catch{tell('Não foi possível confirmar a operação. Repita os mesmos dados para reconciliar.');}
    finally{dispatching=false;}
@@ -597,7 +619,8 @@
     if(action==='cancel_batch'&&!window.confirm('Cancelar os destinos ainda pendentes do lote?'))return;
     if(action==='reschedule'&&!draft.planned_local){tell('Informe o novo horário planejado.');return;}
     try{
-     await cloud.campaignDispatch((action==='cancel_batch'?'cancel':'reschedule')+(channel==='app'?'_app':''),{batch_id:control.dataset.batch,
+     if(testApp)await cloud.campaignTest('cancel',{batch_id:control.dataset.batch});
+     else await cloud.campaignDispatch((action==='cancel_batch'?'cancel':'reschedule')+(channel==='app'?'_app':''),{batch_id:control.dataset.batch,
       publication_id:control.dataset.publication,local_time:draft.planned_local});
      if(current())void showDispatch();
     }catch{tell('Não foi possível alterar o lote. Confira os estados e o horário.');}

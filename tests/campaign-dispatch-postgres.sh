@@ -34,6 +34,11 @@ wait "$b"
 test "$(cat "$scratch/a" "$scratch/b"|grep -c -E '^[a-f0-9-]{36}$')" = 3
 test "$("${db[@]}" -c "select count(*) from neo_private.campaign_wa_publications where dispatch_state='leased'")" = 1
 "${db[@]}" -f - < tests/campaign-dispatch-lifecycle.sql
+homologation=release/campaign-homologation
+"${db[@]}" < "$homologation/20261125020000_campaign_homologation.sql"
+"${db[@]}" -f - < tests/campaign-homologation.sql
+"${db[@]}" < "$homologation/rollback.sql"
+test "$("${db[@]}" -c "select has_function_privilege('authenticated','public.neo_campaign_test_visit_v1(text,uuid)','execute')")" = f
 "${db[@]}" < "$dispatch/rollback.sql"
 test "$("${db[@]}" -c "select has_function_privilege('authenticated','public.neo_campaign_dispatch_device_v1(text,uuid,text,jsonb)','execute')")" = f
 test "$("${db[@]}" -c "select count(*) from neo_private.campaign_push_delivery")" = 0
