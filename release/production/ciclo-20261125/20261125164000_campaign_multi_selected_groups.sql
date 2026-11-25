@@ -524,3 +524,4 @@ begin
  return result;
 end;
 $function$
+;
