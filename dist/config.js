@@ -8,6 +8,7 @@ window.NEO_CONFIG = Object.freeze({
   privacyContact: 'neopeptideos@proton.me',
   cloudValidated: false, // A publicação não equivale à homologação externa de Auth e pagamentos.
   connectEnabled: true, // Produção: canal próprio, banco e credenciais independentes do Teste.
+  productionGeoEnabled: true, // Registro aproximado somente após permissão no aparelho e consentimento salvo em account_geo.
   campaignOfficialCentralEnabled: true,
   campaignActivationEnabled: true, // Administração e campanhas ficam disponíveis com as regras e consentimentos SQL.
   captchaRequired: true,
