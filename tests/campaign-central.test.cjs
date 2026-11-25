@@ -46,9 +46,9 @@ test('pacote UX: orientacao da seringa e rastreamento opt-in por frasco',()=>{
 });
 test('pacote UX: autorizar notificacoes apenas com escolha explicita e registrar push',()=>{
  const app=fs.readFileSync('dist/app.js','utf8');
- assert.match(app,/data-privacy-choose-all/);
- assert.match(app,/Escolha os recursos opcionais/);
- assert.match(app,/OK, salvar escolhas/);
+ assert.match(app,/data-privacy-select-none/);
+ assert.match(app,/Revise as opções/);
+ assert.match(app,/initial\?'OK'/);
  assert.match(app,/name="skip" class="text-btn full" disabled>Agora não/);
  assert.match(app,/const nativeNotice=wantsCampaigns\?Promise\.resolve\(window\.NeoPush\?\.enable\?\.\(\)\)/);
  assert.match(app,/if\(!current\(\)\|\|saving\|\|fields\.disabled\)return/);
