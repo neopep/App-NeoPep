@@ -104,8 +104,7 @@ export async function createBaileysProvider(
    if(typeof caption!=='string'||caption.length>2000||!Buffer.isBuffer(document)
       ||document.length<8||document.length>20*1024*1024
       ||document.subarray(0,5).toString('ascii')!=='%PDF-'
-      ||typeof fileName!=='string'||!/^.{1,115}\\.pdf$/i.test(fileName)
-      ||/[\\/\\\\\\x00-\\x1f\\x7f]/.test(fileName))throw Error('PDF ou nome de arquivo inválido.');
+      ||typeof fileName!=='string'||!/^[^\/\\\x00-\x1f\x7f]{1,116}\.pdf$/i.test(fileName))throw Error('PDF ou nome de arquivo inválido.');
    return sendToParticipatingGroup(groupJid,{document,fileName,mimetype:'application/pdf',caption:caption.trim()});
   },
   async sendVideo(groupJid,caption,video){
