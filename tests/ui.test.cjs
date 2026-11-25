@@ -563,7 +563,7 @@ test('card da Home mostra somente o último cálculo salvo da conta e abre a cal
 
 
 // Testes de regressão do ajuste #45 integrados ao ciclo de lançamento.
-test('onboarding oferece localização antes das preferências, grava somente após permissão e permite revogar',async()=>{
+test('onboarding pede localização somente ao confirmar as preferências, grava somente após permissão e permite revogar',async()=>{
  const account='account-a';
  const calls=[];
  const options={cloud:{user:{id:account},onboardingComplete:true,privacyPreferences:async(choices=null,complete=false)=>{
@@ -575,27 +575,16 @@ test('onboarding oferece localização antes das preferências, grava somente ap
  a.ctx.navigator.geolocation={getCurrentPosition(success){nativeCalls++;success({coords:{get latitude(){throw Error('coordenadas lidas');}}});}};
  await a.run("mode='cloud';openAccountDestination()");await tick();
  assert.equal(nativeCalls,0);
- assert.equal(q('[data-location-intro]').hidden,false);
- assert.equal(q('#privacyPreferences').hidden,true);
- q('[data-location-choice=allow]').click();await tick();
+ const switches=[...q('#privacyPreferences').querySelectorAll('input')];
+ assert.ok(switches.every(field=>field.checked));
+ assert.ok(calls.every(([choice])=>choice===null));
+ q('[data-privacy-select-none]').click();
+ assert.ok(switches.every(field=>!field.checked));
+ q('[name=location]').checked=true;
+ q('#privacyPreferences').dispatchEvent(new a.ctx.Event('submit',{bubbles:true,cancelable:true}));
+ await tick();
  assert.equal(nativeCalls,1);
- assert.ok(calls.some(([choice,complete])=>choice?.location===true&&!complete));
- assert.equal(q('[data-location-intro]').hidden,true);
- assert.equal(q('#privacyPreferences').hidden,false);
- assert.equal(q('#privacyPreferences [name=location]'),null);
- assert.equal(a.data.get('neo-location-onboarding-v1:'+account),'allow');
-
- const reopened=setup(Object.fromEntries(a.data),options);
- reopened.ctx.NEO_CONFIG.stagingGeoEnabled=true;
- await reopened.run("mode='cloud';openAccountDestination()");await tick();
- assert.equal(reopened.document.querySelector('[data-location-intro]').hidden,true);
- reopened.ctx.NeoCloud.user={id:'account-b'};
- await reopened.run("render()");await tick();
- assert.equal(reopened.document.querySelector('[data-location-intro]').hidden,false);
- reopened.document.querySelector('[data-location-choice=skip]').click();await tick();
- assert.equal(reopened.data.get('neo-location-onboarding-v1:account-b'),'skip');
- assert.equal(nativeCalls,1);
-
+ assert.ok(calls.some(([choice,complete])=>choice?.location===true&&complete&&choice.campaigns===false));
  preferences={...preferences,pending:false,location:true};
  await a.run("go('permissoes',false)");await tick();
  const field=q('[name=location]');assert.equal(field.checked,true);
@@ -617,18 +606,13 @@ test('onboarding continua com recusa, ausência da API, timeout e recurso deslig
   if(outcome!=='unsupported')a.ctx.navigator.geolocation={getCurrentPosition(_success,error){native++;if(outcome==='denied')error({code:1});}};
   a.ctx.setTimeout=(cb,ms)=>{if(ms===8000)fallback=cb;return 1;};
   await a.run("mode='cloud';openAccountDestination()");await tick();
-  if(outcome!=='disabled'){
-   q('[data-location-choice=allow]').click();
-   if(outcome==='timeout')fallback();
-   await tick();
-  }
-  assert.equal(q('[data-location-intro]').hidden,true,outcome);
-  assert.equal(q('#privacyPreferences').hidden,false,outcome);
-  assert.equal(native,['denied','timeout'].includes(outcome)?1:0);
   const submit=new a.ctx.Event('submit',{bubbles:true,cancelable:true});
-  Object.defineProperty(submit,'submitter',{value:q('[name=skip]')});
+  if(outcome==='disabled')Object.defineProperty(submit,'submitter',{value:q('[name=skip]')});
   q('#privacyPreferences').dispatchEvent(submit);
+  if(outcome==='timeout')fallback();
   await tick();
+  assert.equal(native,['denied','timeout'].includes(outcome)?1:0);
+  if(outcome==='disabled')assert.ok(calls.every(([choice])=>choice===null));
   assert.equal(a.run('page'),'inicio',outcome);
   assert.equal(calls.some(([choice])=>choice?.location===true),false);
  }
@@ -645,14 +629,14 @@ test('autorização nativa iniciada por outra conta não é aplicada à sessão 
  let grant;
  a.ctx.navigator.geolocation={getCurrentPosition(success){grant=success;}};
  await a.run("mode='cloud';openAccountDestination()");await tick();
- a.document.querySelector('[data-location-choice=allow]').click();
+ a.document.querySelector('#privacyPreferences').dispatchEvent(new a.ctx.Event('submit',{bubbles:true,cancelable:true}));
  a.ctx.NeoCloud.user={id:'account-b'};
  a.run('render()');await tick();
  grant({coords:{latitude:0}});await tick();
  assert.deepEqual(writes,[]);
  assert.equal(a.data.has('neo-location-onboarding-v1:account-a'),false);
  assert.equal(a.data.has('neo-location-onboarding-v1:account-b'),false);
- assert.equal(a.document.querySelector('[data-location-intro]').hidden,false);
+ assert.equal(a.document.querySelector('#privacyPreferences [name=location]').checked,true);
 });
 
 

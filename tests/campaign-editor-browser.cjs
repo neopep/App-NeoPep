@@ -169,8 +169,8 @@ async function scenario(browser,options){
   await dialog.getByRole('button',{name:'Publicação e agendamento'}).click();
   assert.equal(await dialog.getByRole('button',{name:'Publicar agora'}).isDisabled(),true);
   assert.equal(await dialog.getByRole('button',{name:'Programar',exact:true}).isDisabled(),true);
-  await dialog.getByRole('button',{name:'Simular publicação'}).click();
-  assert.match(await dialog.locator('[data-editor-simulation]').textContent(),/Nenhuma campanha foi publicada/);
+  await dialog.getByRole('button',{name:'Ver prévia (sem enviar)'}).click();
+  assert.match(await dialog.locator('[data-editor-simulation]').textContent(),/Nenhuma mensagem foi enviada/);
   assert.equal(await page.evaluate(()=>calls.some(([action])=>action==='schedule_whatsapp')),false);
   await dialog.getByRole('button',{name:'Fechar painel'}).click();
   await dialog.getByRole('button',{name:'Registrar rascunho na Central'}).click();

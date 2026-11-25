@@ -1695,26 +1695,17 @@ function privacyPreferencesPage(){
  const device=audienceDevice();
  const deviceSummary=[device.category==='mobile'?'Celular':device.category==='tablet'?'Tablet':device.category==='desktop'?'Computador':null,device.os,device.browser,device.context==='pwa'?'Aplicativo instalado':device.context==='browser'?'Navegador':null].filter(Boolean).join(' · ');
  return (initial?'<div class="page-head"><h1>'+title+'</h1></div>':head(title,''))+
-  (initial?`<section class="card privacy-preferences" data-location-intro hidden aria-labelledby="locationIntroTitle">
-   <h2 id="locationIntroTitle" tabindex="-1">Localização opcional</h2>
-   <p>Você pode permitir a localização para personalizar sua experiência com base na região aproximada da sua conexão.</p>
-   <p>O aparelho pedirá autorização. O NeoPep não guarda as coordenadas do dispositivo nem rastreia seus deslocamentos.</p>
-   <p>Você pode mudar sua escolha em Perfil → Privacidade e permissões.</p>
-   <div class="privacy-location-actions"><button type="button" class="primary" data-location-choice="allow">Permitir localização</button>
-   <button type="button" class="text-btn" data-location-choice="skip">Agora não</button></div>
-   <p data-location-notice role="status"></p>
-  </section>`:'')+
   `<form id="privacyPreferences" class="card privacy-preferences" data-privacy-account="${esc(Cloud.user.id)}" data-privacy-page="${page}">
-  ${initial?'<p class="sub">Escolha os recursos opcionais que deseja ativar. Você pode mudar depois no Perfil.</p>':''}
+  ${initial?'<p class="sub">Revise as opções e confirme em OK. Você pode mudar depois no Perfil.</p>':''}
   <fieldset disabled aria-label="Permissões opcionais">
-  ${privacyOptions.filter(([key])=>!initial||key!=='location').map(([key,label])=>`<label class="privacy-option" for="privacy-${key}"><span>${label}</span><input id="privacy-${key}" name="${key}" type="checkbox" role="switch"></label>`).join('')}
+  ${privacyOptions.map(([key,label])=>`<label class="privacy-option" for="privacy-${key}"><span>${label}</span><input id="privacy-${key}" name="${key}" type="checkbox" role="switch"${initial?' checked':''}></label>`).join('')}
   </fieldset>
-  ${initial?'<button type="button" class="secondary full privacy-choose-all" data-privacy-choose-all>Selecionar todas as opções</button>':''}
+  ${initial?'<button type="button" class="secondary full" data-privacy-select-none>Desmarcar todas</button>':''}
   <p class="sub privacy-device-summary">Dispositivo atual: ${esc(deviceSummary||'Não identificado')}.</p>
-  ${initial?'':'<p class="form-help">Ao ativar a localização, o aparelho pedirá autorização. O NeoPep usa apenas a região aproximada da conexão e não envia as coordenadas do aparelho.</p>'}
+  <p class="form-help">A região é aproximada pela conexão. As coordenadas GPS não são armazenadas.</p>
   <p class="sub" data-privacy-notice role="status">Consultando preferências…</p>
   <a class="text-btn privacy-policy-link" href="#privacidade" target="_blank" rel="noopener">Política de Privacidade</a>
-  <button type="submit" class="primary full" disabled>${initial?'OK, salvar escolhas':'Salvar preferências'}</button>
+  <button type="submit" class="primary full" disabled>${initial?'OK':'Salvar preferências'}</button>
   ${initial?'<button type="submit" name="skip" class="text-btn full" disabled>Agora não</button>':''}
   </form>`+personalizationPanel(initial);
 }
@@ -1742,10 +1733,6 @@ function requestDeviceLocation(){
   }catch{finish(false);}
  });
 }
-function locationOnboardingKey(account){return 'neo-location-onboarding-v1:'+account;}
-function locationChoiceRecorded(account){
- try{return ['allow','skip'].includes(localStorage.getItem(locationOnboardingKey(account)));}catch{return false;}
-}
 function mountPrivacyPreferences(){
  const form=$('#privacyPreferences');
  if(!form||form.dataset.mounted)return;
@@ -1753,20 +1740,19 @@ function mountPrivacyPreferences(){
  const account=Cloud.user.id,initial=page==='permissoes-iniciais',fields=form.querySelector('fieldset');
  const status=form.querySelector('[data-privacy-notice]'),save=form.querySelector('button.primary');
  const skip=form.querySelector('[name=skip]');
- const intro=initial?$('[data-location-intro]'):null;
  const current=()=>Cloud.user?.id===account&&form.isConnected;
  let baseline=null,saving=false;
- form.querySelector('[data-privacy-choose-all]')?.addEventListener('click',()=>{
+ form.querySelector('[data-privacy-select-none]')?.addEventListener('click',()=>{
   if(!current()||saving||fields.disabled)return;
-  for(const option of fields.querySelectorAll('input[type=checkbox]:not(:disabled)'))option.checked=true;
-  status.textContent='Opções selecionadas. Confirme em OK para salvar; o aparelho poderá solicitar autorização de notificações.';
+  for(const option of fields.querySelectorAll('input[type=checkbox]:not(:disabled)'))option.checked=false;
+  status.textContent='Opções desmarcadas. Toque em OK para salvar.';
  });
  const showPersonalization=mountPersonalization(form,initial,()=>current()&&!saving);
  function apply(values){
   baseline=values;
   for(const [key] of privacyOptions){
    const field=form.querySelector('[name='+key+']');
-   if(field)field.checked=values[key]===true;
+   if(field)field.checked=initial&&values.pending?true:values[key]===true;
   }
   const locationField=form.querySelector('[name=location]');
   if(locationField)locationField.disabled=!values.location&&!locationObservationEnabled();
@@ -1780,47 +1766,12 @@ function mountPrivacyPreferences(){
    if(initial&&!values.pending){await openAccountDestination(false);return;}
    apply(values);
    fields.disabled=false;
-   if(intro&&!values.location&&locationObservationEnabled()&&!locationChoiceRecorded(account)){
-    form.hidden=true;intro.hidden=false;
-    intro.querySelector('h2').focus();
-   }else await showPersonalization();
+   await showPersonalization();
   }catch{
    if(current()&&!saving)status.textContent='Não foi possível consultar as preferências. Tente novamente.';
   }
   if(current()&&!saving){save.disabled=false;if(skip)skip.disabled=false;}
  }
- intro?.addEventListener('click',async event=>{
-  const choice=event.target.closest('[data-location-choice]')?.dataset.locationChoice;
-  if(!choice||!current()||saving||intro.hidden)return;
-  saving=true;
-  for(const button of intro.querySelectorAll('button'))button.disabled=true;
-  let message='';
-  try{
-   if(choice==='allow'&&locationObservationEnabled()){
-    intro.querySelector('[data-location-notice]').textContent='Aguardando a autorização do aparelho…';
-    const authorized=await requestDeviceLocation();
-    if(!current())return;
-    if(authorized){
-     const values=await Cloud.privacyPreferences({location:true});
-     if(!current())return;
-     apply(values);
-     geoAccount=account;geoAllowed=values.location;geoNext=0;geoCaptureRequested=values.location;
-     if(values.location)void syncGeo();
-    }else message='A localização está desativada. Você pode tentar novamente no Perfil.';
-   }
-  }catch{
-   message='Não foi possível ativar a localização agora. Você pode tentar novamente no Perfil.';
-  }finally{
-   saving=false;
-   if(current()){
-    try{localStorage.setItem(locationOnboardingKey(account),choice);}catch{}
-    intro.hidden=true;form.hidden=false;
-    if(message)status.textContent=message;
-    await showPersonalization();
-    if(!form.hidden)save.focus();
-   }
-  }
- });
  form.addEventListener('submit',async event=>{
   event.preventDefault();
   if(!current()||saving)return;
@@ -1829,7 +1780,7 @@ function mountPrivacyPreferences(){
   const choices={};
   if(!skipping)for(const [key] of privacyOptions){
    const field=form.querySelector('[name='+key+']');
-   if(field&&!field.disabled&&field.checked!==baseline[key])choices[key]=field.checked;
+   if(field&&!field.disabled&&(initial||field.checked!==baseline[key]))choices[key]=field.checked;
   }
   // Start native authorization within the submit gesture, before the network request.
   const wantsCampaigns=choices.campaigns===true;

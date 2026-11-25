@@ -1,6 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
+const core=require('../dist/core.js');
 const {PGlite}=require('@electric-sql/pglite');
 const {render}=require('../release/production/ciclo-20261125/render-campaigns.cjs');
 
@@ -23,11 +24,53 @@ test('Central oficial preserva propriedade, isolamento, idempotência e cancelam
   const cases=fs.readFileSync('tests/campaign-central.sql','utf8')
    .replaceAll('qnuluspqfazdppciermw','cpslafpzjtbpmoxxysaa')
    .replaceAll('campaign_wa_test_config','campaign_wa_official_config');
-  await db.exec(cases);
+  await apply('release/pacote-final-20261125/20261125210000_campaign_delete.sql');
+  await apply('release/pacote-final-20261125/20261125210500_campaign_reference_jpeg.sql');
+  await apply('release/pacote-final-20261125/20261125211000_campaign_weekly.sql');
+  await db.exec('alter table storage.objects add column metadata jsonb');
+  await db.exec(cases.replace(" desired text;"," desired text; fixture_series uuid; series_rule jsonb; result jsonb; jpeg_material uuid:=gen_random_uuid(); jpeg_publication uuid:=gen_random_uuid(); cover text;").replace(" perform public.neo_campaign_central_v1('archive',parent);",`
+   fixture_series:=gen_random_uuid();
+   series_rule:=parent||jsonb_build_object('publication_id',publication,'request_id',fixture_series,
+    'confirmed',true,'source_revision',1,'start',(now() at time zone 'America/Sao_Paulo')::date+7,
+    'end',(now() at time zone 'America/Sao_Paulo')::date+15,
+    'time','10:00','count',2,
+    'days',jsonb_build_array(extract(dow from (now() at time zone 'America/Sao_Paulo')::date+7)::int),
+    'dates',jsonb_build_array(to_char((now() at time zone 'America/Sao_Paulo')::date+7,'YYYY-MM-DD')||'T10:00',
+                             to_char((now() at time zone 'America/Sao_Paulo')::date+14,'YYYY-MM-DD')||'T10:00'));
+   assert jsonb_array_length(public.neo_campaign_weekly_v1('schedule',series_rule)->'dates')=2;
+   assert public.neo_campaign_weekly_v1('schedule',series_rule)->'reused'='true'::jsonb;
+   perform public.neo_campaign_weekly_v1('pause',parent||jsonb_build_object('request_id',fixture_series,'confirmed',true));
+   assert (select count(*) from neo_private.campaign_wa_rich_messages m join neo_private.campaign_weekly_occurrences o on o.batch_id=m.batch_id where o.series_id=fixture_series and m.state='cancelled')=2;
+   insert into public.neo_consents(user_id,purpose,granted) values(actor::uuid,'terms',true) on conflict do nothing;
+   perform public.neo_complete_onboarding('${JSON.stringify({...core.defaultProfile(),name:'Teste',height:174,initialWeight:80,goal:75,consent:true})}'::jsonb,'${JSON.stringify(core.blank().settings)}'::jsonb,true,true);
+   insert into neo_private.community_materials(id,title,body) values(jpeg_material,'PDF sintético','Documento de teste');
+   insert into neo_private.library_uploads(path,user_id,material_id,name,mime,size)
+    values(actor||'/biblioteca.pdf',actor::uuid,jpeg_material,'Teste.pdf','application/pdf',100);
+   cover:=actor||'/'||gen_random_uuid()||'.jpg';
+   insert into storage.objects(id,name,bucket_id,metadata) values(gen_random_uuid(),cover,'neo-campaign-images','{"size":100,"mimetype":"image/jpeg"}');
+   perform public.neo_campaign_central_v1('save',parent||jsonb_build_object('publication_id',jpeg_publication,'request_id',gen_random_uuid(),'revision',0,
+    'draft',jsonb_build_object('title','Capa sintética','blocks',jsonb_build_array(jsonb_build_object('type','document',
+     'id',gen_random_uuid(),'ref',jpeg_material,'text','Legenda da capa','media_path',cover)),
+      'groups',jsonb_build_array(connection::text||':1@g.us'),'timezone','America/Sao_Paulo','audience','all','planned_local','')));
+   result:=public.neo_campaign_central_v1('publish',parent||jsonb_build_object('publication_id',jpeg_publication,'request_id',gen_random_uuid(),'revision',1,'confirmed',true));
+   assert exists(select 1 from neo_private.campaign_wa_rich_messages m where m.batch_id=(result->>'batch_id')::uuid
+    and m.kind='image' and m.media_bucket='neo-campaign-images' and m.media_path=cover
+    and m.body like '%Legenda da capa%' and m.body like '%https://app.neopep.com.br/?material='||jpeg_material||'#comunidade');
+   update neo_private.campaign_wa_rich_messages set state='waiting' where batch_id=scheduled_ids[1];
+   begin
+    perform public.neo_campaign_central_v1('delete',parent);
+    raise exception 'delete without confirmation accepted';
+   exception when invalid_parameter_value then null; end;
+   perform public.neo_campaign_central_v1('delete',parent||'{"confirmed":true}'::jsonb);
+   perform public.neo_campaign_central_v1('delete',parent||'{"confirmed":true}'::jsonb);
+   assert not (public.neo_campaign_central_v1('list','{}') @> jsonb_build_array(parent));
+   assert (select count(*) from neo_private.campaign_wa_rich_messages where state='accepted' and receipt_id='simulated')=1;
+   assert (select count(*) from neo_private.campaign_wa_rich_messages where state='waiting')=0;
+  `));
   await apply('release/campaign-central/postflight.sql');
   await apply('release/campaign-central/rollback.sql');
   const {rows}=await db.query(`select not has_function_privilege('authenticated','public.neo_campaign_central_v1(text,jsonb)','execute') as revoked,
-   (select count(*)::int from neo_private.campaign_wa_rich_batches)=3 as preserved`);
+   (select count(*)::int from neo_private.campaign_wa_rich_batches)=6 as preserved`);
   assert.deepEqual(rows,[{revoked:true,preserved:true}]);
  }catch(error){delete error.query;throw error;}
  finally{await db.close();}
