@@ -220,8 +220,7 @@ test('formulário do lembrete permite associar aplicação sem depender do títu
 
 test('lembretes padrao: Agora nao continua o onboarding sem ativar ou repetir a tela',async()=>{
  const a=setup();a.run("mode='cloud';Cloud.user={id:'intro-skip'};Cloud.onboardingComplete=true;arrivalReady=true;page='inicio';state.profile.consent=true;state.profile.tracking.measures=false;state.profile.tracking.applications=false;window.savedIntro=null;Cloud.saveProfile=async(p,settings)=>{window.savedIntro={...state,profile:p,settings}};Cloud.load=async()=>window.savedIntro;checkDailyRecords()");
- assert.ok(a.document.querySelector('[data-daily-later]'));assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
- a.document.querySelector('[data-daily-later]').click();a.run('checkDailyRecords()');
+ assert.ok(!a.document.querySelector('[data-daily-later]'));
  const prompt=a.document.querySelector('.reminder-setup-prompt');
  assert.ok(prompt);assert.match(prompt.textContent,/Configurações de lembretes padrão/);
  assert.match(prompt.textContent,/Perfil → Lembretes/);
@@ -232,9 +231,25 @@ test('lembretes padrao: Agora nao continua o onboarding sem ativar ou repetir a 
  assert.equal(a.run('savedIntro.settings.reminderScheduleConfigured'),false);
  assert.equal(a.run('page'),'inicio');
  assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
+ assert.match(a.document.querySelector('.daily-record-item h3').textContent,/Peso/);
  a.run('resetDailyVisit();checkDailyRecords()');
  assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
  assert.equal(a.run("NeoCore.shouldOfferReminderSetup(state,'2026-12-01')"),false);
+});
+
+test('registro de peso e apresentado no fim, depois de lembretes e medidas',async()=>{
+ const a=setup();
+ a.run("mode='cloud';Cloud.user={id:'weight-last'};Cloud.onboardingComplete=true;arrivalReady=true;page='inicio';state.profile.consent=true;state.settings.reminderIntroSeen=true;state.settings.reminderScheduleConfigured=true;state.settings.measureDay=String(new Date(NeoCore.today()+'T12:00').getDay());state.profile.tracking.applications=false;checkDailyRecords()");
+ const first=a.document.querySelector('.daily-record-prompt');
+ assert.ok(first);
+ assert.deepEqual([...first.querySelectorAll('.daily-record-item h3')].map(x=>x.textContent),['Medidas']);
+ assert.equal(first.querySelector('[data-daily-register=weight]'),null);
+ first.querySelector('[data-daily-later]').click();a.run('checkDailyRecords()');
+ const last=a.document.querySelector('.daily-record-prompt');
+ assert.ok(last);
+ assert.deepEqual([...last.querySelectorAll('.daily-record-item h3')].map(x=>x.textContent),['Peso']);
+ last.querySelector('[data-daily-later]').click();a.run('checkDailyRecords()');
+ assert.equal(a.document.querySelector('.daily-record-prompt'),null);
 });
 
 test('lembretes padrao: OK ativa horarios existentes sem navegar para configuracoes',async()=>{
