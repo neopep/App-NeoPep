@@ -19,6 +19,7 @@ async function prepare() {
 
   const key = process.env.NEO_STAGING_SUPABASE_PUBLISHABLE_KEY || '';
   const vapid = process.env.NEO_STAGING_VAPID_PUBLIC_KEY || '';
+  const captchaSiteKey = (process.env.NEO_STAGING_CAPTCHA_SITE_KEY || '').trim();
   await verifyStagingKey(key);
   if (vapid && !/^[A-Za-z0-9_-]{87}$/.test(vapid)) throw new Error('Chave VAPID pública inválida.');
 
@@ -31,7 +32,9 @@ async function prepare() {
     // O cadastro por e-mail é permitido somente na homologação.
     // A configuração de Produção continua com publicRegistration=false.
     publicRegistration: false,
-    previewRegistration: true,
+    captchaSiteKey,
+    captchaRequired: Boolean(captchaSiteKey),
+    previewRegistration: Boolean(captchaSiteKey),
     appDisplayName: 'NeoPep Teste',
     legacyPushScope: '/neo/',
     stagingGeoEnabled: process.env.NEO_STAGING_GEO_ENABLED === '1' && !!process.env.NEO_STAGING_SERVER_SUPABASE_KEY,
@@ -80,7 +83,7 @@ html[data-theme=light] body::before{color:#142743;background:#edf0f4;border-colo
   const serviceWorker = 'dist/sw.js';
   const worker = fs.readFileSync(serviceWorker, 'utf8')
     .replace(/^(?:const CACHE_PREFIX=.*;\n)?const CACHE=.*;$/m,
-      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v46-cadastro-onboarding';")
+      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v48-capas-campanhas';")
     .replace(/key\.startsWith\((?:'[^']+'|CACHE_PREFIX)\)/, 'key.startsWith(CACHE_PREFIX)');
   fs.writeFileSync(serviceWorker, worker);
 }

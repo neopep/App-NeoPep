@@ -21,7 +21,15 @@ test('central adota revisões, salva publicações separadas e protege os agenda
   await apply('tests/campaign-central-seed.sql');
   await apply('release/campaign-central/preflight.sql');
   await apply('release/campaign-central/20261125143000_campaign_central.sql');
+  await apply('release/pacote-final-20261125/20261125210000_campaign_delete.sql');
+  await apply('release/pacote-final-20261125/20261125211000_campaign_weekly.sql');
+  await apply('release/pacote-final-20261125/auditoria-final-preflight.sql');
+  await apply('release/pacote-final-20261125/20261125222000_campaign_publication_delete.sql');
+  await apply('release/pacote-final-20261125/20261125223000_campaign_recurrence_times.sql');
+  await apply('release/pacote-final-20261125/20261125224000_campaign_manual_delete.sql');
+  await apply('release/pacote-final-20261125/auditoria-final-postflight.sql');
   await apply('tests/campaign-central.sql');
+  await apply('tests/campaign-manual-delete.sql');
   await apply('release/campaign-central/postflight.sql');
   await apply('release/campaign-central/rollback.sql');
   const {rows}=await db.query(`select not has_function_privilege('authenticated','public.neo_campaign_central_v1(text,jsonb)','execute') as revoked,
@@ -39,9 +47,9 @@ test('pacote UX: orientacao da seringa e rastreamento opt-in por frasco',()=>{
  assert.match(app,/function calcVialDosePicker/);
  assert.match(app,/function assignCalcVialDose/);
  assert.match(app,/vialMassUsed\(vial,stored\.links\)/);
- assert.match(app,/Math\.floor\(remaining\/dose\)/);
+ assert.match(app,/Math\.floor\(\(remaining\+1e-10\)\/dose\)/);
  assert.match(app,/if\(formKind==='dose'&&f\.has\('vialId'\)\)/);
- assert.match(app,/vinculadas ao frasco neste dispositivo/);
+ assert.match(app,/vinculada a um frasco físico/);
  assert.match(styles,/\.calc-tracked-vial/);
 });
 test('pacote UX: autorizar notificacoes apenas com escolha explicita e registrar push',()=>{
