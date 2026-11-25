@@ -64,3 +64,36 @@ test('central atualiza recibo aceito sem reconstruir os controles de agenda',()=
  assert.match(editor,/document\.visibilityState==='hidden'/);
  assert.match(editor,/if\(!pub\.batches\[0\]\?\.states\?\.includes\('waiting'\)\)/);
 });
+
+
+test('pacote UX: orientacao da seringa e rastreamento opt-in por frasco',()=>{
+ const app=fs.readFileSync('dist/app.js','utf8');
+ const styles=fs.readFileSync('dist/style.css','utf8');
+ assert.match(app,/Para volumes pequenos, uma seringa de menor capacidade/);
+ assert.match(app,/function calcVialDosePicker/);
+ assert.match(app,/function assignCalcVialDose/);
+ assert.match(app,/vialMassUsed\(vial,stored\.links\)/);
+ assert.match(app,/Math\.floor\(remaining\/dose\)/);
+ assert.match(app,/if\(formKind==='dose'&&f\.has\('vialId'\)\)/);
+ assert.match(app,/vinculadas ao frasco neste dispositivo/);
+ assert.match(styles,/\.calc-tracked-vial/);
+});
+test('pacote UX: autorizar notificacoes apenas com escolha explicita e registrar push',()=>{
+ const app=fs.readFileSync('dist/app.js','utf8');
+ assert.match(app,/data-privacy-choose-all/);
+ assert.match(app,/Escolha os recursos opcionais/);
+ assert.match(app,/OK, salvar escolhas/);
+ assert.match(app,/name="skip" class="text-btn full" disabled>Agora não/);
+ assert.match(app,/const nativeNotice=wantsCampaigns\?Promise\.resolve\(window\.NeoPush\?\.enable\?\.\(\)\)/);
+ assert.match(app,/if\(!current\(\)\|\|saving\|\|fields\.disabled\)return/);
+ assert.match(app,/Dispositivo atual:/);
+});
+test('pacote UX: player neutro e links completos para referencias, sem enviar na simulacao',()=>{
+ const styles=fs.readFileSync('dist/style.css','utf8');
+ const editor=fs.readFileSync('dist/admin/campaign-editor.js','utf8');
+ assert.match(styles,/\.library-video-shell\{--video-gold:#edf0f2\}/);
+ assert.match(styles,/\[data-theme=light\] \.privacy-option input::after/);
+ assert.match(editor,/new URL\('\/\?material='\+encodeURIComponent\(block\.ref\)\+'#comunidade',location\.origin\)\.href/);
+ assert.match(editor,/Ver prévia \(sem enviar\)/);
+ assert.match(editor,/A prévia não envia mensagens/);
+});

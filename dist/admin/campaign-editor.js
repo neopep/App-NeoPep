@@ -26,8 +26,8 @@
  }
  function linkFor(block){
   if(block.type==='product')return '';
-  if(block.type==='document')return '/?material='+encodeURIComponent(block.ref)+'#comunidade';
-  if(block.type==='community')return '/#comunidade';
+  if(block.type==='document')return new URL('/?material='+encodeURIComponent(block.ref)+'#comunidade',location.origin).href;
+  if(block.type==='community')return new URL('/#comunidade',location.origin).href;
   return validLink(block.url);
  }
  async function prepareImage(file,quality){
@@ -132,7 +132,7 @@
     <input type="file" name="media" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain" hidden>
     ${pane('link','Link','<label>Link HTTPS<input name="link" type="url" maxlength="2000"></label><button type="button" class="secondary" data-editor="link">Adicionar link</button>')}
     ${pane('catalog','Referências','<label>Buscar referências<input name="catalog_search" type="search" maxlength="100"></label><button type="button" class="secondary" data-editor="catalog_search">Buscar</button><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
-    ${pane('schedule','Publicação e horário','<label>Horário planejado (São Paulo)<input name="planned_local" type="datetime-local" value="'+e(draft.planned_local)+'"></label><p data-editor-summary class="sub"></p><div class="inline-actions"><button type="button" class="secondary" data-editor="schedule" disabled>Programar</button><button type="button" class="secondary" data-editor="simulate">Simular publicação</button></div><p role="status" class="sub" data-editor-simulation></p><p class="sub" data-dispatch-gate></p>')}
+    ${pane('schedule','Publicação e horário','<label>Horário planejado (São Paulo)<input name="planned_local" type="datetime-local" value="'+e(draft.planned_local)+'"></label><p data-editor-summary class="sub"></p><div class="inline-actions"><button type="button" class="secondary" data-editor="schedule" disabled>Programar</button><button type="button" class="secondary" data-editor="simulate">Ver prévia (sem enviar)</button></div><p role="status" class="sub" data-editor-simulation></p><p class="sub">A prévia não envia mensagens. Para publicar, escolha os grupos e confirme o envio.</p><p class="sub" data-dispatch-gate></p>')}
     ${pane('confirmation','Confirmar campanha','<p data-confirm-question></p><p class="sub" data-confirm-summary></p><p class="structured-confirm-content" data-confirm-content></p><button type="button" class="primary" data-editor="confirm_dispatch">Confirmar</button> <button type="button" class="secondary" data-editor="sheet_close">Voltar à composição</button>')}
     ${channel==='whatsapp'&&!testWA?pane('recurrence','Recorrência','<label>Ocorrências semanais<input name="weekly_count" type="number" min="1" max="6" step="1" value="1"></label>'):''}
     ${pane('format','Formatação do trecho selecionado','<div class="inline-actions"><button type="button" class="secondary" data-format="*" aria-label="Aplicar negrito">Negrito</button><button type="button" class="secondary" data-format="_" aria-label="Aplicar itálico">Itálico</button><button type="button" class="secondary" data-format="~">Riscado</button><button type="button" class="secondary" data-format="&#96;">Monoespaçado</button></div>')}
@@ -851,7 +851,7 @@
    if(action==='groups'){await refreshGroups();void refreshGate();}
    if(action==='simulate'){
     const simulation=$('[data-editor-simulation]');
-    simulation.textContent='Simulação local · '+draft.title+' · '+dispatchSummary(Boolean(draft.planned_local))+'. Nenhuma campanha foi publicada ou agendada.';
+    simulation.textContent='Prévia local (sem envio) · '+draft.title+' · '+dispatchSummary(Boolean(draft.planned_local))+'. Nenhuma mensagem foi enviada ou agendada.';
    }
    if(action==='publish'||action==='schedule')requestDispatch(action==='schedule',control);
    if(action==='confirm_dispatch'&&pendingDispatch!==null){
