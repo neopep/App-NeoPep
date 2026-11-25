@@ -1,0 +1,59 @@
+name: NeoPep Connect Official Candidate (no release)
+
+on:
+  push:
+    branches: [release/ciclo-aprovado-20261125]
+    paths:
+      - 'connect/windows/**'
+      - 'connect/whatsapp-lab/**'
+      - '.github/workflows/connect-production-candidate.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'connect/windows/**'
+      - 'connect/whatsapp-lab/**'
+      - '.github/workflows/connect-production-candidate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  dual-profile-official:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.22.1'
+          architecture: x64
+      - name: Verify separate DPAPI vaults and explicit opt-in
+        shell: pwsh
+        run: |
+          node --test connect/windows/campaign-worker-optin.test.cjs connect/windows/wa-session-diagnostic.test.cjs connect/windows/rich-campaign-contract.test.cjs connect/windows/production-update-contract.test.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Connect worker security contracts failed' }
+      - name: Install trusted WhatsApp runtime dependencies
+        shell: pwsh
+        working-directory: connect/whatsapp-lab
+        run: |
+          npm ci --omit=dev --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }
+          npm audit --omit=dev --audit-level=high
+          if ($LASTEXITCODE -ne 0) { throw 'Runtime audit failed' }
+          npm test
+          if ($LASTEXITCODE -ne 0) { throw 'WhatsApp bridge tests failed' }
+      - name: Build dual-profile Connect 0.2.13 (unsigned CI candidate only)
+        shell: pwsh
+        run: |
+          ./connect/windows/build.ps1 -Perfil Teste -Version '0.2.13' -Output "$env:RUNNER_TEMP/connect-0213"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows candidate compilation failed' }
+      - name: Validate package manifest; do not distribute as production release
+        shell: pwsh
+        run: |
+          $path = Join-Path $env:RUNNER_TEMP 'connect-0213/manifest.json'
+          $manifest = Get-Content -Raw $path | ConvertFrom-Json
+          if ($manifest.version -ne '0.2.13' -or $manifest.profile -ne 'staging') { throw 'Candidate manifest mismatch' }
+          if ($manifest.authenticode -eq 'Valid') { Write-Host 'Authenticode present' } else { Write-Host 'Unsigned candidate: distribution prohibited' }
+          if (-not (Test-Path (Join-Path $env:RUNNER_TEMP 'connect-0213/NeoPepConnectSetup.exe'))) { throw 'Installer not compiled' }
