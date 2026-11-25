@@ -92,7 +92,7 @@ begin
    'ready',coalesce((select enabled from neo_private.campaign_wa_rich_control where singleton),false)
      and neo_private.campaign_wa_test_ready(actor,t.connection_id,t.group_jid)
      and exists(select 1 from neo_private.connect_wa_connections c join neo_private.connect_devices d on d.id=c.device_id
-       where c.id=t.connection_id and d.owner_id=actor and d.version>='0.2.12' and d.state='approved'),
+       where c.id=t.connection_id and d.owner_id=actor and d.version='0.2.12' and d.state='approved'),
    'destination',t.connection_id::text||':'||t.group_jid,'max_blocks',6,'max_image_bytes',1048576);
  end if;
  if p_action='status' then
@@ -119,7 +119,7 @@ begin
  if not (select enabled from neo_private.campaign_wa_rich_control where singleton)
    or not neo_private.campaign_wa_test_ready(actor,t.connection_id,t.group_jid)
    or not exists(select 1 from neo_private.connect_wa_connections c join neo_private.connect_devices d on d.id=c.device_id
-      where c.id=t.connection_id and d.owner_id=actor and d.version>='0.2.12' and d.state='approved') then
+      where c.id=t.connection_id and d.owner_id=actor and d.version='0.2.12' and d.state='approved') then
   raise exception 'rich_dispatch_not_ready' using errcode='42501';
  end if;
  req:=(p_data->>'request_id')::uuid;
@@ -223,7 +223,7 @@ begin
   -- Não reexecutar entregas com desfecho incerto. Timeout vira estado terminal.
   update neo_private.campaign_wa_rich_messages set state='uncertain'
    where owner_id=actor and state in ('leased','started') and lease_until<now();
-  select * into m from neo_private.campaign_wa_rich_messages job
+  select job.* into m from neo_private.campaign_wa_rich_messages job
    join neo_private.campaign_wa_rich_batches b on b.id=job.batch_id
    where job.owner_id=actor and job.connection_id=t.connection_id and job.group_jid=t.group_jid
     and b.cancelled_at is null and job.state='waiting' and job.due_at<=now()
