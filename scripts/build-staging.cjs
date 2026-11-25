@@ -9,6 +9,10 @@ async function prepare() {
       || !/^[a-f0-9]{40}$/.test(process.env.VERCEL_GIT_COMMIT_SHA || ''))) {
     throw new Error('A integração financeira exige o projeto Vercel de Teste e um SHA Git.');
   }
+  // Nunca servir o build de Teste com cadastro aberto em outro projeto.
+  if (process.env.VERCEL === '1' && process.env.VERCEL_PROJECT_ID !== 'prj_ksWxwsJyKhdR2nW2OiZkwx8hlkdq') {
+    throw new Error('O cadastro de homologação exige o projeto Vercel NeoPep Teste.');
+  }
   if (process.env.VERCEL === '1' && !integratedBranch && !['staging', 'staging/permanente'].includes(branch)) {
     throw new Error('Branch inválida para a publicação de homologação.');
   }
@@ -24,6 +28,10 @@ async function prepare() {
   const base = context.window.NEO_CONFIG;
   const config = {
     ...base,
+    // O cadastro por e-mail é permitido somente na homologação.
+    // A configuração de Produção continua com publicRegistration=false.
+    publicRegistration: false,
+    previewRegistration: true,
     appDisplayName: 'NeoPep Teste',
     legacyPushScope: '/neo/',
     stagingGeoEnabled: process.env.NEO_STAGING_GEO_ENABLED === '1' && !!process.env.NEO_STAGING_SERVER_SUPABASE_KEY,
