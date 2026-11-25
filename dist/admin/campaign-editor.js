@@ -91,6 +91,7 @@
   const testWA=(staging&&channel==='whatsapp')||officialWA;
   const authorizedDestination=()=>officialWA?gates.whatsapp_rich?.destination:gates.whatsapp_test?.destination;
   const officialDestinations=()=>officialWA&&Array.isArray(gates.whatsapp_rich?.destinations)?gates.whatsapp_rich.destinations:[];
+  const groupSelectable=id=>!testWA||(officialWA?officialDestinations().includes(id):id===authorizedDestination());
 
   if(!account)return;
   stopOpen?.();
@@ -142,7 +143,7 @@
     ${iconButton('back','Voltar','data-editor="close" autofocus')}<span class="structured-avatar">${icon('group')}</span>
     <div><h2 id="neo-campaign-structured-title">${channel==='app'?'Rascunho App':e(row.group_name||(publication?'Publicação WhatsApp':'Grupo de exemplo'))}</h2>
     ${!readOnly&&channel==='whatsapp'?'<button type="button" class="text-btn structured-group-more" data-pane-open="groups" data-selected-groups>Selecionar grupos</button>':''}
-    <p class="sub">Simulação de campanha · ${channel==='app'?'App':'WhatsApp'}${staging?' · TESTE':''}</p></div>
+    <p class="sub">${officialWA?'Campanha oficial · WhatsApp · Prévia':'Simulação de campanha · '+(channel==='app'?'App':'WhatsApp')+(staging?' · TESTE':'')}</p></div>
     ${readOnly?(onEdit?iconButton('gear','Editar conteúdo','data-editor="edit_preview"'):''):iconButton('save','Registrar rascunho na Central','data-editor="save"')}
    </header>
    <main class="neo-structured-scroll"><h3 class="structured-campaign-name" ${publication?'data-parent-campaign="'+e(publication.title)+'"':''} data-campaign-name>${e(draft.title)}</h3><div class="neo-structured-preview" aria-label="Conversa simulada" data-editor-preview></div><div class="structured-live" data-editor-live hidden></div></main>
@@ -443,7 +444,7 @@
    for(const row of groups)if(!testWA||!allowed||row.id===allowed)entries.set(row.id,row);
    root.innerHTML=[...entries.values()].filter(row=>`${row.name} ${row.connection||''}`.toLocaleLowerCase('pt-BR').includes(query)).map(row=>{
     const chosen=draft.groups.includes(row.id);
-    return `<label class="check"><input type="checkbox" data-editor-group="${e(row.id)}" ${chosen?'checked':''} ${!chosen&&(row.state!=='eligible'||!officialWA&&testWA&&row.id!==allowed)?'disabled':''}>
+    return `<label class="check"><input type="checkbox" data-editor-group="${e(row.id)}" ${chosen?'checked':''} ${!chosen&&(row.state!=='eligible'||!groupSelectable(row.id))?'disabled':''}>
     <span>${e(row.name)} · ${e(row.connection||'Conexão sem evidência')} · ${e(states[row.state]||'Estado desconhecido')}
     ${row.participant_count==null?'':' · '+e(row.participant_count)+' participantes'}
     ${row.last_synced_at?' · '+e(new Date(row.last_synced_at).toLocaleString('pt-BR')):''}</span></label>`;
@@ -715,8 +716,8 @@
    if(input.dataset.editorGroup){
     const id=input.dataset.editorGroup;
     if(!input.checked)draft.groups=draft.groups.filter(key=>key!==id);
-    else if((!testWA||id===authorizedDestination())&&groups.some(row=>row.id===id&&row.state==='eligible')&&draft.groups.length<30&&!draft.groups.some(key=>groupIdentity(key)===groupIdentity(id)))draft.groups.push(id);
-    else{input.checked=false;tell('Selecione até 30 destinos elegíveis e distintos.');return;}
+    else if(groupSelectable(id)&&groups.some(row=>row.id===id&&row.state==='eligible')&&draft.groups.length<30&&!draft.groups.some(key=>groupIdentity(key)===groupIdentity(id)))draft.groups.push(id);
+    else{input.checked=false;tell('Selecione até 30 grupos elegíveis, distintos e sincronizados no Connect.');return;}
     renderGroups();changed();
    }
    if(input.name!=='media')return;
