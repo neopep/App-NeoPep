@@ -304,6 +304,7 @@ function calculator(){
  `<div class="calc-layout"><form id="calcForm" class="calc-inputs" data-calc-owner="${esc(calcStorageKey()||'')}" novalidate>
  ${calcField('mass')}${calcField('volume')}${calcCapacity()}${calcField('dose')}
  </form>
+ <section class="card calc-vial-overview"><h2>Saldo e duração do frasco</h2><label>Aplicações por semana (conforme seu planejamento)<select id="calc-vial-weekly">${[1,2,3,4,5,6,7].map(n=>`<option value="${n}" ${n===calcVialWeekly?'selected':''}>${n}</option>`).join('')}</select></label><label>Frasco acompanhado neste dispositivo<select id="calc-vial-select"><option value="">Sem frasco selecionado</option></select></label><div id="calc-vial-summary" aria-live="polite"></div><div class="calc-vial-actions"><button type="button" class="secondary" data-calc-vial-action="new">Acompanhar este frasco</button><button type="button" class="text-btn" data-calc-vial-action="remove">Excluir acompanhamento</button></div><p class="sub" role="status" id="calc-vial-status"></p></section>
  <section class="card calc-result"><h2>Resultado</h2><div id="result" role="status" aria-live="polite">${calcEmpty()}</div>
  <p class="sub calc-context">Na escala U-100, 100 unidades correspondem a 1 mL. Essa graduação mede volume e é distinta das unidades de atividade de outras substâncias. Um valor caber na escala não indica que seja prescrito ou seguro.</p></section>
  <section class="card calc-formula"><h2>Como o cálculo funciona</h2><ol>
@@ -368,6 +369,7 @@ function calcInputChanged(id,commit=false){
  if(id&&id!=='dose')syncCalcField(id,commit);
  syncCalcField('dose',commit);
  updateCalc(commit);
+ updateCalcVial();
 }
 document.addEventListener('click',event=>{
  const control=event.target.closest('[data-calc-chip]');
@@ -425,6 +427,132 @@ function calcSnapshot(input){
   return {mass,volume,dose,unit,capacity,concentration,ml,units};
  }catch{return null;}
 }
+
+let calcVialWeekly=1;
+function calcVialStoreKey(){
+ const key=calcStorageKey();
+ return key?'neo-calc-vials-v1:'+key:null;
+}
+function readCalcVials(){
+ const key=calcVialStoreKey();
+ const empty={items:[],links:{},active:null};
+ if(!key)return empty;
+ const text=localStorage.getItem(key);
+ if(!text)return empty;
+ const saved=JSON.parse(text);
+ if(!saved||!Array.isArray(saved.items)||!saved.links||typeof saved.links!=='object'||Array.isArray(saved.links))
+  throw Error('Não foi possível ler o histórico local de frascos. Os registros existentes foram preservados.');
+ return {items:saved.items.filter(item=>item&&typeof item.id==='string'&&
+   typeof item.name==='string'&&item.name.length<=80&&Number.isFinite(item.mass)&&item.mass>0&&
+   Number.isFinite(item.volume)&&item.volume>0).slice(0,30),
+  links:saved.links,active:saved.active};
+}
+function saveCalcVials(saved){
+ const key=calcVialStoreKey();
+ if(!key||saved.items.length>30)throw Error('Limite de 30 frascos neste dispositivo.');
+ const data=JSON.stringify(saved);
+ if(data.length>100000)throw Error('Limite de armazenamento local atingido.');
+ localStorage.setItem(key,data);
+}
+function vialMassUsed(vial,links){
+ return state.doses.reduce((used,record)=>{
+  if(links[record.id]!==vial.id)return used;
+  const amount=Number(record.amount);
+  if(!Number.isFinite(amount)||amount<=0)return used;
+  const mg=record.unit==='mcg'?amount/1000:
+   record.unit==='mL'?amount*vial.mass/vial.volume:record.unit==='mg'?amount:0;
+  return used+mg;
+ },0);
+}
+function calcVialDosePicker(record={}){
+ let stored;
+ try{stored=readCalcVials();}catch{return '';}
+ if(!stored.items.length)return '';
+ const selected=stored.links[record.id]||'';
+ return '<label>Frasco usado nesta aplicação (opcional)<select name="vialId">'+
+  '<option value="">Não vincular a um frasco</option>'+
+  stored.items.map(item=>'<option value="'+esc(item.id)+'"'+(item.id===selected?' selected':'')+'>'+esc(item.name)+'</option>').join('')+
+  '</select></label><p class="form-help">Só o frasco escolhido terá o saldo reduzido. O vínculo fica neste dispositivo.</p>';
+}
+function assignCalcVialDose(recordId,vialId){
+ const saved=readCalcVials();
+ if(vialId&&!saved.items.some(item=>item.id===vialId))throw Error('Frasco não encontrado.');
+ if(vialId)saved.links[recordId]=vialId;
+ else delete saved.links[recordId];
+ saveCalcVials(saved);
+}
+function updateCalcVial(){
+ const root=$('#calc-vial-summary');
+ if(!root)return;
+ let stored;
+ try{stored=readCalcVials()}catch(error){root.textContent=error.message;return}
+ const options=$('#calc-vial-select');
+ if(options){
+  options.innerHTML='<option value="">Sem frasco selecionado</option>'+
+   stored.items.map(item=>'<option value="'+esc(item.id)+'"'+(item.id===stored.active?' selected':'')+'>'+esc(item.name)+'</option>').join('');
+ }
+ const vial=stored.items.find(item=>item.id===stored.active);
+ const enteredMass=Number($('#mass')?.value);
+ const mass=vial?.mass||(Number.isFinite(enteredMass)?enteredMass:0);
+ const volume=vial?.volume||Number($('#volume')?.value);
+ const rawDose=Number($('#dose')?.value),unit=$('#doseUnit')?.value;
+ const dose=unit==='mcg'?rawDose/1000:rawDose;
+ const used=vial?vialMassUsed(vial,stored.links):0;
+ const remaining=Math.max(0,mass-used);
+ const percent=mass>0?Math.min(100,Math.max(0,remaining/mass*100)):0;
+ const counts=mass>0&&volume>0&&dose>0&&Number.isFinite(dose)&&Number.isFinite(remaining)?
+  Math.max(0,Math.floor(remaining/dose)):null;
+ const weeks=counts===null?null:counts/calcVialWeekly;
+ const picture=vial?'<div class="calc-tracked-vial" style="--vial-fill:'+percent.toFixed(3)+'%" role="img" aria-label="'+
+  esc(calcDisplay(percent)+'% de conteúdo estimado restante no frasco')+'"><div class="calc-tracked-liquid"></div></div>':'';
+ root.innerHTML='<div class="calc-vial-display">'+picture+'<div class="calc-vial-facts">'+
+  (vial?'<strong>'+esc(vial.name)+'</strong><span>Saldo estimado: '+calcDisplay(remaining)+' de '+calcDisplay(mass)+' mg</span>'+
+   '<span>Aplicações vinculadas: '+state.doses.filter(row=>stored.links[row.id]===vial.id).length+'</span>':
+   '<span>Informe o frasco e a dose para estimar o rendimento. Salve um frasco para acompanhar seu saldo.</span>')+
+  (counts===null?'':'<strong>'+counts+' aplicação(ões) completas estimadas</strong><span>'+calcDisplay(weeks)+' semana(s) na frequência informada</span>')+
+  '</div></div>'+
+  '<p class="sub">Cálculo descritivo: não considera perdas, estabilidade após preparo nem substitui prescrição. O saldo é reduzido somente por aplicações vinculadas ao frasco neste dispositivo.</p>';
+}
+document.addEventListener('change',event=>{
+ if(event.target.id==='calc-vial-weekly'){
+  calcVialWeekly=Math.max(1,Math.min(7,Number(event.target.value)||1));
+  updateCalcVial();
+ }
+ if(event.target.id==='calc-vial-select'){
+  try{const stored=readCalcVials();stored.active=event.target.value||null;saveCalcVials(stored);updateCalcVial();}
+  catch(error){const node=$('#calc-vial-status');if(node)node.textContent=error.message;}
+ }
+});
+document.addEventListener('click',event=>{
+ const action=event.target.closest('[data-calc-vial-action]')?.dataset.calcVialAction;
+ if(!action)return;
+ const status=$('#calc-vial-status');
+ if(!status)return;
+ try{
+  const stored=readCalcVials();
+  if(action==='new'){
+   const snapshot=calcSnapshot({mass:Number($('#mass')?.value),volume:Number($('#volume')?.value),
+    dose:Number($('#dose')?.value),unit:$('#doseUnit')?.value,capacity:calcCapacityValue});
+   if(!snapshot){status.textContent='Informe massa, volume e dose válidos antes de cadastrar o frasco.';return;}
+   if(stored.items.length>=30){status.textContent='Limite de frascos neste dispositivo atingido.';return;}
+   const name=window.prompt('Nome para identificar este frasco','Frasco '+new Date().toLocaleDateString('pt-BR'));
+   if(name===null)return;
+   if(!name.trim()||name.length>80){status.textContent='Informe um nome de até 80 caracteres.';return;}
+   const item={id:uid(),name:name.trim(),mass:snapshot.mass,volume:snapshot.volume,createdAt:new Date().toISOString()};
+   stored.items.unshift(item);stored.active=item.id;saveCalcVials(stored);
+   status.textContent='Frasco cadastrado. Vincule as próximas aplicações a ele no diário.';
+  }else if(action==='remove'){
+   if(!stored.active)return;
+   if(!window.confirm('Excluir este acompanhamento local de frasco? Os registros de aplicações continuarão salvos.'))return;
+   stored.items=stored.items.filter(item=>item.id!==stored.active);
+   for(const [id,vialId] of Object.entries(stored.links))if(vialId===stored.active)delete stored.links[id];
+   stored.active=stored.items[0]?.id||null;saveCalcVials(stored);
+   status.textContent='Acompanhamento local do frasco excluído. Os registros de aplicações foram mantidos.';
+  }
+  updateCalcVial();
+ }catch(error){status.textContent=error.message||'Não foi possível atualizar o frasco.';}
+});
+
 function readCalcSaved(key){
  if(!key)throw Error('A conta ainda não está disponível para salvar dosagens.');
  const raw=localStorage.getItem(key);
@@ -499,6 +627,7 @@ function applyCalcSaved(item){
  }
  for(const id of ['mass','volume','dose'])syncCalcField(id,true);
  updateCalc(true,false);
+ updateCalcVial();
  formDirty=false;
 }
 function restoreCalcSaved(){
@@ -508,6 +637,7 @@ function restoreCalcSaved(){
   renderCalcSaved(saved);
   const selected=saved.items.find(item=>item.id===saved.last);
   if(selected)applyCalcSaved(selected);
+  updateCalcVial();
  }catch{$('#calc-saved-status').textContent='Não foi possível ler as dosagens neste navegador.';}
 }
 document.addEventListener('click',event=>{
@@ -1944,7 +2074,7 @@ async function go(p,focus=true,direct=false,communityTab='feed',materialID=''){i
 function input(name,label,type='number',extra='',value=''){if(type==='password'){const id='auth-'+name,description=name==='confirmPassword'?'confirmação de senha':label.toLowerCase();return `<div class="password-field"><label for="${id}">${label}</label><div class="password-input"><input id="${id}" name="${name}" type="password" ${extra} value="${esc(value)}"><button type="button" class="password-toggle" data-password-toggle="${id}" data-password-label="${esc(description)}" aria-controls="${id}" aria-pressed="false" aria-label="Mostrar ${esc(description)}">${icon('eye')}</button></div></div>`;}return `<label>${label}<input name="${name}" type="${type}" ${extra} value="${esc(value)}"></label>`}
 function textarea(name,label,value='',limit=2000){return `<label>${label}<textarea name="${name}" maxlength="${limit}">${esc(value)}</textarea></label>`}
 const kindType={weight:'weights',measure:'measures',dose:'doses',journal:'journal',protocol:'protocols',reminder:'reminders'};
-function openRecord(kind,record=null){if(busy)return;if(!record&&kind!=='avatar'){if(kind==='weight')engagementTrack('weight_record_started');if(page==='inicio')engagementTrack('home_quick_action');}clearPhotoBatch();draftRecordId=record?.id||uid();formKind=kind;editing=record;$('#recordForm').dataset.photoOwner=mode==='cloud'?Cloud.user?.id||'':'';const r=record||{},title={weight:'Como está seu peso?',measure:'Suas medidas',dose:'Registrar aplicação',journal:'Um momento para você',protocol:'Seu protocolo',reminder:'Novo lembrete',photo:'Foto de evolução',avatar:'Sua foto de perfil'}[kind];$('#dialogTitle').textContent=title;$('#formError').textContent='';$('#saveRecord').disabled=false;$('#saveRecord').textContent='Salvar registro';let fields=input('date','Data','date',`${kind==='reminder'?'':`max="${C.today()}"`} required`,r.date||C.today());if(kind==='weight')fields+=input('value','Peso (kg)','number','required min="1" max="650" step="0.01" inputmode="decimal"',r.value??'')+input('fat','Gordura corporal (%) · opcional','number','min="1" max="80" step="0.1" inputmode="decimal"',r.fat??'')+textarea('note','Como você está se sentindo? (opcional)',r.note,500)+'<p class="form-help">Se houver peso nesta data, confirme para atualizar esse registro.</p>';if(kind==='measure')fields+='<div class="form-grid">'+[['waist','Cintura'],['hip','Quadril'],['chest','Peito'],['arm','Braço'],['thigh','Coxa']].map(([k,l])=>input(k,l+' (cm)','number',`${k==='waist'?'required':''} min="1" max="400" step="0.1" inputmode="decimal"`,r[k]??'')).join('')+input('fat','Gordura corporal (%)','number','min="1" max="80" step="0.1"',r.fat??'')+'</div>'+textarea('note','Observações (opcional)',r.note,500);if(kind==='dose')fields+=input('product','Nome do produto','text','required maxlength="80"',r.product||'')+'<div class="form-grid">'+input('amount','Dose aplicada','number','required min="0.000001" max="100000" step="any" inputmode="decimal"',r.amount??'')+`<label>Unidade<select name="unit">${['mg','mcg','mL'].map(v=>`<option ${r.unit===v?'selected':''}>${v}</option>`).join('')}</select></label></div>`+input('site','Local de aplicação (opcional)','text','maxlength="80"',r.site||'')+`<label>Protocolo (opcional)<select name="protocolId"><option value="">Sem vínculo</option>${state.protocols.map(p=>`<option value="${esc(p.id)}" ${r.protocolId===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label>`+textarea('note','Observação pessoal',r.note,500);if(kind==='journal')fields+='<div class="form-grid">'+[['wellbeing','Bem-estar'],['energy','Energia'],['appetite','Apetite']].map(([k,l])=>`<label>${l} (1 baixo · 5 alto)<select name="${k}"><option value="">Não informar</option>${[1,2,3,4,5].map(v=>`<option value="${v}" ${+r[k]===v?'selected':''}>${v}</option>`).join('')}</select></label>`).join('')+input('sleep','Sono (horas)','number','min="0" max="24" step="0.1"',r.sleep??'')+input('water','Água (litros)','number','min="0" max="15" step="0.1"',r.water??'')+input('activity','Atividade física (minutos)','number','min="0" max="1440" step="1"',r.activity??'')+'</div>'+textarea('note','Suas observações',r.note);if(kind==='protocol')fields+=input('name','Nome do protocolo','text','required maxlength="100"',r.name||'')+input('end','Data de encerramento (opcional)','date','max="'+C.today()+'"',r.end||'')+`<label>Status<select name="status"><option value="active">Em acompanhamento</option><option value="closed" ${r.status==='closed'?'selected':''}>Encerrado</option></select></label>`+textarea('note','Informações cadastradas por você',r.note);if(kind==='reminder')fields+=`<label>Registro associado<select name="recordTarget">${[['general','Outro lembrete'],['weight','Peso'],['measure','Medidas'],['dose','Aplicação']].map(([value,label])=>`<option value="${value}" ${(C.reminderRecordKind(r)||'general')===value?'selected':''}>${label}</option>`).join('')}</select></label>`+input('title','Título do lembrete','text','required maxlength="80"',(r.title||'').replace(/^(Peso|Medidas|Aplicação|Lembrete) · /,''))+input('time','Horário','time','required',r.time||'09:00')+`<label>Repetição<select name="repeat">${[['once','Uma vez'],['daily','Todos os dias'],['weekly','Semanalmente no dia selecionado']].map(([v,l])=>`<option value="${v}" ${r.repeat===v?'selected':''}>${l}</option>`).join('')}</select></label><label class="check"><input type="checkbox" name="enabled" ${r.enabled!==false?'checked':''}>Lembrete ativo</label>`;if(kind==='photo'||kind==='avatar')fields+=(mode==='cloud'?`<label class="check"><input type="checkbox" name="photoConsent" required ${Cloud.user?.id&&Cloud.hasConsent('photos')?'checked':''}>Autorizo guardar esta fotografia em armazenamento privado da minha conta, para perfil ou acompanhamento.</label>`:'')+input('photo','Arquivo de imagem','file',(kind==='photo'?'multiple':'required')+' accept="image/*,.heic,.heif,.avif"')+(kind==='photo'?'<p id="photoBatchTotal" role="status"></p><progress id="photoBatchProgress" aria-label="Fotos enviadas"></progress><label class="check" id="photoBatchDateMode" hidden><input type="checkbox" name="captureDate">Usar a data de captura quando disponível; nas demais, usar a data comum.</label><ul id="photoBatchList" class="photo-batch"></ul>':'')+'<p class="form-help">Fotos do aparelho, incluindo HEIC quando suportado. Máximo 25 MB. A imagem será convertida para JPEG, sem metadados, e reduzida antes do envio.</p>';$('#fields').innerHTML=fields;if(kind==='photo')paintPhotoBatch();$('#dialog').showModal()}
+function openRecord(kind,record=null){if(busy)return;if(!record&&kind!=='avatar'){if(kind==='weight')engagementTrack('weight_record_started');if(page==='inicio')engagementTrack('home_quick_action');}clearPhotoBatch();draftRecordId=record?.id||uid();formKind=kind;editing=record;$('#recordForm').dataset.photoOwner=mode==='cloud'?Cloud.user?.id||'':'';const r=record||{},title={weight:'Como está seu peso?',measure:'Suas medidas',dose:'Registrar aplicação',journal:'Um momento para você',protocol:'Seu protocolo',reminder:'Novo lembrete',photo:'Foto de evolução',avatar:'Sua foto de perfil'}[kind];$('#dialogTitle').textContent=title;$('#formError').textContent='';$('#saveRecord').disabled=false;$('#saveRecord').textContent='Salvar registro';let fields=input('date','Data','date',`${kind==='reminder'?'':`max="${C.today()}"`} required`,r.date||C.today());if(kind==='weight')fields+=input('value','Peso (kg)','number','required min="1" max="650" step="0.01" inputmode="decimal"',r.value??'')+input('fat','Gordura corporal (%) · opcional','number','min="1" max="80" step="0.1" inputmode="decimal"',r.fat??'')+textarea('note','Como você está se sentindo? (opcional)',r.note,500)+'<p class="form-help">Se houver peso nesta data, confirme para atualizar esse registro.</p>';if(kind==='measure')fields+='<div class="form-grid">'+[['waist','Cintura'],['hip','Quadril'],['chest','Peito'],['arm','Braço'],['thigh','Coxa']].map(([k,l])=>input(k,l+' (cm)','number',`${k==='waist'?'required':''} min="1" max="400" step="0.1" inputmode="decimal"`,r[k]??'')).join('')+input('fat','Gordura corporal (%)','number','min="1" max="80" step="0.1"',r.fat??'')+'</div>'+textarea('note','Observações (opcional)',r.note,500);if(kind==='dose')fields+=input('product','Nome do produto','text','required maxlength="80"',r.product||'')+'<div class="form-grid">'+input('amount','Dose aplicada','number','required min="0.000001" max="100000" step="any" inputmode="decimal"',r.amount??'')+`<label>Unidade<select name="unit">${['mg','mcg','mL'].map(v=>`<option ${r.unit===v?'selected':''}>${v}</option>`).join('')}</select></label></div>`+input('site','Local de aplicação (opcional)','text','maxlength="80"',r.site||'')+`<label>Protocolo (opcional)<select name="protocolId"><option value="">Sem vínculo</option>${state.protocols.map(p=>`<option value="${esc(p.id)}" ${r.protocolId===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label>`+textarea('note','Observação pessoal',r.note,500)+calcVialDosePicker(r);if(kind==='journal')fields+='<div class="form-grid">'+[['wellbeing','Bem-estar'],['energy','Energia'],['appetite','Apetite']].map(([k,l])=>`<label>${l} (1 baixo · 5 alto)<select name="${k}"><option value="">Não informar</option>${[1,2,3,4,5].map(v=>`<option value="${v}" ${+r[k]===v?'selected':''}>${v}</option>`).join('')}</select></label>`).join('')+input('sleep','Sono (horas)','number','min="0" max="24" step="0.1"',r.sleep??'')+input('water','Água (litros)','number','min="0" max="15" step="0.1"',r.water??'')+input('activity','Atividade física (minutos)','number','min="0" max="1440" step="1"',r.activity??'')+'</div>'+textarea('note','Suas observações',r.note);if(kind==='protocol')fields+=input('name','Nome do protocolo','text','required maxlength="100"',r.name||'')+input('end','Data de encerramento (opcional)','date','max="'+C.today()+'"',r.end||'')+`<label>Status<select name="status"><option value="active">Em acompanhamento</option><option value="closed" ${r.status==='closed'?'selected':''}>Encerrado</option></select></label>`+textarea('note','Informações cadastradas por você',r.note);if(kind==='reminder')fields+=`<label>Registro associado<select name="recordTarget">${[['general','Outro lembrete'],['weight','Peso'],['measure','Medidas'],['dose','Aplicação']].map(([value,label])=>`<option value="${value}" ${(C.reminderRecordKind(r)||'general')===value?'selected':''}>${label}</option>`).join('')}</select></label>`+input('title','Título do lembrete','text','required maxlength="80"',(r.title||'').replace(/^(Peso|Medidas|Aplicação|Lembrete) · /,''))+input('time','Horário','time','required',r.time||'09:00')+`<label>Repetição<select name="repeat">${[['once','Uma vez'],['daily','Todos os dias'],['weekly','Semanalmente no dia selecionado']].map(([v,l])=>`<option value="${v}" ${r.repeat===v?'selected':''}>${l}</option>`).join('')}</select></label><label class="check"><input type="checkbox" name="enabled" ${r.enabled!==false?'checked':''}>Lembrete ativo</label>`;if(kind==='photo'||kind==='avatar')fields+=(mode==='cloud'?`<label class="check"><input type="checkbox" name="photoConsent" required ${Cloud.user?.id&&Cloud.hasConsent('photos')?'checked':''}>Autorizo guardar esta fotografia em armazenamento privado da minha conta, para perfil ou acompanhamento.</label>`:'')+input('photo','Arquivo de imagem','file',(kind==='photo'?'multiple':'required')+' accept="image/*,.heic,.heif,.avif"')+(kind==='photo'?'<p id="photoBatchTotal" role="status"></p><progress id="photoBatchProgress" aria-label="Fotos enviadas"></progress><label class="check" id="photoBatchDateMode" hidden><input type="checkbox" name="captureDate">Usar a data de captura quando disponível; nas demais, usar a data comum.</label><ul id="photoBatchList" class="photo-batch"></ul>':'')+'<p class="form-help">Fotos do aparelho, incluindo HEIC quando suportado. Máximo 25 MB. A imagem será convertida para JPEG, sem metadados, e reduzida antes do envio.</p>';$('#fields').innerHTML=fields;if(kind==='photo')paintPhotoBatch();$('#dialog').showModal()}
 async function action(fn){if(busy)return;busy=true;try{await fn()}catch(e){toast(e.message||'Não foi possível concluir. Tente novamente.')}finally{busy=false}}
 let formDirty=false,lastCloudSync=null;
 async function reloadCloud(){cloudError='';const gen=loadGeneration;try{const next=await Cloud.load();if(gen!==loadGeneration||demo||mode!=='cloud')return;state=next;try{await loadPhotos()}catch{/* A conta continua disponível e a foto será tentada novamente na próxima sincronização. */}if(gen!==loadGeneration||demo||mode!=='cloud')return;arrivalReady=true;lastCloudSync=new Date();render()}catch(e){Cloud.reportError?.('sync_failed');cloudError='Não foi possível carregar a nuvem. Os dados locais e os registros já salvos foram preservados.';render();throw e}}
@@ -2167,7 +2297,7 @@ document.addEventListener('input',event=>{
  paintAvatarCrop();
 });
 document.addEventListener('click',event=>{if(!event.target.closest?.('[data-add="avatar"]'))return;setTimeout(()=>{const button=document.querySelector('#saveRecord');if(button)button.textContent=avatarURL?'Alterar foto':'Salvar foto'},0)});
-$('#recordForm').addEventListener('submit',async e=>{e.preventDefault();if(busy)return;busy=true;$('#saveRecord').disabled=true;$('#saveRecord').textContent='Salvando…';let savedWarning='';try{if(formKind==='photo'){await submitPhotoBatch(e.target);return}const f=new FormData(e.target),r=Object.fromEntries(f);r.id=editing?.id||draftRecordId||uid();if(formKind==='avatar'){if(mode==='cloud'&&!state.profile.consent)throw Error('Complete seu perfil e consentimento antes de enviar fotos.');if(demo)throw Error('Fotos reais não são adicionadas à demonstração.');if(!localConsent())return;const generation=loadGeneration;const blob=await encodePhoto(f.get('photo'),{crop:true});if(generation!==loadGeneration)throw Error('A conta mudou. Abra novamente o formulário.');if(!C.validDate(r.date)||r.date>C.today())throw Error('Data inválida.');const role=formKind==='avatar'?'avatar':'progress';let uploaded=null;if(mode==='cloud'){if(!f.has('photoConsent'))throw Error('Confirme a autorização para fotografias.');await authorizePhotoUpload(e.target);const thumbnail=await encodePhoto(blob,{edge:160,quality:.68});requirePhotoOwner(e.target);uploaded=await Cloud.uploadPhoto(blob,r.date,role,thumbnail);requirePhotoOwner(e.target);}else await photoStore('put',{id:r.id,date:r.date,role,blob,thumbnail:await encodePhoto(blob,{edge:160,quality:.68}),created_at:new Date().toISOString()});if(role==='avatar'&&uploaded?.url){avatarURL=uploaded.url;photoList=photoList.filter(p=>p.role!=='avatar').concat(uploaded);window.NeoCommunity?.refreshIdentity?.();if(uploaded.communitySynced===false)savedWarning='Foto aplicada ao perfil. A foto da comunidade não foi atualizada; tente alterar a foto novamente.'}else try{await loadPhotos()}catch{savedWarning='Foto salva. Não foi possível atualizar a galeria; use Atualizar fotos para conferir.'}}else{if(formKind==='reminder'){r.title=C.reminderTitle(r.recordTarget,r.title);r.enabled=f.has('enabled');r.weekday=new Date(r.date+'T12:00').getDay()}if(!await putRecord(kindType[formKind],r))return;}formDirty=false;$('#dialog').close();render();toast(savedWarning||(demo?'Alteração apenas na demonstração.':'Registro salvo. Mais um passo na sua jornada.'))}catch(e){if(mode==='cloud'&&!demo)Cloud.reportError?.(formKind==='photo'||formKind==='avatar'?'photo_failed':'profile_failed');$('#formError').textContent=e.message}finally{busy=false;$('#saveRecord').disabled=false;$('#saveRecord').textContent='Salvar registro';if(formKind==='photo')paintPhotoBatch()}});
+$('#recordForm').addEventListener('submit',async e=>{e.preventDefault();if(busy)return;busy=true;$('#saveRecord').disabled=true;$('#saveRecord').textContent='Salvando…';let savedWarning='';try{if(formKind==='photo'){await submitPhotoBatch(e.target);return}const f=new FormData(e.target),r=Object.fromEntries(f);r.id=editing?.id||draftRecordId||uid();if(formKind==='avatar'){if(mode==='cloud'&&!state.profile.consent)throw Error('Complete seu perfil e consentimento antes de enviar fotos.');if(demo)throw Error('Fotos reais não são adicionadas à demonstração.');if(!localConsent())return;const generation=loadGeneration;const blob=await encodePhoto(f.get('photo'),{crop:true});if(generation!==loadGeneration)throw Error('A conta mudou. Abra novamente o formulário.');if(!C.validDate(r.date)||r.date>C.today())throw Error('Data inválida.');const role=formKind==='avatar'?'avatar':'progress';let uploaded=null;if(mode==='cloud'){if(!f.has('photoConsent'))throw Error('Confirme a autorização para fotografias.');await authorizePhotoUpload(e.target);const thumbnail=await encodePhoto(blob,{edge:160,quality:.68});requirePhotoOwner(e.target);uploaded=await Cloud.uploadPhoto(blob,r.date,role,thumbnail);requirePhotoOwner(e.target);}else await photoStore('put',{id:r.id,date:r.date,role,blob,thumbnail:await encodePhoto(blob,{edge:160,quality:.68}),created_at:new Date().toISOString()});if(role==='avatar'&&uploaded?.url){avatarURL=uploaded.url;photoList=photoList.filter(p=>p.role!=='avatar').concat(uploaded);window.NeoCommunity?.refreshIdentity?.();if(uploaded.communitySynced===false)savedWarning='Foto aplicada ao perfil. A foto da comunidade não foi atualizada; tente alterar a foto novamente.'}else try{await loadPhotos()}catch{savedWarning='Foto salva. Não foi possível atualizar a galeria; use Atualizar fotos para conferir.'}}else{if(formKind==='reminder'){r.title=C.reminderTitle(r.recordTarget,r.title);r.enabled=f.has('enabled');r.weekday=new Date(r.date+'T12:00').getDay()}if(!await putRecord(kindType[formKind],r))return;if(formKind==='dose'&&f.has('vialId'))try{assignCalcVialDose(r.id,String(f.get('vialId')||''))}catch(error){savedWarning='Aplicação salva, mas o vínculo local com o frasco não pôde ser registrado.'}}formDirty=false;$('#dialog').close();render();toast(savedWarning||(demo?'Alteração apenas na demonstração.':'Registro salvo. Mais um passo na sua jornada.'))}catch(e){if(mode==='cloud'&&!demo)Cloud.reportError?.(formKind==='photo'||formKind==='avatar'?'photo_failed':'profile_failed');$('#formError').textContent=e.message}finally{busy=false;$('#saveRecord').disabled=false;$('#saveRecord').textContent='Salvar registro';if(formKind==='photo')paintPhotoBatch()}});
 $('#close').onclick=()=>{if(!busy)$('#dialog').close()};
 $('#dialog').addEventListener('cancel',event=>{if(busy)event.preventDefault()});
 async function importReview(candidate){const incoming=C.validateBackup(candidate);const preview=C.merge(state,incoming);migrationCandidate=incoming;formKind='migration';editing=null;$('#dialogTitle').textContent='Revisar importação';$('#fields').innerHTML=`<p class="sub">${preview.added} registros novos · ${preview.skipped} duplicados ignorados.</p><div class="notice">Os registros existentes e seu perfil serão preservados. Nada será removido. ${mode==='cloud'?'Os novos registros serão enviados à conta '+esc(Cloud.user?.email||'conectada')+'.':'Os novos registros ficarão neste navegador.'}</div><button type="button" class="secondary full" id="migrationBackup">1. Exportar backup atual</button><label class="check space"><input type="checkbox" id="migrationConsent">Confirmo a importação aditiva e o armazenamento dos registros neste destino.</label><button type="button" class="primary full" id="confirmMigration">2. Importar registros</button>`;$('#formError').textContent='';$('#saveRecord').hidden=true;$('#dialog').showModal();}
