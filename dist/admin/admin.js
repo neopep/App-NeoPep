@@ -1112,7 +1112,7 @@ async function mountCampaigns(root){
    recoverLegacy:(trigger,onSaved)=>openStructured(trigger,undefined,null,'whatsapp',onSaved),
    onCross:(channel,id)=>{showArea(channel);void (channel==='app'?appCentral:central)?.open(id);},
    onConnect:()=>{showArea('whatsapp');view='connect';updateScreen();writeRoute();}}):null;
- const appCloud=new Proxy(cloud,{get(target,prop){if(prop==='campaignCentral')return (action,data)=>target.campaignCentral(action==='copy_channel'?action:'app_'+action,data);const value=Reflect.get(target,prop);return typeof value==='function'?value.bind(target):value;}});
+ const appCloud=Object.create(cloud);Object.defineProperty(appCloud,'campaignCentral',{value:(action,data)=>cloud.campaignCentral(action==='copy_channel'?action:'app_'+action,data)});
  const appCentral=stagingCampaigns&&window.NeoCampaignCentral&&typeof cloud.campaignCentral==='function'
   ?window.NeoCampaignCentral.mount({root:appCentralHost,cloud:appCloud,channel:'app',legacy:()=>rows,
    openLegacy:(id,trigger)=>{const row=rows.find(item=>item.id===id);if(row&&draftOkay()){openedBy=trigger;edit(row);}},onCross:(channel,id)=>{showArea(channel);void (channel==='app'?appCentral:central)?.open(id);}}):null;
