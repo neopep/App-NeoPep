@@ -35,7 +35,7 @@
   return 'cancelled';
  }
  function canRepublish(pub){
-  const states=pub.batches?.[0]?.states||[];
+  const states=(pub.batches||[]).flatMap(batch=>batch.states||[]);
   return !pub.deleted_at&&!pub.legacy_dispatch&&states.includes('accepted')&&states.every(s=>s==='accepted'||s==='cancelled');
  }
  function mount({root,cloud,legacy,openLegacy,recoverLegacy,onConnect,channel='whatsapp',onCross}){
@@ -210,6 +210,7 @@
   function details(){
    screen='detail';
    const editable=!detail.archived_at,paused=Boolean(detail.paused_at);
+   localDrafts(); // Reconcile the local pointer before rendering the add button.
    const items=view==='history'?detail.publications:detail.publications.filter(pub=>!pub.deleted_at);
    const ordered=[...items].sort((a,b)=>(a.batches[0]?.due_at||a.planned_local||'').localeCompare(b.batches[0]?.due_at||b.planned_local||''));
    const undated=ordered.filter(pub=>!pub.planned_local&&!pub.batches.length);
