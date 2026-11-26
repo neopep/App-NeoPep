@@ -43,6 +43,29 @@
    return blob;
   }catch{throw Error('Não foi possível recuperar a capa autorizada. Reabra o material ou escolha outra capa. Seu rascunho foi mantido.');}
  }
+ async function communityPhotoBlob(cloud,path,signal,origin){
+  if(!path||signal.aborted||typeof cloud.communityPhotoURL!=='function')throw Error('Imagem da postagem indisponível.');
+  const url=new URL(await cloud.communityPhotoURL(path));
+  if(url.protocol!=='https:'||url.origin!==origin||url.username||url.password||!url.pathname.startsWith('/storage/v1/object/sign/neo-community/'))throw Error('Origem da imagem da comunidade não autorizada.');
+  const response=await fetch(url.href,{signal,credentials:'omit',cache:'no-store',redirect:'error',referrerPolicy:'no-referrer'});
+  if(!response.ok||Number(response.headers.get('content-length'))>10*1024*1024)throw Error('Não foi possível recuperar a imagem publicada.');
+  const blob=await response.blob();
+  if(!/^image\/(jpeg|png|webp)$/.test(blob.type)||!blob.size||blob.size>10*1024*1024)throw Error('Imagem publicada inválida ou acima do limite.');
+  return blob;
+ }
+ const communitySummaryChoices=[['change','Variação de peso'],['days','Dias de acompanhamento'],['current','Peso atual'],['goal','Meta de peso'],['initial','Peso inicial'],['height','Altura'],['weights','Peso · últimos 3 registros'],['measures','Medidas · últimos 3 registros'],['journal','Diário · últimos 3 registros'],['doses','Aplicações · últimos 3 registros'],['protocols','Protocolos · últimos 3 registros'],['reminders','Lembretes · últimos 3 registros']];
+ const communitySummaryCard=s=>{if(!s||typeof s!=='object')return '';const labels={change_kg:'Variação de peso',current_kg:'Peso atual',goal_kg:'Meta de peso',days:'Dias de acompanhamento',initial_kg:'Peso inicial',height_cm:'Altura'};const names={date:'Data',value:'Peso (kg)',fat:'Gordura (%)',waist:'Cintura (cm)',hip:'Quadril (cm)',chest:'Tórax (cm)',arm:'Braço (cm)',thigh:'Coxa (cm)',note:'Observações',wellbeing:'Bem-estar',energy:'Energia',sleep:'Sono (h)',appetite:'Apetite',water:'Hidratação (L)',activity:'Atividade (min)',product:'Produto',amount:'Quantidade',unit:'Unidade',site:'Local',name:'Nome',end:'Fim',status:'Status',title:'Título',time:'Horário',repeat:'Repetição',weekday:'Dia da semana',enabled:'Ativo'};const value=v=>v==null?'Sem registro':typeof v==='boolean'?(v?'Sim':'Não'):typeof v==='object'?e(JSON.stringify(v)):e(String(v));return `<div class="chat-summary"><strong>Meu resumo de evolução</strong><dl>${Object.entries(labels).filter(([key])=>Object.hasOwn(s,key)).map(([key,label])=>`<div><dt>${label}</dt><dd>${s[key]==null?'Sem registro':e(key.endsWith('_kg')?window.NeoCore.formatWeight(s[key]):Number(s[key]).toLocaleString('pt-BR'))+(key==='days'?' dias':key==='height_cm'?' cm':' kg')}</dd></div>`).join('')}</dl>${communitySummaryChoices.filter(([key])=>Array.isArray(s[key])).map(([key,label])=>`<details class="shared-records" open><summary>${label}</summary>${s[key].map(row=>`<dl>${Object.entries(row).filter(([k])=>!['id','protocolId','_revision'].includes(k)).map(([k,v])=>`<div><dt>${e(names[k]||k)}</dt><dd>${key==='weights'&&k==='value'&&v!=null?e(window.NeoCore.formatWeight(v)):value(v)}</dd></div>`).join('')}</dl>`).join('')||'<p>Sem registros</p>'}</details>`).join('')}<small>Retrato de ${e(s.as_of||'')} · Selecionado pelo autor</small></div>`};
+ function communityTextBlocks(text){
+  const out=[];let remaining=String(text||'').trim();
+  while(remaining.length>2000){
+   let end=remaining.lastIndexOf('\n',2000);if(end<1000)end=remaining.lastIndexOf(' ',2000);
+   if(end<1000)end=2000;
+   if(/[\uD800-\uDBFF]/.test(remaining[end-1]))end--;
+   out.push({type:'text',text:remaining.slice(0,end)});remaining=remaining.slice(end).trimStart();
+  }
+  if(remaining)out.push({type:'text',text:remaining});
+  return out;
+ }
  function validLink(value){
   try{
    const url=new URL(value);
@@ -171,6 +194,7 @@
     <input type="file" name="media" accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4,text/plain" hidden>
     ${pane('link','Link','<label>Link HTTPS<input name="link" type="url" maxlength="2000"></label><button type="button" class="secondary" data-editor="link">Adicionar link</button>')}
     ${pane('catalog','Referências','<div class="central-search editor-search"><input name="catalog_search" type="search" maxlength="100" aria-label="Buscar referências" placeholder="Buscar referências"><button type="button" class="structured-icon" data-editor="catalog_search" aria-label="Buscar referências" title="Buscar referências"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button></div><div class="structured-catalog-tools"><button type="button" class="secondary" data-editor="prepare_thumbs" hidden>Preparar miniaturas faltantes</button><p class="sub" data-catalog-thumb-status role="status"></p></div><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
+    ${pane('community_share','Publicação da Comunidade','<div data-community-share-preview></div><div class="inline-actions"><button type="button" class="secondary" data-editor="community_reference">Manter referência à publicação</button><button type="button" class="primary" data-editor="community_import">Importar texto e imagem editáveis</button></div><p class="sub">Use a referência para manter o acesso restrito à Comunidade. Para republicar conteúdo a outro público, confirme a autorização do autor. Nenhuma mensagem será enviada nesta etapa.</p><p class="sub" role="status" data-community-share-status></p>')}
     ${pane('library_share','Como deseja compartilhar?','<p class="sub" data-library-share-name></p><div class="inline-actions"><button type="button" class="secondary" data-editor="library_share_cover">Capa + link</button><button type="button" class="secondary" data-editor="library_share_preview" disabled>Prévia curta + link</button><button type="button" class="secondary" data-editor="library_share_original" disabled>Arquivo original</button></div><div data-library-share-policy hidden class="monitor-block"><strong>Compartilhamento em campanhas</strong><p class="sub" data-library-member-download></p><label>Autorização deste arquivo<select data-library-share-mode><option value="inherit">Usar permissão de download</option><option value="cover">Somente capa + link</option><option value="preview">Somente prévia curta + link</option><option value="original">Permitir arquivo completo</option></select></label><button type="button" class="secondary" data-editor="library_permission_apply">Salvar autorização</button><p class="sub">Esta opção não altera o download dos membros. Arquivos enviados ao WhatsApp podem ser salvos pelos destinatários.</p></div><div data-library-share-video></div><p class="sub" data-library-share-status role="status"></p>')}
     ${pane('file_help','Envio de arquivos','<p>O envio de arquivos originais e prévias em vídeo depende da liberação no servidor e de um NeoPep Connect compatível. O documento pode permanecer no rascunho sem ser enviado.</p><p>Use Capa + link para materiais disponíveis na Biblioteca. Para liberar a modalidade de arquivo, confira a configuração do canal e os dispositivos autorizados.</p><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button>')}
     ${pane('schedule','Publicação e horário','<label>Horário planejado (São Paulo)<input name="planned_local" type="datetime-local" value="'+e(draft.planned_local)+'"></label><p data-editor-summary class="sub"></p><div class="inline-actions"><button type="button" class="secondary" data-editor="schedule" disabled>Programar</button><button type="button" class="secondary" data-editor="simulate">Ver prévia (sem enviar)</button></div><div class="structured-issues" data-editor-issues role="status"></div><p role="status" class="sub" data-editor-simulation></p><p class="sub">A prévia não envia mensagens. Para publicar, escolha os grupos e confirme o envio.</p><p class="sub" data-dispatch-gate></p>')}
@@ -217,7 +241,7 @@
   const products=new Map(),contentPreviews=new Map(),previewAbort=new AbortController();let shopCatalog,communityFeed,openedReference=false;
   let testGate={};
   let gates={},dispatchReady={schedule:false,publish:false},dispatching=false,groups=[],pending,active=true,editing=null,removed=null,saving=false,revision=0,loadToken=0,catalogToken=0,selection=[0,0],catalogRows=[];
-  let catalogController=null,catalogReady=false,catalogGenerating=false,libraryShare=null;
+  let catalogController=null,catalogReady=false,catalogGenerating=false,libraryShare=null,communityShare=null;
   const current=()=>active&&cloud.user?.id===account;
   const mediaKey=id=>account+':'+state.editorId+':'+id;
   async function readDraftMedia(id){
@@ -287,7 +311,7 @@
   composeAction();
   function closeSheet(focus=true){
    if(!sheet||sheet.hidden)return;
-   cancelCatalog();libraryShare=null;$('[data-library-share-video]')?.replaceChildren();
+   cancelCatalog();libraryShare=null;communityShare=null;$('[data-library-share-video]')?.replaceChildren();
    sheet.hidden=true;pendingDispatch=null;if(focus)sheetTrigger?.focus({preventScroll:true});sheetTrigger=null;
   }
   function openPane(name,trigger){
@@ -295,6 +319,7 @@
    const pane=$('[data-editor-pane="'+name+'"]');
    if(!pane)return;
    if(name!=='catalog')cancelCatalog();
+   if(name!=='community_share')communityShare=null;
    if(name!=='library_share'){libraryShare=null;$('[data-library-share-video]')?.replaceChildren();}
    if(sheet.hidden)sheetTrigger=trigger;
    sheet.hidden=false;
@@ -413,11 +438,27 @@
   }
   function communityRows(){
    if(typeof cloud.communityInboxV2!=='function')return Promise.resolve([]);
-   return communityFeed??=cloud.communityInboxV2().then(data=>(data?.posts||[]).filter(row=>row.status==='published'));
+   return communityFeed??=cloud.communityInboxV2().then(async data=>{
+    const posts=(data?.posts||[]).filter(row=>row.status==='published');
+    if(posts.some(row=>row.own&&!row.photo_path&&row.body==='Foto compartilhada')&&typeof cloud.community==='function'){
+     try{const own=await cloud.community('export',{});const byId=new Map((own?.posts||[]).filter(row=>row.photo_path).map(row=>[row.id,row]));
+      return posts.map(row=>row.own&&!row.photo_path&&byId.has(row.id)?{...row,photo_path:byId.get(row.id).photo_path,snapshot:row.snapshot??byId.get(row.id).snapshot}:row);
+     }catch{}
+    }
+    return posts;
+   });
   }
   function referenceCard(block){
    const model=contentPreviews.get(block.ref);
-   if(!model)return '';
+   if(!model)return block.type==='community'?'<p class="sub">Carregando publicação ou conteúdo indisponível.</p>':'';
+   if(block.type==='community')return `<section class="structured-reference structured-community-reference">
+    <strong class="structured-community-author">${e(model.meta||'Comunidade')}</strong>
+    ${model.snapshot?communitySummaryCard(model.snapshot):''}
+    ${model.image?`<img src="${e(model.image)}" alt="Imagem original da publicação" referrerpolicy="no-referrer">`:model.hasPhoto?'<p class="sub">Imagem da publicação indisponível.</p>':''}
+    ${model.communityFile?`<div class="chat-document">📄 ${e(model.communityFile)}</div>`:''}
+    <p class="structured-community-body">${e(model.excerpt||'')}</p>
+    <a href="/#comunidade" target="_blank" rel="noopener noreferrer">Abrir Comunidade</a>
+   </section>`;
    return `<section class="structured-reference">
     ${model.image?`<img src="${e(model.image)}" alt="" referrerpolicy="no-referrer">`:''}
     <p class="sub">${e(model.meta==='Vídeo'?'Capa estática do vídeo · link para a Biblioteca':model.meta==='PDF'?'Capa do PDF · link para a Biblioteca':model.meta||'')}${model.excerpt?' · '+e(model.excerpt):''}</p>
@@ -473,15 +514,18 @@
    }finally{video.pause();video.removeAttribute('src');video.load();}
   }
   function loadReference(block){
-   if(contentPreviews.has(block.ref))return;
+   if(contentPreviews.has(block.ref)){
+    const existing=contentPreviews.get(block.ref);
+    if(block.type!=='community'||!existing?.imageExpires||Date.now()<existing.imageExpires)return;
+   }
    contentPreviews.set(block.ref,null);
    void (async()=>{
     let model;
     if(block.type==='community'){
      const row=(await communityRows()).find(item=>item.id===block.ref);
      if(!current()||!row)return;
-     model={meta:[row.alias,row.created_at&&new Date(row.created_at).toLocaleDateString('pt-BR')].filter(Boolean).join(' · '),excerpt:(row.body||'').slice(0,220)};
-     if(row.photo_path&&typeof cloud.communityPhotoURL==='function')try{model.image=await cloud.communityPhotoURL(row.photo_path);}catch{}
+     model={meta:[row.alias,row.created_at&&new Date(row.created_at).toLocaleString('pt-BR')].filter(Boolean).join(' · '),excerpt:row.body||'',snapshot:row.snapshot,hasPhoto:Boolean(row.photo_path||row.body==='Foto compartilhada'),communityFile:row.file?.name};
+     if(row.photo_path&&typeof cloud.communityPhotoURL==='function')try{model.image=await cloud.communityPhotoURL(row.photo_path);model.imageExpires=Date.now()+40000;}catch{}
     }else{
      if(typeof cloud.library!=='function')return;
      const row=(await cloud.library('get',{id:block.ref}))?.material;
@@ -904,15 +948,27 @@
    finally{saving=false;if(current())showGate();}
   }
   const viewport=window.visualViewport;
-  const resize=()=>{if(viewport){
-   dialog.style.setProperty('--structured-height',viewport.height+'px');
-   dialog.style.setProperty('--structured-keyboard',Math.max(0,document.documentElement.clientHeight-viewport.height-viewport.offsetTop)+'px');
-  }};
-  viewport?.addEventListener('resize',resize);viewport?.addEventListener('scroll',resize);resize();
+  // Preserve the layout of the preview; translate only the composer.
+  let frameHeight=viewport?.height||window.innerHeight,frameWidth=document.documentElement.clientWidth;
+  const resize=()=>{
+   const visible=viewport?.height||window.innerHeight,width=document.documentElement.clientWidth;
+   const layout=Math.max(document.documentElement.clientHeight,window.innerHeight,visible);
+   if(width!==frameWidth){frameWidth=width;frameHeight=layout;}
+   const focused=dialog.contains(document.activeElement)&&document.activeElement?.matches('textarea,input:not([type=checkbox]):not([type=radio]):not([type=button]),[contenteditable=true]');
+   const full=Math.max(frameHeight,layout);
+   const keyboard=!readOnly&&Math.abs((viewport?.scale||1)-1)<.02&&(full-visible>120)&&(focused||dialog.classList.contains('structured-keyboard-open'));
+   if(!keyboard)frameHeight=visible;
+   dialog.classList.toggle('structured-keyboard-open',keyboard);
+   dialog.style.setProperty('--structured-height',Math.round(visible)+'px');
+   dialog.style.setProperty('--structured-frame-height',Math.round(frameHeight)+'px');
+   dialog.style.setProperty('--structured-top',Math.round(keyboard?(viewport?.offsetTop||0):0)+'px');
+   dialog.style.setProperty('--structured-keyboard',Math.round(keyboard?Math.max(0,frameHeight-visible):0)+'px');
+  };
+  viewport?.addEventListener('resize',resize);viewport?.addEventListener('scroll',resize);window.addEventListener('resize',resize);dialog.addEventListener('focusin',resize);resize();
   function finish(){
    if(!active)return;
    if(stopOpen===stop)stopOpen=null;
-   viewport?.removeEventListener('resize',resize);viewport?.removeEventListener('scroll',resize);
+   viewport?.removeEventListener('resize',resize);viewport?.removeEventListener('scroll',resize);window.removeEventListener('resize',resize);dialog.removeEventListener('focusin',resize);
    active=false;cancelCatalog();previewAbort.abort();if(openedReference)window.NeoLibraryFiles?.close();clearTimeout(pending);clearTimeout(noticeTimer);window.removeEventListener('pagehide',saveLocal);
    for(const url of objectUrls)URL.revokeObjectURL(url);
    dialog.remove();onClosed?.();if(trigger?.isConnected)trigger.focus({preventScroll:true});
@@ -938,7 +994,7 @@
     changed();return;
    }
    if(['title','planned_local','audience'].includes(name)){draft[name]=event.target.value;if(name==='title')$('[data-campaign-name]').textContent=draft.title;changed();}
-   if(name==='message'){changed();paintLive(true);}
+   if(name==='message'){changed();paintLive(!dialog.classList.contains('structured-keyboard-open'));}
    if(['weekly_count','push','photo_quality'].includes(name))changed();
   });
   dialog.addEventListener('change',async event=>{
@@ -993,13 +1049,14 @@
   const catalogPrice=row=>Number.isSafeInteger(row.price_cents)&&row.price_cents>=0?(row.price_cents/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Preço indisponível';
   async function catalogPool(rows,work,valid){let next=0;await Promise.all(Array.from({length:Math.min(3,rows.length)},async()=>{while(valid()&&next<rows.length){const i=next++;try{await work(rows[i],i);}catch{}}}));}
   function catalogStatus(){const button=$('[data-editor="prepare_thumbs"]'),status=$('[data-catalog-thumb-status]');if(!button||!status)return;
+   if(catalogKind==='community'){button.hidden=true;status.textContent='';return;}
    const missing=catalogRows.filter(row=>row.thumbSource&&!row.thumb).length;
    button.hidden=!catalogReady||!missing;button.disabled=catalogGenerating;
    status.textContent=catalogGenerating?'Preparando miniaturas faltantes…':!catalogReady?'Miniaturas serão disponibilizadas após a atualização do armazenamento.':missing?missing+' miniatura(s) ainda não preparadas.':'';
   }
   function showCatalogThumb(box,row,i,token,signal){if(!catalogCurrent(token,signal)||!row.thumb)return;const holder=box.querySelector('[data-catalog-thumb="'+i+'"]');if(!holder)return;
    const img=document.createElement('img');img.alt='';img.loading='lazy';img.decoding='async';img.referrerPolicy='no-referrer';img.width=160;img.height=160;
-   img.onerror=()=>{if(catalogCurrent(token,signal)){row.thumb='';holder.innerHTML=icon(row.kind==='product'?'product':'file');catalogStatus();}};
+   img.onerror=()=>{if(catalogCurrent(token,signal)){row.thumb='';holder.innerHTML=icon(row.kind==='product'?'product':row.kind==='community'?'group':'file');if(row.kind!=='community')catalogStatus();}};
    img.src=row.thumb;holder.replaceChildren(img);
   }
   async function smallCatalogJpeg(src,signal){
@@ -1045,9 +1102,74 @@
    captionTarget=id;if(!keepText){editing=id;message.value='';}
    render();changed();composeAction();closeSheet();
    tell(keepText?'Item adicionado. Seu texto provisório continua em edição.':'Item adicionado. Escreva a legenda e confirme com a seta.');
-   message.focus();
+   message.focus({preventScroll:true});
   }
-  async function chooseLibraryShare(row,trigger){
+  async function chooseCommunityShare(row,trigger){
+    openPane('community_share',trigger);
+    const session=communityShare={row,busy:false,post:null};
+    const status=$('[data-community-share-status]'),box=$('[data-community-share-preview]');
+    const button=$('[data-editor="community_import"]');
+    button.disabled=true;box.replaceChildren();status.textContent='Carregando publicação…';
+    try{
+     communityFeed=null;
+     const post=(await communityRows()).find(p=>p.id===row.id);
+     if(!communityShareActive(session))return;
+     if(!post)throw Error('A publicação não está mais disponível.');
+     session.post=post;
+     const model={meta:[post.alias,post.created_at&&new Date(post.created_at).toLocaleString('pt-BR')].filter(Boolean).join(' · '),excerpt:post.body||'',snapshot:post.snapshot,hasPhoto:Boolean(post.photo_path||post.body==='Foto compartilhada'),communityFile:post.file?.name};
+     if(post.photo_path&&typeof cloud.communityPhotoURL==='function')try{model.image=await cloud.communityPhotoURL(post.photo_path);model.imageExpires=Date.now()+40000;}catch{}
+     if(!communityShareActive(session))return;
+     contentPreviews.set(post.id,model);
+     box.innerHTML=referenceCard({type:'community',ref:post.id});
+     button.disabled=false;status.textContent=post.file?'O documento permanece na referência original; texto e foto são editáveis.':'';
+    }catch(error){if(communityShareActive(session))status.textContent=error.message||'Não foi possível consultar a publicação.';}
+   }
+   function communityShareActive(session){return current()&&communityShare===session&&!sheet.hidden&&sheet.dataset.activePane==='community_share';}
+   async function importCommunity(){
+    const session=communityShare;if(!session?.post||session.busy||!communityShareActive(session))return;
+    const status=$('[data-community-share-status]'),button=$('[data-editor="community_import"]');
+    if(!window.confirm('Confirme que você tem autorização para reutilizar esta publicação com o público escolhido para a campanha. A foto já compartilhada será copiada para o rascunho, sem envio automático. Continuar?'))return;
+    session.busy=true;button.disabled=true;status.textContent='Preparando conteúdo editável…';
+    let storedId=null,committed=false;
+    try{
+     communityFeed=null;
+     const post=(await communityRows()).find(p=>p.id===session.row.id);
+     if(!communityShareActive(session))return;
+     if(!post)throw Error('A publicação não está mais disponível.');
+     const blocks=[];
+     if(post.snapshot){
+      const holder=document.createElement('div');holder.innerHTML=communitySummaryCard(post.snapshot);
+      const lines=Array.from(holder.querySelectorAll('dl>div')).map(item=>[item.querySelector('dt')?.textContent,item.querySelector('dd')?.textContent].filter(Boolean).join(': '));
+      if(lines.length)blocks.push(...communityTextBlocks(['Resumo de evolução compartilhado',...lines].join('\n')));
+     }
+     if(post.photo_path)blocks.push({type:'image',layout:'caption',text:'',name:'publicacao-comunidade.jpg'});
+     else if(post.body==='Foto compartilhada')throw Error('A imagem original não está disponível. Use a referência ou tente novamente.');
+     if(post.body&&!(post.photo_path&&post.body==='Foto compartilhada'))blocks.push(...communityTextBlocks(post.body));
+     if(post.file)blocks.push({type:'link',url:linkFor({type:'community',ref:post.id}),text:'Documento da publicação original — acesse na Comunidade'});
+     if(!blocks.length)throw Error('Não há conteúdo editável disponível.');
+     if(draft.blocks.length+blocks.length>32)throw Error('Limite de 32 blocos por rascunho.');
+     const prepared=blocks.map(block=>({id:uuid(),...block})),image=prepared.find(b=>b.type==='image');
+     if(image){
+      const blob=await communityPhotoBlob(cloud,post.photo_path,previewAbort.signal,window.NEO_CONFIG?.supabaseUrl);
+      if(!communityShareActive(session))return;
+      storedId=image.id;
+      await storeMedia('readwrite',store=>store.put(blob,mediaKey(image.id)));
+     }
+     if(!communityShareActive(session))return;
+     if(draft.blocks.length+prepared.length>32)throw Error('Limite de 32 blocos por rascunho.');
+     if(editing&&!commitEdit())throw Error('Confirme a legenda em edição antes de importar.');
+     draft.blocks.push(...prepared);committed=true;
+     if(image)captionTarget=image.id;
+     render();changed();closeSheet();
+     if(saveLocal())tell('Publicação importada. Edite, mova ou exclua cada bloco; nenhum envio realizado.');
+    }catch(error){if(communityShareActive(session))status.textContent=error.message||'Não foi possível importar a publicação.';}
+    finally{
+     if(storedId&&!committed)await storeMedia('readwrite',store=>store.delete(mediaKey(storedId))).catch(()=>{});
+     session.busy=false;if(communityShareActive(session))button.disabled=false;
+    }
+   }
+   async function chooseLibraryShare(row,trigger){
+    if(row.kind==='community'){await chooseCommunityShare(row,trigger);return;}
    if(row.kind!=='document'||typeof cloud.library!=='function'){addCatalogReference(row);return;}
    openPane('library_share',trigger);
    const s=libraryShare={row,file:null,preview:null,policy:null,busy:false};
@@ -1148,12 +1270,21 @@
     const normalize=value=>String(value||'').normalize('NFD').replace(/\p{M}/gu,'').toLocaleLowerCase('pt-BR');
     const results=action==='community'&&typeof cloud.communityInboxV2==='function'?(await communityRows())
      .filter(row=>normalize([row.body,row.alias].join(' ')).includes(normalize(search)))
-     .slice(0,30).map(row=>({id:row.id,label:[row.alias,row.created_at&&new Date(row.created_at).toLocaleDateString('pt-BR'),row.body?.slice(0,120)].filter(Boolean).join(' · ')||'Publicação'})):
+     .slice(0,30).map(row=>({id:row.id,label:[row.alias,row.created_at&&new Date(row.created_at).toLocaleDateString('pt-BR'),row.body?.slice(0,120)].filter(Boolean).join(' · ')||'Publicação',photoPath:row.photo_path})):
      await endpoint(cloud,'catalog',{kind:action,search});
     if(!valid())return;
     catalogRows=results.map(row=>({...row,kind:action}));
     box.classList.add('structured-catalog-grid');
     box.innerHTML=catalogRows.map((row,i)=>`<button type="button" class="structured-catalog-card" data-editor="reference" data-index="${i}"><span class="structured-catalog-thumb" data-catalog-thumb="${i}">${icon(action==='product'?'product':action==='community'?'group':'file')}</span><strong>${e(row.label)}</strong>${action==='product'?'<strong class="structured-catalog-price">'+e(catalogPrice(row))+'</strong>':''}<small data-catalog-kind="${i}">${action==='product'?'Produto':action==='community'?'Comunidade':'Material da Biblioteca'}</small></button>`).join('')||'Nenhuma referência disponível.';
+    if(action==='community'){
+     if(typeof cloud.communityPhotoURL==='function')await catalogPool(catalogRows,async(row,i)=>{
+      if(!row.photoPath)return;
+      const thumb=await cloud.communityPhotoURL(row.photoPath);
+      if(!valid())return;
+      row.thumb=thumb;showCatalogThumb(box,row,i,token,signal);
+     },valid);
+     return;
+    }
     if(!['product','document'].includes(action))return;
     catalogReady=typeof cloud.campaignThumbnailReady==='function'&&await cloud.campaignThumbnailReady().catch(()=>false);
     if(!valid())return;
@@ -1220,7 +1351,7 @@
    }
    const target=control.dataset.paneOpen;
    if(target){
-    if(target==='compose'){closeSheet(false);message.focus();return;}
+    if(target==='compose'){closeSheet(false);message.focus({preventScroll:true});return;}
     if(['product','document','community'].includes(target)){
      catalogKind=target;field('catalog_search').value='';openPane('catalog',control);void searchCatalog();return;
     }
@@ -1243,11 +1374,11 @@
    }
    if(action==='name_continue'){
     if(!draft.title.trim()){tell('Informe o nome da campanha.');field('title').focus();return;}
-    saveLocal();closeSheet(false);message.focus();return;
+    saveLocal();closeSheet(false);message.focus({preventScroll:true});return;
    }
    if(action==='expand'){
     const expanded=control.getAttribute('aria-expanded')!=='true';
-    control.setAttribute('aria-expanded',String(expanded));dialog.classList.toggle('structured-expanded',expanded);message.rows=expanded?10:2;message.focus();return;
+    control.setAttribute('aria-expanded',String(expanded));dialog.classList.toggle('structured-expanded',expanded);message.rows=expanded?10:2;message.focus({preventScroll:true});return;
    }
    if(action==='hd'){
     const quality=field('photo_quality');
@@ -1320,7 +1451,9 @@
    if(action==='prepare_thumbs'){void prepareCatalogThumbs();return;}
    if(action==='catalog_search')void searchCatalog();
    if(action==='reference'&&catalogRows[index]){await chooseLibraryShare(catalogRows[index],control);return;}
-   if(action==='library_permission_apply'){await applyLibrarySharePermission();return;}
+   if(action==='community_reference'&&communityShare?.post&&!communityShare.busy){addCatalogReference(communityShare.row);return;}
+    if(action==='community_import'){await importCommunity();return;}
+    if(action==='library_permission_apply'){await applyLibrarySharePermission();return;}
    if(action?.startsWith('library_share_')){await addLibraryFile(action.slice('library_share_'.length));return;}
    if(action==='text'){
     const text=message.value.trim();
@@ -1337,13 +1470,13 @@
      if(edited)edited.text=text;
      editing=null;message.value='';composeAction();render();changed();
     }else if(!add({type:'text',text}))return;
-    message.value='';paintLive();message.focus();
+    message.value='';paintLive();message.focus({preventScroll:true});
    }
    if(action==='edit'&&block){
     if(captionTypes.includes(block.type)){selectCaption(block);return;}
     if(editing!==block.id&&message.value.trim()){tell('Conclua o texto em edição antes de trocar de bloco.');return;}
     editing=block.id;message.value=block.text||'';
-    composeAction();message.focus();changed();
+    composeAction();message.focus({preventScroll:true});changed();
    }
    if(action==='duplicate'&&block){
     if(draft.blocks.length>=32){tell('Limite de 32 blocos por rascunho.');return;}
