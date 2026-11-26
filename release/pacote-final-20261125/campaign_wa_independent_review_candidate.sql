@@ -25,11 +25,11 @@ begin
  if p_action='review_list' then
   return coalesce((select jsonb_agg(to_jsonb(q) order by q.requested_at desc) from (
    select r.batch_id,r.state,r.requested_at,r.reviewed_at,r.owner_id=actor as own,r.owner_id<>actor and r.state='pending' and b.cancelled_at is null as can_review,
-    b.due_at,b.cancelled_at,v.draft->>'title' as title,
+    b.due_at,b.cancelled_at,ev.draft->>'title' as title,
     (select coalesce(jsonb_agg(distinct g.name order by g.name),'[]'::jsonb) from neo_private.campaign_wa_rich_messages m join neo_private.campaign_wa_sync_targets t on t.owner_id=b.owner_id and t.connection_id=m.connection_id and t.group_jid=m.group_jid join neo_private.campaign_wa_groups g on g.id=t.group_id where m.batch_id=b.id) as groups,
-    (select coalesce(jsonb_agg(jsonb_build_object('type',x->>'type','text',x->>'text','url',x->>'url') order by n),'[]'::jsonb) from jsonb_array_elements(v.draft->'blocks') with ordinality a(x,n)) as blocks
+    (select coalesce(jsonb_agg(jsonb_build_object('type',x->>'type','text',x->>'text','url',x->>'url') order by n),'[]'::jsonb) from jsonb_array_elements(ev.draft->'blocks') with ordinality a(x,n)) as blocks
    from neo_private.campaign_wa_review r join neo_private.campaign_wa_rich_batches b on b.id=r.batch_id
-   join neo_private.campaign_editor_versions v on v.editor_id=b.editor_id and v.revision=b.revision and v.owner_id=b.owner_id
+   join neo_private.campaign_editor_versions ev on ev.editor_id=b.editor_id and ev.revision=b.revision and ev.owner_id=b.owner_id
    where r.owner_id=actor or (r.state='pending' and b.cancelled_at is null)
    order by r.requested_at desc limit 100) q),'[]'::jsonb);
  end if;
@@ -54,7 +54,7 @@ begin
  if p_action not in ('review_approve','review_reject') or bid is null then raise exception 'review_action_invalid' using errcode='22023';end if;
  select * into rev from neo_private.campaign_wa_review where batch_id=bid for update;
  if not found or rev.owner_id=actor then raise exception 'review_independent_admin_required' using errcode='42501';end if;
- if rev.state=case when p_action='review_approve' then 'approved' else 'rejected' end then return jsonb_build_object('state',rev.state,'reused',true);end if;
+ if rev.state=(case when p_action='review_approve' then 'approved' else 'rejected' end) then return jsonb_build_object('state',rev.state,'reused',true);end if;
  if rev.state<>'pending' or not exists(select 1 from neo_private.admin_members where user_id=rev.owner_id) or not exists(select 1 from neo_private.campaign_wa_rich_batches where id=bid and cancelled_at is null) or exists(select 1 from neo_private.campaign_wa_rich_messages where batch_id=bid and state<>'waiting') then raise exception 'review_no_longer_pending' using errcode='55000';end if;
  if p_action='review_approve' and (not exists(select 1 from neo_private.campaign_wa_rich_messages where batch_id=bid)
   or exists(select 1 from neo_private.campaign_wa_rich_messages m where m.batch_id=bid and not exists(select 1 from neo_private.campaign_wa_sync_targets t join neo_private.campaign_wa_groups g on g.id=t.group_id where t.owner_id=rev.owner_id and t.connection_id=m.connection_id and t.group_jid=m.group_jid and g.active)))
