@@ -120,7 +120,7 @@
       ${tile('group','Comunidade','community')}${tile('more','Destinos','destinations')}
     </div>`)}
     ${pane('settings','Configurações',`<label>${publication?'Nome da publicação':'Nome da campanha'}<input name="title" maxlength="120" value="${e(draft.title)}"></label><button type="button" class="secondary" data-editor="name_continue">Salvar nome e continuar</button><p class="sub" data-structured-connection role="status">Conexão ainda não verificada.</p>
-     <div class="inline-actions">${publication?'':'<button type="button" class="secondary" data-editor="fresh">Novo rascunho</button>'}${channel==='whatsapp'?'<button type="button" class="secondary" data-editor="cross">Criar versão App</button>':''}</div>`)}
+     <div class="inline-actions">${publication?'':'<button type="button" class="secondary" data-editor="fresh">Novo rascunho</button>'}${channel==='whatsapp'&&!publication?'<button type="button" class="secondary" data-editor="cross">Criar versão App</button>':''}</div>`)}
     ${channel==='app'?pane('audience','Público App',testApp?'<p>Somente as contas de homologação autorizadas no servidor. Esta campanha não envia push.</p>':'<label>Público App<select name="audience"><option value="all">Todos</option><option value="free">Free</option><option value="premium">Premium</option></select></label><label class="check"><input name="push" type="checkbox"> Solicitar push App para contas com consentimento</label>'):
     pane('groups','Grupos sincronizados','<div class="inline-actions"><button type="button" class="secondary" data-editor="groups">Atualizar grupos e diagnóstico</button><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button></div><label class="central-search editor-search"><input name="group_search" type="search" aria-label="Pesquisar grupo ou conexão" placeholder="Pesquisar grupo ou conexão"><span class="search-decoration" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></span></label><p class="sub" data-editor-group-count></p><div data-editor-groups></div>')}
     ${pane('photo','Foto','<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">No ambiente de Teste, imagens JPEG com legenda podem ser enviadas ao grupo autorizado. Salve a versão antes de publicar.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto</button>')}
@@ -220,7 +220,7 @@
    caption.setAttribute('aria-pressed',String(Boolean(target&&editing===target.id)));
    caption.setAttribute('aria-label',target?'Editar legenda do bloco':'Selecionar um bloco para editar a legenda');
    for(const bubble of preview.querySelectorAll('[data-block-id]'))bubble.classList.toggle('structured-caption-target',bubble.dataset.blockId===captionTarget);
-   message.placeholder=editing?'Escreva a legenda deste bloco…':'Escreva sua mensagem…';
+   message.placeholder=editing?(channel==='app'?'Escreva o texto deste conteúdo…':'Escreva a legenda deste bloco…'):(channel==='app'?'Escreva o texto da notificação…':'Escreva sua mensagem…');
    action.setAttribute('aria-label',editing?'Salvar legenda do bloco':'Adicionar texto');
    action.title=editing?'Salvar legenda no mesmo bloco':'Adicionar texto à simulação';
   }
@@ -471,7 +471,7 @@
    for(const indicator of preview.querySelectorAll('[data-editor-media-status]')){
     const id=indicator.dataset.editorMediaStatus;
     const block=draft.blocks.find(item=>item.id===id);
-    const stored=()=>publication&&block?.media_path&&cloud.campaignImageURL?cloud.campaignImageURL(block.media_path):null;
+    const stored=()=>block?.media_path&&cloud.campaignImageURL?cloud.campaignImageURL(block.media_path):null;
     const asset=previewImages.has(id)?Promise.resolve(previewImages.get(id)):readOnly?Promise.resolve().then(stored):
      storeMedia('readonly',store=>store.get(mediaKey(id))).catch(()=>null).then(blob=>blob||stored());
     void asset.then(blob=>{
@@ -548,7 +548,7 @@
    if(readOnly)return;
    const clean=state.remoteId&&state.savedDraft===JSON.stringify(draft)&&!message.value.trim()&&!editing;
    const rich=richMode();
-   const enabled=publication?gates.whatsapp_rich?.ready===true:testApp?testGate.enabled&&testGate.destinations>0&&testGate.destinations<=30&&Boolean(testGate.audience_key):
+   const enabled=publication&&channel==='whatsapp'?gates.whatsapp_rich?.ready===true:testApp?testGate.enabled&&testGate.destinations>0&&testGate.destinations<=30&&Boolean(testGate.audience_key):
     testWA?(rich?gates.whatsapp_rich?.ready===true:gates.whatsapp_test?.ready===true):channel==='app'?gates.app_enabled:gates.whatsapp_enabled;
    const textOnly=draft.blocks.length>0&&draft.blocks.every(block=>block.type==='text'&&!/(https?:\/\/|www\.)/i.test(block.text||''));
    const richBlocks=draft.blocks.length>0&&draft.blocks.length<=6&&draft.blocks.every(block=>
@@ -562,7 +562,7 @@
    const eligible=channel==='app'||draft.groups.length>0&&draft.groups.every(id=>groups.some(row=>row.id===id&&row.state==='eligible'));
    const pinned=!testWA||draft.groups.length===1&&draft.groups[0]===gates.whatsapp_test?.destination;
    const short=!testWA||draft.blocks.map(block=>block.text||'').join('\n\n').trim().length<=160;
-   const allow=Boolean((!publication||rich)&&enabled&&clean&&eligible&&pinned&&(rich?richBlocks:textOnly&&short));
+   const allow=Boolean((!publication||channel==='app'||rich)&&enabled&&clean&&eligible&&pinned&&(rich?richBlocks:textOnly&&short));
    dispatchReady.publish=Boolean(allow&&!(channel==='whatsapp'&&!testWA&&!gates.devices?.some(d=>d.ready)));
    dispatchReady.schedule=Boolean(allow&&draft.planned_local&&!(testWA&&!(rich?gates.whatsapp_rich?.ready:gates.whatsapp_test?.schedule_ready)));
    $('[data-editor=publish]').disabled=dispatching||saving;
@@ -677,7 +677,7 @@
    if(dispatching||saving||!current())return;
    showGate();if(!dispatchReady[scheduled?'schedule':'publish']){tell('A versão ou a autorização mudou. Confira antes de confirmar.');return;}
    const rich=testWA&&richMode();
-   if(publication&&!rich){tell('O envio desta publicação exige Connect compatível e destino Teste autorizado.');return;}
+   if(publication&&channel==='whatsapp'&&!rich){tell('O envio desta publicação exige Connect compatível e destino Teste autorizado.');return;}
     const action=rich?'publish':channel==='app'?'publish_app':'schedule_whatsapp';
    const base={editor_id:state.editorId,revision:state.revision,local_time:scheduled?draft.planned_local:null};
    const intent=testApp?{...base,confirmed:true,destination_count:testGate.destinations,audience_key:testGate.audience_key}:{...base,
@@ -757,7 +757,7 @@
    }
    if(editing||message.value.trim()){tell('Conclua o bloco de texto em edição antes de registrar a versão.');return;}
    if(!draft.title.trim()){tell('Informe o título do rascunho.');return;}
-   if(testWA&&draft.blocks.some(b=>['image','document'].includes(b.type)&&!b.media_path)){
+   if((testWA||testApp)&&draft.blocks.some(b=>['image','document'].includes(b.type)&&!b.media_path)){
     saving=true;tell('Preparando mídia privada para homologação…');
     try{await uploadRichImages();}catch(error){tell(error.message||'Não foi possível preparar a imagem.');saving=false;return;}
     saving=false;
