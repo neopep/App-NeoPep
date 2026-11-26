@@ -1036,7 +1036,7 @@ async function mountCampaigns(root){
  structured.className='space';
  structured.innerHTML='<summary>Rascunhos estruturados para revisão</summary><div data-structured-list></div>';
  list.before(structured);
- const showStructured=()=>!(central&&area==='whatsapp'&&view==='campaigns')&&!screen&&(view==='campaigns'||area==='whatsapp'&&view==='publications');
+ const showStructured=()=>!((central&&area==='whatsapp'||appCentral&&area==='app')&&view==='campaigns')&&!screen&&(view==='campaigns'||area==='whatsapp'&&view==='publications');
  async function refreshStructured(){
   if(!structured.open||!showStructured()||typeof cloud.campaignEditor!=='function')return;
   const box=structured.querySelector('[data-structured-list]');
@@ -1053,6 +1053,12 @@ async function mountCampaigns(root){
  }
  structured.addEventListener('toggle',()=>{void refreshStructured();});
  const stagingCampaigns=window.NEO_CONFIG?.campaignTestEnabled===true;
+ let appCentralAvailable=false,channelCopyAvailable=false;
+ if(typeof cloud.campaignCentral==='function'){
+  try{appCentralAvailable=Array.isArray(await cloud.campaignCentral('app_list',{offset:0}));}catch{/* Keep legacy App if contract absent. */}
+  if(appCentralAvailable)try{channelCopyAvailable=(await cloud.campaignCentral('copy_capabilities',{}))?.enabled===true;}catch{}
+ }
+ if(!root.isConnected)return;
  function openStructured(trigger,row,remote,channel='whatsapp',onSaved=refreshStructured){
   if(!draftOkay()||whatsapp?.canLeave?.()===false)return;
   window.NeoCampaignEditor?.open({cloud,row,remote,channel:remote?.channel||channel,trigger,
@@ -1101,6 +1107,7 @@ async function mountCampaigns(root){
  const bread=find('[data-campaign-breadcrumb]'),sectionNav=find('[data-campaign-sections]'),filters=find('[data-campaign-filters]');
  const plans=find('[data-campaign-plan]').parentElement,wa=find('[data-campaign-wa]'),results=find('[data-campaign-results]');
  const panelIds={campaigns:list,results,plans,publications:wa,groups:wa,connect:wa};
+ const appCentralHost=document.createElement('section');appCentralHost.className='campaign-central';appCentralHost.hidden=true;list.before(appCentralHost);
  const centralHost=document.createElement('section');
  centralHost.className='campaign-central';centralHost.hidden=true;
  list.before(centralHost);
@@ -1108,7 +1115,10 @@ async function mountCampaigns(root){
   ?window.NeoCampaignCentral.mount({root:centralHost,cloud,legacy:()=>rows,
    openLegacy:(id,trigger)=>{const row=rows.find(item=>item.id===id);if(row&&draftOkay()){openedBy=trigger;edit(row);}},
    recoverLegacy:(trigger,onSaved)=>openStructured(trigger,undefined,null,'whatsapp',onSaved),
+   onCross:channelCopyAvailable?(channel,id)=>{showArea(channel);void (channel==='app'?appCentral:central)?.open(id);}:null,
    onConnect:()=>{showArea('whatsapp');view='connect';updateScreen();writeRoute();}}):null;
+ const appCloud=Object.create(cloud);Object.defineProperty(appCloud,'campaignCentral',{value:(action,data)=>cloud.campaignCentral(action==='copy_channel'?action:'app_'+action,data)});
+ const appCentral=appCentralAvailable&&window.NeoCampaignCentral?window.NeoCampaignCentral.mount({root:appCentralHost,cloud:appCloud,channel:'app',legacy:()=>rows,openLegacy:(id,trigger)=>{const row=rows.find(item=>item.id===id);if(row&&draftOkay()){openedBy=trigger;edit(row);}},onCross:central&&channelCopyAvailable?(channel,id)=>{showArea(channel);void (channel==='app'?appCentral:central)?.open(id);}:null}):null;
 
  let waActive=false;
  function updateScreen(){
@@ -1137,9 +1147,10 @@ async function mountCampaigns(root){
    else panel.removeAttribute('aria-labelledby');
   }
   const lists=view==='campaigns'&&!screen;
-  const unified=Boolean(central&&area==='whatsapp'&&lists);
-  centralHost.hidden=!unified;
-  if(unified)void central.load();
+  const unifiedWA=Boolean(central&&area==='whatsapp'&&lists),unifiedApp=Boolean(appCentral&&area==='app'&&lists);
+  const unified=unifiedWA||unifiedApp;
+  centralHost.hidden=!unifiedWA;appCentralHost.hidden=!unifiedApp;
+  if(unifiedWA)void central.load();if(unifiedApp)void appCentral.load();
   list.hidden=filters.hidden=!lists||unified;sentinel.hidden=!lists&&!(area==='app'&&view==='results'&&!screen);
   editor.hidden=!screen;plans.hidden=area!=='app'||view!=='plans'||Boolean(screen);
   results.hidden=area!=='app'||view!=='results'||Boolean(screen);
@@ -1377,7 +1388,7 @@ async function mountCampaigns(root){
    if(!root.isConnected)return;
    offset+=batch.length;done=batch.length<50;
    rows.push(...batch.filter(row=>!rows.some(existing=>existing.id===row.id)));
-   renderCards();central?.syncLegacy();whatsapp?.setCampaigns(rows);
+   renderCards();central?.syncLegacy();appCentral?.syncLegacy();whatsapp?.setCampaigns(rows);
    sentinel.innerHTML=done?'':'<button type="button" class="secondary" data-campaign-action="more">Carregar mais</button>';
    if(!done&&typeof IntersectionObserver!=='undefined'){
     observer??=new IntersectionObserver(entries=>{

@@ -85,6 +85,30 @@ const api={configured,connectTestEnabled:connectEnabled,
   if(version!==identityVersion)throw Error('A conta mudou.');
   return result;
  },
+ async campaignOriginalUpload(path,file){
+  const sdk=need(),version=identityVersion,owner=user?.id;
+  const mime=file?.type;
+  if(!owner||typeof path!=='string'||!/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.(pdf|mp4)$/.test(path)||path.split('/')[0]!==owner||
+   !['application/pdf','video/mp4'].includes(mime)||!file.size||file.size>5242880||(mime==='application/pdf')!==path.endsWith('.pdf'))throw Error('Arquivo original inválido. PDF ou MP4 de até 5 MB.');
+  const result=ok(await sdk.storage.from('neo-campaign-originals').upload(path,file,{contentType:mime,upsert:false,cacheControl:'0'}));
+  if(version!==identityVersion||user?.id!==owner)throw Error('A conta mudou durante o envio.');
+  return result.path;
+ },
+ async campaignOriginalURL(path){
+  const sdk=need(),version=identityVersion,owner=user?.id;
+  if(!owner||typeof path!=='string'||!/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.(pdf|mp4)$/.test(path))throw Error('Arquivo indisponível.');
+  const result=ok(await sdk.storage.from('neo-campaign-originals').createSignedUrl(path,120));
+  if(version!==identityVersion||user?.id!==owner)throw Error('A conta mudou.');
+  return result.signedUrl;
+ },
+ async campaignOriginalDownload(path){
+  const sdk=need(),version=identityVersion,owner=user?.id;
+  if(!owner||typeof path!=='string'||!/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.(pdf|mp4)$/.test(path)||path.split('/')[0]!==owner)throw Error('Arquivo indisponível.');
+  const file=ok(await sdk.storage.from('neo-campaign-originals').download(path));
+  if(version!==identityVersion||user?.id!==owner)throw Error('A conta mudou.');
+  if(!file||file.size>5242880)throw Error('Arquivo inválido.');
+  return file;
+ },
  async campaignMediaUpload(path,jpeg){
   const sdk=need(),version=identityVersion,owner=user?.id;
   if(typeof path!=='string'||!new RegExp('^[a-f0-9-]{36}/[a-f0-9-]{36}\\.jpg$').test(path)||
