@@ -49,11 +49,14 @@
    if(!Number.isFinite(start)||!Number.isFinite(end)||end>horizon||start>end||rule.start<today||rule.count<1||rule.count>24)return [];
    const times=[...new Set(rule.times)].sort();
    if(times.length!==rule.times.length||!times.length||times.length>8||times.some(time=>!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(time)))return [];
+   const perDay=rule.day_times;
+   const validTime=t=>typeof t==='string'&&/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(t);
+   if(perDay!==undefined&&(rule.frequency!=='weekly'||!perDay||typeof perDay!=='object'||Array.isArray(perDay)||!rule.days.length||Object.keys(perDay).length!==rule.days.length||rule.days.some(d=>!validTime(perDay[d]))||Object.keys(perDay).some(d=>!rule.days.includes(Number(d))||String(Number(d))!==d)))return [];
    const dates=[];
    for(let at=start;at<=end&&dates.length<rule.count;at+=86400000){
     const day=new Date(at);
     if(rule.frequency!=='daily'&&!rule.days.includes(day.getUTCDay()))continue;
-    for(const time of times){
+    for(const time of perDay?[perDay[day.getUTCDay()]]:times){
      const occurrence=day.toISOString().slice(0,10)+'T'+time;
      if(occurrence>now&&dates.length<rule.count)dates.push(occurrence);
     }
@@ -187,6 +190,7 @@
     <label>Frequência<select name="frequency"><option value="weekly">Semanal</option><option value="daily" ${rule.frequency==='daily'?'selected':''}>Diária</option></select></label>
     <fieldset><legend>Dias da semana (repetição semanal)</legend><div class="inline-actions">${weekdays.map((day,i)=>`<label class="check"><input type="checkbox" name="days" value="${i}" ${(rule.days||[defaultDay]).includes(i)?'checked':''}> ${day}</label>`).join('')}</div></fieldset>
     <fieldset class="central-time-picker"><legend>Horários em São Paulo</legend><div data-central-times>${(rule.times?.length?rule.times:[rule.time||pub.planned_local?.slice(11,16)||'09:00']).map(time=>`<div class="central-time-chip"><input type="time" name="time" value="${escape(time)}" required aria-label="Horário"><button type="button" class="text-btn" data-remove-time aria-label="Remover horário">×</button></div>`).join('')}</div><button type="button" class="secondary" data-add-time>+ Horário</button><p class="sub">Na frequência diária, adicione até 8 horários. Na semanal, escolha um horário para os dias selecionados.${legacyWeekly?' Os horários de uma regra antiga foram preservados.':''}</p></fieldset>
+    <fieldset data-weekday-custom><legend>Horário por dia da semana</legend><label class="check"><input type="checkbox" name="custom_times" ${rule.day_times?'checked':''}> Personalizar horário de cada dia selecionado</label><div data-weekday-times>${weekdays.map((day,i)=>`<label class="central-weekday-time" data-weekday="${i}">${day}<input type="time" name="weekday_${i}" value="${escape(rule.day_times?.[i]||rule.times?.[0]||rule.time||pub.planned_local?.slice(11,16)||'09:00')}" aria-label="Horário de ${day}" required></label>`).join('')}</div></fieldset>
     <label>Início<input type="date" name="start" value="${escape(start)}" required></label>
     <label>Término (opcional)<input type="date" name="end" value="${escape(rule.end)}"></label>
     <label>Número máximo de ocorrências<input type="number" name="count" min="1" max="24" value="${rule.count||4}" required></label>
@@ -242,6 +246,11 @@
      const fields=new FormData(form),source=await rpc('load',{publication_id:form.dataset.id});
      const rule={start:fields.get('start'),end:fields.get('end'),frequency:fields.get('frequency'),times:fields.getAll('time').map(time=>String(time).trim()),count:Number(fields.get('count')),
       days:fields.getAll('days').map(Number)};
+     if(rule.frequency==='weekly'&&fields.has('custom_times')){
+      rule.day_times=Object.fromEntries(rule.days.map(d=>[String(d),String(fields.get('weekday_'+d)||'')]));
+      // Mantém a chave times exigida pelo contrato legado; horários individuais são validados separadamente.
+      rule.times=[rule.day_times[rule.days[0]]||''];
+     }
      const dates=weeklyDates(rule),groups=source?.draft?.groups||[];
      if(!dates.length||!groups.length){show('Confira datas e horários e selecione destinos na publicação.');return;}
      const catalog=await cloud.campaignWhatsAppSync('catalog');
@@ -283,6 +292,11 @@
    const multiple=daily||form.dataset.legacyWeekly==='true';
    for(const chip of [...list.children].slice(1)){chip.hidden=!multiple;chip.querySelector('input').disabled=!multiple;}
    for(const day of form.querySelectorAll('[name=days]'))day.disabled=daily;
+   const custom=form.elements.custom_times;
+   const personalized=!daily&&custom.checked;
+   custom.disabled=daily;form.querySelector('[data-weekday-custom]').hidden=daily;
+   for(const chip of list.children){if(personalized){chip.hidden=true;chip.querySelector('input').disabled=true;}else if(chip===list.firstElementChild){chip.hidden=false;chip.querySelector('input').disabled=false;}}
+   for(const row of form.querySelectorAll('[data-weekday]')){const selected=personalized&&form.querySelector('[name=days][value="'+row.dataset.weekday+'"]').checked;row.hidden=!selected;row.querySelector('input').disabled=!selected;}
   }
   root.addEventListener('click',async event=>{
    const control=event.target.closest('[data-central]');
@@ -353,7 +367,7 @@
    finally{busy=false;}
   });
   root.addEventListener('change',event=>{
-   if(event.target.matches('[name=frequency]')&&event.target.closest('[data-central-form="weekly"]'))syncTimeControls(event.target.form);
+   if(event.target.matches('[name=frequency],[name=days],[name=custom_times]')&&event.target.closest('[data-central-form="weekly"]'))syncTimeControls(event.target.form);
    if(event.target.matches('[data-central-filter]')){filter=event.target.value;list();}
    if(event.target.matches('[data-central-search]')){search=event.target.value.trim().toLocaleLowerCase('pt-BR');list();root.querySelector('[data-central-search]').focus();}
    if(event.target.matches('[data-central-date]'))root.querySelectorAll('[data-central-date-list] article').forEach(node=>{node.hidden=Boolean(event.target.value&&node.dataset.day<event.target.value);});
