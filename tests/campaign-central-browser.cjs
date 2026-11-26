@@ -84,7 +84,7 @@ async function scenario(browser,profile){
   await modal.locator('[data-editor=text]').click();
   await modal.getByRole('button',{name:'Adicionar conteúdo'}).click();
   await modal.getByRole('button',{name:'Biblioteca',exact:true}).click();
-  await modal.getByRole('button',{name:'Vídeo autorizado'}).click();
+  await modal.getByRole('button',{name:/Vídeo autorizado/}).click();
   const cover=modal.locator('.structured-reference img');
   await cover.waitFor();
   const pixel=await cover.evaluate(async image=>{
@@ -97,9 +97,11 @@ async function scenario(browser,profile){
   await modal.getByRole('button',{name:'Registrar rascunho na Central'}).click();
   await modal.getByRole('status').filter({hasText:'Versão 1 registrada'}).waitFor();
   await modal.getByRole('button',{name:'Voltar',exact:true}).click();
+  await page.getByLabel('Opções da publicação').first().click();
   await page.getByRole('button',{name:'Editar publicação'}).click();
   await modal.getByText('Primeira mensagem',{exact:true}).waitFor();
   await modal.getByRole('button',{name:'Voltar',exact:true}).click();
+  await page.getByLabel('Opções da publicação').first().click();
   await page.getByRole('button',{name:'Duplicar / distribuir'}).click();
   await page.locator('[name=date]').fill('2027-01-11T10:00');
   await page.getByRole('button',{name:'+ Outro dia'}).click();
