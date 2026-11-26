@@ -446,16 +446,29 @@ sealed partial class Connect : Form {
             return data;
         }
     }
+    async Task<byte[]> LoadRichCampaignOriginal(string bucket,string path,string mime) {
+        if(profile.IsProduction||bucket!="neo-campaign-originals"||path==null
+           ||!System.Text.RegularExpressions.Regex.IsMatch(path,@"\A[a-f0-9-]{36}/[a-f0-9-]{36}[.](pdf|mp4)\z",System.Text.RegularExpressions.RegexOptions.CultureInvariant)
+           ||(mime!="application/pdf"&&mime!="video/mp4")||(mime=="application/pdf")!=path.EndsWith(".pdf",StringComparison.Ordinal))
+            throw new InvalidOperationException();
+        using(var client=new UpdateBrokerClient()){
+            client.Headers["Authorization"]="Bearer "+access;
+            client.Headers["apikey"]=profile.PublishableKey;
+            var data=await client.DownloadDataTaskAsync(profile.Endpoint("/storage/v1/object/authenticated/"+bucket+"/"+path));
+            if(data==null||data.Length<8||data.Length>5*1024*1024)throw new InvalidOperationException();
+            return data;
+        }
+    }
     async Task TickRichCampaign(WhatsApp window,Guid connection) {
         // Somente a versao nova conhece a fila rica. O servidor exige allowlist e gate de Teste.
         if(profile.IsProduction||!window.CampaignSessionReady)return;
-        var lease=await RichCampaign("claim",new {});
+        var lease=await RichCampaign("claim",new {originals_v1=true});
         if(lease==null)return;
         var id=Value(lease,"id");var fence=Value(lease,"fence");
         var started=false;
         var outcome=Tuple.Create("uncertain",(string)null);
         try {
-            var job=await RichCampaign("start",new {id=id,fence=fence});
+            var job=await RichCampaign("start",new {id=id,fence=fence,originals_v1=true});
             if(job==null)return;
             started=true;
             Guid request;
@@ -466,6 +479,11 @@ sealed partial class Connect : Form {
                     var bytes=await LoadRichCampaignJpeg(Value(job,"media_bucket"),Value(job,"media_path"));
                     if(whatsapp==window&&window.CampaignSessionReady)
                         outcome=await window.DispatchCampaignImageAsync(request,Value(job,"group_jid"),Value(job,"text"),bytes);
+                }else if(kind=="file"){
+                    var mime=Value(job,"original_mime");var name=Value(job,"original_name");
+                    var bytes=await LoadRichCampaignOriginal(Value(job,"media_bucket"),Value(job,"media_path"),mime);
+                    if(whatsapp==window&&window.CampaignConnection==connection&&window.CampaignSessionReady)
+                        outcome=await window.DispatchCampaignFileAsync(request,Value(job,"group_jid"),Value(job,"text"),bytes,mime,name);
                 }else if(kind=="text"||kind=="link"||kind=="product"){
                     outcome=await window.DispatchCampaignTextAsync(request,Value(job,"group_jid"),Value(job,"text"));
                 }
