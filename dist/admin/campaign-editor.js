@@ -1007,7 +1007,7 @@
    $('[data-library-share-name]').textContent=row.label;
    $('[data-library-share-video]').replaceChildren();
    const status=$('[data-library-share-status]'),p=$('[data-editor="library_share_preview"]'),o=$('[data-editor="library_share_original"]');
-   p.disabled=o.disabled=true;p.hidden=o.hidden=false;status.textContent='Consultando material autorizado…';
+   p.disabled=o.disabled=true;p.hidden=o.hidden=false;$('[data-editor="library_share_cover"]').disabled=false;status.textContent='Consultando material autorizado…';
    try{
     const material=(await cloud.library('get',{id:row.id}))?.material;
     if(!libraryShareActive(s))return;
@@ -1038,7 +1038,13 @@
    s.busy=true;const status=$('[data-library-share-status]');status.textContent='Preparando arquivo autorizado…';
    for(const b of sheet.querySelectorAll('[data-editor^="library_share_"]'))b.disabled=true;
    try{
-    const url=short?s.preview.url:await cloud.libraryMediaURL(file,true);
+    // Revalidate the attachment and renew the signed URL before each download.
+    const latest=(await cloud.library('get',{id:s.row.id}))?.material?.attachments?.find(f=>f.path===file.path);
+    if(!libraryShareActive(s))return;
+    if(!latest||latest.allow_download!==true||latest.mime!==file.mime||Number(latest.size)!==Number(file.size)||!libraryOriginalReady())throw Error('O material mudou ou não permite mais este envio.');
+    const refreshed=short?await cloud.libraryVideoPreview(s.row.id,file.path):null;
+    if(short&&(refreshed?.state!=='ready'||!refreshed.url))throw Error('Prévia indisponível. Reabra o material para consultar novamente.');
+    const url=short?refreshed.url:await cloud.libraryMediaURL(file,true);
     if(!libraryShareActive(s))return;
     const address=new URL(url),origin=window.NEO_CONFIG?.supabaseUrl;
     if(address.origin!==origin||address.protocol!=='https:'||!address.pathname.startsWith('/storage/v1/object/sign/'+(short?'neo-library-video-previews':'neo-library')+'/'))throw Error('Origem não autorizada.');
@@ -1052,7 +1058,8 @@
     const id=uuid(),name=(short?'previa-neopep-':'')+String(s.row.label||'Material').replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g,'_').slice(0,88)+(mime==='application/pdf'?'.pdf':'.mp4');
     await storeMedia('readwrite',store=>store.put(blob,mediaKey(id)));
     if(!libraryShareActive(s))return;
-    if(editing&&!commitEdit())return;
+    if(draft.blocks.length+(short?2:1)>32)throw Error('Limite de 32 blocos por rascunho.');
+    if(editing&&!commitEdit())throw Error('Confirme a legenda antes de adicionar o arquivo.');
     draft.blocks.push({id,type:'file',name,text:''});
     if(short)draft.blocks.push({id:uuid(),type:'link',url:linkFor({type:'document',ref:s.row.id}),text:'Assista ao vídeo completo no NeoPep'});
     render();changed();closeSheet();tell(short?'Prévia curta e link adicionados. Nenhum envio realizado.':'Arquivo original adicionado. Nenhum envio realizado.');

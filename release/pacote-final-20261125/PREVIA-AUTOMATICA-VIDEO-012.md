@@ -51,3 +51,7 @@
 - Ambos: aplicada campaign_catalog_thumbnails_20261126; bucket privado JPEG 64 KiB, RPC sem acesso anônimo. Zero miniaturas armazenadas; preparação pelo editor após deploy.
 - Produção: aplicada library_upload_capacity_200mb_20261126, mesma estrutura validada em Teste. Limite efetivo atual nos dois projetos: PDF/vídeo 50 MiB, JPEG/TXT 10 MiB; plano mantido. A interface ainda não foi publicada.
 - Prévias reais preservadas: Teste 1 pronta; Produção 2 prontas. Sem Vercel deploy.
+
+## Compatibilidade de Produção concluída — 26/11/2026
+- Aplicada `campaign_official_originals_dispatch_0215_20261126` em uma transação: locks exclusivos nas tabelas de controle/batches/mensagens/publicações, verificação de fila vazia, gate rico temporariamente false, scripts `campaign_official_originals_candidate.sql` e `campaign_official_dispatch_0215_candidate.sql` (sem seus begin/commit), verificação e restauração do gate rico true. Ambos os guards originais preservados. Validado: 0.2.15 em ambas RPCs, gate rico true, legado false, originais false, três mensagens aceitas preservadas e zero pendentes. Não houve envio nem deploy.
+- Editor: reseta botão capa ao reabrir, verifica novamente anexo e permissão e renova URL assinada da prévia antes do download. Revalida limite de blocos. Candidata ainda não publicada; validação visual e envio real aguardam publicação/autorização de teste. Não aplicar novamente as migrações já registradas.
