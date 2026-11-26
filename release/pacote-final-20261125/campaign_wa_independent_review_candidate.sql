@@ -59,6 +59,8 @@ begin
  if p_action='review_approve' and (not exists(select 1 from neo_private.campaign_wa_rich_messages where batch_id=bid)
   or exists(select 1 from neo_private.campaign_wa_rich_messages m where m.batch_id=bid and not exists(select 1 from neo_private.campaign_wa_sync_targets t join neo_private.campaign_wa_groups g on g.id=t.group_id where t.owner_id=rev.owner_id and t.connection_id=m.connection_id and t.group_jid=m.group_jid and g.active)))
  then raise exception 'review_destinations_unavailable' using errcode='55000';end if;
+ -- Fail closed: approval requires the exact saved revision and only supported reviewable blocks.
+ if p_action='review_approve' and not exists(select 1 from neo_private.campaign_wa_rich_batches b join neo_private.campaign_editor_versions e on e.editor_id=b.editor_id and e.revision=b.revision and e.owner_id=b.owner_id where b.id=bid and b.owner_id=rev.owner_id and jsonb_typeof(e.draft->'blocks')='array' and jsonb_array_length(e.draft->'blocks')>0 and not exists(select 1 from jsonb_array_elements(e.draft->'blocks') x where coalesce(x->>'type','') not in ('text','link'))) then raise exception 'review_content_unavailable' using errcode='55000';end if;
  update neo_private.campaign_wa_review set state=case when p_action='review_approve' then 'approved' else 'rejected' end,reviewed_by=actor,reviewed_at=now() where batch_id=bid returning * into rev;
  return jsonb_build_object('state',rev.state);
 end;$review$;
