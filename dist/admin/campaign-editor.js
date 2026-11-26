@@ -43,6 +43,27 @@
    return blob;
   }catch{throw Error('Não foi possível recuperar a capa autorizada. Reabra o material ou escolha outra capa. Seu rascunho foi mantido.');}
  }
+ async function communityPhotoBlob(cloud,path,signal,origin){
+  if(!path||signal.aborted||typeof cloud.communityPhotoURL!=='function')throw Error('Imagem da postagem indisponível.');
+  const url=new URL(await cloud.communityPhotoURL(path));
+  if(url.protocol!=='https:'||url.origin!==origin||url.username||url.password||!url.pathname.startsWith('/storage/v1/object/sign/neo-community/'))throw Error('Origem da imagem da comunidade não autorizada.');
+  const response=await fetch(url.href,{signal,credentials:'omit',cache:'no-store',redirect:'error',referrerPolicy:'no-referrer'});
+  if(!response.ok||Number(response.headers.get('content-length'))>10*1024*1024)throw Error('Não foi possível recuperar a imagem publicada.');
+  const blob=await response.blob();
+  if(!/^image\/(jpeg|png|webp)$/.test(blob.type)||!blob.size||blob.size>10*1024*1024)throw Error('Imagem publicada inválida ou acima do limite.');
+  return blob;
+ }
+ function communityTextBlocks(text){
+  const out=[];let remaining=String(text||'').trim();
+  while(remaining.length>2000){
+   let end=remaining.lastIndexOf('\n',2000);if(end<1000)end=remaining.lastIndexOf(' ',2000);
+   if(end<1000)end=2000;
+   if(/[\uD800-\uDBFF]/.test(remaining[end-1]))end--;
+   out.push({type:'text',text:remaining.slice(0,end)});remaining=remaining.slice(end).trimStart();
+  }
+  if(remaining)out.push({type:'text',text:remaining});
+  return out;
+ }
  function validLink(value){
   try{
    const url=new URL(value);
@@ -175,6 +196,7 @@
     <input type="file" name="media" accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4,text/plain" hidden>
     ${pane('link','Link','<label>Link HTTPS<input name="link" type="url" maxlength="2000"></label><button type="button" class="secondary" data-editor="link">Adicionar link</button>')}
     ${pane('catalog','Referências','<div class="central-search editor-search"><input name="catalog_search" type="search" maxlength="100" aria-label="Buscar referências" placeholder="Buscar referências"><button type="button" class="structured-icon" data-editor="catalog_search" aria-label="Buscar referências" title="Buscar referências"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button></div><div class="structured-catalog-tools"><button type="button" class="secondary" data-editor="prepare_thumbs" hidden>Preparar miniaturas faltantes</button><p class="sub" data-catalog-thumb-status role="status"></p></div><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
+    ${pane('community_share','Publicação da Comunidade','<div data-community-share-preview></div><div class="inline-actions"><button type="button" class="secondary" data-editor="community_reference">Manter referência à publicação</button><button type="button" class="primary" data-editor="community_import">Importar texto e imagem editáveis</button></div><p class="sub">Use a referência para manter o acesso restrito à Comunidade. Para republicar conteúdo a outro público, confirme a autorização do autor. Nenhuma mensagem será enviada nesta etapa.</p><p class="sub" role="status" data-community-share-status></p>')}
     ${pane('library_share','Como deseja compartilhar?','<p class="sub" data-library-share-name></p><div class="inline-actions"><button type="button" class="secondary" data-editor="library_share_cover">Capa + link</button><button type="button" class="secondary" data-editor="library_share_preview" disabled>Prévia curta + link</button><button type="button" class="secondary" data-editor="library_share_original" disabled>Arquivo original</button></div><div data-library-share-policy hidden class="monitor-block"><strong>Compartilhamento em campanhas</strong><p class="sub" data-library-member-download></p><label>Autorização deste arquivo<select data-library-share-mode><option value="inherit">Usar permissão de download</option><option value="cover">Somente capa + link</option><option value="preview">Somente prévia curta + link</option><option value="original">Permitir arquivo completo</option></select></label><button type="button" class="secondary" data-editor="library_permission_apply">Salvar autorização</button><p class="sub">Esta opção não altera o download dos membros. Arquivos enviados ao WhatsApp podem ser salvos pelos destinatários.</p></div><div data-library-share-video></div><p class="sub" data-library-share-status role="status"></p>')}
     ${pane('file_help','Envio de arquivos','<p>O envio de arquivos originais e prévias em vídeo depende da liberação no servidor e de um NeoPep Connect compatível. O documento pode permanecer no rascunho sem ser enviado.</p><p>Use Capa + link para materiais disponíveis na Biblioteca. Para liberar a modalidade de arquivo, confira a configuração do canal e os dispositivos autorizados.</p><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button>')}
     ${pane('schedule','Publicação e horário','<label>Horário planejado (São Paulo)<input name="planned_local" type="datetime-local" value="'+e(draft.planned_local)+'"></label><p data-editor-summary class="sub"></p><div class="inline-actions"><button type="button" class="secondary" data-editor="schedule" disabled>Programar</button><button type="button" class="secondary" data-editor="simulate">Ver prévia (sem enviar)</button></div><div class="structured-issues" data-editor-issues role="status"></div><p role="status" class="sub" data-editor-simulation></p><p class="sub">A prévia não envia mensagens. Para publicar, escolha os grupos e confirme o envio.</p><p class="sub" data-dispatch-gate></p>')}
@@ -221,7 +243,7 @@
   const products=new Map(),contentPreviews=new Map(),previewAbort=new AbortController();let shopCatalog,communityFeed,openedReference=false;
   let testGate={};
   let gates={},dispatchReady={schedule:false,publish:false},dispatching=false,groups=[],pending,active=true,editing=null,removed=null,saving=false,revision=0,loadToken=0,catalogToken=0,selection=[0,0],catalogRows=[];
-  let catalogController=null,catalogReady=false,catalogGenerating=false,libraryShare=null;
+  let catalogController=null,catalogReady=false,catalogGenerating=false,libraryShare=null,communityShare=null;
   const current=()=>active&&cloud.user?.id===account;
   const mediaKey=id=>account+':'+state.editorId+':'+id;
   async function readDraftMedia(id){
@@ -291,7 +313,7 @@
   composeAction();
   function closeSheet(focus=true){
    if(!sheet||sheet.hidden)return;
-   cancelCatalog();libraryShare=null;$('[data-library-share-video]')?.replaceChildren();
+   cancelCatalog();libraryShare=null;communityShare=null;$('[data-library-share-video]')?.replaceChildren();
    sheet.hidden=true;pendingDispatch=null;if(focus)sheetTrigger?.focus({preventScroll:true});sheetTrigger=null;
   }
   function openPane(name,trigger){
@@ -299,6 +321,7 @@
    const pane=$('[data-editor-pane="'+name+'"]');
    if(!pane)return;
    if(name!=='catalog')cancelCatalog();
+   if(name!=='community_share')communityShare=null;
    if(name!=='library_share'){libraryShare=null;$('[data-library-share-video]')?.replaceChildren();}
    if(sheet.hidden)sheetTrigger=trigger;
    sheet.hidden=false;
@@ -1029,6 +1052,7 @@
   const catalogPrice=row=>Number.isSafeInteger(row.price_cents)&&row.price_cents>=0?(row.price_cents/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Preço indisponível';
   async function catalogPool(rows,work,valid){let next=0;await Promise.all(Array.from({length:Math.min(3,rows.length)},async()=>{while(valid()&&next<rows.length){const i=next++;try{await work(rows[i],i);}catch{}}}));}
   function catalogStatus(){const button=$('[data-editor="prepare_thumbs"]'),status=$('[data-catalog-thumb-status]');if(!button||!status)return;
+   if(catalogKind==='community'){button.hidden=true;status.textContent='';return;}
    const missing=catalogRows.filter(row=>row.thumbSource&&!row.thumb).length;
    button.hidden=!catalogReady||!missing;button.disabled=catalogGenerating;
    status.textContent=catalogGenerating?'Preparando miniaturas faltantes…':!catalogReady?'Miniaturas serão disponibilizadas após a atualização do armazenamento.':missing?missing+' miniatura(s) ainda não preparadas.':'';
@@ -1083,7 +1107,72 @@
    tell(keepText?'Item adicionado. Seu texto provisório continua em edição.':'Item adicionado. Escreva a legenda e confirme com a seta.');
    message.focus({preventScroll:true});
   }
-  async function chooseLibraryShare(row,trigger){
+  async function chooseCommunityShare(row,trigger){
+    openPane('community_share',trigger);
+    const session=communityShare={row,busy:false,post:null};
+    const status=$('[data-community-share-status]'),box=$('[data-community-share-preview]');
+    const button=$('[data-editor="community_import"]');
+    button.disabled=true;box.replaceChildren();status.textContent='Carregando publicação…';
+    try{
+     communityFeed=null;
+     const post=(await communityRows()).find(p=>p.id===row.id);
+     if(!communityShareActive(session))return;
+     if(!post)throw Error('A publicação não está mais disponível.');
+     session.post=post;
+     const model={meta:[post.alias,post.created_at&&new Date(post.created_at).toLocaleString('pt-BR')].filter(Boolean).join(' · '),excerpt:post.body||'',snapshot:post.snapshot,hasPhoto:Boolean(post.photo_path||post.body==='Foto compartilhada'),communityFile:post.file?.name};
+     if(post.photo_path&&typeof cloud.communityPhotoURL==='function')try{model.image=await cloud.communityPhotoURL(post.photo_path);model.imageExpires=Date.now()+40000;}catch{}
+     if(!communityShareActive(session))return;
+     contentPreviews.set(post.id,model);
+     box.innerHTML=referenceCard({type:'community',ref:post.id});
+     button.disabled=false;status.textContent=post.file?'O documento permanece na referência original; texto e foto são editáveis.':'';
+    }catch(error){if(communityShareActive(session))status.textContent=error.message||'Não foi possível consultar a publicação.';}
+   }
+   function communityShareActive(session){return current()&&communityShare===session&&!sheet.hidden&&sheet.dataset.activePane==='community_share';}
+   async function importCommunity(){
+    const session=communityShare;if(!session?.post||session.busy||!communityShareActive(session))return;
+    const status=$('[data-community-share-status]'),button=$('[data-editor="community_import"]');
+    if(!window.confirm('Confirme que você tem autorização para reutilizar esta publicação com o público escolhido para a campanha. A foto já compartilhada será copiada para o rascunho, sem envio automático. Continuar?'))return;
+    session.busy=true;button.disabled=true;status.textContent='Preparando conteúdo editável…';
+    let storedId=null,committed=false;
+    try{
+     communityFeed=null;
+     const post=(await communityRows()).find(p=>p.id===session.row.id);
+     if(!communityShareActive(session))return;
+     if(!post)throw Error('A publicação não está mais disponível.');
+     const blocks=[];
+     if(post.snapshot&&window.NeoCommunity?.summaryCard){
+      const holder=document.createElement('div');holder.innerHTML=window.NeoCommunity.summaryCard(post.snapshot);
+      const lines=Array.from(holder.querySelectorAll('dl>div')).map(item=>[item.querySelector('dt')?.textContent,item.querySelector('dd')?.textContent].filter(Boolean).join(': '));
+      if(lines.length)blocks.push(...communityTextBlocks(['Resumo de evolução compartilhado',...lines].join('\n')));
+     }
+     if(post.photo_path)blocks.push({type:'image',layout:'caption',text:'',name:'publicacao-comunidade.jpg'});
+     else if(post.body==='Foto compartilhada')throw Error('A imagem original não está disponível. Use a referência ou tente novamente.');
+     if(post.body&&!(post.photo_path&&post.body==='Foto compartilhada'))blocks.push(...communityTextBlocks(post.body));
+     if(post.file)blocks.push({type:'community',ref:post.id,label:'Documento da publicação original',text:''});
+     if(!blocks.length)throw Error('Não há conteúdo editável disponível.');
+     if(draft.blocks.length+blocks.length>32)throw Error('Limite de 32 blocos por rascunho.');
+     const prepared=blocks.map(block=>({id:uuid(),...block})),image=prepared.find(b=>b.type==='image');
+     if(image){
+      const blob=await communityPhotoBlob(cloud,post.photo_path,previewAbort.signal,window.NEO_CONFIG?.supabaseUrl);
+      if(!communityShareActive(session))return;
+      storedId=image.id;
+      await storeMedia('readwrite',store=>store.put(blob,mediaKey(image.id)));
+     }
+     if(!communityShareActive(session))return;
+     if(draft.blocks.length+prepared.length>32)throw Error('Limite de 32 blocos por rascunho.');
+     if(editing&&!commitEdit())throw Error('Confirme a legenda em edição antes de importar.');
+     draft.blocks.push(...prepared);committed=true;
+     if(image)captionTarget=image.id;
+     render();changed();closeSheet();
+     if(saveLocal())tell('Publicação importada. Edite, mova ou exclua cada bloco; nenhum envio realizado.');
+    }catch(error){if(communityShareActive(session))status.textContent=error.message||'Não foi possível importar a publicação.';}
+    finally{
+     if(storedId&&!committed)await storeMedia('readwrite',store=>store.delete(mediaKey(storedId))).catch(()=>{});
+     session.busy=false;if(communityShareActive(session))button.disabled=false;
+    }
+   }
+   async function chooseLibraryShare(row,trigger){
+    if(row.kind==='community'){await chooseCommunityShare(row,trigger);return;}
    if(row.kind!=='document'||typeof cloud.library!=='function'){addCatalogReference(row);return;}
    openPane('library_share',trigger);
    const s=libraryShare={row,file:null,preview:null,policy:null,busy:false};
@@ -1365,7 +1454,9 @@
    if(action==='prepare_thumbs'){void prepareCatalogThumbs();return;}
    if(action==='catalog_search')void searchCatalog();
    if(action==='reference'&&catalogRows[index]){await chooseLibraryShare(catalogRows[index],control);return;}
-   if(action==='library_permission_apply'){await applyLibrarySharePermission();return;}
+   if(action==='community_reference'&&communityShare?.post&&!communityShare.busy){addCatalogReference(communityShare.row);return;}
+    if(action==='community_import'){await importCommunity();return;}
+    if(action==='library_permission_apply'){await applyLibrarySharePermission();return;}
    if(action?.startsWith('library_share_')){await addLibraryFile(action.slice('library_share_'.length));return;}
    if(action==='text'){
     const text=message.value.trim();
