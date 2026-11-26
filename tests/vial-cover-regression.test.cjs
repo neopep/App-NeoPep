@@ -46,8 +46,9 @@ function vialHarness(){
  const state={doses:[]};
  const vial={id:'v1',name:'Produto A',product:'Produto A',mass:10,volume:2};
  let stored={items:[vial],links:{},active:vial.id};
- const functions=src.slice(src.indexOf('function vialDoseMass('),src.indexOf("document.addEventListener('click',event=>{\n if(!event.target.closest('[data-diary-vial-save]')"));
- const api=new Function('state','readCalcVials','saveCalcVials',functions+';return {vialBalance,activeDiaryVial,prepareDiaryVialLink};')(state,()=>stored,next=>{stored=next});
+ const start=src.indexOf('function vialDoseMass('),end=src.indexOf("document.addEventListener('click',async event=>{\n if(!event.target.closest('[data-diary-vial-save]')",start);
+ const functions=src.slice(start,end).replace(/document\.addEventListener\('click',async event=>\{\n if\(!event\.target\.closest\('\[data-diary-vial-import\]'\)[\s\S]*?\n\}\);\n/,'');
+ const api=new Function('state','readCalcVials','saveCalcVials','cloudVialDiaryReady',functions+';return {vialBalance,activeDiaryVial,prepareDiaryVialLink};')(state,()=>stored,next=>{stored=next},()=>false);
  return {state,stored,vial,...api};
 }
 test('diário vincula automaticamente, desconta somente registros existentes e preserva o histórico',()=>{
@@ -87,4 +88,18 @@ test('diário usa os cards originais e separa acompanhamento físico da calculad
  assert.match(src,/data-diary-vial-save/);
  assert.match(src,/Histórico de frascos/);
  assert.match(src,/Frasco vinculado:/);
+});
+
+test('diário online usa transação de aplicação e preserva dados locais até importação explícita',()=>{
+ const cloud=fs.readFileSync('src/cloud.js','utf8'),sql=fs.readFileSync('release/pacote-final-20261125/vial_diary_cloud_candidate.sql','utf8');
+ assert.match(src,/Cloud\.vialDiary\('put_dose'/);
+ assert.match(src,/Cloud\.vialDiary\('import_local'/);
+ assert.match(src,/if\(!existing&&!cloudVialDiaryReady\(\)\)/);
+ assert.match(cloud,/client\.rpc\('neo_vial_diary'/);
+ assert.match(sql,/pg_advisory_xact_lock/);
+ assert.match(sql,/foreign key\(user_id,dose_kind,dose_id\).*on delete cascade/);
+ assert.match(sql,/vial_active_changed/);
+ assert.match(sql,/vial_balance_insufficient/);
+ assert.match(sql,/auth\.uid\(\)/);
+ assert.match(sql,/revoke all on neo_private\.vial_diary,neo_private\.vial_diary_links/);
 });
