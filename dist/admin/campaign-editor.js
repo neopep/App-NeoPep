@@ -124,8 +124,8 @@
     ${channel==='app'?pane('audience','Público App',testApp?'<p>Somente as contas de homologação autorizadas no servidor. Esta campanha não envia push.</p>':'<label>Público App<select name="audience"><option value="all">Todos</option><option value="free">Free</option><option value="premium">Premium</option></select></label><label class="check"><input name="push" type="checkbox"> Solicitar push App para contas com consentimento</label>'):
     pane('groups','Grupos sincronizados','<div class="inline-actions"><button type="button" class="secondary" data-editor="groups">Atualizar grupos e diagnóstico</button><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button></div><label class="central-search editor-search"><input name="group_search" type="search" aria-label="Pesquisar grupo ou conexão" placeholder="Pesquisar grupo ou conexão"><span class="search-decoration" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></span></label><p class="sub" data-editor-group-count></p><div data-editor-groups></div>')}
     ${pane('photo','Foto','<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">No ambiente de Teste, imagens JPEG com legenda podem ser enviadas ao grupo autorizado. Salve a versão antes de publicar.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto</button>')}
-    ${pane('file','Documento','<button type="button" class="secondary" data-editor="choose_document">Escolher PDF ou TXT</button>')}
-    <input type="file" name="media" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain" hidden>
+    ${pane('file','Documento','<button type="button" class="secondary" data-editor="choose_document">Escolher PDF, MP4 ou TXT</button>')}
+    <input type="file" name="media" accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4,text/plain" hidden>
     ${pane('link','Link','<label>Link HTTPS<input name="link" type="url" maxlength="2000"></label><button type="button" class="secondary" data-editor="link">Adicionar link</button>')}
     ${pane('catalog','Referências','<div class="central-search editor-search"><input name="catalog_search" type="search" maxlength="100" aria-label="Buscar referências" placeholder="Buscar referências"><button type="button" class="structured-icon" data-editor="catalog_search" aria-label="Buscar referências" title="Buscar referências"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button></div><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
     ${pane('schedule','Publicação e horário','<label>Horário planejado (São Paulo)<input name="planned_local" type="datetime-local" value="'+e(draft.planned_local)+'"></label><p data-editor-summary class="sub"></p><div class="inline-actions"><button type="button" class="secondary" data-editor="schedule" disabled>Programar</button><button type="button" class="secondary" data-editor="simulate">Ver prévia (sem enviar)</button></div><p role="status" class="sub" data-editor-simulation></p><p class="sub">A prévia não envia mensagens. Para publicar, escolha os grupos e confirme o envio.</p><p class="sub" data-dispatch-gate></p>')}
@@ -484,19 +484,21 @@
    for(const holder of preview.querySelectorAll('[data-local-file]')){
     const id=holder.dataset.localFile,block=draft.blocks.find(item=>item.id===id);
     void (async()=>{
-     const file=await storeMedia('readonly',store=>store.get(mediaKey(id)));
+     const file=await storeMedia('readonly',store=>store.get(mediaKey(id))).catch(()=>null)||(block?.media_path&&cloud.campaignOriginalDownload?await cloud.campaignOriginalDownload(block.media_path):null);
      if(!current()||version!==revision)return;
      if(!file){holder.textContent='Arquivo original indisponível neste dispositivo.';return;}
      const url=URL.createObjectURL(file);objectUrls.add(url);
-     const label=document.createElement('p');label.className='sub';label.textContent=(file.type==='application/pdf'?'PDF':'TXT')+' · '+Math.ceil(file.size/1024)+' KB · '+(block.name||'Documento');
+     const label=document.createElement('p');label.className='sub';label.textContent=(file.type==='application/pdf'?'PDF':file.type==='video/mp4'?'MP4':'TXT')+' · '+Math.ceil(file.size/1024)+' KB · '+(block.name||'Documento');
      holder.replaceChildren(label);
      if(file.type==='application/pdf'&&window.NeoLibraryFiles?.pdfCover){
       try{const cover=await window.NeoLibraryFiles.pdfCover(url,previewAbort.signal);if(current()&&version===revision&&cover){const img=document.createElement('img');img.src=cover;img.alt='Primeira página do PDF';holder.append(img);}}catch{}
+     }else if(file.type==='video/mp4'){
+      const video=document.createElement('video');video.src=url;video.controls=true;video.preload='metadata';video.playsInline=true;video.style.maxWidth='100%';holder.append(video);
      }else if(file.type==='text/plain'){
       const excerpt=await file.slice(0,4096).text();if(current()&&version===revision){const pre=document.createElement('p');pre.className='sub';pre.textContent=excerpt.slice(0,400);holder.append(pre);}
      }
      if(!current()||version!==revision)return;
-     const link=document.createElement('a');link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Abrir original neste dispositivo';holder.append(link);
+     const link=document.createElement('a');link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Abrir arquivo original';holder.append(link);
     })().catch(()=>{if(current()&&version===revision)holder.textContent='Prévia indisponível.';});
    }
    const revert=$('[data-editor=revert]');if(revert)revert.hidden=!removed;
@@ -552,12 +554,13 @@
     testWA?(rich?gates.whatsapp_rich?.ready===true:gates.whatsapp_test?.ready===true):channel==='app'?gates.app_enabled:gates.whatsapp_enabled;
    const textOnly=draft.blocks.length>0&&draft.blocks.every(block=>block.type==='text'&&!/(https?:\/\/|www\.)/i.test(block.text||''));
    const richBlocks=draft.blocks.length>0&&draft.blocks.length<=6&&draft.blocks.every(block=>
-    ['text','image','link','product','document','community'].includes(block.type)&&
+    ['text','image','link','product','document','community','file'].includes(block.type)&&
+     (block.type!=='file'||(gates.whatsapp_rich?.originals_enabled===true&&Boolean(block.media_path)&&/\.(pdf|mp4)$/.test(block.media_path)))&&
      (block.type!=='image'||Boolean(block.media_path))&&
      (block.type!=='link'||Boolean(validLink(block.url)))&&
      (!['product','document','community'].includes(block.type)||Boolean(block.ref))&&
      (block.type==='link'?(block.text||'').length<=160:
-      ['image','product','document','community'].includes(block.type)?(block.text||'').length<=1000:
+      ['image','product','document','community','file'].includes(block.type)?(block.text||'').length<=1000:
       (block.text||'').length<=2000));
    const eligible=channel==='app'||draft.groups.length>0&&draft.groups.every(id=>groups.some(row=>row.id===id&&row.state==='eligible'));
    const pinned=!testWA||draft.groups.length===1&&draft.groups[0]===gates.whatsapp_test?.destination;
@@ -656,7 +659,7 @@
    if(channel==='whatsapp'&&!draft.groups.length){explain('Selecione pelo menos um grupo sincronizado.');return;}
    if(editing||message.value.trim()){explain('Confirme o texto ou a legenda com a seta antes de continuar.');return;}
    if(!draft.blocks.length){explain('Adicione conteúdo antes de continuar.');return;}
-   if(draft.blocks.some(b=>b.type==='file')){explain('O envio integral de arquivos ainda não está habilitado neste canal. O arquivo permanece como rascunho.');return;}
+   if(draft.blocks.some(b=>b.type==='file')&&(!testWA||gates.whatsapp_rich?.originals_enabled!==true)){explain('O envio integral de arquivos ainda não está habilitado neste canal. O arquivo permanece como rascunho.');return;}
    if(!state.remoteId||state.savedDraft!==JSON.stringify(draft)){
     explain('Salvando a versão antes da confirmação. Nenhuma mensagem será enviada.');
     await saveRemote();
@@ -745,6 +748,19 @@
     block.media_path=stored;saveLocal();
    }
   }
+  async function uploadOriginalFiles(){
+   for(const block of draft.blocks){
+    if(block.type!=='file'||block.media_path)continue;
+    const file=await storeMedia('readonly',store=>store.get(mediaKey(block.id)));
+    if(!file)throw Error('Anexe novamente o arquivo original antes de salvar.');
+    if(file.type==='text/plain')continue; // TXT remains local, never dispatched as an original.
+    if(!['application/pdf','video/mp4'].includes(file.type)||typeof cloud.campaignOriginalUpload!=='function')throw Error('Atualize o aplicativo para guardar o arquivo original.');
+    const path=account+'/'+uuid()+(file.type==='application/pdf'?'.pdf':'.mp4');
+    const stored=await cloud.campaignOriginalUpload(path,file);
+    if(!current()||stored!==path)throw Error('Não foi possível confirmar o armazenamento privado.');
+    block.media_path=stored;saveLocal();
+   }
+  }
   async function saveRemote(){
    if(saving||!current())return;
    const editingBlock=editing&&draft.blocks.find(block=>block.id===editing);
@@ -762,6 +778,10 @@
     try{await uploadRichImages();}catch(error){tell(error.message||'Não foi possível preparar a imagem.');saving=false;return;}
     saving=false;
    }
+   if(testWA&&Object.prototype.hasOwnProperty.call(gates.whatsapp_rich||{},'originals_enabled')&&draft.blocks.some(b=>b.type==='file'&&!b.media_path)){
+    saving=true;try{await uploadOriginalFiles();}catch(error){tell(error.message||'Não foi possível guardar o arquivo original.');return;}finally{saving=false;if(current())showGate();}
+   }
+   if(!current())return;
    const snapshot=JSON.parse(JSON.stringify(draft));
    const fingerprint=JSON.stringify(snapshot);
    const attempt=state.attempt?.fingerprint===fingerprint?state.attempt:{fingerprint,id:uuid()};
@@ -841,8 +861,8 @@
    const file=input.files?.[0];input.value='';
    if(!file)return;
    const image=/^image\/(jpeg|png|webp|heic|heif|avif)$/.test(file.type)||/\.(heic|heif)$/i.test(file.name);
-   if((!image&&!['application/pdf','text/plain'].includes(file.type))||!file.size||file.size>(image?25:5)*1024*1024||draft.blocks.length>=32){
-    tell('Selecione foto de até 25 MB ou PDF/TXT de até 5 MB, dentro do limite de blocos.');return;
+   if((!image&&!['application/pdf','video/mp4','text/plain'].includes(file.type))||!file.size||file.size>(image?25:5)*1024*1024||draft.blocks.length>=32){
+    tell('Selecione foto de até 25 MB ou PDF/MP4/TXT de até 5 MB, dentro do limite de blocos.');return;
    }
    const id=uuid(),layout=field('layout').value;
    try{
@@ -852,7 +872,7 @@
     await storeMedia('readwrite',store=>store.put(asset,mediaKey(id)));
     if(!current())return;
     if(draft.blocks.length>=32){void storeMedia('readwrite',store=>store.delete(mediaKey(id))).catch(()=>{});return;}
-    draft.blocks.push({id,type:image?'image':'file',name:file.name.slice(0,120),...(image?{layout,text:''}:{})});
+    draft.blocks.push({id,type:image?'image':'file',name:(image?file.name:file.name.replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g,'_')).slice(0,120),...(image?{layout,text:''}:{})});
     if(image){captionTarget=id;if(layout==='caption'&&!message.value.trim()&&!editing)editing=id;composeAction();}
     render();changed();closeSheet();
    }catch(error){tell(error.message||'Não foi possível guardar o arquivo neste dispositivo.');}
@@ -949,7 +969,7 @@
    }
    if(readOnly){if(action==='edit_preview'&&close())onEdit?.();return;}
    if(action==='choose_image'||action==='choose_document'){
-    field('media').accept=action==='choose_image'?'image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,.heic,.heif':'application/pdf,text/plain';
+    field('media').accept=action==='choose_image'?'image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,.heic,.heif':'application/pdf,video/mp4,text/plain';
     field('media').click();return;
    }
    if(action==='name_continue'){
