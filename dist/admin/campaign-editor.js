@@ -144,7 +144,7 @@
     ${pane('file','Documento','<button type="button" class="secondary" data-editor="choose_document">Escolher PDF, MP4 ou TXT</button>')}
     <input type="file" name="media" accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4,text/plain" hidden>
     ${pane('link','Link','<label>Link HTTPS<input name="link" type="url" maxlength="2000"></label><button type="button" class="secondary" data-editor="link">Adicionar link</button>')}
-    ${pane('catalog','Referências','<div class="central-search editor-search"><input name="catalog_search" type="search" maxlength="100" aria-label="Buscar referências" placeholder="Buscar referências"><button type="button" class="structured-icon" data-editor="catalog_search" aria-label="Buscar referências" title="Buscar referências"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button></div><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
+    ${pane('catalog','Referências','<div class="central-search editor-search"><input name="catalog_search" type="search" maxlength="100" aria-label="Buscar referências" placeholder="Buscar referências"><button type="button" class="structured-icon" data-editor="catalog_search" aria-label="Buscar referências" title="Buscar referências"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button></div><div class="structured-catalog-tools"><button type="button" class="secondary" data-editor="prepare_thumbs" hidden>Preparar miniaturas faltantes</button><p class="sub" data-catalog-thumb-status role="status"></p></div><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
     ${pane('schedule','Publicação e horário','<label>Horário planejado (São Paulo)<input name="planned_local" type="datetime-local" value="'+e(draft.planned_local)+'"></label><p data-editor-summary class="sub"></p><div class="inline-actions"><button type="button" class="secondary" data-editor="schedule" disabled>Programar</button><button type="button" class="secondary" data-editor="simulate">Ver prévia (sem enviar)</button></div><p role="status" class="sub" data-editor-simulation></p><p class="sub">A prévia não envia mensagens. Para publicar, escolha os grupos e confirme o envio.</p><p class="sub" data-dispatch-gate></p>')}
     ${pane('confirmation','Confirmar campanha','<p data-confirm-question></p><p class="sub" data-confirm-summary></p><p class="structured-confirm-content" data-confirm-content></p><button type="button" class="primary" data-editor="confirm_dispatch">Confirmar</button> <button type="button" class="secondary" data-editor="sheet_close">Voltar à composição</button>')}
     ${channel==='whatsapp'&&!testWA?pane('recurrence','Recorrência','<label>Ocorrências semanais<input name="weekly_count" type="number" min="1" max="6" step="1" value="1"></label>'):''}
@@ -189,6 +189,7 @@
   const products=new Map(),contentPreviews=new Map(),previewAbort=new AbortController();let shopCatalog,communityFeed,openedReference=false;
   let testGate={};
   let gates={},dispatchReady={schedule:false,publish:false},dispatching=false,groups=[],pending,active=true,editing=null,removed=null,saving=false,revision=0,loadToken=0,catalogToken=0,selection=[0,0],catalogRows=[];
+  let catalogController=null,catalogReady=false,catalogGenerating=false;
   const current=()=>active&&cloud.user?.id===account;
   const mediaKey=id=>account+':'+state.editorId+':'+id;
   let noticeTimer,composing=false,provisional=Number.isInteger(state.provisional)?state.provisional:null;
@@ -244,12 +245,14 @@
   composeAction();
   function closeSheet(focus=true){
    if(!sheet||sheet.hidden)return;
+   cancelCatalog();
    sheet.hidden=true;pendingDispatch=null;if(focus)sheetTrigger?.focus({preventScroll:true});sheetTrigger=null;
   }
   function openPane(name,trigger){
    if(!sheet)return;
    const pane=$('[data-editor-pane="'+name+'"]');
    if(!pane)return;
+   if(name!=='catalog')cancelCatalog();
    if(sheet.hidden)sheetTrigger=trigger;
    sheet.hidden=false;
    sheet.dataset.activePane=name;
@@ -377,8 +380,7 @@
     ${block.type==='community'?'<a href="/#comunidade" target="_blank" rel="noopener noreferrer">Abrir Comunidade</a>':''}
    </section>`;
   }
-  async function videoCover(src){
-   const signal=previewAbort.signal;
+  async function videoCover(src,signal=previewAbort.signal){
    // Evitar a capa preta do quadro inicial: capturar um frame após os primeiros segundos.
    // O material permanece na Biblioteca; só a capa JPEG e o link seguem ao WhatsApp.
    const video=document.createElement('video');
@@ -835,7 +837,7 @@
    if(!active)return;
    if(stopOpen===stop)stopOpen=null;
    viewport?.removeEventListener('resize',resize);viewport?.removeEventListener('scroll',resize);
-   active=false;previewAbort.abort();if(openedReference)window.NeoLibraryFiles?.close();clearTimeout(pending);clearTimeout(noticeTimer);window.removeEventListener('pagehide',saveLocal);
+   active=false;cancelCatalog();previewAbort.abort();if(openedReference)window.NeoLibraryFiles?.close();clearTimeout(pending);clearTimeout(noticeTimer);window.removeEventListener('pagehide',saveLocal);
    for(const url of objectUrls)URL.revokeObjectURL(url);
    dialog.remove();onClosed?.();if(trigger?.isConnected)trigger.focus({preventScroll:true});
   }
@@ -910,43 +912,89 @@
     render();changed();closeSheet();
    }catch(error){tell(error.message||'Não foi possível guardar o arquivo neste dispositivo.');}
   });
+  function cancelCatalog(){catalogController?.abort();catalogController=null;catalogToken++;catalogGenerating=false;catalogReady=false;}
+  function catalogCurrent(token,signal){return current()&&token===catalogToken&&!signal.aborted&&!sheet.hidden&&sheet.dataset.activePane==='catalog';}
+  const catalogPrice=row=>Number.isSafeInteger(row.price_cents)&&row.price_cents>=0?(row.price_cents/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Preço indisponível';
+  async function catalogPool(rows,work,valid){let next=0;await Promise.all(Array.from({length:Math.min(3,rows.length)},async()=>{while(valid()&&next<rows.length){const i=next++;try{await work(rows[i],i);}catch{}}}));}
+  function catalogStatus(){const button=$('[data-editor="prepare_thumbs"]'),status=$('[data-catalog-thumb-status]');if(!button||!status)return;
+   const missing=catalogRows.filter(row=>row.thumbSource&&!row.thumb).length;
+   button.hidden=!catalogReady||!missing;button.disabled=catalogGenerating;
+   status.textContent=catalogGenerating?'Preparando miniaturas faltantes…':!catalogReady?'Miniaturas serão disponibilizadas após a atualização do armazenamento.':missing?missing+' miniatura(s) ainda não preparadas.':'';
+  }
+  function showCatalogThumb(box,row,i,token,signal){if(!catalogCurrent(token,signal)||!row.thumb)return;const holder=box.querySelector('[data-catalog-thumb="'+i+'"]');if(!holder)return;
+   const img=document.createElement('img');img.alt='';img.loading='lazy';img.decoding='async';img.referrerPolicy='no-referrer';img.width=160;img.height=160;
+   img.onerror=()=>{if(catalogCurrent(token,signal)){row.thumb='';holder.innerHTML=icon(row.kind==='product'?'product':'file');catalogStatus();}};
+   img.src=row.thumb;holder.replaceChildren(img);
+  }
+  async function smallCatalogJpeg(src,signal){
+   if(!src||signal.aborted)throw Error('Prévia indisponível.');
+   const img=new Image();img.crossOrigin='anonymous';img.referrerPolicy='no-referrer';
+   try{
+    await new Promise((resolve,reject)=>{const cleanup=()=>{clearTimeout(timer);signal.removeEventListener('abort',abort);img.onload=img.onerror=null;};const abort=()=>{cleanup();reject(Error('Cancelado'));};const timer=setTimeout(abort,12000);signal.addEventListener('abort',abort,{once:true});img.onload=()=>{cleanup();resolve();};img.onerror=abort;img.src=src;});
+    if(signal.aborted||!img.naturalWidth||!img.naturalHeight)throw Error('Prévia indisponível.');
+    const scale=Math.min(1,160/Math.max(img.naturalWidth,img.naturalHeight)),canvas=document.createElement('canvas');
+    canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.64));if(!blob||blob.size>65536)throw Error('Miniatura acima do limite.');return blob;
+   }finally{img.removeAttribute('src');}
+  }
+  async function prepareCatalogThumbs(){
+   const controller=catalogController,token=catalogToken,box=$('[data-editor-catalog]');if(!controller||!catalogReady||catalogGenerating)return;const {signal}=controller,valid=()=>catalogCurrent(token,signal);if(!valid())return;
+   catalogGenerating=true;catalogStatus();
+   // Explicit, one-time preparation. The normal catalog never downloads original files.
+   const rows=catalogRows.map((row,i)=>({row,i})).filter(({row})=>row.thumbSource&&!row.thumb);
+   let failures=0;
+   // Single original at a time to avoid simultaneous large video/PDF requests.
+   try{for(const {row,i} of rows){if(!valid())return;try{
+    const {kind,path,file}=row.thumbSource;let src=kind==='shop'?await cloud.shopPhotoURL(path):await cloud.libraryMediaURL(file,false);if(!valid())return;
+    if(file?.mime==='application/pdf')src=await window.NeoLibraryFiles?.pdfCover?.(src,signal);
+    else if(file?.mime?.startsWith('video/'))src=await videoCover(src,signal);
+    if(!valid())return;const blob=await smallCatalogJpeg(src,signal);if(!valid())return;
+    row.thumb=await cloud.campaignThumbnailUpload(kind,path,blob);if(!valid())return;showCatalogThumb(box,row,i,token,signal);
+   }catch{failures++;}}}finally{if(valid()){catalogGenerating=false;catalogStatus();if(failures)$('[data-catalog-thumb-status]').textContent=failures+' miniatura(s) indisponíveis. Tente novamente.';}}
+  }
   async function searchCatalog(){
-   const action=catalogKind;
-    const token=++catalogToken,box=$('[data-editor-catalog]');box.textContent='Buscando referências…';
-    try{
-     const search=field('catalog_search').value.trim();
-     const normalize=value=>String(value||'').normalize('NFD').replace(/\p{M}/gu,'').toLocaleLowerCase('pt-BR');
-     const results=action==='community'&&typeof cloud.communityInboxV2==='function'?(await communityRows())
-      .filter(row=>normalize([row.body,row.alias].join(' ')).includes(normalize(search)))
-      .slice(0,30).map(row=>({id:row.id,label:[row.alias,row.created_at&&new Date(row.created_at).toLocaleDateString('pt-BR'),row.body?.slice(0,120)].filter(Boolean).join(' · ')||'Publicação'})):
-      await endpoint(cloud,'catalog',{kind:action,search});
-     if(!current()||token!==catalogToken)return;
-     catalogRows=results.map(row=>({...row,kind:action}));
-     box.classList.add('structured-catalog-grid');
-     box.innerHTML=catalogRows.map((row,i)=>`<button type="button" class="structured-catalog-card" data-editor="reference" data-index="${i}"><span class="structured-catalog-thumb" data-catalog-thumb="${i}">${icon(action==='product'?'product':action==='community'?'group':'file')}</span><strong>${e(row.label)}</strong><small data-catalog-kind="${i}">${action==='product'?'Produto':action==='community'?'Comunidade':'Material da Biblioteca'}</small></button>`).join('')||'Nenhuma referência disponível.';
-     if(action==='document'&&typeof cloud.library==='function'){
-      // Carregar miniaturas progressivamente; uma falha não impede selecionar a referência.
-      void (async()=>{for(const [i,row] of catalogRows.entries()){
-       if(!current()||token!==catalogToken)return;
-       try{
-        const material=(await cloud.library('get',{id:row.id}))?.material;
-        const file=material?.attachments?.find(item=>item.mime==='application/pdf'||item.mime?.startsWith('video/'))||material?.attachments?.[0];
-        const mime=file?.mime||'';
-        const kind=mime==='application/pdf'?'PDF':mime.startsWith('video/')?'Vídeo':mime.startsWith('image/')?'Imagem':mime==='text/plain'?'Texto':material?.url?'Link':'Material';
-        if(!current()||token!==catalogToken)return;
-        box.querySelector('[data-catalog-kind="'+i+'"]').textContent=kind;
-        if(!file||typeof cloud.libraryMediaURL!=='function')continue;
-        const src=await cloud.libraryMediaURL(file,false);
-        const image=mime.startsWith('image/')?src:mime==='application/pdf'&&window.NeoLibraryFiles?.pdfCover?await window.NeoLibraryFiles.pdfCover(src,previewAbort.signal):mime.startsWith('video/')?await videoCover(src):null;
-        if(image&&current()&&token===catalogToken){
-         const img=document.createElement('img');img.src=image;img.alt='';img.loading='lazy';
-         box.querySelector('[data-catalog-thumb="'+i+'"]')?.replaceChildren(img);
-        }
-       }catch{}
-      }})();
+   const action=catalogKind;cancelCatalog();const controller=catalogController=new AbortController(),{signal}=controller;
+   const token=catalogToken,box=$('[data-editor-catalog]'),valid=()=>catalogCurrent(token,signal);box.textContent='Buscando referências…';catalogRows=[];catalogStatus();
+   try{
+    const search=field('catalog_search').value.trim();
+    const normalize=value=>String(value||'').normalize('NFD').replace(/\p{M}/gu,'').toLocaleLowerCase('pt-BR');
+    const results=action==='community'&&typeof cloud.communityInboxV2==='function'?(await communityRows())
+     .filter(row=>normalize([row.body,row.alias].join(' ')).includes(normalize(search)))
+     .slice(0,30).map(row=>({id:row.id,label:[row.alias,row.created_at&&new Date(row.created_at).toLocaleDateString('pt-BR'),row.body?.slice(0,120)].filter(Boolean).join(' · ')||'Publicação'})):
+     await endpoint(cloud,'catalog',{kind:action,search});
+    if(!valid())return;
+    catalogRows=results.map(row=>({...row,kind:action}));
+    box.classList.add('structured-catalog-grid');
+    box.innerHTML=catalogRows.map((row,i)=>`<button type="button" class="structured-catalog-card" data-editor="reference" data-index="${i}"><span class="structured-catalog-thumb" data-catalog-thumb="${i}">${icon(action==='product'?'product':action==='community'?'group':'file')}</span><strong>${e(row.label)}</strong>${action==='product'?'<strong class="structured-catalog-price">'+e(catalogPrice(row))+'</strong>':''}<small data-catalog-kind="${i}">${action==='product'?'Produto':action==='community'?'Comunidade':'Material da Biblioteca'}</small></button>`).join('')||'Nenhuma referência disponível.';
+    if(!['product','document'].includes(action))return;
+    catalogReady=typeof cloud.campaignThumbnailReady==='function'&&await cloud.campaignThumbnailReady().catch(()=>false);
+    if(!valid())return;
+    let shopRows=[];
+    if(action==='product'&&typeof cloud.shop==='function'){try{shopRows=(await cloud.shop('catalog')).products||[];}catch{}}
+    if(!valid())return;
+    await catalogPool(catalogRows,async(row,i)=>{
+     if(action==='product'){
+      const product=shopRows.find(item=>item.id===row.id&&item.active&&item.shop_store_hidden!==true);
+      const path=product?.photo_paths?.[0]||product?.photo_path;
+      if(path)row.thumbSource={kind:'shop',path};
+      if(!Number.isSafeInteger(row.price_cents)&&Number.isSafeInteger(product?.price_cents)){
+       row.price_cents=product.price_cents;const price=box.querySelector('[data-index="'+i+'"] .structured-catalog-price');if(valid()&&price)price.textContent=catalogPrice(row);
+      }
+     }else if(typeof cloud.library==='function'){
+      const material=(await cloud.library('get',{id:row.id}))?.material;
+      if(!valid())return;
+      const file=material?.attachments?.find(item=>item.mime==='application/pdf'||item.mime?.startsWith('video/'))||material?.attachments?.[0],mime=file?.mime||'';
+      const kind=mime==='application/pdf'?'PDF':mime.startsWith('video/')?'Vídeo':mime.startsWith('image/')?'Imagem':mime==='text/plain'?'Texto':material?.url?'Link':'Material';
+      const label=box.querySelector('[data-catalog-kind="'+i+'"]');if(label)label.textContent=kind;
+      if(file?.path&&(mime==='application/pdf'||mime.startsWith('video/')||mime.startsWith('image/')))row.thumbSource={kind:'library',path:file.path,file};
      }
-    }catch{if(current()&&token===catalogToken)box.textContent='Catálogo indisponível.';}
-   }
+     if(!valid()||!catalogReady||!row.thumbSource)return;
+     row.thumb=await cloud.campaignThumbnailURL(row.thumbSource.kind,row.thumbSource.path);
+     if(valid())showCatalogThumb(box,row,i,token,signal);
+    },valid);
+    if(valid())catalogStatus();
+   }catch{if(valid())box.textContent='Catálogo indisponível.';}
+  }
   dialog.addEventListener('keydown',event=>{
    if(event.key==='Enter'&&event.target.name==='catalog_search'){event.preventDefault();void searchCatalog();return;}
    if(['Enter',' '].includes(event.key)&&event.target.matches('[data-editor-image]')){
@@ -1081,6 +1129,7 @@
     if(!url){tell('Informe um link HTTPS válido.');return;}
     if(add({type:'link',url})){field('link').value='';closeSheet();}
    }
+   if(action==='prepare_thumbs'){void prepareCatalogThumbs();return;}
    if(action==='catalog_search')void searchCatalog();
    if(action==='reference'&&catalogRows[index]){
     const keepText=!editing&&Boolean(message.value.trim());
