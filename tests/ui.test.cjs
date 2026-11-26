@@ -634,6 +634,7 @@ test('localizacao do cadastro e opcional; IP fica primeiro e GPS atualiza cidade
    preferences={...preferences,...choices,pending:!complete&&preferences.pending};
    return preferences;
   },
+  geoControl:async()=>({allowed:true}),
   captureGeo:async()=>{calls.push(['ip'])},
   captureDeviceCity:async position=>{calls.push(['gps',position])}
  }});
