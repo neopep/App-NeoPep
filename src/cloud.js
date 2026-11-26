@@ -233,14 +233,18 @@ const api={configured,
  },
  async logout(scope='local'){await window.NeoPush?.detach();if(!['local','global'].includes(scope))throw Error('Escopo de sessão inválido.');if(client)ok(await client.auth.signOut({scope}));clearAuthStorage();identityVersion++;user=null;profileRevision=null;consents=[];isAdmin=false;onboarded=false},
  async load(){need();const account=user.id,version=identityVersion;
-  const [rows,pr,cr,ar]=await Promise.all([
+  const [rows,pr,cr,ar,vr]=await Promise.all([
    getRows(()=>client.from('neo_records').select('kind,id,data,revision').eq('user_id',account).order('updated_at').order('id')),
    client.from('neo_profiles').select('data,revision').eq('user_id',account).maybeSingle(),
    client.from('neo_consents').select('purpose,version,granted,changed_at').eq('user_id',account),
-   client.rpc('neo_admin_access')
+   client.rpc('neo_admin_access'),
+   Promise.resolve().then(()=>client.rpc('neo_vial_diary',{p_action:'read',p_data:{}})).catch(()=>({error:{code:'network'}}))
   ]);
   if(version!==identityVersion||user?.id!==account)throw Error('A conta mudou durante a leitura. Recarregue os dados.');
   const s=C.blank();for(const row of rows)if(C.TYPES.includes(row.kind))s[row.kind].push({...C.validRecord(row.kind,{...row.data,id:row.id}),_revision:row.revision});
+  const diary=vr?.data;
+  s.vialDiaryStatus=diary&&Array.isArray(diary.items)&&diary.links&&typeof diary.links==='object'&&!Array.isArray(diary.links)?'ready':(!vr?.error||['PGRST202','42883'].includes(vr.error.code)?'unavailable':'error');
+  if(s.vialDiaryStatus==='ready')s.vialDiary=diary;
   const p=ok(pr);consents=ok(cr)||[];isAdmin=ok(ar)===true;profileRevision=p?.revision??null;
   if(p?.data){s.profile=C.profile(p.data.profile);s.settings=C.validateBackup({settings:p.data.settings}).settings}else s.profile.name=String(user.user_metadata?.full_name||user.user_metadata?.name||'').slice(0,100);
   onboarded=!!p&&!!s.profile.height&&!!s.profile.initialWeight&&!!s.profile.goal&&api.hasConsent('health')&&api.hasConsent('terms');return s;
@@ -307,6 +311,18 @@ const api={configured,
  async adminSignupExport(filters={}){need();return ok(await client.rpc('neo_admin_signup_export',filters))},
  async adminSignups(action,filters={}){need();return ok(await client.rpc('neo_admin_signups',{...filters,p_action:action}))},
  async exportMetadata(){need();const account=user.id,version=identityVersion,data=ok(await client.rpc('neo_export_account_metadata'));const support=await client.rpc('neo_support_export');if(support.error&&!['PGRST202','42883'].includes(support.error.code))ok(support);const purchases=await client.rpc('neo_shop_export');if(purchases.error&&!['PGRST202','42883'].includes(purchases.error.code))ok(purchases);if(version!==identityVersion||account!==user?.id)throw Error('A conta mudou durante a exportação.');return {user:{id:user.id,email:user.email,created_at:user.created_at},...data,...(!support.error?{private_conversations:support.data}:{} ),...(!purchases.error?{purchases:purchases.data}:{})}},
+ async vialDiary(action,data={}){
+  need();if(!['read','add','put_dose','import_local'].includes(action))throw Error('Operação de frasco inválida.');
+  if(action!=='read')needsHealth();
+  const owner=user.id,version=identityVersion;
+  const response=await client.rpc('neo_vial_diary',{p_action:action,p_data:data});
+  if(owner!==user?.id||version!==identityVersion)throw Error('A conta mudou. Atualize o histórico.');
+  if(response.error?.code==='40001')throw Error('O frasco ou a aplicação mudou em outro aparelho. Atualize antes de tentar novamente.');
+  if(response.error?.message?.includes('vial_balance_insufficient'))throw Error('O saldo registrado mudou. Confira o histórico e o frasco.');
+  const result=ok(response),diary=action==='put_dose'?result?.diary:result;
+  if(!Array.isArray(diary?.items)||!diary.links||typeof diary.links!=='object'||Array.isArray(diary.links)||(action==='put_dose'&&!Number.isInteger(result.revision)))throw Error('A confirmação do servidor não retornou o diário. Atualize antes de tentar novamente.');
+  return result;
+ },
  async put(kind,record){needsHealth();const account=user.id,version=identityVersion,clean=C.validRecord(kind,record),base={user_id:account,kind,id:clean.id,data:clean};let r;
   if(record._revision!=null){r=await client.from('neo_records').update({data:clean}).eq('user_id',account).eq('kind',kind).eq('id',clean.id).eq('revision',record._revision).select('revision');if(!r.error&&!r.data.length)throw Error('Este registro mudou em outro aparelho. Atualize antes de editar.')}
   else {r=await client.from('neo_records').insert(base).select('revision');if(r.error?.code==='23505'){const existing=ok(await client.from('neo_records').select('data,revision').eq('user_id',account).eq('kind',kind).eq('id',clean.id).maybeSingle());if(!existing||C.fingerprint(kind,existing.data)!==C.fingerprint(kind,clean))throw Error('Já existe um registro com este identificador e outro conteúdo. Atualize o histórico antes de continuar.');r={data:[existing],error:null}}}
