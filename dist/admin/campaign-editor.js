@@ -224,6 +224,20 @@
   let catalogController=null,catalogReady=false,catalogGenerating=false,libraryShare=null;
   const current=()=>active&&cloud.user?.id===account;
   const mediaKey=id=>account+':'+state.editorId+':'+id;
+  async function readDraftMedia(id){
+   const blob=await storeMedia('readonly',store=>store.get(mediaKey(id)));
+   if(blob||!state.recoveryEditorId||!current())return blob;
+   const recovered=await storeMedia('readonly',store=>store.get(account+':'+state.recoveryEditorId+':'+id));
+   if(recovered&&current())await storeMedia('readwrite',store=>store.put(recovered,mediaKey(id)));
+   return current()?recovered:null;
+  }
+  const draftIsClean=()=>Boolean(state.remoteId&&state.savedDraft===JSON.stringify(draft)&&
+   (editing?draft.blocks.some(b=>b.id===editing&&String(b.text||'').trim()===message.value.trim()):!message.value.trim()));
+  let lastLocalWrite=null;
+  function clearConfirmedLocal(){
+   const alias='neo-campaign-editor:'+account+':'+channel+':'+state.editorId;
+   for(const k of new Set([key,alias]))if(lastLocalWrite&&localStorage.getItem(k)===lastLocalWrite)localStorage.removeItem(k);
+  }
   let noticeTimer,composing=false,provisional=Number.isInteger(state.provisional)?state.provisional:null;
   const captionTypes=['image','product','document','community','file','link'];
   const tell=text=>{
@@ -356,9 +370,13 @@
    if(!current())return false;
    state.compose=message.value;state.provisional=provisional;state.editing=editing;state.captionTarget=captionTarget;state.photoQuality=field('photo_quality')?.value;state.weeklyCount=field('weekly_count')?.value;state.push=field('push')?.checked===true;
    try{
+    if(publication&&state.dispatchConfirmed&&draftIsClean()){
+     clearConfirmedLocal();return true;
+    }
     const saved=JSON.stringify(state);
     localStorage.setItem(key,saved);
     localStorage.setItem('neo-campaign-editor:'+account+':'+channel+':'+state.editorId,saved);
+    lastLocalWrite=saved;
     tell('Rascunho salvo neste dispositivo.');return true;}
    catch{tell('Falha ao salvar neste dispositivo. Mantenha o editor aberto.');return false;}
   }
@@ -525,7 +543,7 @@
     const block=draft.blocks.find(item=>item.id===id);
     const stored=()=>block?.media_path&&cloud.campaignImageURL?cloud.campaignImageURL(block.media_path):null;
     const asset=previewImages.has(id)?Promise.resolve(previewImages.get(id)):readOnly?Promise.resolve().then(stored):
-     storeMedia('readonly',store=>store.get(mediaKey(id))).catch(()=>null).then(blob=>blob||stored());
+     readDraftMedia(id).catch(()=>null).then(blob=>blob||stored());
     void asset.then(blob=>{
      if(!current()||version!==revision)return;
      indicator.hidden=Boolean(blob);indicator.textContent=blob?'':'Imagem indisponível neste dispositivo.';
@@ -536,7 +554,7 @@
    for(const holder of preview.querySelectorAll('[data-local-file]')){
     const id=holder.dataset.localFile,block=draft.blocks.find(item=>item.id===id);
     void (async()=>{
-     const file=await storeMedia('readonly',store=>store.get(mediaKey(id))).catch(()=>null)||(block?.media_path&&cloud.campaignOriginalDownload?await cloud.campaignOriginalDownload(block.media_path):null);
+     const file=await readDraftMedia(id).catch(()=>null)||(block?.media_path&&cloud.campaignOriginalDownload?await cloud.campaignOriginalDownload(block.media_path):null);
      if(!current()||version!==revision)return;
      if(!file){holder.textContent='Arquivo original indisponível neste dispositivo.';return;}
      const url=URL.createObjectURL(file);objectUrls.add(url);
@@ -646,7 +664,7 @@
     &&(b.type!=='file'||/\.(pdf|mp4)$/.test(b.media_path||''))
     &&(b.type!=='link'||Boolean(validLink(b.url)))
     &&(!['product','document','community'].includes(b.type)||Boolean(b.ref)));
-   const allow=Boolean(!publication?.paused&&(!publication||channel==='app'||rich)&&enabled&&clean&&eligible&&pinned&&(appRich?appBlocks:rich?richBlocks:textOnly&&short));
+   const allow=Boolean(!(publication&&state.dispatchConfirmed)&&!publication?.paused&&(!publication||channel==='app'||rich)&&enabled&&clean&&eligible&&pinned&&(appRich?appBlocks:rich?richBlocks:textOnly&&short));
    dispatchReady.publish=Boolean(allow&&!(channel==='whatsapp'&&!testWA&&!gates.devices?.some(d=>d.ready)));
    dispatchReady.schedule=Boolean(allow&&draft.planned_local&&!(testWA&&!(rich?gates.whatsapp_rich?.ready:gates.whatsapp_test?.schedule_ready)));
    $('[data-editor=publish]').disabled=dispatching||saving;
@@ -733,6 +751,7 @@
   }
   async function requestDispatch(scheduled,trigger){
    if(saving||dispatching||!current())return;
+   if(publication&&state.dispatchConfirmed){tell('Esta publicação já foi registrada. Volte à Central para editar e republicar.');return;}
    checkDispatch=true;checkScheduled=scheduled;paintIssues();
    openPane('schedule',trigger);
    const explain=text=>{$('[data-editor-simulation]').textContent=text;tell(text);};
@@ -761,7 +780,7 @@
    openPane('confirmation',trigger);
   }
   async function dispatch(scheduled){
-   if(dispatching||saving||!current())return;
+   if(dispatching||saving||!current()||state.dispatchConfirmed&&publication)return;
    showGate();if(!dispatchReady[scheduled?'schedule':'publish']){tell('A versão ou a autorização mudou. Confira antes de confirmar.');return;}
    const rich=testWA&&richMode();
    if(publication&&channel==='whatsapp'&&!rich){tell('O envio exige Connect compatível e destinos sincronizados autorizados.');return;}
@@ -778,8 +797,10 @@
      rich?await cloud.campaignRich('publish',{...intent,request_id:request.id}):
      await cloud.campaignDispatch(action,{...intent,request_id:request.id});
     if(!current())return;
-    saveLocal();tell(testApp?'Campanha App de homologação registrada. Confirme a exibição em Acompanhar destinos.':channel==='app'?'Campanha App registrada.':'Ocorrência registrada'+(result?.batch_id?' · '+result.batch_id:'')+'. Confira os resultados por destino.');
+    if(publication){state.dispatchConfirmed=true;state.dispatchAttempt=null;}
+    const persisted=saveLocal();tell(testApp?'Campanha App de homologação registrada. Confirme a exibição em Acompanhar destinos.':channel==='app'?'Campanha App registrada.':'Ocorrência registrada'+(result?.batch_id?' · '+result.batch_id:'')+'. Confira os resultados por destino.');
     onSaved?.();
+    if(publication&&persisted&&draftIsClean()){dialog.close();}
    }catch{tell('Não foi possível confirmar a operação. Repita os mesmos dados para reconciliar.');}
    finally{dispatching=false;}
   }
@@ -812,7 +833,7 @@
      if(mime!=='application/pdf'&&!mime.startsWith('video/'))continue;
      if(!reference.image&&!reference.coverBlob)throw Error('A capa não pôde ser gerada. Selecione a capa deste material antes de salvar.');
      localImage=await referenceCoverBlob(reference,previewAbort.signal,window.NEO_CONFIG?.supabaseUrl);
-    }else localImage=await storeMedia('readonly',store=>store.get(mediaKey(block.id)));
+    }else localImage=await readDraftMedia(block.id);
     if(!localImage)throw Error('Imagem não encontrada neste dispositivo. Anexe novamente.');
     const jpeg=await jpegForDispatch(localImage);
     const path=account+'/'+block.id+'.jpg';
@@ -835,7 +856,7 @@
   async function uploadOriginalFiles(){
    for(const block of draft.blocks){
     if(block.type!=='file'||block.media_path)continue;
-    const file=await storeMedia('readonly',store=>store.get(mediaKey(block.id)));
+    const file=await readDraftMedia(block.id);
     if(!file)throw Error('Anexe novamente o arquivo original antes de salvar.');
     if(file.type==='text/plain')continue; // TXT remains local, never dispatched as an original.
     if(!['application/pdf','video/mp4'].includes(file.type)||typeof cloud.campaignOriginalUpload!=='function')throw Error('Atualize o aplicativo para guardar o arquivo original.');
@@ -847,7 +868,8 @@
   }
   let lastSaveError='';
   async function saveRemote(){
-   if(saving||!current())return;
+   if(saving||dispatching||!current())return;
+   if(publication&&state.dispatchConfirmed){tell('Esta publicação já foi registrada. Volte à Central para editar e republicar.');return;}
    lastSaveError='';
    const editingBlock=editing&&draft.blocks.find(block=>block.id===editing);
    if(editingBlock&&['image','product','document','community','link','file'].includes(editingBlock.type)){
@@ -901,7 +923,7 @@
    dialog.remove();onClosed?.();if(trigger?.isConnected)trigger.focus({preventScroll:true});
   }
   function close(){
-   if(saving){tell('Aguarde a confirmação do registro.');return false;}
+   if(saving||dispatching){tell('Aguarde a confirmação do registro.');return false;}
    if(!saveLocal()&&!window.confirm('O rascunho não foi salvo. Sair mesmo assim?'))return false;
    dialog.close();return true;
   }
@@ -1305,7 +1327,7 @@
     const copy={...block,id:uuid()};
     if(['image','file'].includes(block.type)){
      try{
-      const blob=await storeMedia('readonly',store=>store.get(mediaKey(block.id)));
+      const blob=await readDraftMedia(block.id);
       if(!blob){tell('Arquivo local indisponível para duplicar.');return;}
       await storeMedia('readwrite',store=>store.put(blob,mediaKey(copy.id)));
      }catch{tell('Falha ao duplicar o arquivo.');return;}
