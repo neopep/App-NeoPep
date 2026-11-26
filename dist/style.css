@@ -945,3 +945,9 @@ dialog.neo-structured-editor::backdrop{background:#192720}
 [data-theme=light] .admin-signup-toast progress::-webkit-progress-bar{background:#dbe3ee;border-radius:999px}
 [data-theme=light] .admin-signup-toast progress::-webkit-progress-value{background:#223F63;border-radius:999px}
 [data-theme=light] .admin-signup-toast progress::-moz-progress-bar{background:#223F63;border-radius:999px}
+
+/* Histórico de frascos do diário: mesmos cards e desenho da calculadora. */
+.diary-vial-history{display:grid;gap:.7rem;margin-top:.6rem}
+.calc-vial-overview .card-head{align-items:center;flex-wrap:wrap;margin-bottom:.2rem}
+.calc-vial-overview .card-head .primary{min-height:44px}
+.calc-vial-overview .calc-vial-facts .tag{width:max-content;max-width:100%}
