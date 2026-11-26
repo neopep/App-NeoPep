@@ -629,3 +629,20 @@ test('cabeçalho e Perfil usam o mesmo arquivo principal do avatar salvo',async(
  assert.equal(run.document.querySelector('#avatar img').getAttribute('src'),'https://test.invalid/recorte.jpg');
  assert.match(run("mode='local';profilePage()"),/<div class="avatar"><img src="https:\/\/test\.invalid\/recorte\.jpg"/);
 });
+
+test('histórico permite excluir foto de evolução sem depender de miniatura',()=>{
+ const run=app();const html=run("photoTiles([{id:'old-photo',date:'2026-02-01',role:'progress'},{id:'profile',date:'2026-02-01',role:'avatar'}])");
+ const {document}=parseHTML('<main>'+html+'</main>');
+ const tile=document.querySelector('[data-photo-delete="old-photo"]');
+ assert.ok(tile);assert.equal(tile.parentElement.querySelector('[data-photo-media]').hasAttribute('src'),false);
+ assert.equal(document.querySelector('[data-photo-delete="profile"]'),null);
+ assert.equal(tile.parentElement.querySelector('[data-photo-open]').contains(tile),false);
+});
+test('calculadora compacta preserva informacoes, alertas e tres capacidades',()=>{
+ const run=app();const html=run('calculator()');const {document}=parseHTML('<main>'+html+'</main>');
+ assert.equal(document.querySelectorAll('.calc-capacity-choice').length,3);
+ assert.ok(document.querySelector('.calc-capacity .calc-info-balloon').textContent.includes('profissional de saúde'));
+ assert.ok(document.querySelector('.calc-result .calc-info-balloon').textContent.includes('seguro'));
+ assert.ok(document.querySelector('#calc-dose-limit'));
+ assert.ok(document.querySelector('#calc-dose-brief'));
+});
