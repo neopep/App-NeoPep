@@ -1804,7 +1804,7 @@ function mountPrivacyPreferences(){
   baseline=values;
   for(const [key] of privacyOptions){
    const field=form.querySelector('[name='+key+']');
-   if(field)field.checked=initial&&values.pending?true:values[key]===true;
+   if(field)field.checked=initial&&values.pending&&key!=='location'?true:values[key]===true;
   }
   const locationField=form.querySelector('[name=location]');
   if(locationField)locationField.disabled=!values.location&&window.NEO_CONFIG?.stagingGeoEnabled!==true;
