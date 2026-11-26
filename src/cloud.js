@@ -90,6 +90,13 @@ const api={configured,
   if(version!==identityVersion||user?.id!==owner)throw Error('A conta mudou durante o envio.');
   return result.path;
  },
+ async campaignOriginalURL(path){
+  const sdk=need(),version=identityVersion,owner=user?.id;
+  if(!owner||typeof path!=='string'||!/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.(pdf|mp4)$/.test(path))throw Error('Arquivo indisponível.');
+  const result=ok(await sdk.storage.from('neo-campaign-originals').createSignedUrl(path,120));
+  if(version!==identityVersion||user?.id!==owner)throw Error('A conta mudou.');
+  return result.signedUrl;
+ },
  async campaignOriginalDownload(path){
   const sdk=need(),version=identityVersion,owner=user?.id;
   if(!owner||typeof path!=='string'||!/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.(pdf|mp4)$/.test(path)||path.split('/')[0]!==owner)throw Error('Arquivo indisponível.');
