@@ -3,9 +3,13 @@
  const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
  const date=value=>value?new Date(value).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}):'';
  const local=value=>value?.replace('T',' ')||'';
+ const saoPauloDay=value=>{
+  const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(value).reduce((o,p)=>({...o,[p.type]:p.value}),{});
+  return parts.year+'-'+parts.month+'-'+parts.day;
+ };
  const dateBadge=pub=>{
   const stamp=pub.batches[0]?.due_at;
-  const day=stamp?new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(stamp)):pub.planned_local?.slice(0,10);
+  const day=stamp?saoPauloDay(new Date(stamp)):pub.planned_local?.slice(0,10);
   if(!day)return '<strong>Sem data</strong>';
   const d=new Date(day+'T12:00:00Z');
   if(!Number.isFinite(d.getTime()))return '<strong>Sem data</strong>';
@@ -174,7 +178,7 @@
   }
   function weeklyForm(pub,existing){
    const rule=existing?.rule||{};
-   const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+   const today=saoPauloDay(new Date());
    const start=rule.start||(pub.planned_local?.slice(0,10)>today?pub.planned_local.slice(0,10):today);
    const defaultDay=new Date(start+'T12:00:00Z').getUTCDay();
    const legacyWeekly=Boolean(existing&&rule.frequency!=='daily'&&rule.times?.length>1);
