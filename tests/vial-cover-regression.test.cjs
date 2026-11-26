@@ -6,12 +6,12 @@ const dist=fs.readFileSync('dist/app.js','utf8');
 const css=fs.readFileSync('dist/style.css','utf8');
 const editor=fs.readFileSync('dist/admin/campaign-editor.js','utf8');
 
-test('calculadora mostra saldo do frasco depois do resultado e reaproveita SVG original',()=>{
+test('calculadora mostra previsão do frasco depois do resultado e reaproveita SVG original',()=>{
  assert.equal(src,dist,'build não deve reintroduzir a calculadora anterior');
- const form=src.indexOf('function calculator(){');
+ const form=src.indexOf('function calculator(forVial=false){');
  const done=src.indexOf('function calcSliderConfig(id)',form);
  const html=src.slice(form,done);
- assert.ok(html.indexOf('card calc-result')<html.indexOf('card calc-vial-overview'));
+ assert.ok(html.indexOf('card calc-result')<html.indexOf('card calc-vial-overview',html.indexOf('card calc-result')));
  assert.ok(src.includes("calcVial('balance')"));
  assert.ok(src.includes('[data-calc-fill="balance"]'));
  assert.ok(src.includes("fill.setAttribute('height',height)"));
@@ -29,7 +29,9 @@ test('cálculo funciona sem frasco físico e usa última dosagem salva por padr�
  assert.ok(src.includes("if(selected)applyCalcSaved(selected);"));
  assert.ok(src.includes("updateCalcVial();"));
  assert.ok(src.includes("Dosagem acompanhada<select id=\"calc-vial-select\""));
- assert.ok(src.includes("Frasco físico vinculado a aplicações (opcional)"));
+ assert.ok(!src.includes('calc-vial-tracked-select'));
+ assert.ok(!src.includes('data-calc-vial-action'));
+ assert.match(src,/const mass=enteredMass;\s*const remaining=mass;/);
 });
 
 test('capa de vídeo procura frame após início antes de gerar JPEG, com alternativa na falha',()=>{
@@ -38,4 +40,66 @@ test('capa de vídeo procura frame após início antes de gerar JPEG, com altern
  assert.ok(editor.includes("[.15,.38,.63].map(fraction"));
  assert.ok(editor.includes("canvas.toDataURL('image/jpeg',.82)"));
  assert.ok(editor.includes("Capa automática indisponível: escolher imagem alternativa"));
+});
+
+function vialHarness(){
+ const state={doses:[]};
+ const vial={id:'v1',name:'Produto A',product:'Produto A',mass:10,volume:2};
+ let stored={items:[vial],links:{},active:vial.id};
+ const start=src.indexOf('function vialDoseMass('),end=src.indexOf("document.addEventListener('click',async event=>{\n if(!event.target.closest('[data-diary-vial-save]')",start);
+ const functions=src.slice(start,end).replace(/document\.addEventListener\('click',async event=>\{\n if\(!event\.target\.closest\('\[data-diary-vial-import\]'\)[\s\S]*?\n\}\);\n/,'');
+ const api=new Function('state','readCalcVials','saveCalcVials','cloudVialDiaryReady',functions+';return {vialBalance,activeDiaryVial,prepareDiaryVialLink};')(state,()=>stored,next=>{stored=next},()=>false);
+ return {state,stored,vial,...api};
+}
+test('diário vincula automaticamente, desconta somente registros existentes e preserva o histórico',()=>{
+ const h=vialHarness(),a={id:'d1',product:'Produto A',unit:'mg',amount:2};
+ h.prepareDiaryVialLink(a,null,'v1');
+ assert.equal(h.stored.links.d1,'v1');
+ assert.equal(h.vialBalance(h.vial,h.stored.links).mass,10);
+ h.state.doses.push(a);
+ assert.deepEqual(h.vialBalance(h.vial,h.stored.links),{mass:8,volume:1.6,percent:80});
+ const b={id:'d2',product:'Produto A',unit:'mcg',amount:2000};
+ h.prepareDiaryVialLink(b,null,'v1');h.state.doses.push(b);
+ const c={id:'d3',product:'Produto A',unit:'mL',amount:1.2};
+ h.prepareDiaryVialLink(c,null,'v1');h.state.doses.push(c);
+ assert.equal(h.vialBalance(h.vial,h.stored.links).mass,0);
+ assert.equal(h.activeDiaryVial(h.stored),null);
+ assert.throws(()=>h.prepareDiaryVialLink({...a,id:'d4'},null,'v1'),/novo frasco/);
+ const next={id:'v2',product:'Produto A',name:'Produto A',mass:10,volume:2};
+ h.stored.items.unshift(next);h.stored.active=next.id;
+ h.prepareDiaryVialLink({...a,amount:1},a,'v1');h.state.doses[0]={...a,amount:1};
+ assert.equal(h.stored.links.d1,'v1');assert.equal(h.vialBalance(h.vial,h.stored.links).mass,1);
+ assert.equal(h.vialBalance(next,h.stored.links).mass,10);
+ h.state.doses=h.state.doses.filter(r=>r.id!=='d2');
+ assert.equal(h.vialBalance(h.vial,h.stored.links).mass,3);
+});
+test('diário impede vínculo incompatível, saldo insuficiente e mudança de frasco',()=>{
+ const h=vialHarness(),r={id:'d1',product:'Produto A',unit:'mg',amount:1};
+ assert.throws(()=>h.prepareDiaryVialLink(r,null,'outro'),/frasco mudou/);
+ assert.throws(()=>h.prepareDiaryVialLink({...r,product:'Produto B'},null,'v1'),/não corresponde/);
+ assert.throws(()=>h.prepareDiaryVialLink({...r,amount:11},null,'v1'),/excede/);
+ assert.deepEqual(h.stored.links,{});
+ h.prepareDiaryVialLink(r,r,'');assert.deepEqual(h.stored.links,{});
+});
+test('diário usa os cards originais e separa acompanhamento físico da calculadora',()=>{
+ assert.match(src,/\$\{diaryVials\(\)\}<section class="card"><div class="card-head"><h2>Histórico de aplicações/);
+ assert.match(src,/frasco:\(\)=>calculator\(true\)/);
+ assert.match(src,/\$\{calcField\('mass'\)\}\$\{calcField\('volume'\)\}\$\{calcCapacity\(\)\}\$\{calcField\('dose'\)\}/);
+ assert.match(src,/data-diary-vial-save/);
+ assert.match(src,/Histórico de frascos/);
+ assert.match(src,/Frasco vinculado:/);
+});
+
+test('diário online usa transação de aplicação e preserva dados locais até importação explícita',()=>{
+ const cloud=fs.readFileSync('src/cloud.js','utf8'),sql=fs.readFileSync('release/pacote-final-20261125/vial_diary_cloud_candidate.sql','utf8');
+ assert.match(src,/Cloud\.vialDiary\('put_dose'/);
+ assert.match(src,/Cloud\.vialDiary\('import_local'/);
+ assert.match(src,/if\(!existing&&!cloudVialDiaryReady\(\)\)/);
+ assert.match(cloud,/client\.rpc\('neo_vial_diary'/);
+ assert.match(sql,/pg_advisory_xact_lock/);
+ assert.match(sql,/foreign key\(user_id,dose_kind,dose_id\).*on delete cascade/);
+ assert.match(sql,/vial_active_changed/);
+ assert.match(sql,/vial_balance_insufficient/);
+ assert.match(sql,/auth\.uid\(\)/);
+ assert.match(sql,/revoke all on neo_private\.vial_diary,neo_private\.vial_diary_links/);
 });
