@@ -239,7 +239,7 @@ begin
    'ready',coalesce((select enabled from neo_private.campaign_wa_rich_control where singleton),false)
      and neo_private.campaign_wa_test_ready(actor,t.connection_id,t.group_jid)
      and exists(select 1 from neo_private.connect_wa_connections c join neo_private.connect_devices d on d.id=c.device_id
-       where c.id=t.connection_id and d.owner_id=actor and d.version='0.2.12' and d.state='approved'),
+       where c.id=t.connection_id and d.owner_id=actor and d.version in ('0.2.12','0.2.13','0.2.14','0.2.15') and d.state='approved'),
    'destination',t.connection_id::text||':'||t.group_jid,'max_blocks',6,'max_image_bytes',1048576,
    'originals_enabled',coalesce((select originals_enabled from neo_private.campaign_wa_rich_control where singleton),false));
  end if;
@@ -267,7 +267,7 @@ begin
  if not (select enabled from neo_private.campaign_wa_rich_control where singleton)
    or not neo_private.campaign_wa_test_ready(actor,t.connection_id,t.group_jid)
    or not exists(select 1 from neo_private.connect_wa_connections c join neo_private.connect_devices d on d.id=c.device_id
-      where c.id=t.connection_id and d.owner_id=actor and d.version='0.2.12' and d.state='approved') then
+      where c.id=t.connection_id and d.owner_id=actor and d.version in ('0.2.12','0.2.13','0.2.14','0.2.15') and d.state='approved') then
   raise exception 'rich_dispatch_not_ready' using errcode='42501';
  end if;
  req:=(p_data->>'request_id')::uuid;
@@ -430,7 +430,7 @@ begin
    join neo_private.campaign_wa_rich_batches b on b.id=job.batch_id
    where job.owner_id=actor and job.connection_id=t.connection_id and job.group_jid=t.group_jid
     and b.cancelled_at is null and job.state='waiting' and job.due_at<=now()
-    and (job.kind<>'file' or (p_data->'originals_v1'='true'::jsonb and coalesce((select originals_enabled from neo_private.campaign_wa_rich_control where singleton),false)))
+    and (job.kind<>'file' or (d.version in ('0.2.14','0.2.15') and p_data->'originals_v1'='true'::jsonb and coalesce((select originals_enabled from neo_private.campaign_wa_rich_control where singleton),false)))
     and not exists(select 1 from neo_private.campaign_wa_rich_messages preceding
         where preceding.batch_id=job.batch_id and preceding.sequence<job.sequence and preceding.state<>'accepted')
     and not exists(select 1 from neo_private.campaign_wa_rich_messages recent
@@ -452,7 +452,7 @@ begin
   for update;
  if not found then raise exception 'rich_lease_invalid' using errcode='42501';end if;
  if p_action='start' then
-  if m.state<>'leased' or (m.kind='file' and (p_data->'originals_v1' is distinct from 'true'::jsonb or not coalesce((select originals_enabled from neo_private.campaign_wa_rich_control where singleton),false))) then raise exception 'rich_lease_not_available' using errcode='42501';end if;
+  if m.state<>'leased' or (m.kind='file' and (d.version not in ('0.2.14','0.2.15') or p_data->'originals_v1' is distinct from 'true'::jsonb or not coalesce((select originals_enabled from neo_private.campaign_wa_rich_control where singleton),false))) then raise exception 'rich_lease_not_available' using errcode='42501';end if;
   update neo_private.campaign_wa_rich_messages set state='started' where id=m.id;
   insert into neo_private.campaign_wa_rich_audit(message_id,event,device_id) values(m.id,'started',p_device);
   return jsonb_build_object('id',m.id,'group_jid',m.group_jid,'kind',m.kind,'text',m.body,
