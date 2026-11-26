@@ -169,12 +169,13 @@
     <form data-central-form="weekly" data-id="${escape(pub.id)}" data-request="${crypto.randomUUID()}" data-replace="${escape(existing?.id)}" class="campaign-central-form">
     <label>Frequência<select name="frequency"><option value="weekly">Semanal</option><option value="daily" ${rule.frequency==='daily'?'selected':''}>Diária</option></select></label>
     <fieldset><legend>Dias da semana (repetição semanal)</legend><div class="inline-actions">${weekdays.map((day,i)=>`<label class="check"><input type="checkbox" name="days" value="${i}" ${rule.days?.includes(i)?'checked':''}> ${day}</label>`).join('')}</div></fieldset>
-    <label>Horários em São Paulo<input name="times" value="${escape(rule.times?.join(', ')||rule.time)}" placeholder="09:00, 18:30" required></label>
+    <fieldset class="central-time-picker"><legend>Horários em São Paulo</legend><div data-central-times>${(rule.times?.length?rule.times:[rule.time||'09:00']).map(time=>`<div class="central-time-chip"><input type="time" name="time" value="${escape(time)}" required aria-label="Horário"><button type="button" class="text-btn" data-remove-time aria-label="Remover horário">×</button></div>`).join('')}</div><button type="button" class="secondary" data-add-time>+ Horário</button><p class="sub">Na frequência diária, adicione até 8 horários. Na semanal, escolha um horário para os dias selecionados.</p></fieldset>
     <label>Início<input type="date" name="start" value="${escape(rule.start)}" required></label>
     <label>Término (opcional)<input type="date" name="end" value="${escape(rule.end)}"></label>
     <label>Número máximo de ocorrências<input type="number" name="count" min="1" max="24" value="${rule.count||4}" required></label>
     <p class="sub">Até 24 ocorrências nos próximos 89 dias. As publicações em andamento mantêm o histórico.</p>
     <button type="submit" class="primary">Conferir próximas datas</button></form>`);
+   syncTimeControls(root.querySelector('[data-central-form="weekly"]'));
   }
   function duplicateForm(pub){
    redraw(`${button('open','‹ Agenda',current)}<h2>Duplicar publicação</h2><p>${escape(pub.title)}</p>
@@ -222,7 +223,7 @@
      if(active()){view='agenda';await load(result.campaign_id);}
     }else if(form.dataset.centralForm==='weekly'){
      const fields=new FormData(form),source=await rpc('load',{publication_id:form.dataset.id});
-     const rule={start:fields.get('start'),end:fields.get('end'),frequency:fields.get('frequency'),times:String(fields.get('times')).split(',').map(time=>time.trim()),count:Number(fields.get('count')),
+     const rule={start:fields.get('start'),end:fields.get('end'),frequency:fields.get('frequency'),times:fields.getAll('time').map(time=>String(time).trim()),count:Number(fields.get('count')),
       days:fields.getAll('days').map(Number)};
      const dates=weeklyDates(rule),groups=source?.draft?.groups||[];
      if(!dates.length||!groups.length){show('Confira datas e horários e selecione destinos na publicação.');return;}
@@ -247,6 +248,24 @@
    }catch{show('O servidor não confirmou a operação. Confira os dados e tente novamente.');}
    finally{busy=false;submit.disabled=false;}
   });
+  root.addEventListener('click',event=>{
+   const add=event.target.closest('[data-add-time]'),remove=event.target.closest('[data-remove-time]');
+   if(!add&&!remove)return;
+   const form=event.target.closest('[data-central-form="weekly"]'),list=form?.querySelector('[data-central-times]');
+   if(!list)return;
+   if(remove&&list.childElementCount>1)remove.closest('.central-time-chip').remove();
+   if(add&&form.elements.frequency.value==='daily'&&list.childElementCount<8){
+    list.insertAdjacentHTML('beforeend','<div class="central-time-chip"><input type="time" name="time" required aria-label="Horário"><button type="button" class="text-btn" data-remove-time aria-label="Remover horário">×</button></div>');
+    list.lastElementChild.querySelector('input').focus();
+   }
+   syncTimeControls(form);
+  });
+  function syncTimeControls(form){
+   const daily=form.elements.frequency.value==='daily',list=form.querySelector('[data-central-times]');
+   form.querySelector('[data-add-time]').hidden=!daily;
+   for(const chip of [...list.children].slice(1)){chip.hidden=!daily;chip.querySelector('input').disabled=!daily;}
+   for(const day of form.querySelectorAll('[name=days]'))day.disabled=daily;
+  }
   root.addEventListener('click',async event=>{
    const control=event.target.closest('[data-central]');
    if(!control||busy||!active())return;
@@ -316,6 +335,7 @@
    finally{busy=false;}
   });
   root.addEventListener('change',event=>{
+   if(event.target.matches('[name=frequency]')&&event.target.closest('[data-central-form="weekly"]'))syncTimeControls(event.target.form);
    if(event.target.matches('[data-central-filter]')){filter=event.target.value;list();}
    if(event.target.matches('[data-central-search]')){search=event.target.value.trim().toLocaleLowerCase('pt-BR');list();root.querySelector('[data-central-search]').focus();}
    if(event.target.matches('[data-central-date]'))root.querySelectorAll('[data-central-date-list] article').forEach(node=>{node.hidden=Boolean(event.target.value&&node.dataset.day<event.target.value);});
