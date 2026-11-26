@@ -279,6 +279,22 @@ const api={configured,connectTestEnabled:connectEnabled,
   }
   if(!valid())throw Error('A conta mudou ou o envio foi interrompido.');return ticket.path;
  },
+ async libraryCampaignShare(action,material,path,extra={}){
+  const sdk=need(),version=identityVersion,owner=user?.id;
+  if(!owner||!['get','set','authorize'].includes(action)||!/^[a-f0-9-]{36}$/.test(material||'')||!/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.[a-z0-9]{1,12}$/.test(path||''))throw Error('Material inválido.');
+  const r=await sdk.rpc('neo_library_campaign_share',{p_action:action,p_data:{...extra,material_id:material,path}});
+  if(version!==identityVersion||owner!==user?.id)throw Error('A conta mudou.');
+  if(action==='get'&&r.error?.code==='PGRST202')return null;
+  return ok(r);
+ },
+ async libraryCampaignOriginalURL(material,file){
+  const sdk=need(),version=identityVersion,owner=user?.id;
+  const permission=await api.libraryCampaignShare('authorize',material,file.path,{mode:'original'});
+  if(permission?.original!==true||version!==identityVersion||owner!==user?.id)throw Error('Compartilhamento não autorizado.');
+  const r=ok(await sdk.storage.from('neo-library').createSignedUrl(file.path,60,{download:file.name}));
+  if(version!==identityVersion||owner!==user?.id)throw Error('A conta mudou.');
+  return r.signedUrl;
+ },
  async libraryMediaURL(file,download=false){need();const version=identityVersion;if(download&&file.allow_download===false)throw Error('O download deste arquivo não foi disponibilizado.');if(typeof file.allow_download==='boolean')await api.library('media_access',{path:file.path,download});if(version!==identityVersion)throw Error('A conta mudou.');const data=ok(await client.storage.from('neo-library').createSignedUrl(file.path,file.mime?.startsWith('video/')||file.mime==='application/pdf'?1800:60,download?{download:file.name}:{}));if(version!==identityVersion)throw Error('A conta mudou.');return data.signedUrl},
  async library(action='read',payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_library',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou. Reabra a biblioteca.');if(action==='read'&&data?.can_manage===true)data.upload_limits=await api.libraryUploadLimits();if(version!==identityVersion)throw Error('A conta mudou.');return data},
  async community(action,payload={}){need();const version=identityVersion;const data=ok(await client.rpc("neo_community",{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error("A conta mudou. Reabra a comunidade.");return data},get user(){return user},get validated(){return config.cloudValidated===true},get admin(){return isAdmin},get onboardingComplete(){return onboarded},get consents(){return consents.map(c=>({...c}))},hasConsent(purpose){return consents.some(c=>c.purpose===purpose&&c.version==='2026-11-v1'&&c.granted)},
