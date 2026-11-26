@@ -60,8 +60,8 @@ test('staging installs at the root and keeps the former launch and worker routes
     URL, self: { registration: { scope }, addEventListener() {} }
   });
   assert.notEqual(cache('https://test.example/'), cache('https://test.example/neo/'));
-  assert.match(cache('https://test.example/'),/pwa-v52-diario-frascos$/);
-  assert.match(cache('https://test.example/neo/'),/pwa-v52-diario-frascos$/);
+  assert.match(cache('https://test.example/'),/pwa-v53-campanhas-central$/);
+  assert.match(cache('https://test.example/neo/'),/pwa-v53-campanhas-central$/);
   assert.match(read('sw.js'),/'appearance\.js'/);
   assert.match(read('sw.js'),/'library-video\.js','library-files\.js'/);
   for(const file of ['index.html','neo/index.html']){
