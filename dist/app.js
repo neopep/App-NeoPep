@@ -1837,7 +1837,7 @@ function mountPrivacyPreferences(){
   // Start native authorization within the submit gesture, before the network request.
   const wantsCampaigns=choices.campaigns===true;
   const nativeNotice=wantsCampaigns?Promise.resolve(window.NeoPush?.enable?.()).then(active=>active?'Notificações ativadas neste dispositivo.':'Confira a ativação de notificações em Lembretes.').catch(error=>error?.message||'O aparelho não autorizou as notificações; confira os ajustes do iPhone.'):Promise.resolve('');
-  const locationCheck=!skipping&&form.querySelector('[name=location]')?.checked===true&&locationObservationEnabled()?requestDeviceLocation():null;
+  const locationCheck=!skipping&&form.querySelector('[name=location]')?.checked===true&&window.NEO_CONFIG?.stagingGeoEnabled===true?requestDeviceLocation():null;
   saving=true;fields.disabled=true;save.disabled=true;if(skip)skip.disabled=true;
   status.textContent=locationCheck?'Aguardando a permissão do aparelho…':'Salvando preferências…';
   try{
