@@ -65,3 +65,32 @@ test('peso inicial do cadastro e enviado uma unica vez, com data local, na RPC t
  assert.equal(calls[0].payload.p_terms,true);
  assert.equal(profile.initialRecordDate,undefined,'o campo transitorio nao deve alterar o perfil do formulario');
 });
+
+test('GPS converte posicao no navegador em cidade/estado sem enviar coordenadas ao Supabase',async()=>{
+ const a=adapter(),requests=[];
+ a.ctx.AbortController=AbortController;
+ a.ctx.clearTimeout=()=>{};a.ctx.setTimeout=()=>1;
+ a.ctx.fetch=async(url)=>{
+  requests.push(['geocoder',String(url)]);
+  return {ok:true,json:async()=>({lookupSource:'coordinates',city:'Itapema',principalSubdivision:'Santa Catarina',countryCode:'BR'})};
+ };
+ a.sdk.rpc=async(name,params)=>{requests.push(['rpc',name,params]);return {data:true,error:null}};
+ await a.api.init(()=>{});
+ assert.equal(await a.api.captureDeviceCity({latitude:-27.1,longitude:-48.6,accuracy:10}),true);
+ assert.match(requests[0][1],/^https:\/\/api\.bigdatacloud\.net\/data\/reverse-geocode-client\?/);
+ assert.equal(requests[1][1],'neo_geo_device_city');
+ assert.deepEqual(JSON.parse(JSON.stringify(requests[1][2])),{p_country:'BR',p_region:'Santa Catarina',p_city:'Itapema'});
+ assert.equal(JSON.stringify(requests[1]).includes('-27.1'),false);
+ assert.equal(JSON.stringify(requests[1]).includes('-48.6'),false);
+});
+test('geocodificador IP ou coordenadas invalidas nao substituem municipio por GPS',async()=>{
+ const a=adapter(),requests=[];
+ a.ctx.AbortController=AbortController;
+ a.ctx.clearTimeout=()=>{};a.ctx.setTimeout=()=>1;
+ a.ctx.fetch=async()=>({ok:true,json:async()=>({lookupSource:'ipGeolocation',city:'Florianópolis',principalSubdivision:'Santa Catarina',countryCode:'BR'})});
+ a.sdk.rpc=async(name,payload)=>{requests.push([name,payload]);return {data:true,error:null}};
+ await a.api.init(()=>{});
+ assert.equal(await a.api.captureDeviceCity({latitude:-27.1,longitude:-48.6}),null);
+ assert.equal(await a.api.captureDeviceCity({latitude:999,longitude:0}),null);
+ assert.equal(requests.length,0);
+});
