@@ -1055,7 +1055,7 @@ async function mountCampaigns(root){
  structured.addEventListener('toggle',()=>{void refreshStructured();});
  const stagingCampaigns=window.NEO_CONFIG?.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co';
  let appCentralAvailable=false;
- if(stagingCampaigns&&typeof cloud.campaignCentral==='function'){
+ if(typeof cloud.campaignCentral==='function'){
   try{appCentralAvailable=Array.isArray(await cloud.campaignCentral('app_list',{offset:0}));}catch{/* Preserve the existing App flow until the release SQL is installed. */}
  }
  if(!root.isConnected)return;
@@ -1120,7 +1120,7 @@ async function mountCampaigns(root){
  const appCloud=Object.create(cloud);Object.defineProperty(appCloud,'campaignCentral',{value:(action,data)=>cloud.campaignCentral(action==='copy_channel'?action:'app_'+action,data)});
  const appCentral=appCentralAvailable&&window.NeoCampaignCentral&&typeof cloud.campaignCentral==='function'
   ?window.NeoCampaignCentral.mount({root:appCentralHost,cloud:appCloud,channel:'app',legacy:()=>rows,
-   openLegacy:(id,trigger)=>{const row=rows.find(item=>item.id===id);if(row&&draftOkay()){openedBy=trigger;edit(row);}},onCross:(channel,id)=>{showArea(channel);void (channel==='app'?appCentral:central)?.open(id);}}):null;
+   openLegacy:(id,trigger)=>{const row=rows.find(item=>item.id===id);if(row&&draftOkay()){openedBy=trigger;edit(row);}},onCross:central?(channel,id)=>{showArea(channel);void (channel==='app'?appCentral:central)?.open(id);}:null}):null;
 
  let waActive=false;
  function updateScreen(){
