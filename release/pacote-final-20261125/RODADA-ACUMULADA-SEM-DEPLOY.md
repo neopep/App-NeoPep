@@ -160,3 +160,10 @@ Todos exigem validação em ambiente isolado, checagem de privilégios e RLS, ro
 4. Homologar pop-up rico e push com dispositivo/conta autorizados e verificar frequência, plano e audiência real. Em Teste não há conta habilitada e o gate permanece fechado; não ampliar a lista automaticamente.
 5. Sincronização do diário de frascos entre dispositivos continua pendente, fora do ajuste de campanhas.
 6. Manter prioridades 2 e 3 anteriores adiadas, deploy automático desativado e ordem de publicação Produção → Teste após concluir preparação. Nenhum deploy, push ou mensagem real nesta rodada.
+
+
+## Continuação — séries App
+- `campaign_app_draft_repeat_candidate.sql` deve ser ensaiado/aplicado após central App e configurações App de cada ambiente. É candidato comum, sem modificar gates. RPC valida regra, datas em São Paulo, revisão e titularidade; idempotência por solicitação, até 24 ocorrências/89 dias, até oito horários diários ou um horário por dia semanal. Cria uma série transacional de rascunhos, sem despacho. UI detecta capacidade do servidor e lista séries na agenda. Revisar e agendar os rascunhos pela ação já existente. Não há ainda alteração/cancelamento coletivo da série nem execução autônoma indefinida.
+- Para evitar sobreposição, cada rascunho recebe encerramento no primeiro entre próxima ocorrência, 24h após seu início e encerramento anterior configurado. Frequência e limite de exibições valem por ocorrência. Push continua desativado em Teste e sujeito ao gate oficial em Produção.
+- Ensaio em Teste com rollback: criação de quatro rascunhos, idempotência, regra semanal personalizada, rejeição de regra incompleta, nenhum lote criado; segundo ensaio com app_settings confirmou três janelas e persistência do encerramento. A consulta de pós-verificação do primeiro ensaio confirmou rollback. Não homologado no banco oficial nem em dispositivo real.
+- CI das duas branches disparada; confirmação final pendente. Delegação de envio automático entre administradores continua pendente (não transferir titularidade ou contornar autorização). Sem deploy, sem envio real, sem migração persistente. Prioridades 2 e 3 anteriores continuam adiadas.
