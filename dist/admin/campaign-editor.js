@@ -53,6 +53,8 @@
   if(!/^image\/(jpeg|png|webp)$/.test(blob.type)||!blob.size||blob.size>10*1024*1024)throw Error('Imagem publicada inválida ou acima do limite.');
   return blob;
  }
+ const communitySummaryChoices=[['change','Variação de peso'],['days','Dias de acompanhamento'],['current','Peso atual'],['goal','Meta de peso'],['initial','Peso inicial'],['height','Altura'],['weights','Peso · últimos 3 registros'],['measures','Medidas · últimos 3 registros'],['journal','Diário · últimos 3 registros'],['doses','Aplicações · últimos 3 registros'],['protocols','Protocolos · últimos 3 registros'],['reminders','Lembretes · últimos 3 registros']];
+ const communitySummaryCard=s=>{if(!s||typeof s!=='object')return '';const labels={change_kg:'Variação de peso',current_kg:'Peso atual',goal_kg:'Meta de peso',days:'Dias de acompanhamento',initial_kg:'Peso inicial',height_cm:'Altura'};const names={date:'Data',value:'Peso (kg)',fat:'Gordura (%)',waist:'Cintura (cm)',hip:'Quadril (cm)',chest:'Tórax (cm)',arm:'Braço (cm)',thigh:'Coxa (cm)',note:'Observações',wellbeing:'Bem-estar',energy:'Energia',sleep:'Sono (h)',appetite:'Apetite',water:'Hidratação (L)',activity:'Atividade (min)',product:'Produto',amount:'Quantidade',unit:'Unidade',site:'Local',name:'Nome',end:'Fim',status:'Status',title:'Título',time:'Horário',repeat:'Repetição',weekday:'Dia da semana',enabled:'Ativo'};const value=v=>v==null?'Sem registro':typeof v==='boolean'?(v?'Sim':'Não'):typeof v==='object'?e(JSON.stringify(v)):e(String(v));return `<div class="chat-summary"><strong>Meu resumo de evolução</strong><dl>${Object.entries(labels).filter(([key])=>Object.hasOwn(s,key)).map(([key,label])=>`<div><dt>${label}</dt><dd>${s[key]==null?'Sem registro':e(key.endsWith('_kg')?window.NeoCore.formatWeight(s[key]):Number(s[key]).toLocaleString('pt-BR'))+(key==='days'?' dias':key==='height_cm'?' cm':' kg')}</dd></div>`).join('')}</dl>${communitySummaryChoices.filter(([key])=>Array.isArray(s[key])).map(([key,label])=>`<details class="shared-records" open><summary>${label}</summary>${s[key].map(row=>`<dl>${Object.entries(row).filter(([k])=>!['id','protocolId','_revision'].includes(k)).map(([k,v])=>`<div><dt>${e(names[k]||k)}</dt><dd>${key==='weights'&&k==='value'&&v!=null?e(window.NeoCore.formatWeight(v)):value(v)}</dd></div>`).join('')}</dl>`).join('')||'<p>Sem registros</p>'}</details>`).join('')}<small>Retrato de ${e(s.as_of||'')} · Selecionado pelo autor</small></div>`};
  function communityTextBlocks(text){
   const out=[];let remaining=String(text||'').trim();
   while(remaining.length>2000){
@@ -455,7 +457,7 @@
    if(!model)return block.type==='community'?'<p class="sub">Carregando publicação ou conteúdo indisponível.</p>':'';
    if(block.type==='community')return `<section class="structured-reference structured-community-reference">
     <strong class="structured-community-author">${e(model.meta||'Comunidade')}</strong>
-    ${model.snapshot&&window.NeoCommunity?.summaryCard?window.NeoCommunity.summaryCard(model.snapshot):''}
+    ${model.snapshot?communitySummaryCard(model.snapshot):''}
     ${model.image?`<img src="${e(model.image)}" alt="Imagem original da publicação" referrerpolicy="no-referrer">`:model.hasPhoto?'<p class="sub">Imagem da publicação indisponível.</p>':''}
     ${model.communityFile?`<div class="chat-document">📄 ${e(model.communityFile)}</div>`:''}
     <p class="structured-community-body">${e(model.excerpt||'')}</p>
@@ -1140,8 +1142,8 @@
      if(!communityShareActive(session))return;
      if(!post)throw Error('A publicação não está mais disponível.');
      const blocks=[];
-     if(post.snapshot&&window.NeoCommunity?.summaryCard){
-      const holder=document.createElement('div');holder.innerHTML=window.NeoCommunity.summaryCard(post.snapshot);
+     if(post.snapshot){
+      const holder=document.createElement('div');holder.innerHTML=communitySummaryCard(post.snapshot);
       const lines=Array.from(holder.querySelectorAll('dl>div')).map(item=>[item.querySelector('dt')?.textContent,item.querySelector('dd')?.textContent].filter(Boolean).join(': '));
       if(lines.length)blocks.push(...communityTextBlocks(['Resumo de evolução compartilhado',...lines].join('\n')));
      }
