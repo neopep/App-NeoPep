@@ -8,7 +8,7 @@ alter table neo_private.campaign_app_groups add column paused_at timestamptz;
 create table neo_private.campaign_group_pause_audit(
  id bigint generated always as identity primary key,
  campaign_id uuid not null references neo_private.campaigns(id),
- owner_id uuid not null references auth.users(id),
+ owner_id uuid not null references auth.users(id) on delete cascade,
  channel text not null check(channel in ('whatsapp','app')),
  enabled boolean not null, recorded_at timestamptz not null default now()
 );
