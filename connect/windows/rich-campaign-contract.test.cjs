@@ -41,7 +41,15 @@ test('editor so libera multi-blocos via gate rico e confirmacao',()=>{
   assert.match(editor,/rich\?await cloud\.campaignRich\('publish'/);
   assert.match(editor,/cloud\.campaignMediaUpload/);
   assert.match(editor,/if\(\(testWA\|\|testApp\|\|channel==='app'&&gates\.app_rich_popup===true\)&&draft\.blocks\.some/);
-  assert.match(editor,/!testWA\|\|gates\.whatsapp_rich\?\.originals_enabled!==true/);
+  assert.match(editor,/draft\.blocks\.some\(b=>b\.type==='file'\)&&!libraryOriginalReady\(\)/);
+  const snippet=editor.slice(editor.indexOf('  function libraryOriginalReady(){'),editor.indexOf('  function libraryShareActive('));
+  const ready=(channel,testWA,testApp,gates,testGate={})=>new Function('channel','testWA','testApp','gates','testGate',snippet+';return libraryOriginalReady();')(channel,testWA,testApp,gates,testGate);
+  assert.equal(ready('whatsapp',true,false,{whatsapp_rich:{originals_enabled:false}}),false);
+  assert.equal(ready('whatsapp',true,false,{whatsapp_rich:{originals_enabled:true}}),true);
+  assert.equal(ready('whatsapp',false,false,{whatsapp_rich:{originals_enabled:true}}),false);
+  assert.equal(ready('app',false,true,{},{rich_popup:false}),false);
+  assert.equal(ready('app',false,true,{},{rich_popup:true}),true);
+  assert.equal(ready('app',false,false,{app_rich_popup:false}),false);
   assert.match(editor,/block\.type!=='file'\|\|\(gates\.whatsapp_rich\?\.originals_enabled===true/);
   assert.match(cloud,/async campaignRich\(/);
   assert.match(cloud,/async campaignMediaUpload\(/);
