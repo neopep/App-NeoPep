@@ -65,7 +65,8 @@
       "fix/pacote-final-20261125": false,
       "preparacao/auditoria-final-teste-20261125": false,
       "preparacao/auditoria-final-producao-20261125": false,
-      "main": false
+      "main": false,
+      "preparacao/campanhas-producao-20261125": false
     }
   }
 }
