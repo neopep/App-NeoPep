@@ -43,7 +43,7 @@ export async function generateVideoPreview(bytes,{ffmpeg,ffprobe,signal}={}){
    }
    if(chosen===undefined)continue;
    const out='part'+i+'.mp4';
-   await run(ffmpeg,['-nostdin','-hide_banner','-v','error','-protocol_whitelist','file,pipe','-threads','1','-ss',String(chosen),'-i','input.media','-t',String(range.length),'-map','0:v:0','-an','-sn','-dn','-vf','scale='+w+':'+h+':force_original_aspect_ratio=decrease:force_divisible_by=2,pad='+w+':'+h+':(ow-iw)/2:(oh-ih)/2,setsar=1,fps=12','-c:v','libx264','-threads','1','-profile:v','baseline','-pix_fmt','yuv420p','-bf','0','-b:v','380k','-maxrate','420k','-bufsize','420k','-movflags','+faststart','-map_metadata','-1','-map_chapters','-1','-y',out]);
+   await run(ffmpeg,['-nostdin','-hide_banner','-v','error','-protocol_whitelist','file,pipe','-threads','1','-ss',String(chosen),'-i','input.media','-t',String(range.length),'-map','0:v:0','-an','-sn','-dn','-vf','scale='+w+':'+h+':force_original_aspect_ratio=decrease:force_divisible_by=2,pad='+w+':'+h+':(ow-iw)/2:(oh-ih)/2,setsar=1,fps=12,setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration=0.25,trim=duration='+range.length,'-c:v','libx264','-threads','1','-profile:v','baseline','-pix_fmt','yuv420p','-bf','0','-b:v','380k','-maxrate','420k','-bufsize','420k','-movflags','+faststart','-map_metadata','-1','-map_chapters','-1','-y',out]);
    files.push(out);
   }
   if(!files.length)throw Error('Não foi possível localizar trechos visíveis.');
