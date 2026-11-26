@@ -382,10 +382,14 @@
      removeLocal(key);show('Campanha copiada para '+target+' como rascunho.');onCross?.(copied.channel,copied.campaign_id);return;
     }
     if(action==='add')await editor(crypto.randomUUID(),control,{new:true,fresh:true});
-    if(action==='resume'&&localDrafts().some(row=>row.id===id))await editor(id,control,{new:!detail.publications.some(pub=>pub.id===id)});
+    if(action==='resume'&&localDrafts().some(row=>row.id===id)){
+     const saved=detail.publications.find(pub=>pub.id===id);
+     if(saved&&(detail.archived_at||saved.deleted_at||saved.legacy_dispatch||saved.batches[0]&&(saved.batches[0].cancelled_at==null||saved.batches[0].states?.some(value=>value!=='cancelled')))){show('A publicação salva está bloqueada para edição. O rascunho local foi preservado.');return;}
+     await editor(id,control,{new:!saved});
+    }
     if(action==='discard'&&localDrafts().some(row=>row.id===id)&&confirm('Descartar somente o rascunho local desta publicação? A versão salva na Central será preservada.')){
      const key='neo-campaign-editor:'+account+':'+channel+':'+current+':'+id;
-     try{const item=JSON.parse(getLocal(key));if(item?.editorId)removeLocal('neo-campaign-editor:'+account+':'+channel+':'+item.editorId);}catch{}
+     try{const raw=getLocal(key),item=JSON.parse(raw);if(item?.editorId){const alias='neo-campaign-editor:'+account+':'+channel+':'+item.editorId;if(getLocal(alias)===raw)removeLocal(alias);}}catch{}
      removeLocal(key);if(getLocal(pointer())===id)removeLocal(pointer());details();
     }
     if(action==='clear_date'){dateFilter='';details();}
