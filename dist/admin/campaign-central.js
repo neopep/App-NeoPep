@@ -33,7 +33,8 @@
   if(states.includes('accepted'))return 'accepted';
   return 'cancelled';
  }
- function mount({root,cloud,legacy,openLegacy,recoverLegacy,onConnect}){
+ function mount({root,cloud,legacy,openLegacy,recoverLegacy,onConnect,channel='whatsapp',onCross}){
+  const isApp=channel==='app',channelLabel=isApp?'App':'WhatsApp';
   let current=null, detail=null, weekly=[], rows=[], filter='', search='', view='agenda', screen='', busy=false, formKey='', page=0, more=false;
   const account=cloud.user.id;
   const active=()=>root.isConnected&&cloud.user?.id===account;
@@ -65,7 +66,7 @@
   }
   let loadEpoch=0;
   const legacyStates=new Map();
-  const legacyKey='neo-campaign-editor:'+account+':whatsapp:new';
+  const legacyKey='neo-campaign-editor:'+account+':'+channel+':new';
   const pointer=()=> 'neo-campaign-central:'+account+':'+current;
   const getLocal=key=>{try{return localStorage.getItem(key);}catch{return null;}};
   const setLocal=(key,value)=>{try{localStorage.setItem(key,value);}catch{}};
@@ -83,19 +84,20 @@
   function list(){
    screen='list';current=null;detail=null;
    const seen=new Set(rows.map(row=>row.campaign_id));
-   const feed=[...rows,...legacy().filter(row=>row.whatsapp_enabled&&!seen.has(row.id)&&!legacyStates.get(row.id)?.deleted).map(row=>({...row,campaign_id:row.id,legacy:true}))];
+   const feed=[...rows,...legacy().filter(row=>(isApp?(row.popup_enabled!==false||row.push_requested):row.whatsapp_enabled)&&!row.structured_review_only&&!seen.has(row.id)&&!legacyStates.get(row.id)?.deleted).map(row=>({...row,campaign_id:row.id,legacy:true}))];
    const visible=feed.filter(row=>(!filter||campaignState(row)===filter)&&(row.title||'').toLocaleLowerCase('pt-BR').includes(search));
-   redraw(`<div class="between"><h2>Campanhas WhatsApp</h2>${button('new','+ Nova campanha','','primary')}</div>
+   redraw(`<div class="between"><h2>Campanhas ${channelLabel}</h2>${button('new','+ Nova campanha','','primary')}</div>
     <div class="central-filters"><label class="central-search">${icon('search')}<input type="search" aria-label="Buscar campanha" placeholder="Buscar campanha" data-central-search value="${escape(search)}"></label><label>Estado<select data-central-filter>
     ${[['','Todas'],['draft','Rascunhos'],['active','Ativas'],['scheduled','Agendadas'],['completed','Concluídas'],['archived','Arquivadas'],['legacy','Legadas']].map(([value,label])=>`<option value="${value}" ${filter===value?'selected':''}>${label}</option>`).join('')}</select></label>
-    ${getLocal(legacyKey)?button('recover','Continuar rascunho anterior'):''}</div><div data-central-feed>
+    ${!isApp&&getLocal(legacyKey)?button('recover','Continuar rascunho anterior'):''}</div><div data-central-feed>
     ${visible.map(row=>`<article class="monitor-block"><div class="between"><h3>${escape(row.title)}</h3><span class="campaign-state">${labels[campaignState(row)]}</span></div>
-    <p class="sub">${row.legacy?'Campanha manual · fluxo legado':`${row.publications} publicação(ões) · ${row.drafts} rascunho(s) · ${row.pending||0} pendente(s) · ${row.problems||0} com problema${row.next_at?' · Próxima: '+date(row.next_at):''}`}</p>
-    ${button(row.legacy?'legacy':'open',row.legacy?'Abrir campanha manual':'Abrir campanha',row.campaign_id)}
-    ${row.legacy&&legacyStates.get(row.id)?.can_delete?button('delete_legacy','Excluir campanha manual',row.id):''}</article>`).join('')||'<p>Nenhuma campanha com esse filtro.</p>'}
+    <p class="sub">${row.legacy?(isApp?'Campanha App existente · fluxo anterior':'Campanha manual · fluxo legado'):`${row.publications} publicação(ões) · ${row.drafts} rascunho(s) · ${row.pending||0} pendente(s) · ${row.problems||0} com problema${row.next_at?' · Próxima: '+date(row.next_at):''}`}</p>
+    ${row.origin_channel?'<p class="sub">Criada a partir do '+(row.origin_channel==='app'?'App':'WhatsApp')+'</p>':''}${button(row.legacy?'legacy':'open',row.legacy?'Abrir campanha existente':'Abrir campanha',row.campaign_id)}
+    ${!isApp&&row.legacy&&legacyStates.get(row.id)?.can_delete?button('delete_legacy','Excluir campanha manual',row.id):''}</article>`).join('')||'<p>Nenhuma campanha com esse filtro.</p>'}
     </div>${more?button('more','Carregar mais campanhas'):''}`);
   }
   async function refreshLegacy(){
+   if(isApp)return;
    const ids=[...new Set(legacy().filter(row=>row.whatsapp_enabled).map(row=>row.id))];
    for(let i=0;i<ids.length;i+=50){
     const batch=await rpc('legacy_states',{ids:ids.slice(i,i+50)}).catch(()=>null);
@@ -115,9 +117,10 @@
    screen='create';formKey=crypto.randomUUID();
    redraw(`${button('back','‹ Campanhas')}<h2>Nova campanha</h2><form data-central-form="create" class="campaign-central-form">
     <label>Nome da campanha<input name="title" required maxlength="120" autocomplete="off"></label>
-    <p class="sub">Canal WhatsApp. Os horários são independentes por publicação.</p><div data-central-destination></div>
+    <p class="sub">Canal ${channelLabel}. Os horários são independentes por publicação.</p><div data-central-destination></div>
     <button type="submit" class="primary">Criar campanha</button></form>`);
    root.querySelector('[name=title]').focus();
+   if(isApp)return;
    try{
     const diagnostics=await cloud.campaignRich('diagnostics',{});
     const groups=await cloud.campaignWhatsAppSync('catalog');
@@ -138,16 +141,16 @@
    const cards=entries=>entries.map(pub=>{
     const batch=pub.batches[0],locked=Boolean(pub.deleted_at)||pub.legacy_dispatch||Boolean(batch&&(batch.cancelled_at==null||batch.states?.some(value=>value!=='cancelled')));
     return `<article class="monitor-block central-publication"><div class="central-date-badge">${dateBadge(pub)}</div><div class="central-publication-body"><div class="central-publication-title"><strong>${escape(pub.title)}</strong><span class="campaign-state">${pub.deleted_at?'Excluída':status(pub)}</span></div>
-     <p class="sub">${pub.kinds?.length||0} mensagem(ns)${pub.kinds?.length?' · '+escape(pub.kinds.join(', ')):''}</p>
+     <p class="sub">${pub.kinds?.length||0} ${isApp?'bloco(s)':'mensagem(ns)'}${pub.kinds?.length?' · '+escape(pub.kinds.join(', ')):''}</p>
      ${view==='agenda'&&editable&&pub.planned_local&&!locked?`<label class="check"><input type="checkbox" name="selected-publication" value="${escape(pub.id)}" aria-label="Selecionar para agendar"> Agendar</label>`:''}
      <details class="central-action-menu"><summary aria-label="Opções da publicação">⋯</summary><div class="central-action-popover">${button('edit',locked||!editable?'Ver publicação':'Editar publicação',pub.id)}
-     ${editable&&!pub.deleted_at?button('duplicate_form','Duplicar / distribuir',pub.id)+(typeof cloud.campaignWeekly==='function'?button('weekly_form','Programar repetição',pub.id):''):''}
+     ${editable&&!pub.deleted_at?button('duplicate_form','Duplicar / distribuir',pub.id)+(!isApp&&typeof cloud.campaignWeekly==='function'?button('weekly_form','Programar repetição',pub.id):''):''}
      ${batch?.states?.includes('waiting')&&editable&&!pub.deleted_at?button('cancel','Cancelar pendências',pub.id):''}
      ${editable&&!pub.deleted_at?button('delete_publication','Excluir publicação',pub.id):''}</div></details>
      ${view==='history'?`<div data-central-history="${escape(pub.id)}">${button('attempts','Ver tentativas e recibos',pub.id)}</div>`:''}</div></article>`;
    }).join('');
    redraw(`${button('back','‹ Campanhas')}<section class="central-campaign-heading"><h2>${escape(detail.title)}</h2><div class="central-campaign-icons">${editable?iconAction('rename','Renomear')+iconAction('archive','Arquivar'):''}${iconAction('delete','Excluir campanha')}</div></section>
-    <p class="sub">WhatsApp · ${items.length} publicação(ões)${editable?'':' · Arquivada'}</p>
+    <p class="sub">${channelLabel} · ${items.length} publicação(ões)${editable?'':' · Arquivada'}${detail.origin_channel?' · Criada no '+(detail.origin_channel==='app'?'App':'WhatsApp'):''}</p>
     <div class="inline-actions">${button('agenda','Agenda','',view==='agenda'?'primary':'secondary')}${button('history','Histórico','',view==='history'?'primary':'secondary')}</div>
     ${view==='agenda'? `<div class="central-publication-head"><h3>Publicações</h3>${editable&&!getLocal(pointer())?button('add','+ Adicionar publicação','','primary'):''}</div><label class="central-date-filter">A partir de<input type="date" data-central-date></label><div data-central-date-list>${cards(dated)||'<p>Sem publicações com data.</p>'}</div>
      <h3>Rascunhos sem data</h3>${cards(undated)||'<p>Sem rascunhos sem data.</p>'}
@@ -165,7 +168,7 @@
   async function load(id){
    current=id;
    const result=await rpc('get');
-   const series=typeof cloud.campaignWeekly==='function'?await weeklyRpc('list').catch(()=>[]):[];
+   const series=!isApp&&typeof cloud.campaignWeekly==='function'?await weeklyRpc('list').catch(()=>[]):[];
    if(active()&&current===id){detail=result;weekly=series;details();}
   }
   async function editor(id,trigger,options={}){
@@ -173,7 +176,7 @@
    const remote=options.new?null:await rpc('load',{publication_id:id});
    if(!active()||current!==campaignId)return;
    if(options.new)setLocal(pointer(),id);
-   window.NeoCampaignEditor.open({cloud,channel:'whatsapp',remote,trigger,fresh:options.fresh,readOnly:options.readOnly,
+   window.NeoCampaignEditor.open({cloud,channel,remote,trigger,fresh:options.fresh,readOnly:options.readOnly,
     publication:{campaignId,id,title:detail.title,destination:options.new||!remote?detail.default_destination:null},onConnect,onClosed:()=>{if(active()&&current===campaignId)details();},onSaved:()=>{
      if(getLocal(pointer())===id)removeLocal(pointer());
      if(active()&&current===campaignId)void load(campaignId).catch(()=>show('Atualize para conferir a publicação salva.'));
@@ -208,6 +211,14 @@
   async function scheduleSelected(){
    const selected=[...root.querySelectorAll('[name=selected-publication]:checked')].map(element=>detail.publications.find(pub=>pub.id===element.value));
    if(!selected.length){show('Selecione uma ou mais publicações.');return;}
+   if(isApp){
+    const diag=await cloud.campaignTest('diagnostics');
+    if(!diag.enabled||!diag.audience_key||diag.destinations<1||diag.destinations>30){show('Homologação App indisponível. Confira as contas autorizadas.');return;}
+    if(!confirm('Agendar somente para as '+diag.destinations+' contas autorizadas de Teste?\n\n'+selected.map(p=>p.title+' · '+local(p.planned_local)).join('\n')))return;
+    const outcomes=[];
+    for(const pub of selected){if(!active())return;try{const v=await rpc('load',{publication_id:pub.id});if(!v||v.revision!==pub.revision)throw Error('revision');const key='neo-campaign-app-intent:'+account+':'+pub.id+':'+pub.revision+':'+pub.planned_local;const request=getLocal(key)||crypto.randomUUID();setLocal(key,request);await rpc('schedule',{publication_id:pub.id,revision:pub.revision,local_time:pub.planned_local,request_id:request,confirmed:true,destination_count:diag.destinations,audience_key:diag.audience_key});outcomes.push(pub.title+': agendada');}catch{outcomes.push(pub.title+': não confirmada');}}
+    await load(current);show(outcomes.join(' · '));return;
+   }
    const diagnostics=await cloud.campaignRich('diagnostics',{});
    if(!diagnostics.ready){show('Agendamento indisponível. Confira o Connect de Teste e o grupo autorizado.');return;}
    const hydrated=await Promise.all(selected.map(async pub=>({pub,revision:await rpc('load',{publication_id:pub.id})})));
@@ -325,7 +336,7 @@
     if(action==='resume'&&getLocal(pointer()))await editor(getLocal(pointer()),control);
     if(action==='discard'&&confirm('Descartar a digitação local desta campanha?')){
      const id=getLocal(pointer());
-     removeLocal('neo-campaign-editor:'+account+':whatsapp:'+current+':'+id);removeLocal(pointer());details();
+     removeLocal('neo-campaign-editor:'+account+':'+channel+':'+current+':'+id);removeLocal(pointer());details();
     }
     if(action==='delete_publication'&&pub&&!pub.deleted_at&&confirm('Excluir esta publicação e cancelar as pendências que ainda não começaram? O histórico será preservado.')){
      await rpc('delete_publication',{publication_id:pub.id,confirmed:true});
@@ -356,7 +367,11 @@
      await rpc('cancel',{publication_id:id,batch_id:pub.batches[0].id});await load(current);
     }
     if(action==='schedule_selected')await scheduleSelected();
-    if(action==='attempts'&&pub){
+    if(action==='attempts'&&pub&&isApp){
+     const batches=await cloud.campaignTest('status',{editor_id:pub.editor_id});
+     if(active()&&control.parentElement.isConnected)control.parentElement.innerHTML=batches.map(b=>'<p class="sub">'+date(b.starts_at)+' · '+(b.cancelled_at?'Cancelada':(b.recipients||[]).filter(r=>r.status==='displayed').length+' exibição(ões) confirmada(s)')+'</p>').join('')||'<p>Sem histórico de publicação.</p>';
+    }
+    if(action==='attempts'&&pub&&!isApp){
      const rich=await cloud.campaignRich('status',{editor_id:pub.editor_id});
      const legacy=pub.legacy_dispatch?await cloud.campaignDispatch('status',{editor_id:pub.editor_id}):[];
      const history=[...rich,...legacy.map((row,index)=>({...row,sequence:index+1,has_receipt:row.attempts?.some(attempt=>Boolean(attempt.receipt_id))}))];
@@ -372,7 +387,7 @@
    if(event.target.matches('[data-central-search]')){search=event.target.value.trim().toLocaleLowerCase('pt-BR');list();root.querySelector('[data-central-search]').focus();}
    if(event.target.matches('[data-central-date]'))root.querySelectorAll('[data-central-date-list] article').forEach(node=>{node.hidden=Boolean(event.target.value&&node.dataset.day<event.target.value);});
   });
-  return {async load(){if(!screen){screen='loading';redraw('<p>Consultando campanhas…</p>');try{await refresh();}catch{screen='failed';show('Central indisponível. Atualize o painel para tentar novamente.');}}},syncLegacy(){if(screen==='list'&&!busy){list();void refreshLegacy().then(()=>{if(screen==='list'&&!busy)list();});}}};
+  return {async reload(){try{await refresh();}catch{screen='failed';show('Central indisponível. Atualize o painel.');}},async load(){if(!screen){screen='loading';redraw('<p>Consultando campanhas…</p>');try{await refresh();}catch{screen='failed';show('Central indisponível. Atualize o painel para tentar novamente.');}}},syncLegacy(){if(screen==='list'&&!busy){list();void refreshLegacy().then(()=>{if(screen==='list'&&!busy)list();});}}};
  }
  window.NeoCampaignCentral={mount};
 })();
