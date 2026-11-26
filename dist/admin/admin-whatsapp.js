@@ -204,6 +204,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  const dateLabel=(instant,timezone)=>instant?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:timezone}).format(new Date(instant))+' · '+timezone:'';
  const states={pending:'Pendente',scheduled:'Programada',late:'Atrasada',done:'Concluída manualmente',cancelled:'Cancelada'};
  const mayAct=row=>['pending','scheduled','late'].includes(row.state);
+ const sharedQueueEnabled=window.NEO_CONFIG?.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co'&&typeof cloud.campaignCentral==='function';
  const dayNames=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
  let groupRows=[],queueRows=[],campaigns=[],prepared=null,selectedJob=null,files=[],refreshToken=0,prepareToken=0,working=false,groupSearch='',reminderTimer;
  root.innerHTML=`<div class="between" ${embedded?'hidden':''}><h3>WhatsApp</h3>${openManual?action('manual','<span aria-hidden="true">?</span> <span class="admin-pdf-accessible">Manual do WhatsApp</span>'):''}</div>
@@ -231,7 +232,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  ${dayNames.map((name,i)=>`<label class="check"><input type="checkbox" name="weekday" value="${i}">${name}</label>`).join('')}</div></fieldset>
  <label class="check"><input type="checkbox" name="remind"> Lembrete no painel</label>
  <button type="submit" class="primary">Salvar publicação</button></form>
- <fieldset class="space"><legend data-campaign-legend="state">Fila de publicações</legend><div data-wa-queue></div></fieldset>`;
+ <fieldset class="space"><legend data-campaign-legend="state">Fila de publicações</legend>${sharedQueueEnabled?`<section class="shared-campaign-queue"><div class="between"><h3>Fila central · administradores</h3>${action('refresh_shared','Atualizar')}</div><p class="sub">Acompanhamento de mensagens automáticas e manuais. Ações de envio continuam sujeitas às permissões do responsável.</p><label>Estado<select data-shared-filter><option value="">Todos</option><option value="waiting">Aguardando</option><option value="scheduled">Agendada</option><option value="in_progress">Processando</option><option value="accepted">Aceita pelo cliente</option><option value="manual_done">Confirmada manualmente</option><option value="uncertain">Incerta</option><option value="refused">Recusada</option><option value="cancelled">Cancelada</option></select></label><div data-shared-queue role="status">Carregando fila…</div><h4>Fluxo manual</h4></section>`:''}<div data-wa-queue></div></fieldset>`;
  const connect=q('[data-wa-connect]');
  const syncCatalog=embedded?mountSyncedCampaignGroups(q('[data-wa-sync-catalog]'),{cloud}):null;
  const syncPicker=embedded?mountSyncedCampaignGroups(q('[data-wa-sync-recipients]'),{cloud,picking:true}):null;
@@ -309,6 +310,21 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
   destination.innerHTML=groupRows.filter(gr=>gr.active).map(gr=>`<label class="check"><input type="checkbox" name="group" value="${esc(gr.id)}" ${existing.has(gr.id)?'checked':''}>${esc(gr.name)}</label>`).join('')||'<p>Cadastre um grupo ativo para programar a divulgação.</p>';
   destination.prepend(...retained);
  }
+ let sharedRows=[],sharedToken=0,sharedFailed=false;
+ const sharedLabels={waiting:'Aguardando',scheduled:'Agendada',in_progress:'Processando',accepted:'Aceita pelo cliente',manual_done:'Confirmada manualmente',uncertain:'Resultado incerto · revisar',refused:'Recusada',cancelled:'Cancelada'};
+ function renderSharedQueue(){
+  const holder=q('[data-shared-queue]');if(!holder)return;
+  if(sharedFailed){holder.textContent='Fila consolidada indisponível; use a fila manual abaixo.';return;}
+  const filter=q('[data-shared-filter]').value;
+  holder.innerHTML=sharedRows.filter(row=>!filter||row.state===filter).map(row=>`<article class="monitor-block"><div class="between"><strong>${esc(row.title)}</strong><span class="campaign-state">${esc(sharedLabels[row.state]||'Estado desconhecido')}</span></div><p class="sub">${esc(dateLabel(row.due_at,'America/Sao_Paulo'))} · ${row.channel==='connect'?'NeoPep Connect':'Manual'} · ${row.own?'Minha publicação':'Outra conta / fluxo compartilhado'} · ${Number(row.messages)||0} bloco(s)</p></article>`).join('')||'<p class="sub">Nenhuma publicação neste filtro.</p>';
+ }
+ async function refreshSharedQueue(){
+  if(!sharedQueueEnabled)return;
+  const token=++sharedToken,account=cloud.user?.id;
+  try{const rows=await cloud.campaignCentral('shared_queue',{});if(token!==sharedToken||!root.isConnected||cloud.user?.id!==account)return;sharedRows=Array.isArray(rows)?rows:[];sharedFailed=false;renderSharedQueue();}
+  catch{if(token===sharedToken&&root.isConnected&&cloud.user?.id===account){sharedRows=[];sharedFailed=true;renderSharedQueue();}}
+ }
+ q('[data-shared-filter]')?.addEventListener('change',renderSharedQueue);
  function renderQueue(){
   q('[data-wa-queue]').innerHTML=queueRows.filter(row=>!q('[data-wa-queue-filter]')?.value||q('[data-wa-queue-filter]').value===row.state).map(row=>`<article class="monitor-block">
    <h4>${esc(row.title)} · ${esc(row.group_name)}</h4>
@@ -325,7 +341,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
   const token=++refreshToken;
   const [groups,queue]=await Promise.all([syncCatalog?[]:rpc('groups',null,{search:groupSearch}),rpc('queue')]);
   if(token!==refreshToken||!root.isConnected)return;
-  groupRows=groups;queueRows=queue;renderGroups();renderQueue();await reminders();
+  groupRows=groups;queueRows=queue;renderGroups();renderQueue();void refreshSharedQueue();await reminders();
  }
  function preview(){
   const pane=q('[data-wa-preview]');
@@ -425,6 +441,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
     form.querySelector('[name=group]:checked')?.closest('label')?.textContent.trim()})});return;
   }
   if(wa==='manual'){openManual?.(button);return;}
+  if(wa==='refresh_shared'){void refreshSharedQueue();return;}
   void protectedAction(async()=>{
    if(wa==='clear_group'){resetGroup();return;}
    if(wa==='edit_group'){
