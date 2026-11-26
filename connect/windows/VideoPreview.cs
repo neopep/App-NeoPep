@@ -9,11 +9,112 @@ using System.Threading.Tasks;
 
 sealed partial class Connect {
     bool videoPreviewBusy;
+    System.Windows.Forms.Button videoToolsInstall;
+    System.Windows.Forms.Label videoToolsStatus;
+    // Download separately, on an explicit user action. No Supabase credentials
+    // are sent to the upstream distributor and no converter is repackaged.
+    const string VideoToolsVersion="9.0.2";
+    const string VideoToolsArchive="https://github.com/GyanD/codexffmpeg/releases/download/9.0.2/ffmpeg-9.0.2-essentials_build.zip";
+    const string VideoToolsArchiveHash="60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba";
+    const long VideoToolsArchiveBytes=114768076;
+    static bool provisioningVideoTools;
+    static string VideoToolsFolder(){return Path.Combine(ConnectProfile.InstallFolder,"video-tools-"+VideoToolsVersion);}
+    static string PreviewFileHash(string path){
+        using(var stream=File.OpenRead(path))using(var hash=SHA256.Create())
+            return BitConverter.ToString(hash.ComputeHash(stream)).Replace("-","").ToLowerInvariant();
+    }
+    static async Task DownloadVideoToolsArchive(string path){
+        var url=new Uri(VideoToolsArchive);
+        for(int hop=0;hop<5;hop++){
+            if(url.Scheme!="https"||(url.Host!="github.com"&&url.Host!="release-assets.githubusercontent.com"&&url.Host!="objects.githubusercontent.com"&&url.Host!="github-releases.githubusercontent.com")||!String.IsNullOrEmpty(url.UserInfo))throw new IOException("video_tools_source");
+            var request=(HttpWebRequest)WebRequest.Create(url);
+            request.AllowAutoRedirect=false;request.UseDefaultCredentials=false;request.Credentials=null;
+            request.UserAgent="NeoPep-Connect";request.Timeout=240000;
+            using(var deadline=new System.Threading.Timer(_=>request.Abort(),null,TimeSpan.FromMinutes(4),System.Threading.Timeout.InfiniteTimeSpan))
+            using(var response=(HttpWebResponse)await request.GetResponseAsync()){
+                int status=(int)response.StatusCode;
+                if(status>=300&&status<400){
+                    var next=response.Headers["Location"];
+                    if(String.IsNullOrEmpty(next))throw new IOException("video_tools_redirect");
+                    url=new Uri(url,next);continue;
+                }
+                if(status!=200||(response.ContentLength>=0&&response.ContentLength!=VideoToolsArchiveBytes))throw new IOException("video_tools_size");
+                using(var input=response.GetResponseStream())
+                using(var output=new FileStream(path,FileMode.CreateNew,FileAccess.Write,FileShare.None)){
+                    var buffer=new byte[65536];int count;
+                    while((count=await input.ReadAsync(buffer,0,buffer.Length))!=0){
+                        if(output.Length+count>VideoToolsArchiveBytes)throw new IOException("video_tools_size");
+                        await output.WriteAsync(buffer,0,count);
+                    }
+                    if(output.Length!=VideoToolsArchiveBytes)throw new IOException("video_tools_size");
+                }
+                return;
+            }
+        }
+        throw new IOException("video_tools_redirect");
+    }
+    static void ExtractVideoTools(string archive,string target){
+        if(PreviewFileHash(archive)!=VideoToolsArchiveHash)throw new IOException("video_tools_checksum");
+        Directory.CreateDirectory(target);
+        using(var zip=System.IO.Compression.ZipFile.OpenRead(archive)){
+            const string prefix="ffmpeg-9.0.2-essentials_build/";
+            var names=new[]{"ffmpeg.exe","ffprobe.exe"};
+            var hashes=new string[2];
+            for(int i=0;i<names.Length;i++){
+                var entry=zip.GetEntry(prefix+"bin/"+names[i]);
+                if(entry==null||entry.Length<1024||entry.Length>256L*1024*1024)throw new IOException("video_tools_entry");
+                var path=Path.Combine(target,names[i]);
+                using(var input=entry.Open())using(var output=new FileStream(path,FileMode.CreateNew,FileAccess.Write,FileShare.None)){
+                    var buffer=new byte[65536];int count;
+                    while((count=input.Read(buffer,0,buffer.Length))!=0){
+                        if(output.Length+count>entry.Length)throw new IOException("video_tools_entry");
+                        output.Write(buffer,0,count);
+                    }
+                    if(output.Length!=entry.Length)throw new IOException("video_tools_entry");
+                }
+                hashes[i]=PreviewFileHash(path);
+            }
+            // Keep the upstream licensing notices with the local tool.
+            var license=zip.GetEntry(prefix+"LICENSE")??zip.GetEntry(prefix+"LICENSE.txt");
+            if(license==null||license.Length<=0||license.Length>1024*1024)throw new IOException("video_tools_license");
+            using(var input=license.Open())using(var output=new FileStream(Path.Combine(target,"LICENSE.txt"),FileMode.CreateNew))input.CopyTo(output);
+            File.WriteAllLines(Path.Combine(target,"sha256.txt"),hashes);
+            File.WriteAllText(Path.Combine(target,"source.txt"),VideoToolsArchive+Environment.NewLine+VideoToolsArchiveHash+Environment.NewLine);
+        }
+    }
+    async Task PrepareVideoTools(){
+        if(provisioningVideoTools||installingUpdate||exiting||videoPreviewBusy||(sibling!=null&&sibling.videoPreviewBusy))return;
+        var runtime=Path.Combine(ConnectProfile.InstallFolder,ConnectVersion.Runtime);
+        var button=videoToolsInstall;var label=videoToolsStatus;
+        provisioningVideoTools=true;button.Enabled=false;
+        string stage=null;
+        try{
+            if(await Task.Run(()=>PreviewToolReady(runtime))){label.Text="Conversor de vídeos pronto.";return;}
+            if(System.Windows.Forms.MessageBox.Show("Baixar o conversor FFmpeg (aprox. 115 MB) diretamente do distribuidor oficial indicado pelo projeto FFmpeg? O arquivo será conferido antes de ser usado.","Prévias de vídeo",System.Windows.Forms.MessageBoxButtons.YesNo,System.Windows.Forms.MessageBoxIcon.Question)!=System.Windows.Forms.DialogResult.Yes)return;
+            label.Text="Baixando e verificando o conversor…";
+            stage=Path.Combine(ConnectProfile.InstallFolder,"video-tools-stage-"+Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(stage);
+            var archive=Path.Combine(stage,"ffmpeg.zip");var extracted=Path.Combine(stage,"verified");
+            await DownloadVideoToolsArchive(archive);
+            await Task.Run(()=>ExtractVideoTools(archive,extracted));
+            if(exiting||installingUpdate)throw new IOException("video_tools_interrupted");
+            var target=VideoToolsFolder();
+            if(Directory.Exists(target))Directory.Move(target,target+".previous-"+Guid.NewGuid().ToString("N"));
+            Directory.Move(extracted,target);
+            if(!await Task.Run(()=>PreviewToolReady(runtime)))throw new IOException("video_tools_verification");
+            label.Text="Conversor pronto. As prévias serão processadas quando a fila estiver habilitada.";
+        }catch{label.Text="Não foi possível preparar o conversor. Verifique a conexão e tente novamente.";}
+        finally{
+            if(stage!=null)try{Directory.Delete(stage,true);}catch{}
+            provisioningVideoTools=false;button.Enabled=true;
+        }
+    }
+
     // Independent of the WhatsApp connection and dispatch gate. No media processing
     // unless both a provisioned converter and the separate server gate are available.
     bool PreviewToolReady(string runtime) {
         try {
-            var root=Path.Combine(runtime,"video-tools");
+            var root=VideoToolsFolder();
             var manifest=Path.Combine(root,"sha256.txt");
             if(!File.Exists(manifest)||new FileInfo(manifest).Length>1024)return false;
             var lines=File.ReadAllLines(manifest);
@@ -85,7 +186,7 @@ sealed partial class Connect {
         }
     }
     async Task TickVideoPreview(){
-        if(videoPreviewBusy||exiting||installingUpdate||!deviceApproved||!SessionReady())return;
+        if(videoPreviewBusy||provisioningVideoTools||exiting||installingUpdate||!deviceApproved||!SessionReady())return;
         videoPreviewBusy=true;
         string work=null,id=null,fence=null;bool finishing=false;
         var owner=sessionOwner;var device=Value(local,"device");
