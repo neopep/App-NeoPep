@@ -761,7 +761,7 @@ test('Teste libera Criar conta e mantém cadastro fechado sem flag explícita',a
  const base=fs.readFileSync('release/multiagent-staging/configure-frontend.cjs','utf8');
  assert.match(build,/previewRegistration:\s*Boolean\(captchaSiteKey\)/);
  assert.match(build,/captchaRequired:\s*Boolean\(captchaSiteKey\)/);
- assert.match(build,/pwa-v50-gps-municipio/,'PWA precisa receber configuração nova após deploy');
+ assert.match(build,/pwa-v51-gps-admin-tema/,'PWA precisa receber configuração nova após deploy');
  assert.match(build,/publicRegistration:\s*false/);
  assert.match(build,/process\.env\.VERCEL_PROJECT_ID !== 'prj_ksWxwsJyKhdR2nW2OiZkwx8hlkdq'/);
  assert.match(base,/previewRegistration:\s*false/);
@@ -796,4 +796,13 @@ test('exportação de comparação aplica a paleta efetiva à curva e à escala'
   assert.ok(commands.includes(accent));
   assert.ok(commands.includes(grid));
  }
+});
+
+test('aviso de cadastro administrativo usa azul-marinho no tema claro e mantém paleta escura',()=>{
+ const css=fs.readFileSync('dist/style.css','utf8');
+ assert.match(css,/\.admin-signup-toast\{[^}]*background:rgba\(31,25,20,\.97\);color:#f8eddb/);
+ assert.match(css,/\[data-theme=light\] \.admin-signup-toast\{[^}]*background:#f8fbff;[^}]*color:#172b49;[^}]*border-color:#b7c5da/);
+ assert.match(css,/\[data-theme=light\] \.admin-signup-toast :is\(strong,\.admin-signup-toast-actions span,\.admin-signup-toast-actions \.icon-btn\)\{\s*color:#142743/);
+ assert.match(css,/\[data-theme=light\] \.admin-signup-toast progress::-webkit-progress-value\{background:#223F63/);
+ assert.match(css,/\[data-theme=light\] \.admin-signup-toast progress::-moz-progress-bar\{background:#223F63/);
 });
