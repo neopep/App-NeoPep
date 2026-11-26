@@ -65,7 +65,7 @@
    }
    return dates;
   }
-  let loadEpoch=0;
+  let loadEpoch=0,appRepeatReady=false,appSeries=[];
   const legacyStates=new Map();
   let statusTimer=null,statusRefreshing=false;
   const legacyKey='neo-campaign-editor:'+account+':'+channel+':new';
@@ -179,7 +179,7 @@
      <p class="sub">${pub.kinds?.length||0} ${isApp?'bloco(s)':'mensagem(ns)'}${pub.kinds?.length?' · '+escape(pub.kinds.join(', ')):''}</p>
      ${view==='agenda'&&editable&&pub.planned_local&&!locked?`<label class="check"><input type="checkbox" name="selected-publication" value="${escape(pub.id)}" aria-label="Selecionar para agendar"> Agendar</label>`:''}
      <details class="central-action-menu"><summary aria-label="Opções da publicação">⋯</summary><div class="central-action-popover">${button('edit',locked||!editable?'Ver publicação':'Editar publicação',pub.id)}
-     ${editable&&!pub.deleted_at?button('duplicate_form','Duplicar / distribuir',pub.id)+(!isApp&&typeof cloud.campaignWeekly==='function'?button('weekly_form','Programar repetição',pub.id):''):''}
+     ${editable&&!pub.deleted_at?button('duplicate_form','Duplicar / distribuir',pub.id)+((isApp?appRepeatReady:typeof cloud.campaignWeekly==='function')?button('weekly_form',isApp?'Preparar repetição':'Programar repetição',pub.id):''):''}
      ${batch?.states?.includes('waiting')&&editable&&!pub.deleted_at?button('cancel','Cancelar pendências',pub.id):''}
      ${editable&&!pub.deleted_at?button('delete_publication','Excluir publicação',pub.id):''}</div></details>
      ${view==='history'?`<div data-central-history="${escape(pub.id)}">${button('attempts','Ver tentativas e recibos',pub.id)}</div>`:''}</div></article>`;
@@ -190,6 +190,7 @@
     <div class="inline-actions">${button('agenda','Agenda','',view==='agenda'?'primary':'secondary')}${button('history','Histórico','',view==='history'?'primary':'secondary')}${button('refresh_status','Atualizar estados')}</div>
     ${view==='agenda'? `<div class="central-publication-head"><h3>Publicações</h3>${editable&&!getLocal(pointer())?button('add','+ Adicionar publicação','','primary'):''}</div><label class="central-date-filter">A partir de<input type="date" data-central-date></label><div data-central-date-list>${cards(dated)||'<p>Sem publicações com data.</p>'}</div>
      <h3>Rascunhos sem data</h3>${cards(undated)||'<p>Sem rascunhos sem data.</p>'}
+     ${isApp&&appSeries.length?`<h3>Séries de rascunhos App</h3>${appSeries.map(item=>`<article class="monitor-block"><strong>${escape(items.find(pub=>pub.id===item.publication_id)?.title||'Publicação de origem')}</strong><p class="sub">${escape(item.dates.map(local).join(' · '))}</p><p class="sub">Confira o estado de cada ocorrência na agenda acima.</p></article>`).join('')}`:''}
      ${weekly.length?`<h3>Repetições programadas</h3>${weekly.map(item=>`<article class="monitor-block">
       <strong>${escape(items.find(pub=>pub.id===item.publication_id)?.title||'Publicação')}</strong>
       <p class="sub">${({scheduled:'Agendada',paused:'Pausada',cancelled:'Cancelada'})[item.state]} · ${escape(item.dates.map(local).join(' · '))}</p>
@@ -206,6 +207,9 @@
    ++loadEpoch;current=id;
    const result=await rpc('get');
    const series=!isApp&&typeof cloud.campaignWeekly==='function'?await weeklyRpc('list').catch(()=>[]):[];
+   const repeatReady=isApp&&(await rpc('repeat_capabilities').catch(()=>null))?.enabled===true;
+   const repeats=repeatReady?await rpc('repeat_list').catch(()=>[]):[];
+   if(active()&&current===id){appRepeatReady=repeatReady;appSeries=Array.isArray(repeats)?repeats:[];}
    if(active()&&current===id){detail=result;weekly=series;details();}
   }
   async function editor(id,trigger,options={}){
@@ -225,7 +229,7 @@
    const start=rule.start||(pub.planned_local?.slice(0,10)>today?pub.planned_local.slice(0,10):today);
    const defaultDay=new Date(start+'T12:00:00Z').getUTCDay();
    const legacyWeekly=Boolean(existing&&rule.frequency!=='daily'&&rule.times?.length>1);
-   redraw(`${button('open','‹ Agenda',current)}<h2>Programar repetição</h2><p>${escape(pub.title)}</p>
+   redraw(`${button('open','‹ Agenda',current)}<h2>${isApp?'Preparar repetição App':'Programar repetição'}</h2><p>${escape(pub.title)}</p>
     <form data-central-form="weekly" data-id="${escape(pub.id)}" data-request="${crypto.randomUUID()}" data-replace="${escape(existing?.id)}" data-legacy-weekly="${legacyWeekly}" class="campaign-central-form">
     <label>Frequência<select name="frequency"><option value="weekly">Semanal</option><option value="daily" ${rule.frequency==='daily'?'selected':''}>Diária</option></select></label>
     <fieldset><legend>Dias da semana (repetição semanal)</legend><div class="inline-actions">${weekdays.map((day,i)=>`<label class="check"><input type="checkbox" name="days" value="${i}" ${(rule.days||[defaultDay]).includes(i)?'checked':''}> ${day}</label>`).join('')}</div></fieldset>
@@ -234,7 +238,7 @@
     <label>Início<input type="date" name="start" value="${escape(start)}" required></label>
     <label>Término (opcional)<input type="date" name="end" value="${escape(rule.end)}"></label>
     <label>Número máximo de ocorrências<input type="number" name="count" min="1" max="24" value="${rule.count||4}" required></label>
-    <p class="sub">Até 24 ocorrências nos próximos 89 dias. As publicações em andamento mantêm o histórico.</p>
+    <p class="sub">Até 24 ocorrências nos próximos 89 dias. ${isApp?'As datas geram rascunhos para revisão e agendamento.':'As publicações em andamento mantêm o histórico.'}</p>
     <button type="submit" class="primary">Conferir próximas datas</button></form>`);
    syncTimeControls(root.querySelector('[data-central-form="weekly"]'));
   }
@@ -306,6 +310,13 @@
       rule.times=[rule.day_times[rule.days[0]]||''];
      }
      const dates=weeklyDates(rule),groups=source?.draft?.groups||[];
+     if(isApp){
+      if(!appRepeatReady||!dates.length||!source||source.editor_id!==form.dataset.id){show('Confira a regra e salve a publicação antes de continuar.');return;}
+      if(!active()||!confirm('Criar '+dates.length+' publicações App como rascunhos? Nenhum envio será agendado até você revisar e confirmar na agenda.\n\n'+dates.map(local).join('\n')))return;
+      const result=await rpc('repeat_drafts',{rule,dates,publication_id:form.dataset.id,source_revision:source.revision,request_id:form.dataset.request,confirmed:true});
+      if(!Array.isArray(result?.occurrences)||result.occurrences.length!==dates.length)throw Error('repeat_not_confirmed');
+      await load(current);show('Série criada. Selecione os rascunhos na agenda para revisar e agendar.');return;
+     }
      if(!dates.length||!groups.length){show('Confira datas e horários e selecione destinos na publicação.');return;}
      const catalog=await cloud.campaignWhatsAppSync('catalog');
      const names=groups.map(id=>catalog.find(group=>group.id===id)?.name||'Destino selecionado');
