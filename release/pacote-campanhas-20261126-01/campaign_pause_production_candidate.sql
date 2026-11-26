@@ -177,11 +177,12 @@ end;$patch$;
 create function neo_private.campaign_official_pause_guard() returns trigger
 language plpgsql security definer set search_path='' as $guard$
 begin
+ if new.manifest->>'action' is distinct from 'publish_app' then return new;end if;
  perform 1 from neo_private.campaign_app_groups g join neo_private.campaign_app_publications p on p.campaign_id=g.campaign_id
  where p.id=new.editor_id for share of g;
  if not neo_private.campaign_parent_enabled(new.editor_id,'app') then raise exception 'campaign_group_paused' using errcode='55000';end if;
  return new;
 end;$guard$;
 revoke all on function neo_private.campaign_official_pause_guard() from public,anon,authenticated;
-create trigger campaign_official_pause_guard before insert on neo_private.campaign_app_official_batches for each row execute function neo_private.campaign_official_pause_guard();
+create trigger campaign_official_pause_guard before insert on neo_private.campaign_dispatch_batch for each row execute function neo_private.campaign_official_pause_guard();
 commit;
