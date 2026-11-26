@@ -34,7 +34,7 @@ begin
   and (item.campaign_share_mode in ('preview','original') or item.campaign_share_mode='inherit' and item.allow_download is true);
  original_ok:=item.mime in ('application/pdf','video/mp4') and item.size between 1 and 5242880
   and ((own and item.campaign_share_mode='original') or item.campaign_share_mode='inherit' and item.allow_download is true);
- if p_action='authorize' and not case p_data->>'mode' when 'preview' then preview_ok when 'original' then original_ok else false end
+ if p_action='authorize' and not coalesce((case p_data->>'mode' when 'preview' then preview_ok when 'original' then original_ok else false end),false)
  then raise exception 'campaign_library_share_not_allowed' using errcode='42501';end if;
  return jsonb_build_object('mode',item.campaign_share_mode,'can_manage',own,'preview',preview_ok,'original',original_ok,'member_download',item.allow_download);
 end;$share$;
