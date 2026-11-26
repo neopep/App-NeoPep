@@ -3,6 +3,8 @@ on:
   push:
     branches:
       - fix/gps-cidade-estado-teste-20261125
+  pull_request:
+    branches: [fix/onboarding-lembretes-padrao-20261125]
   workflow_dispatch:
 permissions:
   contents: read
