@@ -162,7 +162,7 @@
       ${channel==='whatsapp'&&!testWA?tile('repeat','Recorrência','recurrence'):''}${tile('gear','Ajustes','settings')}${tile('audio','Áudio indisponível','audio',true)}
       ${tile('group','Comunidade','community')}${tile('more','Destinos','destinations')}
     </div>`)}
-    ${pane('settings','Configurações',`<label>${publication?'Nome da publicação':'Nome da campanha'}<input name="title" maxlength="120" value="${e(draft.title)}"></label><button type="button" class="secondary" data-editor="name_continue">Salvar nome e continuar</button><p class="sub" data-structured-connection role="status">Conexão ainda não verificada.</p>
+    ${pane('settings','Configurações',`${publication?.paused?'<p class="central-pause-notice">Campanha desligada. Volte à Central para reativar.</p>':''}<label>${publication?'Nome da publicação':'Nome da campanha'}<input name="title" maxlength="120" value="${e(draft.title)}"></label><button type="button" class="secondary" data-editor="name_continue">Salvar nome e continuar</button><p class="sub" data-structured-connection role="status">Conexão ainda não verificada.</p>
      <div class="inline-actions">${publication?'':'<button type="button" class="secondary" data-editor="fresh">Novo rascunho</button>'}${channel==='whatsapp'&&!publication?'<button type="button" class="secondary" data-editor="cross">Criar versão App</button>':''}</div>`)}
     ${channel==='app'?pane('audience','Públicos, planos e exibição',advancedApp?appSettingsPane():testApp?'<p>Somente as contas de homologação autorizadas no servidor. Esta campanha não envia push.</p>':'<label>Público App<select name="audience"><option value="all">Todos</option><option value="free">Free</option><option value="premium">Premium</option></select></label><label class="check"><input name="push" type="checkbox"> Solicitar push App para contas com consentimento</label>'):
     pane('groups','Grupos sincronizados','<div class="inline-actions"><button type="button" class="secondary" data-editor="groups">Atualizar grupos e diagnóstico</button><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button></div><label class="central-search editor-search"><input name="group_search" type="search" aria-label="Pesquisar grupo ou conexão" placeholder="Pesquisar grupo ou conexão"><span class="search-decoration" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></span></label><p class="sub" data-editor-group-count></p><div data-editor-groups></div>')}
@@ -596,6 +596,7 @@
   let checkDispatch=false,checkScheduled=false;
   function dispatchIssues(scheduled){
    const issues=[],add=(key,label,pane,severity='warning')=>issues.push({key,label,pane,severity});
+   if(publication?.paused)add('paused','Campanha desligada: reative na Central','settings','blocked');
    if(!draft.title.trim())add('title','Nome da publicação','settings');
    if(channel==='whatsapp'&&(!draft.groups.length||!draft.groups.every(id=>groups.some(g=>g.id===id&&g.state==='eligible'))))add('groups','Selecione grupos autorizados','groups');
    if(scheduled&&!draft.planned_local)add('time','Defina data e horário','schedule');
@@ -639,7 +640,7 @@
     &&(b.type!=='file'||/\.(pdf|mp4)$/.test(b.media_path||''))
     &&(b.type!=='link'||Boolean(validLink(b.url)))
     &&(!['product','document','community'].includes(b.type)||Boolean(b.ref)));
-   const allow=Boolean((!publication||channel==='app'||rich)&&enabled&&clean&&eligible&&pinned&&(appRich?appBlocks:rich?richBlocks:textOnly&&short));
+   const allow=Boolean(!publication?.paused&&(!publication||channel==='app'||rich)&&enabled&&clean&&eligible&&pinned&&(appRich?appBlocks:rich?richBlocks:textOnly&&short));
    dispatchReady.publish=Boolean(allow&&!(channel==='whatsapp'&&!testWA&&!gates.devices?.some(d=>d.ready)));
    dispatchReady.schedule=Boolean(allow&&draft.planned_local&&!(testWA&&!(rich?gates.whatsapp_rich?.ready:gates.whatsapp_test?.schedule_ready)));
    $('[data-editor=publish]').disabled=dispatching||saving;
@@ -729,6 +730,7 @@
    checkDispatch=true;checkScheduled=scheduled;paintIssues();
    openPane('schedule',trigger);
    const explain=text=>{$('[data-editor-simulation]').textContent=text;tell(text);};
+   if(publication?.paused){explain('Campanha desligada. Volte à Central e reative antes de publicar.');return;}
    if(!draft.title.trim()){explain('Informe o nome da publicação em Ajustes.');return;}
    if(scheduled&&!draft.planned_local){explain('Selecione a data e o horário do agendamento.');return;}
    if(channel==='whatsapp'&&!draft.groups.length){explain('Selecione pelo menos um grupo sincronizado.');return;}
