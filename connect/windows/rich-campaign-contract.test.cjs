@@ -17,7 +17,7 @@ test('worker oficial e Teste exigem opt-in local e gate remoto',()=>{
   assert.match(connect,/TickRichCampaign\(window,connection\)/);
   assert.match(connect,/neo_campaign_rich_device_v1/);
 });
-test('worker baixa apenas media autenticada e imagem JPEG de ate 1 MB',()=>{
+test('worker baixa midia autenticada, JPEG de ate 1 MB e originais sob gate',()=>{
   assert.match(connect,/neo-campaign-images/);
   assert.match(connect,/neo-shop-products/);
   assert.match(connect,/storage\/v1\/object\/authenticated/);
@@ -43,4 +43,13 @@ test('editor so libera multi-blocos via gate rico e confirmacao',()=>{
   assert.match(editor,/if\(testWA&&draft\.blocks\.some/);
   assert.match(cloud,/async campaignRich\(/);
   assert.match(cloud,/async campaignMediaUpload\(/);
+});
+
+test('originais exigem transporte privado, opt-in e capacidade do cliente',()=>{
+ assert.match(connect,/LoadRichCampaignOriginal/);
+ assert.match(connect,/neo-campaign-originals/);
+ assert.match(connect,/originals_v1=true/);
+ assert.match(connect,/data\.Length>5\*1024\*1024/);
+ assert.match(whatsapp,/DispatchCampaignFileAsync/);
+ assert.match(whatsapp,/action="send_file"/);
 });

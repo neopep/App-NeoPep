@@ -302,6 +302,26 @@ sealed partial class WhatsApp : Form {
         }catch{return Tuple.Create("uncertain",(string)null);}
         finally{automatedSend=null;automatedRequest=Guid.Empty;sendingText=false;UpdateComposer();}
     }
+    // Candidate transport; no production or unapproved destination can reach this method.
+    public async Task<Tuple<string,string>> DispatchCampaignFileAsync(Guid request,string group,string caption,byte[] bytes,string mime,string name) {
+        if(!CampaignSessionReady||pendingSend!=Guid.Empty||automatedSend!=null||!selected.Contains(group)
+            ||caption==null||caption.Length>1000||bytes==null||bytes.Length<8||bytes.Length>5*1024*1024
+            ||request==Guid.Empty||String.IsNullOrWhiteSpace(name)||name.Length>160
+            ||name.IndexOfAny(System.IO.Path.GetInvalidFileNameChars())>=0
+            ||(mime!="application/pdf"&&mime!="video/mp4")
+            ||(mime=="application/pdf"&&!name.EndsWith(".pdf",StringComparison.OrdinalIgnoreCase))
+            ||(mime=="video/mp4"&&!name.EndsWith(".mp4",StringComparison.OrdinalIgnoreCase))
+            ||canPublish==null||!canPublish())return Tuple.Create("refused",(string)null);
+        var completion=new TaskCompletionSource<Tuple<string,string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        automatedSend=completion;automatedRequest=request;sendingText=true;UpdateComposer();
+        try {
+            pipe.WriteLine(json.Serialize(new {action="send_file",request_id=request.ToString(),
+                group_jid=group,text=caption,file=Convert.ToBase64String(bytes),mime=mime,name=name}));
+            return await Task.WhenAny(completion.Task,Task.Delay(TimeSpan.FromSeconds(40)))==completion.Task
+                ? await completion.Task : Tuple.Create("uncertain",(string)null);
+        }catch{return Tuple.Create("uncertain",(string)null);}
+        finally{automatedSend=null;automatedRequest=Guid.Empty;sendingText=false;UpdateComposer();}
+    }
     void ClearGroups(){
         sync.Enabled=false;
         groupRows.Clear();selected.Clear();groupReadAt=null;RenderGroups();

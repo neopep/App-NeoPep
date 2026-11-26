@@ -2,7 +2,7 @@ name: NeoPep Connect Official Candidate (no release)
 
 on:
   push:
-    branches: [release/ciclo-aprovado-20261125]
+    branches: [preparacao/campanhas-producao-20261125]
     paths:
       - 'connect/windows/**'
       - 'connect/whatsapp-lab/**'
@@ -44,16 +44,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Runtime audit failed' }
           npm test
           if ($LASTEXITCODE -ne 0) { throw 'WhatsApp bridge tests failed' }
-      - name: Build dual-profile Connect 0.2.13 (unsigned CI candidate only)
+      - name: Build dual-profile Connect 0.2.14 (unsigned CI candidate only)
         shell: pwsh
         run: |
-          ./connect/windows/build.ps1 -Perfil Teste -Version '0.2.13' -Output "$env:RUNNER_TEMP/connect-0213"
+          ./connect/windows/build.ps1 -Perfil Teste -Version '0.2.14' -Output "$env:RUNNER_TEMP/connect-0214"
           if ($LASTEXITCODE -ne 0) { throw 'Windows candidate compilation failed' }
       - name: Validate package manifest; do not distribute as production release
         shell: pwsh
         run: |
-          $path = Join-Path $env:RUNNER_TEMP 'connect-0213/manifest.json'
+          $path = Join-Path $env:RUNNER_TEMP 'connect-0214/manifest.json'
           $manifest = Get-Content -Raw $path | ConvertFrom-Json
-          if ($manifest.version -ne '0.2.13' -or $manifest.profile -ne 'staging') { throw 'Candidate manifest mismatch' }
+          if ($manifest.version -ne '0.2.14' -or $manifest.profile -ne 'staging') { throw 'Candidate manifest mismatch' }
           if ($manifest.authenticode -eq 'Valid') { Write-Host 'Authenticode present' } else { Write-Host 'Unsigned candidate: distribution prohibited' }
-          if (-not (Test-Path (Join-Path $env:RUNNER_TEMP 'connect-0213/NeoPepConnectSetup.exe'))) { throw 'Installer not compiled' }
+          if (-not (Test-Path (Join-Path $env:RUNNER_TEMP 'connect-0214/NeoPepConnectSetup.exe'))) { throw 'Installer not compiled' }
