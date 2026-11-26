@@ -105,7 +105,12 @@ const api={configured,connectTestEnabled:connectEnabled,
   const mime=file?.type;
   if(!owner||typeof path!=='string'||!/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.(pdf|mp4)$/.test(path)||path.split('/')[0]!==owner||
    !['application/pdf','video/mp4'].includes(mime)||!file.size||file.size>5242880||(mime==='application/pdf')!==path.endsWith('.pdf'))throw Error('Arquivo original inválido. PDF ou MP4 de até 5 MB.');
-  const result=ok(await sdk.storage.from('neo-campaign-originals').upload(path,file,{contentType:mime,upsert:false,cacheControl:'0'}));
+  // Safari/iOS may send an empty multipart body for Blob/File recovered from IndexedDB.
+  // Materialize bytes first; the SDK uploads ArrayBuffer as a binary request.
+  const bytes=await file.arrayBuffer();
+  if(version!==identityVersion||user?.id!==owner)throw Error('A conta mudou durante o envio.');
+  if(bytes.byteLength!==file.size||!bytes.byteLength||bytes.byteLength>5242880)throw Error('Não foi possível ler o arquivo completo. Selecione novamente o documento.');
+  const result=ok(await sdk.storage.from('neo-campaign-originals').upload(path,bytes,{contentType:mime,upsert:false,cacheControl:'0'}));
   if(version!==identityVersion||user?.id!==owner)throw Error('A conta mudou durante o envio.');
   return result.path;
  },
