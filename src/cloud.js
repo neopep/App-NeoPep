@@ -228,9 +228,30 @@ const api={configured,connectTestEnabled:connectEnabled,
  async authSettings(action='status',payload={}){need();const version=identityVersion;const data=ok(await client.functions.invoke('auth-settings',{body:{...payload,action}}));if(version!==identityVersion)throw Error('A conta mudou.');return data},
  async integrations(action='status'){need();const version=identityVersion;const data=ok(await client.functions.invoke('platform-integrations',{body:{action}}));if(version!==identityVersion)throw Error('A conta mudou.');return data},
  async supportAI(messageID){need();return ok(await client.functions.invoke('ai-reply',{body:{message_id:messageID}}))},
- async uploadLibraryFile(file,allowDownload=true){need();if(!['image/jpeg','application/pdf','text/plain','video/mp4','video/webm','video/quicktime'].includes(file.type)||!file.size||file.size>(file.type.startsWith('video/')?52428800:10485760))throw Error('Use foto, PDF ou TXT de até 10 MB; vídeo até 50 MB.');const version=identityVersion;const reserved=await api.library('reserve',{name:file.name.slice(0,120),mime:file.type,size:file.size,allow_download:allowDownload});if(version!==identityVersion)throw Error('A conta mudou.');ok(await client.storage.from('neo-library').upload(reserved.path,file,{contentType:file.type,upsert:false}));if(version!==identityVersion)throw Error('A conta mudou.');return reserved.path},
+ async libraryUploadLimits(){
+  const sdk=need(),version=identityVersion;
+  const fallback={video:52428800,pdf:10485760,image:10485760,text:10485760};
+  const r=await sdk.rpc('neo_library_upload_limits_v1');
+  if(version!==identityVersion)throw Error('A conta mudou.');
+  if(r.error||!r.data||typeof r.data!=='object')return fallback;
+  const limits={};
+  for(const key of Object.keys(fallback)){const n=r.data[key];limits[key]=Number.isSafeInteger(n)&&n>=0&&n<=209715200?n:fallback[key];}
+  return limits;
+ },
+ async uploadLibraryFile(file,allowDownload=true){
+  need();const version=identityVersion,account=user?.id;
+  const kind={'image/jpeg':'image','application/pdf':'pdf','text/plain':'text','video/mp4':'video','video/webm':'video','video/quicktime':'video'}[file?.type];
+  if(!kind||!Number.isSafeInteger(file.size)||file.size<=0)throw Error('Arquivo inválido.');
+  const limits=await api.libraryUploadLimits();
+  if(version!==identityVersion||account!==user?.id)throw Error('A conta mudou.');
+  if(file.size>limits[kind])throw Error('O limite atual para este arquivo é '+Math.floor(limits[kind]/1048576)+' MB.');
+  const reserved=await api.library('reserve',{name:file.name.slice(0,120),mime:file.type,size:file.size,allow_download:allowDownload});
+  if(version!==identityVersion||account!==user?.id)throw Error('A conta mudou.');
+  ok(await client.storage.from('neo-library').upload(reserved.path,file,{contentType:file.type,upsert:false}));
+  if(version!==identityVersion||account!==user?.id)throw Error('A conta mudou.');return reserved.path;
+ },
  async libraryMediaURL(file,download=false){need();const version=identityVersion;if(download&&file.allow_download===false)throw Error('O download deste arquivo não foi disponibilizado.');if(typeof file.allow_download==='boolean')await api.library('media_access',{path:file.path,download});if(version!==identityVersion)throw Error('A conta mudou.');const data=ok(await client.storage.from('neo-library').createSignedUrl(file.path,file.mime?.startsWith('video/')||file.mime==='application/pdf'?1800:60,download?{download:file.name}:{}));if(version!==identityVersion)throw Error('A conta mudou.');return data.signedUrl},
- async library(action='read',payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_library',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou. Reabra a biblioteca.');return data},
+ async library(action='read',payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_library',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou. Reabra a biblioteca.');if(action==='read'&&data?.can_manage===true)data.upload_limits=await api.libraryUploadLimits();if(version!==identityVersion)throw Error('A conta mudou.');return data},
  async community(action,payload={}){need();const version=identityVersion;const data=ok(await client.rpc("neo_community",{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error("A conta mudou. Reabra a comunidade.");return data},get user(){return user},get validated(){return config.cloudValidated===true},get admin(){return isAdmin},get onboardingComplete(){return onboarded},get consents(){return consents.map(c=>({...c}))},hasConsent(purpose){return consents.some(c=>c.purpose===purpose&&c.version==='2026-11-v1'&&c.granted)},
  async init(onChange){listener=onChange;if(!configured)return null;client=createClient(config.supabaseUrl,config.supabasePublishableKey,{auth:{flowType:'pkce',persistSession:true,storage:authStorage,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'neo-auth'}});client.auth.onAuthStateChange((event,session)=>{const nextUser=session?.user||null;if(nextUser?.id!==user?.id){identityVersion++;profileRevision=null;consents=[];isAdmin=false;onboarded=false}user=nextUser;setTimeout(()=>listener?.(event,user),0)});if(typeof client.auth.initialize==='function'){const initialized=await client.auth.initialize();if(initialized.error)throw initialized.error}const sessionResult=await client.auth.getSession();if(sessionResult.error)throw sessionResult.error;if(!sessionResult.data.session)return null;const data=ok(await client.auth.getUser());user=data.user;return user},
  async oauth(provider,options={}){if(!configured||!config.providers?.[provider])throw Error('Este provedor ainda não foi configurado.');chooseRemember(options.remember);const redirectTo=authRedirect();ok(await client.auth.signInWithOAuth({provider,options:{redirectTo:redirectTo.href,scopes:provider==='apple'?'name email':'email profile'}}))},
