@@ -2027,10 +2027,11 @@ function syncCampaign(){
   if(!item||campaignBlocked()||typeof HTMLDialogElement==='undefined')return;
   const dialog=document.createElement('dialog');
   dialog.className='neo-campaign-dialog';dialog.setAttribute('aria-labelledby','neoCampaignTitle');
-  dialog.innerHTML=`<h2 id="neoCampaignTitle">${esc(item.title)}</h2>${item.image_url&&!item.image_path?`<img src="${esc(item.image_url)}" alt="">`:''}<p>${esc(item.body)}</p>
-   <div class="neo-campaign-actions">${item.link_url?`<a class="primary" target="_blank" rel="noopener noreferrer" href="${esc(item.link_url)}">${esc(item.link_label)}</a>`:''}
+  const rich=Array.isArray(item.blocks)&&item.blocks.length>0;
+  dialog.innerHTML=`<h2 id="neoCampaignTitle">${esc(item.title)}</h2>${!rich&&item.image_url&&!item.image_path?`<img src="${esc(item.image_url)}" alt="">`:''}<div data-campaign-blocks>${rich?'':`<p>${esc(item.body)}</p>`}</div>
+   <div class="neo-campaign-actions">${!rich&&item.link_url?`<a class="primary" target="_blank" rel="noopener noreferrer" href="${esc(item.link_url)}">${esc(item.link_label)}</a>`:''}
    <form method="dialog"><button class="secondary" autofocus>Fechar</button></form></div>`;
-  if(item.image_path&&Cloud.campaignImageURL){
+  if(!rich&&item.image_path&&Cloud.campaignImageURL){
    Cloud.campaignImageURL(item.image_path).then(url=>{
     if(campaignDialog!==dialog||owner!==Cloud.user?.id)return;
     const image=document.createElement('img');image.src=url;image.alt='';
@@ -2040,6 +2041,7 @@ function syncCampaign(){
   dialog.addEventListener('close',()=>{dialog.remove();if(campaignDialog===dialog)campaignDialog=null;},{once:true});
   document.body.append(dialog);dialog.showModal();campaignDialog=dialog;
   const shown=Cloud.campaignVisit('displayed',item.impression).catch(()=>false);
+  if(rich){renderCampaignBlocks(dialog,item.blocks,owner,()=>{void shown.then(ok=>{if(ok&&owner===Cloud.user?.id)return Cloud.campaignVisit('clicked',item.impression);}).catch(()=>{});});return;}
   dialog.querySelector('a')?.addEventListener('click',event=>{
    const url=new URL(event.currentTarget.href,location.href),route=url.hash.slice(1);
    const material=url.searchParams.get('material'),product=url.searchParams.get('produto');
@@ -2055,7 +2057,7 @@ function syncCampaign(){
  }).catch(()=>{if(owner===campaignOwner)campaignChecked=true;}).finally(()=>{if(owner===campaignOwner)campaignPending=false;});
 }
 // Shared rich notification renderer. No HTML from campaign content is inserted.
-function renderCampaignBlocks(dialog,blocks,owner){
+function renderCampaignBlocks(dialog,blocks,owner,onClicked){
  const holder=dialog.querySelector('[data-campaign-blocks]');
  if(!holder||!Array.isArray(blocks)||!blocks.length)return;
  const alive=()=>dialog.isConnected&&dialog.open&&owner===Cloud.user?.id;
@@ -2071,20 +2073,20 @@ function renderCampaignBlocks(dialog,blocks,owner){
    if(typeof load==='function'&&expected.test(block.media_path||'')){
     void load.call(Cloud,block.media_path).then(url=>{
      if(!alive())return;
-     if(isImage){const img=document.createElement('img');img.src=url;img.alt='Imagem da campanha';img.addEventListener('error',()=>{if(alive())status.textContent='Imagem indisponível.';});status.replaceWith(img);}
+     if(isImage){const img=document.createElement('img');img.src=url;img.alt='Imagem da campanha';img.addEventListener('error',()=>{if(alive()){status.textContent='Imagem indisponível.';img.replaceWith(status);}},{once:true});status.replaceWith(img);}
      else if(block.mime==='video/mp4'){const v=document.createElement('video');v.src=url;v.controls=true;v.preload='metadata';v.playsInline=true;status.replaceWith(v);}
-     else if(block.mime==='application/pdf'){const a=document.createElement('a');a.className='secondary';a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=block.name||'Abrir PDF';status.replaceWith(a);}
+     else if(block.mime==='application/pdf'){const a=document.createElement('a');a.className='secondary';a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=block.name||'Abrir PDF';a.addEventListener('click',()=>{if(alive())onClicked?.();});status.replaceWith(a);}
      else status.textContent='Arquivo indisponível.';
     }).catch(()=>{if(alive())status.textContent='Conteúdo indisponível ou sem autorização.';});
    }else status.textContent='Conteúdo indisponível.';
   }
   text(section,block.text);
   if(block.type==='link'){
-   try{const u=new URL(block.url);if(u.protocol==='https:'&&!u.username&&!u.password&&!/\/storage\/v1\/|[?&](token|signature|apikey|x-amz-[^=]*)=/i.test(u.href)){const a=document.createElement('a');a.className='secondary';a.href=u.href;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Abrir link';section.append(a);}}catch{}
+   try{const u=new URL(block.url);if(u.protocol==='https:'&&!u.username&&!u.password&&!/\/storage\/v1\/|[?&](token|signature|apikey|x-amz-[^=]*)=/i.test(u.href)){const a=document.createElement('a');a.className='secondary';a.href=u.href;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Abrir link';a.addEventListener('click',()=>{if(alive())onClicked?.();});section.append(a);}}catch{}
   }
   if(['product','document','community'].includes(block.type)&&/^[a-f0-9-]{36}$/.test(block.ref||'')){
    const button=document.createElement('button');button.type='button';button.className='secondary';button.textContent=block.type==='product'?'Abrir produto':block.type==='document'?'Abrir material na Biblioteca':'Abrir Comunidade';
-   button.addEventListener('click',()=>{if(!alive())return;dialog.close();if(block.type==='product'){window.NeoShop?.openCampaignProduct?.(block.ref,Cloud.user);void go('loja');}else if(block.type==='document')void go('comunidade',true,false,'library',block.ref);else void go('comunidade');});
+   button.addEventListener('click',()=>{if(!alive())return;onClicked?.();dialog.close();if(block.type==='product'){window.NeoShop?.openCampaignProduct?.(block.ref,Cloud.user);void go('loja');}else if(block.type==='document')void go('comunidade',true,false,'library',block.ref);else void go('comunidade');});
    section.append(button);
   }
  }
