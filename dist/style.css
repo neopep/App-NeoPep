@@ -1024,3 +1024,6 @@ dialog.neo-structured-editor::backdrop{background:#192720}
 
 /* App: multi-block campaign notifications */
 .neo-campaign-content-block{margin:.6rem 0;display:grid;gap:.45rem;min-width:0;overflow-wrap:anywhere}.neo-campaign-content-block p{margin:.2rem 0;white-space:pre-wrap}.neo-campaign-content-block video{display:block;width:100%;max-height:45vh;border-radius:.65rem;background:#000}.neo-campaign-content-block a,.neo-campaign-content-block button{justify-self:start;max-width:100%;white-space:normal}
+
+/* Diario de frascos: estado vazio e seletor de identificacao, tema nativo. */
+.diary-vial-empty{min-height:128px;align-items:center;gap:.9rem}.diary-vial-empty .calc-vial-art{opacity:.8}.diary-vial-empty .calc-vial-facts{line-height:1.5}.calc-vial-overview #diary-product-list{width:100%;margin-top:.25rem}.calc-vial-overview #diary-product-help,.calc-vial-overview #diary-product-notice{margin:.5rem 0;line-height:1.45}.calc-vial-overview #diary-product-notice:not([hidden]){padding:.65rem;border:1px solid var(--line);border-radius:12px}

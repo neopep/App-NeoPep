@@ -298,10 +298,37 @@ function updateCalc(commit=false,track=true){
   result.innerHTML=`${syringeScale(capacity)}<p class="error">${esc(err.message)}</p>`;
  }
 }
+// Neutral diary vocabulary: generic names, never dosage suggestions or shop links.
+// FDA product-specific peptide guidance and drug labels; Anvisa safety notices, checked 26/11/2026.
+const diaryProductNames=['Abaloparatida','Afamelanotida','Bivalirudina','Bremelanotida','Calcitonina','Cetrorelix','Degarelix','Desmopressina','Dulaglutida','Eptifibatida','Exenatida','Ganirelix','Glucagon','Goserrelina','Icatibanto','Insulina','Lanreotida','Leuprorrelina','Liraglutida','Lixisenatida','Mecasermina','Octreotida','Ocitocina','Pasireotida','Semaglutida','Setmelanotida','Somatropina','Teduglutida','Teriparatida','Terlipressina','Tesamorelina','Tirzepatida','Triptorrelina','Vasopressina','Vosoritida','Ziconotida'];
+const diaryResearchNames=['Retatrutida','Cagrilintida','BPC-157','CJC-1295','GHK-Cu','Ipamorelina','TB-500','Epitalon','MOTS-c','KPV','Semax','Selank','AOD-9604','GHRP-2','GHRP-6','Blend KLOW'];
+function diaryProductKey(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');}
+function diaryProductOptions(query=''){
+ const key=diaryProductKey(query);
+ const names=diaryProductNames.filter(name=>!key||diaryProductKey(name).includes(key)).map(name=>({name,research:false}));
+ // Research names appear only on an explicit search; not in the default list.
+ if(key.length>=3)for(const name of diaryResearchNames)if(diaryProductKey(name).includes(key))names.push({name,research:true});
+ return names.sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+}
+function diaryProductNotice(value){
+ const key=diaryProductKey(value);
+ if(/retatrut|retratut/.test(key))return 'Retatrutida: substância experimental, sem aprovação da Anvisa para uso. Identificação de registro, não recomendação.';
+ if(diaryResearchNames.some(name=>key.includes(diaryProductKey(name)))||/ipamorelin|cagrilint|epithalon|motsc/.test(key))return 'Substância de pesquisa ou produto de regularização não verificada. O registro não autoriza seu uso.';
+ return '';
+}
+function diaryProductOptionMarkup(query=''){return '<option value="">Escolher da lista (opcional)</option>'+diaryProductOptions(query).map(item=>'<option value="'+esc(item.name)+'">'+esc(item.name)+(item.research?' · pesquisa / regularização não verificada':'')+'</option>').join('');}
+function diaryProductField(){return '<label for="diary-vial-product">Produto</label><input id="diary-vial-product" maxlength="80" autocomplete="off" required placeholder="Pesquisar ou escrever o nome" aria-describedby="diary-product-help diary-product-notice"><label for="diary-product-list" class="sub">Lista de referência</label><select id="diary-product-list">'+diaryProductOptionMarkup()+'</select><p id="diary-product-help" class="sub">Escolha um nome da lista ou escreva outro. Apenas identificação do registro, sem indicação de uso. Confira a regularização do produto.</p><p id="diary-product-notice" class="sub" role="status" hidden></p>';}
+function updateDiaryProductField(){
+ const field=$('#diary-vial-product'),list=$('#diary-product-list'),notice=$('#diary-product-notice');if(!field||!list||!notice)return;
+ list.innerHTML=diaryProductOptionMarkup(field.value);const warning=diaryProductNotice(field.value);notice.textContent=warning;notice.hidden=!warning;
+}
+document.addEventListener('input',event=>{if(page!=='frasco')return;if(event.target.id==='diary-vial-product')updateDiaryProductField();if(['diary-vial-product','mass','volume','dose'].includes(event.target.id))event.target.removeAttribute('aria-invalid');});
+document.addEventListener('change',event=>{if(page!=='frasco'||event.target.id!=='diary-product-list'||!event.target.value)return;const field=$('#diary-vial-product');if(!field)return;field.value=event.target.value;field.removeAttribute('aria-invalid');updateDiaryProductField();});
+function diaryInvalidField(id,message){const field=$('#'+id);if(field){field.setAttribute('aria-invalid','true');field.focus({preventScroll:true});field.scrollIntoView?.({block:'center',behavior:'smooth'});}throw Error(message);}
 function calculator(forVial=false){
  calcOutcome='';calcCapacityValue=1;
  return (forVial?head('Adicionar frasco','Registre os dados do seu frasco e a dose informada conforme sua prescrição.'):head('Calculadora de volume','Conversão matemática de dados confirmados do frasco e da prescrição.'))+
- `<div class="calc-layout">${forVial?'<section class="card calc-vial-overview"><label>Produto<input id="diary-vial-product" maxlength="80" autocomplete="off" required></label><p class="sub">'+(cloudVialDiaryReady()?'O acompanhamento é sincronizado na conta.':'O acompanhamento é armazenado neste navegador.')+'</p></section>':''}<form id="calcForm" class="calc-inputs" data-calc-owner="${esc(calcStorageKey()||'')}" novalidate>
+ `<div class="calc-layout">${forVial?'<section class="card calc-vial-overview">'+diaryProductField()+'<p class="sub">'+(cloudVialDiaryReady()?'O acompanhamento é sincronizado na conta.':'O acompanhamento é armazenado neste navegador.')+'</p></section>':''}<form id="calcForm" class="calc-inputs" data-calc-owner="${esc(calcStorageKey()||'')}" novalidate>
  ${calcField('mass')}${calcField('volume')}${calcCapacity()}${calcField('dose')}
  </form>
  <section class="card calc-result"><h2>Resultado</h2><div id="result" role="status" aria-live="polite">${calcEmpty()}</div>
@@ -493,13 +520,13 @@ function diaryVialCard(vial,stored,active){
  const art=calcVial('diary-'+vial.id).replace('y="85" width="42" height="0"','y="'+(85-level)+'" width="42" height="'+level+'"');
  const stamp=Number.isFinite(Date.parse(vial.createdAt))?new Date(vial.createdAt).toLocaleDateString('pt-BR'):'Data não informada';
  const count=state.doses.filter(r=>stored.links[r.id]===vial.id).length;
- return '<div class="calc-vial-display"><div class="calc-vial-art" role="img" aria-label="Frasco com '+esc(calcDisplay(balance.percent))+'% restante">'+art+'<strong class="calc-vial-percent">'+esc(calcDisplay(balance.percent))+'% restante</strong></div><div class="calc-vial-facts"><strong>'+esc(vialProduct(vial,stored)||vial.name)+'</strong><span>Registrado em '+esc(stamp)+'</span><span>'+esc(calcDisplay(balance.volume))+' de '+esc(calcDisplay(vial.volume))+' mL</span><span>'+esc(calcDisplay(balance.mass))+' de '+esc(calcDisplay(vial.mass))+' mg</span>'+(vial.dose?'<span>Dose informada no cadastro: '+esc(calcDisplay(vial.dose))+' '+esc(vial.unit)+'</span>':'')+'<span>'+count+' aplicações vinculadas</span><span class="tag">'+(balance.mass===0?'Vazio':active?'Ativo':'Encerrado')+'</span></div></div>';
+ return '<div class="calc-vial-display"><div class="calc-vial-art" role="img" aria-label="Frasco com '+esc(calcDisplay(balance.percent))+'% restante">'+art+'<strong class="calc-vial-percent">'+esc(calcDisplay(balance.percent))+'% restante</strong></div><div class="calc-vial-facts"><strong>'+esc(vialProduct(vial,stored)||vial.name)+'</strong><span>Registrado em '+esc(stamp)+'</span><span>'+esc(calcDisplay(balance.volume))+' de '+esc(calcDisplay(vial.volume))+' mL</span><span>'+esc(calcDisplay(balance.mass))+' de '+esc(calcDisplay(vial.mass))+' mg</span>'+(vial.dose?'<span>Dose informada no cadastro: '+esc(calcDisplay(vial.dose))+' '+esc(vial.unit)+'</span>':'')+'<span>'+count+(count===1?' aplicação vinculada':' aplicações vinculadas')+'</span><span class="tag">'+(balance.mass===0?'Vazio':active?'Ativo':'Encerrado')+'</span></div></div>';
 }
 function diaryVials(){
  try{
   const stored=readCalcVials(),current=stored.items.find(item=>item.id===stored.active),active=activeDiaryVial(stored),history=stored.items.filter(item=>item.id!==active?.id);
   return '<section class="card calc-vial-overview space"><div class="card-head"><h2>Meu frasco</h2><button type="button" class="primary" data-go="frasco">Adicionar frasco</button></div>'+
-   (active?diaryVialCard(active,stored,true):'<p class="notice">'+(current&&vialBalance(current,stored.links).mass===0?'Seu frasco está vazio. Adicione um novo frasco para continuar o acompanhamento.':'Adicione um frasco identificado para vincular os novos registros.')+'</p>')+
+   (active?diaryVialCard(active,stored,true):'<div class="calc-vial-display diary-vial-empty"><div class="calc-vial-art" role="img" aria-label="Ilustração de frasco vazio">'+calcVial('diary-empty')+'</div><div class="calc-vial-facts"><strong>'+(current&&vialBalance(current,stored.links).mass===0?'Frasco vazio':'Nenhum frasco ativo')+'</strong><span>Toque em Adicionar frasco para cadastrar os dados do frasco e acompanhar seus registros.</span></div></div>')+
    (history.length?'<details><summary>Histórico de frascos · '+history.length+'</summary><div class="diary-vial-history">'+history.map(item=>diaryVialCard(item,stored,false)).join('')+'</div></details>':'')+
    (cloudVialDiaryReady()&&!stored.items.length&&readLocalVials().items.length?'<button type="button" class="secondary" data-diary-vial-import>Importar frascos deste navegador</button><p class="sub">Os frascos locais não serão apagados.</p>':'')+
    '<p class="sub">Saldo calculado pelos registros vinculados; não considera perdas nem confirma o volume físico. Não é uma orientação de aplicação. '+(cloudVialDiaryReady()?'Histórico sincronizado pela conta.':'O histórico permanece neste navegador e não é sincronizado.')+'</p></section>';
@@ -544,7 +571,9 @@ document.addEventListener('click',async event=>{
   if(mode==='local'&&!demo&&!localConsent())return;
   const product=String($('#diary-vial-product').value||'').trim();
   const snap=calcSnapshot({mass:Number($('#mass').value),volume:Number($('#volume').value),dose:Number($('#dose').value),unit:$('#doseUnit').value,capacity:calcCapacityValue});
-  if(!product||product.length>80||!snap||snap.ml>snap.volume*(1+1e-10))throw Error('Informe produto, massa, volume e dose válidos.');
+  if(!product||product.length>80)diaryInvalidField('diary-vial-product','Informe o nome do produto (até 80 caracteres).');
+  for(const [id,label] of [['mass','massa total'],['volume','volume final'],['dose','dose informada']])if(!Number.isFinite(Number($('#'+id).value))||Number($('#'+id).value)<calcMinimum)diaryInvalidField(id,'Informe um valor válido para '+label+'.');
+  if(!snap||snap.ml>snap.volume*(1+1e-10))diaryInvalidField('dose','Confira a dose, os dados do frasco e a capacidade da seringa.');
   const stored=readCalcVials(),previous=activeDiaryVial(stored);
   if(previous&&!confirm('O frasco atual ainda tem saldo registrado. Encerrar seu acompanhamento e ativar o novo frasco?'))return;
   const form=$('#calcForm'),item={id:form.dataset.vialRequest||uid(),name:product,product,mass:snap.mass,volume:snap.volume,dose:snap.dose,unit:snap.unit,createdAt:new Date().toISOString()};
