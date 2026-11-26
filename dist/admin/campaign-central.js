@@ -167,7 +167,7 @@
    if(view==='agenda')root.querySelectorAll('[data-central-date-list] article').forEach((node,index)=>{node.dataset.day=(dated[index].batches[0]?.due_at?new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo'}).format(new Date(dated[index].batches[0].due_at)):dated[index].planned_local||'').slice(0,10);});
   }
   async function load(id){
-   current=id;
+   ++loadEpoch;current=id;
    const result=await rpc('get');
    const series=!isApp&&typeof cloud.campaignWeekly==='function'?await weeklyRpc('list').catch(()=>[]):[];
    if(active()&&current===id){detail=result;weekly=series;details();}
@@ -398,7 +398,7 @@
    if(event.target.matches('[data-central-search]')){search=event.target.value.trim().toLocaleLowerCase('pt-BR');list();root.querySelector('[data-central-search]').focus();}
    if(event.target.matches('[data-central-date]'))root.querySelectorAll('[data-central-date-list] article').forEach(node=>{node.hidden=Boolean(event.target.value&&node.dataset.day<event.target.value);});
   });
-  return {async open(id){view='agenda';await load(id);},async reload(){try{await refresh();}catch{screen='failed';show('Central indisponível. Atualize o painel.');}},async load(){if(!screen){screen='loading';redraw('<p>Consultando campanhas…</p>');try{await refresh();}catch{screen='failed';show('Central indisponível. Atualize o painel para tentar novamente.');}}},syncLegacy(){if(screen==='list'&&!busy){list();void refreshLegacy().then(()=>{if(screen==='list'&&!busy)list();});}}};
+  return {async open(id){view='agenda';try{await load(id);}catch{screen='failed';redraw('<p>Não foi possível abrir a campanha copiada. Atualize a central.</p>');}},async reload(){try{await refresh();}catch{screen='failed';show('Central indisponível. Atualize o painel.');}},async load(){if(!screen){screen='loading';redraw('<p>Consultando campanhas…</p>');try{await refresh();}catch{screen='failed';show('Central indisponível. Atualize o painel para tentar novamente.');}}},syncLegacy(){if(screen==='list'&&!busy){list();void refreshLegacy().then(()=>{if(screen==='list'&&!busy)list();});}}};
  }
  window.NeoCampaignCentral={mount};
 })();
