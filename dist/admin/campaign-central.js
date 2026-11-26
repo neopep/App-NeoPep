@@ -22,7 +22,7 @@
  symbols.filter='<path d="M3 5h18M6 12h12M10 19h4"/><circle cx="8" cy="5" r="2" fill="currentColor"/><circle cx="15" cy="12" r="2" fill="currentColor"/>';
  const icon=name=>`<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${symbols[name]}</svg>`;
  const iconAction=(action,label)=>`<button type="button" class="secondary central-icon" data-central="${action}" aria-label="${label}" title="${label}">${icon(action)}</button>`;
- const labels={draft:'Rascunho',scheduled:'Agendada',waiting:'Aguardando',active:'Ativa',in_progress:'Em processamento',completed:'Concluída',accepted:'Aceita pelo cliente',refused:'Recusada',uncertain:'Incerta',cancelled:'Cancelada',archived:'Arquivada',legacy:'Manual legado'};
+ const labels={paused:'Pausada',draft:'Rascunho',scheduled:'Agendada',waiting:'Aguardando',active:'Ativa',in_progress:'Em processamento',completed:'Concluída',accepted:'Aceita pelo cliente',refused:'Recusada',uncertain:'Incerta',cancelled:'Cancelada',archived:'Arquivada',legacy:'Manual legado'};
  function state(pub){
   const batch=pub.batches[0];
   if(!batch)return pub.legacy_dispatch?'legacy':'draft';
@@ -83,11 +83,16 @@
   function status(pub){return labels[state(pub)];}
   function campaignState(row){
    if(row.archived_at)return 'archived';
+   if(row.paused_at||row.legacy&&row.status==='paused')return 'paused';
    if(row.legacy)return row.status==='archived'?'archived':row.status==='active'?'active':row.status==='draft'?'draft':'legacy';
    return row.next_at?'scheduled':row.pending||row.problems?'active':row.publications===row.drafts?'draft':row.drafts?'active':'completed';
   }
   function redraw(content){
    if(active())root.innerHTML='<p class="sub" role="status" data-central-status></p>'+content;
+  }
+  function switchCampaign(row){
+   if(row.legacy||row.archived_at||!Object.prototype.hasOwnProperty.call(row,'paused_at'))return '';
+   const enabled=!row.paused_at;return `<button type="button" class="central-campaign-switch" role="switch" aria-checked="${enabled}" aria-label="${enabled?'Desativar':'Ativar'} campanha ${escape(row.title)}" title="${enabled?'Desativar':'Ativar'} campanha" data-central="toggle_enabled" data-id="${escape(row.campaign_id)}" data-enabled="${enabled}"><span class="central-switch-track" aria-hidden="true"></span><small>${enabled?'Ligada':'Desligada'}</small></button>`;
   }
   function list(){
    screen='list';current=null;detail=null;
@@ -96,9 +101,9 @@
    const visible=feed.filter(row=>(!filter||campaignState(row)===filter)&&(row.title||'').toLocaleLowerCase('pt-BR').includes(search));
    redraw(`<div class="between"><h2>Campanhas ${channelLabel}</h2>${button('new','+ Nova campanha','','primary')}</div>
     <div class="central-filters"><label class="central-search">${icon('search')}<input type="search" aria-label="Buscar campanha" placeholder="Buscar campanha" data-central-search value="${escape(search)}"></label><label>Estado<select data-central-filter>
-    ${[['','Todas'],['draft','Rascunhos'],['active','Ativas'],['scheduled','Agendadas'],['completed','Concluídas'],['archived','Arquivadas'],['legacy','Legadas']].map(([value,label])=>`<option value="${value}" ${filter===value?'selected':''}>${label}</option>`).join('')}</select></label>
+    ${[['','Todas'],['draft','Rascunhos'],['active','Ativas'],['paused','Pausadas'],['scheduled','Agendadas'],['completed','Concluídas'],['archived','Arquivadas'],['legacy','Legadas']].map(([value,label])=>`<option value="${value}" ${filter===value?'selected':''}>${label}</option>`).join('')}</select></label>
     ${!isApp&&getLocal(legacyKey)?button('recover','Continuar rascunho anterior'):''}</div><div data-central-feed>
-    ${visible.map(row=>`<article class="monitor-block central-campaign-card"><div class="between"><h3>${escape(row.title)}</h3><span class="campaign-state">${labels[campaignState(row)]}</span></div>
+    ${visible.map(row=>`<article class="monitor-block central-campaign-card"><div class="between"><h3>${escape(row.title)}</h3><div class="central-card-state"><span class="campaign-state">${labels[campaignState(row)]}</span>${switchCampaign(row)}</div></div>
     <p class="sub">${row.legacy?(isApp?'Campanha App existente · fluxo anterior':'Campanha manual · fluxo legado'):`${row.publications} publicação(ões) · ${row.drafts} rascunho(s) · ${row.pending||0} pendente(s) · ${row.problems||0} com problema${row.next_at?' · Próxima: '+date(row.next_at):''}`}</p>
     ${row.origin_channel?'<p class="sub">Criada a partir do '+(row.origin_channel==='app'?'App':'WhatsApp')+'</p>':''}${button(row.legacy?'legacy':'open',row.legacy?'Abrir campanha existente':'Abrir campanha',row.campaign_id)}
     ${!isApp&&row.legacy&&legacyStates.get(row.id)?.can_delete?button('delete_legacy','Excluir campanha manual',row.id):''}</article>`).join('')||'<p>Nenhuma campanha com esse filtro.</p>'}
@@ -141,16 +146,16 @@
   }
   function details(){
    screen='detail';
-   const editable=!detail.archived_at;
+   const editable=!detail.archived_at,paused=Boolean(detail.paused_at);
    const items=view==='history'?detail.publications:detail.publications.filter(pub=>!pub.deleted_at);
    const ordered=[...items].sort((a,b)=>(a.batches[0]?.due_at||a.planned_local||'').localeCompare(b.batches[0]?.due_at||b.planned_local||''));
    const undated=ordered.filter(pub=>!pub.planned_local&&!pub.batches.length);
    const dated=ordered.filter(pub=>!undated.includes(pub));
    const cards=entries=>entries.map(pub=>{
     const batch=pub.batches[0],locked=Boolean(pub.deleted_at)||pub.legacy_dispatch||Boolean(batch&&(batch.cancelled_at==null||batch.states?.some(value=>value!=='cancelled')));
-    return `<article class="monitor-block central-publication"><div class="central-date-badge">${dateBadge(pub)}</div><div class="central-publication-body"><div class="central-publication-title"><strong>${escape(pub.title)}</strong><span class="campaign-state">${pub.deleted_at?'Excluída':status(pub)}</span></div>
+    return `<article class="monitor-block central-publication"><div class="central-date-badge">${dateBadge(pub)}</div><div class="central-publication-body"><div class="central-publication-title"><strong>${escape(pub.title)}</strong><span class="campaign-state">${pub.deleted_at?'Excluída':paused&&['waiting','scheduled','draft'].includes(state(pub))?'Pausada':status(pub)}</span></div>
      <p class="sub">${pub.kinds?.length||0} ${isApp?'bloco(s)':'mensagem(ns)'}${pub.kinds?.length?' · '+escape(pub.kinds.join(', ')):''}</p>
-     ${view==='agenda'&&editable&&pub.planned_local&&!locked?`<label class="check"><input type="checkbox" name="selected-publication" value="${escape(pub.id)}" aria-label="Selecionar para agendar"> Agendar</label>`:''}
+     ${view==='agenda'&&editable&&!paused&&pub.planned_local&&!locked?`<label class="check"><input type="checkbox" name="selected-publication" value="${escape(pub.id)}" aria-label="Selecionar para agendar"> Agendar</label>`:''}
      <details class="central-action-menu"><summary aria-label="Opções da publicação">⋯</summary><div class="central-action-popover">${button('edit',locked||!editable?'Ver publicação':'Editar publicação',pub.id)}
      ${!isApp&&reviewReady&&editable&&!locked?button('request_review','Solicitar aprovação de outro admin',pub.id):''}
      ${editable&&!pub.deleted_at?button('duplicate_form','Duplicar / distribuir',pub.id)+((isApp?appRepeatReady:typeof cloud.campaignWeekly==='function')?button('weekly_form',isApp?'Preparar repetição':'Programar repetição',pub.id):''):''}
@@ -158,8 +163,8 @@
      ${editable&&!pub.deleted_at?button('delete_publication','Excluir publicação',pub.id):''}</div></details>
      ${view==='history'?`<div data-central-history="${escape(pub.id)}">${button('attempts','Ver tentativas e recibos',pub.id)}</div>`:''}</div></article>`;
    }).join('');
-   redraw(`${button('back','‹ Campanhas')}<section class="central-campaign-heading"><h2>${escape(detail.title)}</h2><div class="central-campaign-icons">${editable?iconAction('rename','Renomear')+iconAction('archive','Arquivar'):''}${iconAction('delete','Excluir campanha')}${editable&&onCross?button('copy_channel',isApp?'Copiar para WhatsApp':'Copiar para App'):''}</div></section>
-    <p class="sub">${channelLabel} · ${items.length} publicação(ões)${editable?'':' · Arquivada'}${detail.origin_channel?' · Criada no '+(detail.origin_channel==='app'?'App':'WhatsApp'):''}</p>
+   redraw(`${button('back','‹ Campanhas')}<section class="central-campaign-heading"><h2>${escape(detail.title)}</h2><div class="central-campaign-icons">${switchCampaign(detail)}${editable?iconAction('rename','Renomear')+iconAction('archive','Arquivar'):''}${iconAction('delete','Excluir campanha')}${editable&&onCross?button('copy_channel',isApp?'Copiar para WhatsApp':'Copiar para App'):''}</div></section>
+    ${paused?'<p class="central-pause-notice" role="status">Campanha desligada. As publicações pendentes não serão despachadas. Conteúdo e histórico preservados.</p>':''}<p class="sub">${channelLabel} · ${items.length} publicação(ões)${editable?'':' · Arquivada'}${detail.origin_channel?' · Criada no '+(detail.origin_channel==='app'?'App':'WhatsApp'):''}</p>
     ${detail.copied_rules?.length?`<details class="space"><summary>Recorrências da campanha de origem · ${detail.copied_rules.length}</summary><p class="sub">Datas copiadas como rascunhos. As regras originais são referência e não estão ativas neste canal.</p>${detail.copied_rules.map(r=>`<p class="sub">${escape((r.dates||[]).map(local).join(' · '))}</p>`).join('')}</details>`:''}
     <div class="inline-actions">${button('agenda','Agenda','',view==='agenda'?'primary':'secondary')}${button('history','Histórico','',view==='history'?'primary':'secondary')}</div>
     ${view==='agenda'? `<div class="central-publication-head"><h3>Publicações</h3><div class="central-publication-tools">${editable&&!getLocal(pointer())?button('add','+ Adicionar publicação','','primary'):''}<details class="central-filter-menu"><summary class="secondary central-icon" aria-label="Filtrar por data" title="Filtrar por data">${icon('filter')}${dateFilter?'<span class="central-filter-dot" aria-hidden="true"></span>':''}</summary><div class="central-action-popover"><label>A partir de<input type="date" data-central-date value="${escape(dateFilter)}"></label>${button('clear_date','Limpar filtro')}</div></details></div></div><div data-central-date-list>${cards(dated)||'<p>Sem publicações com data.</p>'}</div>
@@ -171,7 +176,7 @@
       <div class="inline-actions">${editable&&item.state!=='cancelled'?button('weekly_edit','Editar datas',item.id)+
        (item.state==='scheduled'?button('weekly_pause','Pausar',item.id):'')+button('weekly_cancel','Cancelar repetição',item.id):''}</div></article>`).join('')}`:''}
      ${editable?`<div class="inline-actions">
-      ${dated.length?button('schedule_selected','Revisar e agendar selecionadas'):''}</div>`:''}`:
+      ${!paused&&dated.length?button('schedule_selected','Revisar e agendar selecionadas'):''}</div>`:''}`:
      `${cards(ordered)||'<p>Sem publicações registradas.</p>'}<h3>Eventos da campanha</h3><ul>${detail.events.map(event=>`<li>${date(event.recorded_at)} · ${({created:'Campanha criada',save:'Versão salva',duplicate:'Duplicada',schedule:'Agendada',publish:'Publicação solicitada',cancel:'Cancelamento solicitado',archived:'Arquivada',renamed:'Campanha renomeada'})[event.event]||escape(event.event)}${event.revision?' · versão '+escape(event.revision):''}</li>`).join('')}</ul>`}`);
    if(view==='agenda')root.querySelectorAll('[data-central-date-list] article').forEach((node,index)=>{node.dataset.day=dated[index].batches[0]?.due_at?saoPauloDay(new Date(dated[index].batches[0].due_at)):(dated[index].planned_local||'').slice(0,10);node.hidden=Boolean(dateFilter&&node.dataset.day<dateFilter);});
   }
@@ -192,7 +197,7 @@
    if(!active()||current!==campaignId)return;
    if(options.new)setLocal(pointer(),id);
    window.NeoCampaignEditor.open({cloud,channel,remote,trigger,fresh:options.fresh,readOnly:options.readOnly,
-    publication:{campaignId,id,title:detail.title,destination:options.new||!remote?detail.default_destination:null},onConnect,onClosed:()=>{if(active()&&current===campaignId)details();},onSaved:()=>{
+    publication:{campaignId,id,title:detail.title,paused:Boolean(detail.paused_at),destination:options.new||!remote?detail.default_destination:null},onConnect,onClosed:()=>{if(active()&&current===campaignId)details();},onSaved:()=>{
      if(getLocal(pointer())===id)removeLocal(pointer());
      if(active()&&current===campaignId)void load(campaignId).catch(()=>show('Atualize para conferir a publicação salva.'));
     }});
@@ -343,6 +348,12 @@
    control.closest('details.central-action-menu')?.removeAttribute('open');
    busy=true;
    try{
+    if(action==='toggle_enabled'){
+     const row=screen==='detail'?detail:rows.find(r=>r.campaign_id===id);if(!row||row.archived_at||!Object.prototype.hasOwnProperty.call(row,'paused_at'))return;
+     const expected=!row.paused_at,enabled=!expected;if(String(expected)!==control.dataset.enabled){show('O estado mudou. Atualize a campanha.');return;}
+     if(!confirm(enabled?'Reativar esta campanha? Publicações futuras voltam a ficar elegíveis; datas vencidas precisam ser revisadas. Nada já entregue será reenviado.':'Desativar esta campanha e interromper as publicações pendentes? Os conteúdos, datas e histórico serão preservados.'))return;
+     await rpc('set_enabled',{campaign_id:id,expected_enabled:expected,enabled,confirmed:true});if(screen==='detail')await load(id);else await refresh();show(enabled?'Campanha reativada.':'Campanha pausada.');return;
+    }
     if(action==='new')void creation();
     if(action==='back')await refresh();
     if(action==='more')await refresh(true);
@@ -436,7 +447,7 @@
      const holder=control.parentElement;
      if(active()&&holder.isConnected)holder.innerHTML=history.map(row=>`<p class="sub">Mensagem ${escape(row.sequence)} · ${labels[row.dispatch_state]||escape(row.dispatch_state)} · ${escape(row.dispatch_attempts)} tentativa(s) · ${row.has_receipt?'Recibo registrado':'Sem recibo'} · ${date(row.scheduled_at)}</p>`).join('')||'<p>Sem tentativas de despacho.</p>';
     }
-   }catch(error){show(action==='copy_channel'?'Não foi possível copiar integralmente. Confira se todos os anexos originais estão disponíveis e as publicações salvas. Nenhuma cópia parcial é mantida.':'Não foi possível concluir. Confira a autorização, o estado da publicação e a conexão do NeoPep Connect.');}
+   }catch(error){if(action==='toggle_enabled'){const m=String(error?.message||'');show(m.includes('campaign_pause_overdue')?'Há publicações com horário vencido. Cancele ou reprograme as pendências antes de reativar.':m.includes('campaign_pause_in_progress')||m.includes('campaign_pause_busy')?'Existe envio em andamento ou estado ainda não resolvido. Confira o histórico e tente novamente.':m.includes('campaign_pause_changed')?'O estado mudou. Atualize a campanha.':'Não foi possível alterar o estado da campanha. Nenhum estado foi alterado na tela.');return;}show(action==='copy_channel'?'Não foi possível copiar integralmente. Confira se todos os anexos originais estão disponíveis e as publicações salvas. Nenhuma cópia parcial é mantida.':'Não foi possível concluir. Confira a autorização, o estado da publicação e a conexão do NeoPep Connect.');}
    finally{busy=false;}
   });
   root.addEventListener('change',event=>{
