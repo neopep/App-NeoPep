@@ -1096,3 +1096,38 @@ dialog.neo-structured-editor::backdrop{background:#192720}
 .neo-structured-editor .structured-community-reference img{max-width:min(100%,480px);max-height:none;object-fit:contain;cursor:default}
 
 .neo-structured-editor .structured-compose textarea{max-height:clamp(3.15rem,calc(var(--structured-frame-height,100dvh) * .34),15rem)}
+
+/* Automatic offers: the catalog price is a server-calculated single-unit offer. */
+.shop-product-visual,.shop-detail-photo,.shop-home-image{position:relative;isolation:isolate}
+.shop-offer-badge{position:absolute;z-index:2;top:10px;left:0;display:block;padding:7px 20px 7px 10px;max-width:75%;background:#141414;color:#ffdc40;font-weight:900;font-size:clamp(10px,2.8vw,15px);line-height:1.15;letter-spacing:.06em;clip-path:polygon(0 0,100% 0,91% 100%,0 100%);pointer-events:none;box-shadow:0 3px 8px #0005;text-shadow:none}
+.shop-offer-image-percent{position:absolute;top:0;right:8px;z-index:2;padding:8px 5px 14px;background:#b92035;color:white;font-weight:900;font-size:clamp(10px,2.6vw,15px);line-height:1;clip-path:polygon(0 0,100% 0,100% 100%,50% 82%,0 100%);pointer-events:none}
+.shop-offer-prices{display:grid;gap:1px;min-width:0;margin:0}
+.shop-offer-original{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:.78rem;color:var(--muted);line-height:1.25}
+.shop-offer-original del{font-weight:400;opacity:.9}
+.shop-offer-original span{font-weight:800;color:#c32236}
+[data-theme=dark] .shop-offer-original span{color:#ff8998}
+.shop-offer-note{display:block;color:var(--muted);font-size:.68rem;line-height:1.2;font-weight:400}
+.shop-order-environments{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.shop-order-environments button[aria-pressed=true]{background:var(--accent);color:var(--bg);font-weight:700}
+.shop-label-dialog{width:min(95vw,440px);max-height:92dvh;overflow:auto;padding:14px;border:1px solid var(--border);border-radius:16px;background:var(--solid);color:var(--ink)}
+.shop-label-actions{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.shop-label-print{color:#111;background:#fff;border:1px solid #222;width:100%;max-width:100mm;min-height:150mm;margin:0 auto;padding:6mm;font:14px/1.35 Arial,sans-serif;overflow-wrap:anywhere}
+.shop-label-print header{display:grid;gap:3px;border-bottom:2px solid #111;padding-bottom:5mm}
+.shop-label-print header strong{font-size:23px;letter-spacing:.1em}
+.shop-label-print header span{font-size:12px;font-weight:700}
+.shop-label-print section{margin:0;padding:5mm 0;border-bottom:1px solid #111}
+.shop-label-print h3{font:700 11px/1.3 Arial,sans-serif;letter-spacing:.08em;margin:0 0 3mm;color:#111}
+.shop-label-print p{margin:1.2mm 0;color:#111}
+.shop-label-print .shop-label-name{font-size:17px;display:block}
+.shop-label-print .shop-label-cep{font-size:20px;font-weight:800;margin:3mm 0}
+.shop-label-sender{white-space:pre-wrap}
+.shop-label-print footer{margin-top:4mm;font-size:10px;color:#111}
+@page shop-shipping-label{size:100mm 150mm;margin:0}
+@media print{
+ body:has(.shop-label-dialog[open])> :not(.shop-label-dialog){display:none!important}
+ html:has(.shop-label-dialog[open]),body:has(.shop-label-dialog[open]){overflow:visible!important;background:#fff!important;height:auto!important;margin:0!important;padding:0!important}
+ .shop-label-dialog[open]{position:static!important;inset:auto!important;display:block!important;width:100mm!important;max-width:none!important;height:auto!important;max-height:none!important;overflow:visible!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:#fff!important;box-shadow:none!important}
+ .shop-label-dialog::backdrop{display:none!important}
+ .shop-label-actions,.shop-label-instruction{display:none!important}
+ .shop-label-print{page:shop-shipping-label;width:100mm!important;max-width:100mm!important;min-height:0!important;margin:0!important;border:0!important;break-inside:avoid;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+}
