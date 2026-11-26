@@ -1562,10 +1562,10 @@ function engagementView(){
  engagementCalcStarted=false;
  if(Object.hasOwn(engagementViews,area))engagementTrack(engagementViews[area],area);
 }
-let geoAccount=null,geoAllowed=null,geoPending=false,geoNext=0,geoCaptureRequested=true;
+let geoAccount=null,geoAllowed=null,geoPending=false,geoNext=0,geoCaptureRequested=true,geoDevicePosition=null;
 async function syncGeo(){
  const account=mode==='cloud'&&!demo?Cloud.user?.id:null;
- if(geoAccount!==account){geoAccount=account;geoAllowed=null;geoPending=false;geoNext=0;geoCaptureRequested=true}
+ if(geoAccount!==account){geoAccount=account;geoAllowed=null;geoPending=false;geoNext=0;geoCaptureRequested=true;geoDevicePosition=null}
  const enabled=window.NEO_CONFIG?.stagingGeoEnabled===true;
  if(!account||!Cloud.geoControl||geoPending||document.visibilityState==='hidden'||(!enabled&&page!=='perfil')||Date.now()<geoNext)return;
  geoPending=true;
@@ -1575,7 +1575,15 @@ async function syncGeo(){
    if(geoAccount!==account||Cloud.user?.id!==account)return;
    geoAllowed=result.allowed===true;
   }
-  if(enabled&&geoAllowed&&geoCaptureRequested&&Cloud.captureGeo){await Cloud.captureGeo();geoCaptureRequested=false;}
+  if(enabled&&geoAllowed&&geoCaptureRequested){
+   // First record the IP fallback, then improve the city/state with the GPS result.
+   const device=geoDevicePosition;geoDevicePosition=null;
+   try{await Cloud.captureGeo?.()}catch{}
+   if(device&&geoAccount===account&&Cloud.user?.id===account){
+    try{await Cloud.captureDeviceCity?.(device)}catch{}
+   }
+   if(geoAccount===account)geoCaptureRequested=false;
+  }
  }catch{}finally{if(geoAccount===account){geoPending=false;geoNext=Date.now()+300000}}
 }
 
@@ -1666,7 +1674,7 @@ const privacyOptions=[
  ['statistics','Estatísticas do aplicativo'],
  ['usage','Medição de uso'],
  ['campaigns','Notificações de campanhas'],
- ['location','Localização aproximada']
+ ['location','Localização (cidade e estado)']
 ];
 function personalizationPanel(initial){
  return `<section class="card privacy-preferences personalization-panel" data-personalization hidden aria-labelledby="personalizationTitle">
@@ -1740,11 +1748,11 @@ function privacyPreferencesPage(){
   `<form id="privacyPreferences" class="card privacy-preferences" data-privacy-account="${esc(Cloud.user.id)}" data-privacy-page="${page}">
   ${initial?'<p class="sub">Revise as opções e confirme em OK. Você pode mudar depois no Perfil.</p>':''}
   <fieldset disabled aria-label="Permissões opcionais">
-  ${privacyOptions.map(([key,label])=>`<label class="privacy-option" for="privacy-${key}"><span>${label}</span><input id="privacy-${key}" name="${key}" type="checkbox" role="switch"${initial?' checked':''}></label>`).join('')}
+  ${privacyOptions.map(([key,label])=>`<label class="privacy-option" for="privacy-${key}"><span>${label}</span><input id="privacy-${key}" name="${key}" type="checkbox" role="switch"${initial&&key!=='location'?' checked':''}></label>`).join('')}
   </fieldset>
   ${initial?'<button type="button" class="secondary full" data-privacy-select-none>Desmarcar todas</button>':''}
   <p class="sub privacy-device-summary">Dispositivo atual: ${esc(deviceSummary||'Não identificado')}.</p>
-  <p class="form-help">A região é aproximada pela conexão. As coordenadas GPS não são armazenadas.</p>
+  <p class="form-help">Ao autorizar, primeiro usamos a cidade e o estado estimados pela conexão (Vercel). Se o aparelho permitir, usamos a posição do dispositivo para consultar cidade e estado na BigDataCloud, que recebe coordenadas e IP. O NeoPep guarda apenas cidade, estado, país e fonte (não guarda coordenadas). Você pode revogar no Perfil.</p>
   <p class="sub" data-privacy-notice role="status">Consultando preferências…</p>
   <a class="text-btn privacy-policy-link" href="#privacidade" target="_blank" rel="noopener">Política de Privacidade</a>
   <button type="submit" class="primary full" disabled>${initial?'OK':'Salvar preferências'}</button>
@@ -1754,20 +1762,27 @@ function privacyPreferencesPage(){
 function privacyHelp(form){
  const messages=[];
  if(window.Notification?.permission==='denied')messages.push('Notificações bloqueadas. Para liberá-las, abra os ajustes de notificações do aparelho ou do navegador.');
- if(form.querySelector('[name=location]')?.disabled)messages.push('A localização aproximada ainda está indisponível neste ambiente.');
+ if(form.querySelector('[name=location]')?.disabled)messages.push('A identificação de cidade e estado está indisponível neste ambiente.');
  return messages.join(' ');
 }
 function requestDeviceLocation(){
  return new Promise(resolve=>{
-  const timeout=setTimeout(()=>finish(false),8000);
-  function finish(allowed){clearTimeout(timeout);resolve(allowed);}
+  let settled=false;
+  const timeout=setTimeout(()=>finish(null),10000);
+  function finish(position){if(settled)return;settled=true;clearTimeout(timeout);resolve(position);}
   try{
    const geo=navigator.geolocation;
-   if(!geo){finish(false);return;}
-   geo.getCurrentPosition(()=>finish(true),()=>finish(false),{
-    enableHighAccuracy:false,maximumAge:0,timeout:8000
-   });
-  }catch{finish(false);}
+   if(!geo){finish(null);return;}
+   geo.getCurrentPosition(position=>{
+    try{
+     const latitude=Number(position.coords.latitude),longitude=Number(position.coords.longitude);
+     const accuracy=Number(position.coords.accuracy);
+     if(!Number.isFinite(latitude)||!Number.isFinite(longitude)||Math.abs(latitude)>90||Math.abs(longitude)>180)return finish(null);
+     // Kept only in memory until city/state are resolved; never persisted.
+     finish({latitude,longitude,accuracy:Number.isFinite(accuracy)?accuracy:null});
+    }catch{finish(null);}
+   },()=>finish(null),{enableHighAccuracy:true,maximumAge:0,timeout:9000});
+  }catch{finish(null);}
  });
 }
 function mountPrivacyPreferences(){
@@ -1822,13 +1837,14 @@ function mountPrivacyPreferences(){
   // Start native authorization within the submit gesture, before the network request.
   const wantsCampaigns=choices.campaigns===true;
   const nativeNotice=wantsCampaigns?Promise.resolve(window.NeoPush?.enable?.()).then(active=>active?'Notificações ativadas neste dispositivo.':'Confira a ativação de notificações em Lembretes.').catch(error=>error?.message||'O aparelho não autorizou as notificações; confira os ajustes do iPhone.'):Promise.resolve('');
-  const locationCheck=choices.location===true?requestDeviceLocation():null;
+  const locationCheck=!skipping&&form.querySelector('[name=location]')?.checked===true&&locationObservationEnabled()?requestDeviceLocation():null;
   saving=true;fields.disabled=true;save.disabled=true;if(skip)skip.disabled=true;
   status.textContent=locationCheck?'Aguardando a permissão do aparelho…':'Salvando preferências…';
   try{
-   const locationUnavailable=locationCheck!==null&&!(await locationCheck);
+   const devicePosition=locationCheck!==null?await locationCheck:null;
+   const locationUnavailable=locationCheck!==null&&!devicePosition;
    if(!current())return;
-   if(locationUnavailable)delete choices.location;
+   // If GPS is declined, the user may still opt in to the approximate IP lookup.
    const values=await Cloud.privacyPreferences(skipping?null:choices,initial);
    if(Cloud.user?.id!==account)return;
    if(choices.statistics!==undefined){
@@ -1840,12 +1856,14 @@ function mountPrivacyPreferences(){
     resetEngagement(account);engagementAllowed=values.usage;engagementChecked=true;
     if(values.usage)void syncEngagement();
    }
-   if(choices.location!==undefined){
-    geoAccount=account;geoAllowed=values.location;geoNext=0;geoCaptureRequested=values.location;
+   if(choices.location!==undefined||locationCheck!==null){
+    geoAccount=account;geoAllowed=values.location===true;geoNext=0;
+    geoCaptureRequested=values.location===true;
+    geoDevicePosition=values.location===true?devicePosition:null;
     if(values.location)void syncGeo();
    }
    const notificationMessage=await nativeNotice;
-   const notice=[notificationMessage,locationUnavailable?'A localização continua desativada. Você pode autorizá-la no Perfil.':''].filter(Boolean).join(' ');
+   const notice=[notificationMessage,locationUnavailable?'O aparelho não liberou GPS; a localização aproximada da conexão continua disponível.':''].filter(Boolean).join(' ');
    if(!current())return;
    apply(values);
    if(initial){
