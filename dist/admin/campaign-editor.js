@@ -937,7 +937,7 @@
    const focused=dialog.contains(document.activeElement)&&document.activeElement?.matches('textarea,input:not([type=checkbox]):not([type=radio]):not([type=button]),[contenteditable=true]');
    const full=Math.max(frameHeight,layout);
    const keyboard=!readOnly&&Math.abs((viewport?.scale||1)-1)<.02&&(full-visible>120)&&(focused||dialog.classList.contains('structured-keyboard-open'));
-   frameHeight=keyboard?full:visible;
+   if(!keyboard)frameHeight=visible;
    dialog.classList.toggle('structured-keyboard-open',keyboard);
    dialog.style.setProperty('--structured-height',Math.round(visible)+'px');
    dialog.style.setProperty('--structured-frame-height',Math.round(frameHeight)+'px');
