@@ -157,8 +157,8 @@
      <p class="sub">${pub.kinds?.length||0} ${isApp?'bloco(s)':'mensagem(ns)'}${pub.kinds?.length?' · '+escape(pub.kinds.join(', ')):''}</p>
      ${view==='agenda'&&editable&&!paused&&pub.planned_local&&!locked?`<label class="check"><input type="checkbox" name="selected-publication" value="${escape(pub.id)}" aria-label="Selecionar para agendar"> Agendar</label>`:''}
      <details class="central-action-menu"><summary aria-label="Opções da publicação">⋯</summary><div class="central-action-popover">${button('edit',locked||!editable?'Ver publicação':'Editar publicação',pub.id)}
-     ${!isApp&&reviewReady&&editable&&!locked?button('request_review','Solicitar aprovação de outro admin',pub.id):''}
-     ${editable&&!pub.deleted_at?button('duplicate_form','Duplicar / distribuir',pub.id)+((isApp?appRepeatReady:typeof cloud.campaignWeekly==='function')?button('weekly_form',isApp?'Preparar repetição':'Programar repetição',pub.id):''):''}
+     ${!isApp&&reviewReady&&editable&&!paused&&!locked?button('request_review','Solicitar aprovação de outro admin',pub.id):''}
+     ${editable&&!pub.deleted_at?button('duplicate_form','Duplicar / distribuir',pub.id)+((isApp?appRepeatReady:!paused&&typeof cloud.campaignWeekly==='function')?button('weekly_form',isApp?'Preparar repetição':'Programar repetição',pub.id):''):''}
      ${batch?.states?.includes('waiting')&&editable&&!pub.deleted_at?button('cancel','Cancelar pendências',pub.id):''}
      ${editable&&!pub.deleted_at?button('delete_publication','Excluir publicação',pub.id):''}</div></details>
      ${view==='history'?`<div data-central-history="${escape(pub.id)}">${button('attempts','Ver tentativas e recibos',pub.id)}</div>`:''}</div></article>`;
@@ -173,7 +173,7 @@
      ${weekly.length?`<h3>Repetições programadas</h3>${weekly.map(item=>`<article class="monitor-block">
       <strong>${escape(items.find(pub=>pub.id===item.publication_id)?.title||'Publicação')}</strong>
       <p class="sub">${({scheduled:'Agendada',paused:'Pausada',cancelled:'Cancelada'})[item.state]} · ${escape(item.dates.map(local).join(' · '))}</p>
-      <div class="inline-actions">${editable&&item.state!=='cancelled'?button('weekly_edit','Editar datas',item.id)+
+      <div class="inline-actions">${editable&&item.state!=='cancelled'?(!paused?button('weekly_edit','Editar datas',item.id):'')+
        (item.state==='scheduled'?button('weekly_pause','Pausar',item.id):'')+button('weekly_cancel','Cancelar repetição',item.id):''}</div></article>`).join('')}`:''}
      ${editable?`<div class="inline-actions">
       ${!paused&&dated.length?button('schedule_selected','Revisar e agendar selecionadas'):''}</div>`:''}`:
@@ -229,6 +229,7 @@
     <button class="primary" type="submit">Criar rascunhos nas datas acima</button></form>`);
   }
   async function scheduleSelected(){
+   if(detail?.paused_at){show('Reative a campanha antes de agendar.');return;}
    const selected=[...root.querySelectorAll('[name=selected-publication]:checked')].map(element=>detail.publications.find(pub=>pub.id===element.value));
    if(!selected.length){show('Selecione uma ou mais publicações.');return;}
    if(isApp){
@@ -401,6 +402,7 @@
      (pub.batches[0].cancelled_at==null||pub.batches[0].states?.some(value=>value!=='cancelled')))});
     if(action==='duplicate_form'&&pub)duplicateForm(pub);
     if(action==='request_review'&&pub&&!isApp&&reviewReady){
+     if(detail?.paused_at){show('Reative a campanha antes de solicitar aprovação.');return;}
      const source=await rpc('load',{publication_id:pub.id});
      if(!active()||!source||source.revision!==pub.revision)return;
      if(!source.draft.blocks?.length||source.draft.blocks.some(b=>!['text','link'].includes(b.type))){show('Nesta versão, a aprovação compartilhada aceita apenas texto e links.');return;}
@@ -411,7 +413,7 @@
      if(!result?.batch_id)throw Error('review_not_confirmed');removeLocal(key);
      await load(current);show('Publicação na fila de revisão. Aguarde a aprovação independente.');return;
     }
-    if(action==='weekly_form'&&pub)weeklyForm(pub);
+    if(action==='weekly_form'&&pub){if(!isApp&&detail?.paused_at){show('Reative a campanha antes de programar repetições.');return;}weeklyForm(pub);}
     if(action==='app_repeat_edit'&&isApp){
      const item=appSeries.find(row=>row.id===id&&row.state==='drafts'),source=detail.publications.find(row=>row.id===item?.publication_id&&!row.deleted_at);
      if(item&&source)weeklyForm(source,item);else show('A publicação original não está disponível para edição.');
@@ -421,6 +423,7 @@
      await load(current);show('Série cancelada: '+Number(result.closed||0)+' ocorrência(s) encerrada(s), '+Number(result.retained||0)+' preservada(s).');
     }
     if(action==='weekly_edit'){
+     if(detail?.paused_at){show('Reative a campanha antes de alterar agendamentos.');return;}
      const item=weekly.find(row=>row.id===id),source=detail.publications.find(row=>row.id===item?.publication_id);
      if(item&&source)weeklyForm(source,item);
     }
