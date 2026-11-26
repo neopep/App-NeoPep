@@ -7,7 +7,7 @@ const next='release/pacote-campanhas-20261126-01/';
 test('campanhas: replay integral de migracoes e rotas de pausa (banco descartavel)',async()=>{
  const db=new PGlite();
  const apply=async path=>{try{await db.exec(fs.readFileSync(path,'utf8'));}catch(e){throw Error(path+': '+e.message);}};
- const actor='00000000-0000-4000-8000-000000000001', other='00000000-0000-4000-8000-000000000002';
+ const actor='00000000-0000-0000-0000-000000000001', other='00000000-0000-0000-0000-000000000002';
  try{
  const fixture=fs.readFileSync('tests/shop.test.cjs','utf8').match(/db\.exec\(`(create role service_role;[^\x60]+)`\)/)[1];
  await db.exec(fixture+`alter table storage.objects add column metadata jsonb default '{}'::jsonb; create function auth.jwt() returns jsonb language sql stable as $$ select nullif(current_setting('request.jwt.claims',true),'')::jsonb $$;`);
