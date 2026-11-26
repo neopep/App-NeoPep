@@ -83,7 +83,7 @@ window.NeoShop=(()=>{
  function summary(editable=false){return `<aside class="card shop-summary"><h2>Seu carrinho <span class="tag">${cartCount()}</span></h2>${cartLines(!editable)}${totals()}${mp()}</aside>`}
  function activeOffer(p){
   const offer=p?.offer,base=Number(p?.price_cents),sale=Number(offer?.price_cents);
-  if(!p?.active||p.shop_store_hidden===true||p.stock<=0||!offer||!Number.isSafeInteger(base)||!Number.isSafeInteger(sale)||sale<1||sale>=base||Number(offer.original_price_cents)!==base||offer.valid_until&&Date.parse(offer.valid_until)<=Date.now())return null;
+  if(!p||p.active===false||p.shop_store_hidden===true||p.stock<=0||!offer||!Number.isSafeInteger(base)||!Number.isSafeInteger(sale)||sale<1||sale>=base||Number(offer.original_price_cents)!==base||offer.valid_until&&Date.parse(offer.valid_until)<=Date.now())return null;
   const percent=Math.floor((base-sale)*10000/base)/100;
   return {base,sale,percent:percent.toLocaleString('pt-BR',{maximumFractionDigits:2})};
  }
