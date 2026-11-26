@@ -894,6 +894,18 @@ dialog.neo-structured-editor::backdrop{background:#192720}
 [data-theme=light] .calc-vial-overview{--calc-art-shadow:#142743;--calc-art-ink:#334763;--calc-art-edge:#697d9d;--calc-art-mid:#9babc6;--calc-art-tint:#c9d6ed;--calc-art-light:#f4f7ff;--calc-fluid-pigment:#6484bb}
 @media(max-width:380px){.calc-vial-overview .calc-vial-display{flex-wrap:wrap}.calc-vial-overview .calc-vial-art{min-width:94px}}
 
+/* Campaign agenda status and grouped series, scoped to central. */
+.central-publication-title{flex-wrap:wrap;gap:.3rem}.central-publication-title strong{min-width:0;overflow-wrap:anywhere}.central-origin{display:flex;flex-wrap:wrap;gap:.25rem;margin:.35rem 0}.central-origin .campaign-state{font-size:.72rem}.central-timestamps{font-size:.76rem;line-height:1.55;margin:.4rem 0;overflow-wrap:anywhere}
+.central-series-card{margin:.6rem 0;background:var(--soft);border-color:var(--border);padding:.8rem}.central-series-card .between{flex-wrap:wrap;gap:.4rem}.central-series-progress{display:grid;gap:.35rem;margin:.65rem 0;font-size:.78rem;color:var(--muted)}.central-series-progress progress{width:100%;height:.6rem;accent-color:#387452;border:0}.central-series-card details{border:1px solid var(--border);border-radius:10px;padding:.6rem;margin:.45rem 0}.central-series-card summary{cursor:pointer;font-weight:600;font-size:.85rem}.central-series-dates{display:grid;gap:.4rem;margin-top:.5rem}.central-series-occurrence{border-top:1px solid var(--border);padding:.6rem 0;font-size:.82rem}.central-series-occurrence .secondary{min-height:36px;font-size:.74rem;margin:.25rem .25rem 0 0}.central-series-occurrence .campaign-state{font-size:.72rem}.central-publication .campaign-state,.central-series-card .campaign-state{max-width:100%;white-space:normal;text-align:left}
+[data-theme=light] .central-series-card{background:#f0f4f9;border-color:#d8e1ec}
+[data-theme=dark] .central-series-card{background:rgba(228,209,164,.085)}
+[data-theme=light] :is(.central-publication,.central-series-card) .central-status-accepted{background:#dcece2;color:#285c40}
+[data-theme=light] :is(.central-publication,.central-series-card) :is(.central-status-waiting,.central-status-scheduled,.central-status-in_progress,.central-status-paused){background:#f5e9cf;color:#80591e}
+[data-theme=light] :is(.central-publication,.central-series-card) :is(.central-status-refused,.central-status-uncertain,.central-status-partial,.central-status-unknown){background:#f5e2e4;color:#8c3044}
+[data-theme=dark] :is(.central-publication,.central-series-card) .central-status-accepted{background:#284739;color:#c0e4ce}
+[data-theme=dark] :is(.central-publication,.central-series-card) :is(.central-status-waiting,.central-status-scheduled,.central-status-in_progress,.central-status-paused){background:#493b24;color:#f1dca9}
+[data-theme=dark] :is(.central-publication,.central-series-card) :is(.central-status-refused,.central-status-uncertain,.central-status-partial,.central-status-unknown){background:#4b2931;color:#f8c7d0}
+
 /* Campaign central 2026-11-26: scoped cards, compact date filter and actionable issues. */
 [data-theme=light] .central-campaign-card,[data-theme=light] .central-publication,[data-theme=light] .central-local-draft{background:#f0f4f9;border-color:#d8e1ec}
 [data-theme=dark] .central-campaign-card,[data-theme=dark] .central-publication,[data-theme=dark] .central-local-draft{background:rgba(228,209,164,.085);border-color:var(--border)}
