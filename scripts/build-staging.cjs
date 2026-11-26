@@ -66,7 +66,7 @@ async function prepare() {
   }
   const style = 'dist/style.css';
   const marker = '/* Identificação exclusiva da homologação */';
-  const css = fs.readFileSync(style, 'utf8').split(marker)[0];
+  const css = fs.readFileSync(style, 'utf8').replace(/\/\* Identificação exclusiva da homologação \*\/\s*body::before\s*\{[^}]*\}\s*html\[data-theme=light\] body::before\s*\{[^}]*\}\s*(?:\/\* Fim da identificação exclusiva da homologação \*\/)?/, '');
   fs.writeFileSync(style, css + `
 ${marker}
 body::before{
@@ -75,6 +75,7 @@ body::before{
   padding:2px 9px;font:700 10px/1.3 system-ui,sans-serif;letter-spacing:.13em;
 }
 html[data-theme=light] body::before{color:#142743;background:#edf0f4;border-color:#a8b4cc}
+/* Fim da identificação exclusiva da homologação */
 `);
   // Keep the former launch URL and Auth callback as real pages at the same origin.
   fs.mkdirSync('dist/neo', { recursive: true });
@@ -83,7 +84,7 @@ html[data-theme=light] body::before{color:#142743;background:#edf0f4;border-colo
   const serviceWorker = 'dist/sw.js';
   const worker = fs.readFileSync(serviceWorker, 'utf8')
     .replace(/^(?:const CACHE_PREFIX=.*;\n)?const CACHE=.*;$/m,
-      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v55-campanhas-originais';")
+      "const CACHE_PREFIX='staging-neopeptideos-shell-'+(new URL(self.registration.scope).pathname==='/neo/'?'legacy-':'root-');\nconst CACHE=CACHE_PREFIX+'pwa-v56-campanhas-popup';")
     .replace(/key\.startsWith\((?:'[^']+'|CACHE_PREFIX)\)/, 'key.startsWith(CACHE_PREFIX)');
   fs.writeFileSync(serviceWorker, worker);
 }
