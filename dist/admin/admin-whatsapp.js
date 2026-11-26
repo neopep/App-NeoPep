@@ -140,7 +140,7 @@ function neoWhatsappPreview({cloud,read,trigger,form,onEdit,resolve}){
 
 function mountSyncedCampaignGroups(root,{cloud,picking=false}){
  const states={eligible:'Elegível',stale:'Sincronização desatualizada',disconnected:'Desconectado',unavailable:'Indisponível'};
- root.innerHTML=`<div class="form-grid"><label>Pesquisar grupos sincronizados<input type="search" maxlength="100"></label>
+ root.innerHTML=`<div class="form-grid"><label class="central-search"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input type="search" maxlength="100" aria-label="Pesquisar grupos sincronizados" placeholder="Pesquisar grupos sincronizados"></label>
  <label>Estado<select><option value="">Todos</option>${Object.entries(states).map(([id,label])=>`<option value="${id}">${label}</option>`).join('')}</select></label></div>
  <button type="button" class="secondary" data-sync-refresh>Atualizar grupos</button><p role="status" data-sync-status></p><div data-sync-rows></div>`;
  const search=root.querySelector('input'),filter=root.querySelector('select'),status=root.querySelector('[data-sync-status]');
@@ -210,7 +210,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  <p class="sub" data-wa-channel-notice>O grupo é escolhido no WhatsApp. Confirme a publicação no painel após o envio.</p>
  <details class="space" data-wa-connect><summary>NeoPep Connect</summary><div data-connect-root></div></details><p role="status" data-wa-status></p><p role="status" data-wa-reminders></p>
  <details class="space"><summary>Grupos cadastrados</summary>
- <form data-wa-group-search>${field('group_search','Pesquisar grupos','maxlength="100"')}<button type="submit" class="secondary">Pesquisar</button></form>
+ <form data-wa-group-search class="central-search editor-search"><input name="group_search" type="search" maxlength="100" aria-label="Pesquisar grupos" placeholder="Pesquisar grupos"><button type="submit" class="structured-icon" aria-label="Pesquisar" title="Pesquisar"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button></form>
  <form class="space" data-wa-group>
  ${field('name','Nome do grupo','required maxlength="120"')}
  ${field('invite','Link de convite','type="url" maxlength="120"')}
@@ -224,7 +224,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  <div data-wa-preview></div>
  <fieldset><legend data-campaign-legend="groups">Seleção de grupos</legend><div data-wa-recipients></div><div data-wa-sync-recipients></div></fieldset>
  <fieldset><legend data-campaign-legend="attachments">Anexos autorizados</legend>
- ${field('attachment_search','Pesquisar anexos','maxlength="100"')}${action('attachments','Buscar arquivos')}<div data-wa-attachments></div></fieldset>
+ <div class="central-search editor-search"><input name="attachment_search" type="search" maxlength="100" aria-label="Pesquisar anexos" placeholder="Pesquisar anexos"><button type="button" data-wa="attachments" class="structured-icon" aria-label="Buscar arquivos" title="Buscar arquivos"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button></div><div data-wa-attachments></div></fieldset>
  <div class="form-grid">${field('day','Data da divulgação','type="date"')}${field('time','Horário','type="time"')}
  ${field('timezone','Fuso horário','required maxlength="80" value="America/Sao_Paulo"')}</div>
  <fieldset><legend data-campaign-legend="repeat">Recorrência</legend><div class="campaign-weekdays">
