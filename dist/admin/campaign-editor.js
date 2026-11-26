@@ -142,7 +142,7 @@
     <p class="sub">Simulação de campanha · ${channel==='app'?'App':'WhatsApp'}${window.NEO_CONFIG?.appDisplayName==='NeoPep Teste'?' · TESTE':''}</p></div>
     ${readOnly?(onEdit?iconButton('gear','Editar conteúdo','data-editor="edit_preview"'):''):iconButton('save','Registrar rascunho na Central','data-editor="save"')}
    </header>
-   <main class="neo-structured-scroll"><h3 class="structured-campaign-name" ${publication?'data-parent-campaign="'+e(publication.title)+'"':''} data-campaign-name>${e(draft.title)}</h3><div class="neo-structured-preview" aria-label="Conversa simulada" data-editor-preview></div><div class="structured-live" data-editor-live hidden></div></main>
+   <main class="neo-structured-scroll"><h3 class="structured-campaign-name" ${publication?'data-parent-campaign="'+e(publication.title)+'"':''} data-campaign-name>${e(draft.title)}</h3><div class="neo-structured-preview" aria-label="${channel==='app'?'Prévia da notificação no aplicativo':'Conversa simulada'}" data-editor-preview></div><div class="structured-live" data-editor-live hidden></div></main>
    ${readOnly?`<footer>${previewModes?'<label class="structured-preview-mode">Modo da simulação<select name="preview_mode"><option value="web">Painel · compartilhamento manual</option><option value="connect">Connect · imagem com legenda</option></select></label>':''}<p class="sub">Simulação visual. A disponibilidade de envio depende do canal e dos anexos.</p></footer>`:`<footer>
     <p role="status" class="sub structured-compose-status" data-editor-status></p>
     <button type="button" class="text-btn structured-revert" data-editor="revert" hidden>Desfazer exclusão</button>
@@ -464,6 +464,10 @@
       ${['duplicate','up','down','delete'].map((a,i)=>`<button type="button" class="text-btn" data-editor="${a}" data-index="${index}" ${a==='up'&&!index||a==='down'&&index===draft.blocks.length-1?'disabled':''}>${['Duplicar','Subir','Descer','Excluir'][i]}</button>`).join('')}
      </div></details>`}</article>`;
    }).join('')||'<p class="sub">Adicione um bloco para revisar a mensagem.</p>';
+   if(channel==='app'){
+    const title=document.createElement('h2');title.className='structured-app-popup-title';title.textContent=draft.title||'Título da notificação';preview.prepend(title);
+    const end=document.createElement('div');end.className='structured-app-popup-footer';end.innerHTML='<button type="button" class="secondary" disabled>Fechar</button>';preview.append(end);
+   }
    for(const indicator of preview.querySelectorAll('[data-editor-media-status]')){
     const id=indicator.dataset.editorMediaStatus;
     const block=draft.blocks.find(item=>item.id===id);
@@ -773,7 +777,7 @@
     saveLocal();tell('Versão '+state.revision+' registrada para revisão. Nenhum envio realizado.');
     onSaved?.(result);
    }catch(err){tell(err.code==='40001'?'A versão mudou. Reabra pela esteira para revisar.':'Não foi possível confirmar o registro. Repita sem alterar a versão para recuperar o resultado.');}
-   finally{saving=false;}
+   finally{saving=false;if(current())showGate();}
   }
   const viewport=window.visualViewport;
   const resize=()=>{if(viewport){
@@ -1016,6 +1020,7 @@
    }
    if(action==='cross'){
     if(!state.remoteId){tell('Registre a versão WhatsApp antes de criar a versão App vinculada.');return;}
+    if(!window.confirm('Esta função atual copia somente o texto desta publicação. A campanha completa, os anexos e a agenda ainda não são duplicados. Continuar?'))return;
     if(close())open({cloud,channel:'app',row:{id:state.remoteId,title:draft.title,body:draft.blocks.filter(b=>b.type==='text').map(b=>b.text).join('\n\n').slice(0,4000)},trigger,onSaved,onConnect});
    }
    if(action==='link'){
