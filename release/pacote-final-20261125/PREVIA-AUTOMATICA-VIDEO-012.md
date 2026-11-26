@@ -45,3 +45,9 @@
 - Connect 0.2.15 aprovado em Teste, instalado e online nos dois perfis. Primeira prévia real Teste pronta às 12:04:16 UTC, 311.994 bytes, MP4, uma tentativa; conferidos estado e metadados privados. Reprodução visual e envio de campanha ainda não homologados.
 - Produção: aplicadas as migrações library_video_preview_queue_20261126 e library_video_preview_capacity_200mb_20261126; quatro registros de fila. Nos dois bancos aplicada library_video_preview_respect_download_20261126 (ver arquivo SQL correspondente), que exige allow_download=true para processar/ler a prévia. Teste preservou a prévia pronta. Produção: três fontes permitem download, duas têm proprietário com dispositivo online. Fila independente habilitada; não foi alterada a fila de WhatsApp. Capacidade da Biblioteca em Produção ainda não migrada; plano Free permanece.
 - CI da correção do heartbeat de Produção (45813135977) aprovada; migração ainda não aplicada. Não houve deploy Vercel.
+
+## Consolidação das migrações — 26/11/2026
+- Teste: aplicada campaign_originals_0215_test_20261126 com trava de fila ociosa; `originals_enabled=false`, `rich_enabled=true`, legado desativado e três entregas aceitas preservadas. Bucket privado de 5 MiB verificado, sem acesso anon. Produção: originais e heartbeat ainda aguardam janela aprovada, pois a fila rica está habilitada e a proteção original exige desabilitá-la. Não houve pausa nem alteração de gate de campanhas.
+- Ambos: aplicada campaign_catalog_thumbnails_20261126; bucket privado JPEG 64 KiB, RPC sem acesso anônimo. Zero miniaturas armazenadas; preparação pelo editor após deploy.
+- Produção: aplicada library_upload_capacity_200mb_20261126, mesma estrutura validada em Teste. Limite efetivo atual nos dois projetos: PDF/vídeo 50 MiB, JPEG/TXT 10 MiB; plano mantido. A interface ainda não foi publicada.
+- Prévias reais preservadas: Teste 1 pronta; Produção 2 prontas. Sem Vercel deploy.
