@@ -106,3 +106,32 @@ Todos exigem validação em ambiente isolado, checagem de privilégios e RLS, ro
 - Liberação por outro administrador: fluxo explícito de autorização/revisão, registro do responsável e prevenção de duplicidade; a consulta da fila já existe como candidata, mas não delega envio.
 - Testar os quatro patches como unidade, suite completa, validar iPhone/Windows, preparar candidatas de Produção e Teste sem sobrescrever integrações existentes. Manter prioridades 2 e 3 anteriores adiadas.
 - Nenhum deploy Vercel solicitado, sem envio de mensagens, sem mudanças persistentes no Supabase. Branch permanece com deploy automático desativado.
+
+
+## Rodada de verificação e extensão — cache v55
+
+### Resultado comprovado
+- Ensaiados conjuntamente, dentro de subtransação revertida no Supabase Teste, os sete patches candidatos: weekday_times, app_central, cross_channel, shared_queue, manual_claim, originals e app_settings (na ordem abaixo). O ensaio estrutural final passou após correção de sintaxe em originals. Consulta posterior confirmou ausência de tabelas/funções/bucket novos e das campanhas fictícias: nenhuma mudança persistente.
+- Fluxo fictício de App create/save/get, cópia App→WhatsApp→App, identificação de origem, data e idempotência ensaiado com rollback; nenhum lote de envio criado. 
+- Reserva manual: reserva exclusiva por ocorrência e token, segundo token rejeitado, prepare/confirm exigem reserva, liberação exige confirmação de não envio; confirmação duplicada rejeitada e resultado registrado. Ensaio com fixture e um administrador existente, dois tokens. Teste com dois administradores reais e dois computadores ainda pendente. A reserva não impede compartilhamentos externos fora do app, nem transfere a titularidade de conexões sincronizadas ou envios automáticos Connect.
+- Originais: candidata de bucket privado, RLS por proprietário/admin, validação de MIME, extensão, nome e tamanho, armazenamento e prévia PDF/MP4 no editor, transporte IPC/Windows/bridge e fila com capacidade explícita do worker. Limite inicial 5 MiB; TXT permanece local e referência da Biblioteca mantém o fluxo de capa/link. Gate originals_enabled=false por padrão. Código Windows ainda não compilado/testado no computador. Sem envio real, sem upload real de documento e sem ativação de gate.
+- Configurações App: edição de público/planos/segmentos, popup/push, frequência, limite, prioridade, dias, janela e encerramento. Campos persistidos em app_settings na candidata; Teste continua restrito à allowlist e sem push. SQL candidato de elegibilidade de exibição e contador; validação de forma da regra (válida, frequência 0, público sem destinos e janela invertida) ensaiada. Renderer rico e entrega real ainda não homologados.
+- Verificação de sintaxe dos quatro JS administrativos e regressões adicionadas ao bridge. A suíte Node integral e a compilação Windows não foram confirmadas. O bundle dist/cloud.js deve ser regenerado pelo build a partir de src/cloud.js.
+- Produção consultada somente para leitura: funções existentes diferem de Teste, Connect oficial usa versão 0.2.13, enquanto o contrato de Teste exige 0.2.12. Configuração de despacho estruturado App/WhatsApp em Produção desativada; não alterar esses gates implicitamente. Os SQL abaixo são candidatos de Teste, NÃO executar em Produção sem adaptação e ensaio próprios.
+
+### Ordem candidata de integração (somente Teste)
+1. campaign_weekday_times.sql
+2. campaign_app_central_candidate.sql
+3. campaign_cross_channel_candidate.sql
+4. campaign_shared_queue_candidate.sql
+5. campaign_manual_claim_candidate.sql
+6. campaign_originals_candidate.sql
+7. campaign_app_settings_candidate.sql
+
+### Bloqueadores de publicação integral
+- Adaptar e ensaiar separadamente contratos SQL de Produção, preservando o fluxo legado de campanhas, pagamentos, IA, notificações e as regras de autorização. Consolidar a candidata de Produção com o código mais recente sem copiar a configuração de Teste.
+- Entrega App: renderer rico de múltiplos blocos com acesso autorizado à mídia, ativação das opções e push via mecanismos existentes, público/planos reais em Produção, recorrência App na agenda. Teste de exibição repetida com usuário autorizado ainda pendente.
+- Envio integral de PDF/MP4: gerar e testar instalador Connect versionado, alinhar gates/versões de cada ambiente, validar upload/download privado, bytes no recebimento e recibo, testar casos de indisponibilidade. Gate permanece fechado.
+- Fila: delegação explícita de aprovação/despacho automático entre administradores e conexões sincronizadas ainda pendente; reserva manual já preparada. Não contornar ownership.
+- Executar suíte completa, teste visual iPhone, Windows e teste de integração em ambiente isolado. A sincronização do diário de frascos entre aparelhos ainda permanece pendente (saldo local).
+- Deploy automático continua desativado. Nenhum deploy ou mensagem real disparado. Prioridades 2 e 3 anteriores continuam adiadas. Publicação solicitada continua Produção → Teste, somente depois de concluir a preparação e receber autorização de deploy.
