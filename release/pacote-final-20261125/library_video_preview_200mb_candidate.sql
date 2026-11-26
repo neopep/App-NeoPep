@@ -1,6 +1,9 @@
 -- Apply only after the queue base migration. Does not change bucket size or enable worker.
 begin;
 set local lock_timeout='5s';
+do $guard$ begin
+ if (select enabled from neo_private.library_video_preview_control where singleton) is distinct from false or exists(select 1 from neo_private.library_video_previews where state='processing') then raise exception 'preview_worker_must_be_inactive';end if;
+end$guard$;
 create or replace function neo_private.library_video_preview_current(j neo_private.library_video_previews) returns boolean
  language sql stable security definer set search_path='' as $f$
  select exists(select 1 from neo_private.library_uploads f join storage.objects o on o.bucket_id='neo-library' and o.name=f.path
@@ -23,7 +26,7 @@ create or replace function public.neo_library_video_preview_device(p_action text
  declare actor uuid:=auth.uid(); j neo_private.library_video_previews%rowtype; f uuid; n bigint;
  begin
  if actor is null or not public.neo_admin_access()
- or p_secret is null or p_secret !~ '^[0-9a-f]{64}
+ or p_secret is null or p_secret !~ '^[0-9a-f]{64}$'
  or coalesce(nullif(current_setting('request.jwt.claims',true),'')::jsonb->>'iss','')<>'https://cpslafpzjtbpmoxxysaa.supabase.co/auth/v1'
  or not exists(select 1 from neo_private.connect_devices d where d.id=p_device and d.owner_id=actor and d.state='approved'
  and d.last_seen>now()-interval '90 seconds' and d.secret_hash=sha256(convert_to(p_secret,'UTF8')))
@@ -49,7 +52,7 @@ create or replace function public.neo_library_video_preview_device(p_action text
    and neo_private.library_video_preview_current(q) and public.neo_library_media_access(q.source_path,false) for update;
   if not found then raise exception 'preview_lease_invalid' using errcode='42501';end if;
   if p_action='finish' then
-   select case when (o.metadata->>'size') ~ '^[0-9]{1,9} then (o.metadata->>'size')::bigint else 0 end into n
+   select case when (o.metadata->>'size') ~ '^[0-9]{1,9}$' then (o.metadata->>'size')::bigint else 0 end into n
    from storage.objects o where o.bucket_id='neo-library-video-previews' and o.name=j.output_path and o.metadata->>'mimetype'='video/mp4';
    if coalesce(n,0) not between 1 and 512000 then raise exception 'preview_output_invalid';end if;
    update neo_private.library_video_previews set state='ready',lease_until=null,updated_at=now() where id=j.id;
