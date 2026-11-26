@@ -746,7 +746,7 @@
    if(!current())return;
    showGate();
    if(!dispatchReady[scheduled?'schedule':'publish']){
-    explain(state.savedDraft!==JSON.stringify(draft)?'Não foi possível confirmar a versão salva. Confira a conexão e tente novamente.':'A publicação ainda não está liberada: confira os destinos, o tipo de conteúdo e a disponibilidade do canal.');
+    explain(state.savedDraft!==JSON.stringify(draft)?lastSaveError||'Não foi possível confirmar a versão salva. Confira a conexão e tente novamente.':'A publicação ainda não está liberada: confira os destinos, o tipo de conteúdo e a disponibilidade do canal.');
     return;
    }
    pendingDispatch=scheduled;
@@ -840,8 +840,10 @@
     block.media_path=stored;saveLocal();
    }
   }
+  let lastSaveError='';
   async function saveRemote(){
    if(saving||!current())return;
+   lastSaveError='';
    const editingBlock=editing&&draft.blocks.find(block=>block.id===editing);
    if(editingBlock&&['image','product','document','community','link','file'].includes(editingBlock.type)){
     const caption=message.value.trim();
@@ -859,7 +861,7 @@
     saving=false;
    }
    if((channel==='app'&&(testApp?testGate.rich_popup===true:gates.app_rich_popup===true)||testWA&&Object.prototype.hasOwnProperty.call(gates.whatsapp_rich||{},'originals_enabled'))&&draft.blocks.some(b=>b.type==='file'&&!b.media_path)){
-    saving=true;try{await uploadOriginalFiles();}catch(error){tell(error.message||'Não foi possível guardar o arquivo original.');return;}finally{saving=false;if(current())showGate();}
+    saving=true;try{await uploadOriginalFiles();}catch(error){lastSaveError='Não foi possível enviar o documento ao armazenamento privado. '+(/no content provided/i.test(String(error?.message))?'O servidor recebeu o arquivo vazio. ': /Não foi possível ler o arquivo completo|Anexe novamente|Atualize o aplicativo/.test(String(error?.message))?error.message+' ':'')+'Seu rascunho foi preservado. Tente novamente.';if(current()){saveLocal();tell(lastSaveError);}return;}finally{saving=false;if(current())showGate();}
    }
    if(!current())return;
    const snapshot=JSON.parse(JSON.stringify(draft));
@@ -876,7 +878,7 @@
     state.savedDraft=fingerprint;showGate();
     saveLocal();tell('Versão '+state.revision+' registrada para revisão. Nenhum envio realizado.');
     onSaved?.(result);
-   }catch(err){tell(err.code==='40001'?'A versão mudou. Reabra pela esteira para revisar.':'Não foi possível confirmar o registro. Repita sem alterar a versão para recuperar o resultado.');}
+   }catch(err){lastSaveError=err.code==='40001'?'A versão mudou. Reabra pela esteira para revisar.':'Não foi possível confirmar o registro. Repita sem alterar a versão para recuperar o resultado.';tell(lastSaveError);}
    finally{saving=false;if(current())showGate();}
   }
   const viewport=window.visualViewport;
