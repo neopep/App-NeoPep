@@ -207,6 +207,15 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  const sharedQueueEnabled=window.NEO_CONFIG?.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co'&&typeof cloud.campaignCentral==='function';
  const dayNames=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
  let groupRows=[],queueRows=[],campaigns=[],prepared=null,selectedJob=null,files=[],refreshToken=0,prepareToken=0,working=false,groupSearch='',reminderTimer;
+ let claimEnabled=false,claims=new Map();
+ const claimKey=row=>'neo-campaign-manual-claim:'+cloud.user?.id+':'+row.id+':'+(row.scheduled_at||'unscheduled');
+ const claimToken=row=>{try{return localStorage.getItem(claimKey(row));}catch{return null;}};
+ function clearClaim(row){try{localStorage.removeItem(claimKey(row));}catch{}}
+ async function reserve(row){
+  let token=claimToken(row);if(!token){token=crypto.randomUUID();localStorage.setItem(claimKey(row),token);}
+  try{const result=await rpc('reserve_manual',row.id,{claim_id:token,expected_at:row.scheduled_at??null});if(result?.claim_id!==token)throw Error('Reserva não confirmada.');return token;}
+  catch(error){throw Error('Não foi possível reservar. A publicação pode estar em revisão por outro administrador ou dispositivo. Atualize a fila.');}
+ }
  root.innerHTML=`<div class="between" ${embedded?'hidden':''}><h3>WhatsApp</h3>${openManual?action('manual','<span aria-hidden="true">?</span> <span class="admin-pdf-accessible">Manual do WhatsApp</span>'):''}</div>
  <p class="sub" data-wa-channel-notice>O grupo é escolhido no WhatsApp. Confirme a publicação no painel após o envio.</p>
  <details class="space" data-wa-connect><summary>NeoPep Connect</summary><div data-connect-root></div></details><p role="status" data-wa-status></p><p role="status" data-wa-reminders></p>
@@ -330,7 +339,8 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
    <h4>${esc(row.title)} · ${esc(row.group_name)}</h4>
    <p>${states[row.state]} ${esc(dateLabel(row.scheduled_at,row.timezone))}</p>
    ${row.confirmed_at?`<p class="sub">Última confirmação ${esc(dateLabel(row.confirmed_at,row.timezone))}</p>`:''}
-   ${mayAct(row)?`<div class="neo-campaign-actions"><button type="button" class="secondary" data-wa="prepare" data-id="${esc(row.id)}">Preparar compartilhamento</button></div>`:''}</article>`).join('')||'<p>Nenhuma publicação.</p>';
+   ${claimEnabled&&claims.has(row.id)?`<p class="sub">${claims.get(row.id).own&&claimToken(row)?'Reservada neste dispositivo':'Reservada por outro administrador ou dispositivo'}</p>`:''}
+   ${mayAct(row)&&(!claimEnabled||!claims.has(row.id)||(claims.get(row.id).own&&claimToken(row)))?`<div class="neo-campaign-actions"><button type="button" class="secondary" data-wa="prepare" data-id="${esc(row.id)}">${claimEnabled?'Revisar e reservar':'Preparar compartilhamento'}</button>${claimEnabled&&claims.has(row.id)&&claimToken(row)?`<button type="button" class="secondary" data-wa="release_manual" data-id="${esc(row.id)}">Liberar sem envio</button>`:''}</div>`:''}</article>`).join('')||'<p>Nenhuma publicação.</p>';
  }
  async function reminders(){
   if(!root.isConnected||root.hidden||document.visibilityState==='hidden')return;
@@ -341,6 +351,11 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
   const token=++refreshToken;
   const [groups,queue]=await Promise.all([syncCatalog?[]:rpc('groups',null,{search:groupSearch}),rpc('queue')]);
   if(token!==refreshToken||!root.isConnected)return;
+  const account=cloud.user?.id;
+  let reservations=null;
+  if(sharedQueueEnabled)try{reservations=await rpc('claim_status');}catch{}
+  if(token!==refreshToken||!root.isConnected||cloud.user?.id!==account)return;
+  claimEnabled=Array.isArray(reservations);claims=new Map((reservations||[]).map(row=>[row.publication_id,row]));
   groupRows=groups;queueRows=queue;renderGroups();renderQueue();void refreshSharedQueue();await reminders();
  }
  function preview(){
@@ -372,12 +387,13 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
   prepared=null;selectedJob=null;files=[];preview();
   if(syncPicker)void syncPicker.load(id||null);
   if(!id)return;
-  const campaign=await rpc('prepare',id,job?{publication:job.id}:{});
+  const reservation=job&&claimEnabled?await reserve(job):null;
+  const campaign=await rpc('prepare',id,job?{publication:job.id,...(reservation?{claim_id:reservation,expected_at:job.scheduled_at??null}:{})}:{});
   if(token!==prepareToken||!root.isConnected)return;
   const target=campaign.link_url?new URL(campaign.link_url,location.origin):null;
   prepared={...campaign,link:target&&target.protocol==='https:'?target.href:''};
   files=[...(campaign.image_path||campaign.image_url?[{name:'campanha.jpg',mime:'image/jpeg',image:true}]:[]),...(campaign.attachments||[])];
-  selectedJob=job;preview();
+  selectedJob=job?{...job,claim_id:reservation}:null;preview();
   if(job)q('[data-wa-preview]').scrollIntoView?.({block:'nearest'});
  }
  function resetGroup(){groupForm.reset();delete groupForm.dataset.id;}
@@ -459,6 +475,12 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
     list.innerHTML=rows.map(row=>`<label class="check"><input type="checkbox" name="attachment" value="${esc(row.path)}" ${chosen.has(row.path)?'checked':''}>${esc(row.name)}</label>`).join('')||'<p>Nenhum anexo autorizado encontrado.</p>';
     list.prepend(...retained);return;
    }
+   if(wa==='release_manual'){
+    const row=queueRows.find(row=>row.id===id);if(!row||!claimEnabled||!claimToken(row))return;
+    if(!confirm('Confirma que nenhuma mensagem ou arquivo desta ocorrência foi enviado? Outro administrador poderá preparar a publicação. Se houver dúvida, não libere.'))return;
+    await rpc('release_manual',row.id,{claim_id:claimToken(row),expected_at:row.scheduled_at??null,not_sent:true});
+    clearClaim(row);if(selectedJob?.id===row.id){prepared=null;selectedJob=null;files=[];preview();}await refresh();tell('Reserva liberada. A publicação continua pendente.');return;
+   }
    if(wa==='prepare'){
     const row=queueRows.find(row=>row.id===id);if(row){if(embedded)showEditor('publications');else {root.dataset.waPage='publications';if(typeof showNeoWhatsappNavigation==='function')showNeoWhatsappNavigation(root);}select.value=row.campaign_id;await prepare(row.campaign_id,row);}return;
    }
@@ -468,7 +490,9 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
    }
    if((wa==='confirm'||wa==='cancel')&&selectedJob){
     if(!confirm(wa==='confirm'?'Você já publicou manualmente no WhatsApp?':'Cancelar a publicação e sua recorrência?'))return;
-    await rpc(wa,selectedJob.id,{expected_at:selectedJob.scheduled_at});
+    const result=await rpc(wa,selectedJob.id,{expected_at:selectedJob.scheduled_at??null,...(selectedJob.claim_id?{claim_id:selectedJob.claim_id}:{})});
+    if(result?.saved!==true)throw Error('O servidor não confirmou a operação. Atualize a fila.');
+    if(selectedJob.claim_id)clearClaim(selectedJob);
     prepared=null;selectedJob=null;preview();await refresh();tell(wa==='confirm'?'Publicação confirmada manualmente.':'Publicação cancelada.');return;
    }
    if(wa==='file'){
