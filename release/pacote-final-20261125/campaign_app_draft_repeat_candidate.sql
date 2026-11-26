@@ -56,6 +56,7 @@ declare actor uuid:=auth.uid(); cid uuid:=(p_data->>'campaign_id')::uuid; pid uu
  req uuid:=(p_data->>'request_id')::uuid; parent neo_private.campaign_app_groups;
  previous neo_private.campaign_app_draft_series; source neo_private.campaign_editor_versions;
  rule jsonb:=p_data->'rule'; dates jsonb; occurrences jsonb:='[]'::jsonb; wall text; item uuid; v jsonb;
+ settings jsonb; next_wall text; end_wall text; source_end text; idx integer;
 begin
  if actor is null or not coalesce(neo_private.campaign_admin_allowed(),false) then raise exception 'app_repeat_admin_required' using errcode='42501';end if;
  if p_action='repeat_capabilities' then return '{"enabled":true}'::jsonb;end if;
@@ -73,11 +74,18 @@ begin
  dates:=neo_private.campaign_app_draft_dates(rule,now());
  if dates is distinct from p_data->'dates' or jsonb_array_length(dates)=0 then raise exception 'app_repeat_dates_changed' using errcode='22023';end if;
  if nullif(source.draft#>>'{app_settings,ends_local}','') is not null and exists(select 1 from jsonb_array_elements_text(dates) x where x>=source.draft#>>'{app_settings,ends_local}') then raise exception 'app_repeat_after_end' using errcode='22023';end if;
- for wall in select jsonb_array_elements_text(dates) loop
+ -- Each occurrence has its own validity window, never extending beyond the next one.
+ settings:=coalesce(source.draft->'app_settings',jsonb_build_object('audience',case when coalesce(source.draft->>'audience','all')='all' then 'all' else 'plan' end,
+ 'targets',case when coalesce(source.draft->>'audience','all')='all' then '[]'::jsonb else jsonb_build_array(source.draft->>'audience') end,
+ 'popup_enabled',true,'push_requested',false,'frequency_hours',24,'max_views',1,'priority',0,'weekdays','[0,1,2,3,4,5,6]'::jsonb,'opens_at','00:00','closes_at','24:00','ends_local',''));
+ source_end:=nullif(settings->>'ends_local','');
+ for idx in 0..jsonb_array_length(dates)-1 loop
+  wall:=dates->>idx;next_wall:=dates->>(idx+1);
+  end_wall:=least(to_char(wall::timestamp+interval '24 hours','YYYY-MM-DD"T"HH24:MI'),next_wall,source_end);
   item:=gen_random_uuid();
-  v:=neo_private.campaign_app_central('save',jsonb_build_object('campaign_id',cid,'publication_id',item,'request_id',gen_random_uuid(),'revision',0,'draft',source.draft||jsonb_build_object('planned_local',wall)));
+  v:=neo_private.campaign_app_central('save',jsonb_build_object('campaign_id',cid,'publication_id',item,'request_id',gen_random_uuid(),'revision',0,'draft',source.draft||jsonb_build_object('planned_local',wall,'app_settings',settings||jsonb_build_object('ends_local',end_wall))));
   if (v->>'revision')::int is distinct from 1 then raise exception 'app_repeat_save_failed';end if;
-  occurrences:=occurrences||jsonb_build_array(jsonb_build_object('publication_id',item,'date',wall));
+  occurrences:=occurrences||jsonb_build_array(jsonb_build_object('publication_id',item,'date',wall,'ends_local',end_wall));
  end loop;
  insert into neo_private.campaign_app_draft_series(owner_id,request_id,campaign_id,source_id,source_revision,rule,occurrences) values(actor,req,cid,pid,source.revision,rule,occurrences);
  return jsonb_build_object('id',req,'occurrences',occurrences);
