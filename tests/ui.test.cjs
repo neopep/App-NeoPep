@@ -760,7 +760,7 @@ test('Teste libera Criar conta e mantém cadastro fechado sem flag explícita',a
  const base=fs.readFileSync('release/multiagent-staging/configure-frontend.cjs','utf8');
  assert.match(build,/previewRegistration:\s*Boolean\(captchaSiteKey\)/);
  assert.match(build,/captchaRequired:\s*Boolean\(captchaSiteKey\)/);
- assert.match(build,/pwa-v49-lembretes-padrao/,'PWA precisa receber configuração nova após deploy');
+ assert.match(build,/pwa-v50-gps-municipio/,'PWA precisa receber configuração nova após deploy');
  assert.match(build,/publicRegistration:\s*false/);
  assert.match(build,/process\.env\.VERCEL_PROJECT_ID !== 'prj_ksWxwsJyKhdR2nW2OiZkwx8hlkdq'/);
  assert.match(base,/previewRegistration:\s*false/);
