@@ -30,3 +30,22 @@ test('Independent WhatsApp review is optional, holds claim and start, and does n
  assert.match(read('dist/admin/admin-whatsapp.js'),/review_approve/);
  assert.match(read('dist/admin/campaign-central.js'),/request_review/);
 });
+
+
+test('Review approval fails closed when content is unavailable or account changed',()=>{
+ const sql=read(dir+'campaign_wa_independent_review_candidate.sql');
+ assert.match(sql,/review_content_unavailable/);
+ assert.match(sql,/e\.revision=b\.revision/);
+ const ui=read('dist/admin/admin-whatsapp.js');
+ const snippet=ui.slice(ui.indexOf(' function reviewCanDecide(row)'),ui.indexOf(' async function refreshReviews()'));
+ const cloud={user:{id:'reviewer'}},root={isConnected:true};
+ let reviewAccount='reviewer';
+ const guard=new Function('cloud','root','reviewAccount',snippet+';return {reviewCanApprove,reviewCanDecide};')(cloud,root,reviewAccount);
+ const row={can_review:true,own:false,state:'pending',groups:['grupo'],blocks:[{type:'text',text:'conteúdo'}]};
+ assert.equal(guard.reviewCanApprove(row),true);
+ for(const blocks of [[],[{type:'file',text:'arquivo'}],[{type:'image'}],[{type:'link',url:'javascript:alert(1)'}]])assert.equal(guard.reviewCanApprove({...row,blocks}),false);
+ assert.equal(guard.reviewCanApprove({...row,groups:[]}),false);
+ assert.equal(guard.reviewCanApprove({...row,own:true}),false);
+ cloud.user.id='different';assert.equal(guard.reviewCanApprove(row),false);
+ assert.match(ui,/reviewRows=\[\];reviewAccount=null;holder.hidden=true/);
+});
