@@ -17,8 +17,9 @@ function verify(source,css,sql){
  const sender={seller_name:'NeoPep',business_address:'Rua do remetente, 50 — CEP 88000-000'};
  const label=labels.shippingLabelHTML(real,sender);
  for(const t of ['12345678','Cliente &amp; teste','Rua Exemplo','Apto 12','Centro','Cidade / SC','88220-000','47999999999','Rua do remetente'])check(label.includes(t),'shipping field '+t);
+ check(labels.shippingLabelAllowed({...real,fulfillment:'delivered'}),'paid order can be reprinted');
  check(!label.includes('omit@example.com')&&!label.includes('11111111111'),'no exposed CPF/email');
- for(const o of [{...real,environment:'test'},{...real,status:'test_paid'},{...real,status:'paid_review'},{...real,status:'pending'},{...real,cancellation_status:'approved'},{...real,cancellation_status:'requested'},{...real,fulfillment:'delivered'}])check(!labels.shippingLabelAllowed(o),'label must be blocked');
+ for(const o of [{...real,environment:'test'},{...real,status:'test_paid'},{...real,status:'paid_review'},{...real,status:'pending'},{...real,cancellation_status:'approved'},{...real,cancellation_status:'requested'}])check(!labels.shippingLabelAllowed(o),'label must be blocked');
  let failed=false;try{labels.shippingLabelHTML({...real,address:{...real.address,postal_code:''}},sender)}catch{failed=true}check(failed,'incomplete address blocked');
  const scope=new Function('orders','orderEnvironment',get(' const operationalOrders=',' function newOrderCount(){')+'return {operationalOrders,orderStats};');
  const all=[real,{...real,id:'test',environment:'test',status:'test_paid'}];check(scope(all,'production').orderStats().total===1&&scope(all,'test').operationalOrders()[0].id==='test','test history isolated');
