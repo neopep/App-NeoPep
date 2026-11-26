@@ -149,8 +149,9 @@
      ${editable&&!pub.deleted_at?button('delete_publication','Excluir publicação',pub.id):''}</div></details>
      ${view==='history'?`<div data-central-history="${escape(pub.id)}">${button('attempts','Ver tentativas e recibos',pub.id)}</div>`:''}</div></article>`;
    }).join('');
-   redraw(`${button('back','‹ Campanhas')}<section class="central-campaign-heading"><h2>${escape(detail.title)}</h2><div class="central-campaign-icons">${editable?iconAction('rename','Renomear')+iconAction('archive','Arquivar'):''}${iconAction('delete','Excluir campanha')}</div></section>
+   redraw(`${button('back','‹ Campanhas')}<section class="central-campaign-heading"><h2>${escape(detail.title)}</h2><div class="central-campaign-icons">${editable?iconAction('rename','Renomear')+iconAction('archive','Arquivar'):''}${iconAction('delete','Excluir campanha')}${editable?button('copy_channel',isApp?'Copiar para WhatsApp':'Copiar para App'):''}</div></section>
     <p class="sub">${channelLabel} · ${items.length} publicação(ões)${editable?'':' · Arquivada'}${detail.origin_channel?' · Criada no '+(detail.origin_channel==='app'?'App':'WhatsApp'):''}</p>
+    ${detail.copied_rules?.length?`<details class="space"><summary>Recorrências da campanha de origem · ${detail.copied_rules.length}</summary><p class="sub">Datas copiadas como rascunhos. As regras originais são referência e não estão ativas neste canal.</p>${detail.copied_rules.map(r=>`<p class="sub">${escape((r.dates||[]).map(local).join(' · '))}</p>`).join('')}</details>`:''}
     <div class="inline-actions">${button('agenda','Agenda','',view==='agenda'?'primary':'secondary')}${button('history','Histórico','',view==='history'?'primary':'secondary')}</div>
     ${view==='agenda'? `<div class="central-publication-head"><h3>Publicações</h3>${editable&&!getLocal(pointer())?button('add','+ Adicionar publicação','','primary'):''}</div><label class="central-date-filter">A partir de<input type="date" data-central-date></label><div data-central-date-list>${cards(dated)||'<p>Sem publicações com data.</p>'}</div>
      <h3>Rascunhos sem data</h3>${cards(undated)||'<p>Sem rascunhos sem data.</p>'}
@@ -332,6 +333,16 @@
      catch{show('O rascunho foi salvo. Consulte também as versões de revisão na aba Publicações.');}
     });
     if(action==='agenda'||action==='history'){view=action;await load(current);}
+    if(action==='copy_channel'){
+     if(getLocal(pointer())){show('Salve ou descarte o rascunho local antes de copiar a campanha.');return;}
+     const target=isApp?'WhatsApp':'App';
+     if(!confirm('Copiar todas as publicações salvas para '+target+'? Os conteúdos e datas serão copiados como rascunhos, sem envio. Os destinos precisarão de revisão.'))return;
+     const key='neo-campaign-cross:'+account+':'+current+':'+channel;
+     const request=getLocal(key)||crypto.randomUUID();setLocal(key,request);
+     const copied=await rpc('copy_channel',{channel,request_id:request,confirmed:true});
+     if(!active())return;
+     removeLocal(key);show('Campanha copiada para '+target+' como rascunho.');onCross?.(copied.channel,copied.campaign_id);return;
+    }
     if(action==='add')await editor(crypto.randomUUID(),control,{new:true,fresh:true});
     if(action==='resume'&&getLocal(pointer()))await editor(getLocal(pointer()),control);
     if(action==='discard'&&confirm('Descartar a digitação local desta campanha?')){
@@ -378,7 +389,7 @@
      const holder=control.parentElement;
      if(active()&&holder.isConnected)holder.innerHTML=history.map(row=>`<p class="sub">Mensagem ${escape(row.sequence)} · ${labels[row.dispatch_state]||escape(row.dispatch_state)} · ${escape(row.dispatch_attempts)} tentativa(s) · ${row.has_receipt?'Recibo registrado':'Sem recibo'} · ${date(row.scheduled_at)}</p>`).join('')||'<p>Sem tentativas de despacho.</p>';
     }
-   }catch{show('Não foi possível concluir. Confira a autorização, o estado da publicação e a conexão do NeoPep Connect.');}
+   }catch(error){show(action==='copy_channel'?'Não foi possível copiar integralmente. Confira se todos os anexos originais estão disponíveis e as publicações salvas. Nenhuma cópia parcial é mantida.':'Não foi possível concluir. Confira a autorização, o estado da publicação e a conexão do NeoPep Connect.');}
    finally{busy=false;}
   });
   root.addEventListener('change',event=>{
@@ -387,7 +398,7 @@
    if(event.target.matches('[data-central-search]')){search=event.target.value.trim().toLocaleLowerCase('pt-BR');list();root.querySelector('[data-central-search]').focus();}
    if(event.target.matches('[data-central-date]'))root.querySelectorAll('[data-central-date-list] article').forEach(node=>{node.hidden=Boolean(event.target.value&&node.dataset.day<event.target.value);});
   });
-  return {async reload(){try{await refresh();}catch{screen='failed';show('Central indisponível. Atualize o painel.');}},async load(){if(!screen){screen='loading';redraw('<p>Consultando campanhas…</p>');try{await refresh();}catch{screen='failed';show('Central indisponível. Atualize o painel para tentar novamente.');}}},syncLegacy(){if(screen==='list'&&!busy){list();void refreshLegacy().then(()=>{if(screen==='list'&&!busy)list();});}}};
+  return {async open(id){view='agenda';await load(id);},async reload(){try{await refresh();}catch{screen='failed';show('Central indisponível. Atualize o painel.');}},async load(){if(!screen){screen='loading';redraw('<p>Consultando campanhas…</p>');try{await refresh();}catch{screen='failed';show('Central indisponível. Atualize o painel para tentar novamente.');}}},syncLegacy(){if(screen==='list'&&!busy){list();void refreshLegacy().then(()=>{if(screen==='list'&&!busy)list();});}}};
  }
  window.NeoCampaignCentral={mount};
 })();
