@@ -42,7 +42,7 @@ document.addEventListener('click',event=>{
 function persist(next){if(demo){state=C.validateBackup(next);return}if(mode!=='local')throw Error('Operação local indisponível nesta conta.');if(localError)throw Error('Exporte e recupere os dados locais antes de gravar.');const valid=C.validateBackup(next);try{localStorage.setItem(KEY,JSON.stringify(valid))}catch{throw Error('Não foi possível salvar neste dispositivo. O armazenamento pode estar cheio ou indisponível. Exporte um backup.')}state=valid;localState=valid}
 function localConsent(){return state.profile.consent||confirm('Estes registros podem conter dados de saúde. Você autoriza guardá-los neste navegador? Em dispositivos compartilhados, outras pessoas poderão acessá-los. Você pode exportar e excluir os dados no Perfil.')}
 function download(name,data,type){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([data],{type}));a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000)}
-async function backup(){const gen=loadGeneration,snapshot=JSON.parse(JSON.stringify(state));let accountMetadata=null;if(mode==='cloud'&&!demo){
+async function backup(){const gen=loadGeneration,snapshot=JSON.parse(JSON.stringify(state));try{const local=readLocalVials();if(local.items.length)snapshot.legacyLocalVialDiary=local;}catch{}let accountMetadata=null;if(mode==='cloud'&&!demo){
  const account=await Cloud.exportMetadata();
  if(gen!==loadGeneration)throw Error('A conta mudou durante a exportação.');
  const [statistics,location]=await Promise.allSettled([Cloud.audience('export'),Cloud.geoControl('export')]);
@@ -301,7 +301,7 @@ function updateCalc(commit=false,track=true){
 function calculator(forVial=false){
  calcOutcome='';calcCapacityValue=1;
  return (forVial?head('Adicionar frasco','Registre os dados do seu frasco e a dose informada conforme sua prescrição.'):head('Calculadora de volume','Conversão matemática de dados confirmados do frasco e da prescrição.'))+
- `<div class="calc-layout">${forVial?'<section class="card calc-vial-overview"><label>Produto<input id="diary-vial-product" maxlength="80" autocomplete="off" required></label><p class="sub">O acompanhamento é armazenado neste navegador.</p></section>':''}<form id="calcForm" class="calc-inputs" data-calc-owner="${esc(calcStorageKey()||'')}" novalidate>
+ `<div class="calc-layout">${forVial?'<section class="card calc-vial-overview"><label>Produto<input id="diary-vial-product" maxlength="80" autocomplete="off" required></label><p class="sub">'+(cloudVialDiaryReady()?'O acompanhamento é sincronizado na conta.':'O acompanhamento é armazenado neste navegador.')+'</p></section>':''}<form id="calcForm" class="calc-inputs" data-calc-owner="${esc(calcStorageKey()||'')}" novalidate>
  ${calcField('mass')}${calcField('volume')}${calcCapacity()}${calcField('dose')}
  </form>
  <section class="card calc-result"><h2>Resultado</h2><div id="result" role="status" aria-live="polite">${calcEmpty()}</div>
@@ -438,7 +438,13 @@ function calcVialStoreKey(){
  const key=calcStorageKey();
  return key?'neo-calc-vials-v1:'+key:null;
 }
+function cloudVialDiaryReady(){return mode==='cloud'&&!demo&&state.vialDiaryStatus==='ready'&&typeof Cloud.vialDiary==='function';}
 function readCalcVials(){
+ if(cloudVialDiaryReady())return JSON.parse(JSON.stringify(state.vialDiary));
+ if(mode==='cloud'&&!demo&&state.vialDiaryStatus==='error')throw Error('Não foi possível sincronizar o diário de frascos. Atualize os registros.');
+ return readLocalVials();
+}
+function readLocalVials(){
  const key=calcVialStoreKey();
  const empty={items:[],links:{},active:null};
  if(!key)return empty;
@@ -453,6 +459,7 @@ function readCalcVials(){
   links:saved.links,active:saved.active};
 }
 function saveCalcVials(saved){
+ if(cloudVialDiaryReady())throw Error('O diário desta conta deve ser salvo na nuvem.');
  const key=calcVialStoreKey();
  if(!key||saved.items.length>300)throw Error('Limite de 300 frascos neste dispositivo.');
  const data=JSON.stringify(saved);
@@ -494,9 +501,22 @@ function diaryVials(){
   return '<section class="card calc-vial-overview space"><div class="card-head"><h2>Meu frasco</h2><button type="button" class="primary" data-go="frasco">Adicionar frasco</button></div>'+
    (active?diaryVialCard(active,stored,true):'<p class="notice">'+(current&&vialBalance(current,stored.links).mass===0?'Seu frasco está vazio. Adicione um novo frasco para continuar o acompanhamento.':'Adicione um frasco identificado para vincular os novos registros.')+'</p>')+
    (history.length?'<details><summary>Histórico de frascos · '+history.length+'</summary><div class="diary-vial-history">'+history.map(item=>diaryVialCard(item,stored,false)).join('')+'</div></details>':'')+
-   '<p class="sub">Saldo calculado pelos registros vinculados neste navegador; não considera perdas nem confirma o volume físico. Não é uma orientação de aplicação. O histórico de frascos não é sincronizado entre dispositivos.</p></section>';
+   (cloudVialDiaryReady()&&!stored.items.length&&readLocalVials().items.length?'<button type="button" class="secondary" data-diary-vial-import>Importar frascos deste navegador</button><p class="sub">Os frascos locais não serão apagados.</p>':'')+
+   '<p class="sub">Saldo calculado pelos registros vinculados; não considera perdas nem confirma o volume físico. Não é uma orientação de aplicação. '+(cloudVialDiaryReady()?'Histórico sincronizado pela conta.':'O histórico permanece neste navegador e não é sincronizado.')+'</p></section>';
  }catch(error){return '<section class="card space"><h2>Meu frasco</h2><p class="error">'+esc(error.message)+'</p></section>';}
 }
+document.addEventListener('click',async event=>{
+ if(!event.target.closest('[data-diary-vial-import]')||busy||!cloudVialDiaryReady()||page!=='aplicacoes')return;
+ try{
+  const local=readLocalVials(),remote=readCalcVials(),owner=Cloud.user?.id,gen=loadGeneration;
+  if(remote.items.length||!local.items.length)throw Error('A importação exige um diário online vazio.');
+  const items=local.items.map(vial=>({...vial,product:vialProduct(vial,local)||vial.name}));
+  if(!confirm('Importar o histórico local de frascos para esta conta? Somente aplicações já existentes nesta conta serão vinculadas. O histórico local será preservado.'))return;
+  busy=true;const diary=await Cloud.vialDiary('import_local',{items,links:local.links,active:local.active,confirmed:true});
+  if(owner!==Cloud.user?.id||gen!==loadGeneration||mode!=='cloud'||demo)throw Error('A conta mudou. Atualize os registros.');
+  state={...state,vialDiary:diary,vialDiaryStatus:'ready'};render();toast('Histórico de frascos importado.');
+ }catch(error){toast(error.message);}finally{busy=false;}
+});
 function calcVialDosePicker(record={}){
  const stored=readCalcVials();
  const vial=record.id?stored.items.find(item=>item.id===stored.links[record.id]):activeDiaryVial(stored);
@@ -512,9 +532,10 @@ function prepareDiaryVialLink(record,existing,expectedVialId){
  if(product&&String(record.product||'').trim().toLocaleLowerCase('pt-BR')!==product.trim().toLocaleLowerCase('pt-BR'))throw Error('O produto informado não corresponde ao frasco vinculado.');
  const used=vialDoseMass(vial,record),available=vialBalance(vial,stored.links,record.id).mass;
  if(!used||used>available+vial.mass*1e-10)throw Error('A quantidade registrada excede o saldo calculado do frasco. Confira seus registros ou adicione outro frasco.');
- if(!existing){stored.links[record.id]=vial.id;saveCalcVials(stored);}
+ if(!existing&&!cloudVialDiaryReady()){stored.links[record.id]=vial.id;saveCalcVials(stored);}
+ return vial.id;
 }
-document.addEventListener('click',event=>{
+document.addEventListener('click',async event=>{
  if(!event.target.closest('[data-diary-vial-save]')||page!=='frasco'||busy)return;
  const status=$('#diary-vial-status');
  try{
@@ -526,8 +547,16 @@ document.addEventListener('click',event=>{
   if(!product||product.length>80||!snap||snap.ml>snap.volume*(1+1e-10))throw Error('Informe produto, massa, volume e dose válidos.');
   const stored=readCalcVials(),previous=activeDiaryVial(stored);
   if(previous&&!confirm('O frasco atual ainda tem saldo registrado. Encerrar seu acompanhamento e ativar o novo frasco?'))return;
-  stored.items.unshift({id:uid(),name:product,product,mass:snap.mass,volume:snap.volume,dose:snap.dose,unit:snap.unit,createdAt:new Date().toISOString()});
-  stored.active=stored.items[0].id;saveCalcVials(stored);
+  const form=$('#calcForm'),item={id:form.dataset.vialRequest||uid(),name:product,product,mass:snap.mass,volume:snap.volume,dose:snap.dose,unit:snap.unit,createdAt:new Date().toISOString()};
+  form.dataset.vialRequest=item.id;
+  if(cloudVialDiaryReady()){
+   const owner=Cloud.user?.id,gen=loadGeneration;busy=true;
+   try{
+    const diary=await Cloud.vialDiary('add',{vial:item,expected_active:stored.active||null});
+    if(owner!==Cloud.user?.id||gen!==loadGeneration||mode!=='cloud'||demo)throw Error('A conta mudou. Atualize os registros.');
+    state={...state,vialDiary:diary,vialDiaryStatus:'ready'};
+   }finally{busy=false;}
+  }else{stored.items.unshift(item);stored.active=item.id;saveCalcVials(stored);}
   formDirty=false;go('aplicacoes');toast('Frasco registrado.');
  }catch(error){if(status)status.textContent=error.message;}
 });
@@ -2157,7 +2186,7 @@ async function action(fn){if(busy)return;busy=true;try{await fn()}catch(e){toast
 let formDirty=false,lastCloudSync=null;
 async function reloadCloud(){cloudError='';const gen=loadGeneration;try{const next=await Cloud.load();if(gen!==loadGeneration||demo||mode!=='cloud')return;state=next;try{await loadPhotos()}catch{/* A conta continua disponível e a foto será tentada novamente na próxima sincronização. */}if(gen!==loadGeneration||demo||mode!=='cloud')return;arrivalReady=true;lastCloudSync=new Date();render()}catch(e){Cloud.reportError?.('sync_failed');cloudError='Não foi possível carregar a nuvem. Os dados locais e os registros já salvos foram preservados.';render();throw e}}
 async function refreshAfterWrite(next){state=next;try{await reloadCloud()}catch{cloudError='A alteração foi salva na sua conta, mas não foi possível atualizar o histórico completo. Use Atualizar para conferir novamente.';render()}}
-async function putRecord(type,raw){if(mode==='cloud'&&!demo&&!state.profile.consent)throw Error('Salve seu perfil e o consentimento antes de adicionar registros à conta.');let r=C.validRecord(type,raw);if(type==='journal'&&!r.note&&['wellbeing','energy','sleep','appetite','water','activity'].every(k=>r[k]==null))throw Error('Preencha ao menos um campo do diário ou escreva uma observação.');let next={...state,[type]:[...state[type]]},existing=editing;if(type==='weights'&&!existing)existing=state.weights.find(w=>w.date===r.date);if(existing){if(type==='weights'&&!editing&&!confirm('Já existe um peso nesta data. Atualizar esse registro?'))return false;r={...r,id:existing.id,_revision:existing._revision};next[type]=next[type].filter(x=>x.id!==existing.id)}next[type].push(r);if(mode==='cloud'&&!demo){if(!navigator.onLine)throw Error('Conecte-se para salvar na sua conta.');const owner=Cloud.user?.id;const saved=await Cloud.put(type,r);if(!existing&&Cloud.user?.id===owner)engagementTrack(({weights:'weight_record_created',measures:'measurement_record_created',journal:'journal_record_created',doses:'application_record_created',protocols:'protocol_record_created',reminders:'reminder_created'})[type]);next[type]=next[type].map(x=>x.id===r.id?(saved||r):x);await refreshAfterWrite(next)}else{if(!localConsent())return false;next.profile={...state.profile,consent:true};persist(next)}return true}
+async function putRecord(type,raw){if(mode==='cloud'&&!demo&&!state.profile.consent)throw Error('Salve seu perfil e o consentimento antes de adicionar registros à conta.');let r=C.validRecord(type,raw);if(type==='journal'&&!r.note&&['wellbeing','energy','sleep','appetite','water','activity'].every(k=>r[k]==null))throw Error('Preencha ao menos um campo do diário ou escreva uma observação.');let next={...state,[type]:[...state[type]]},existing=editing;if(type==='weights'&&!existing)existing=state.weights.find(w=>w.date===r.date);if(existing){if(type==='weights'&&!editing&&!confirm('Já existe um peso nesta data. Atualizar esse registro?'))return false;r={...r,id:existing.id,_revision:existing._revision};next[type]=next[type].filter(x=>x.id!==existing.id)}next[type].push(r);if(mode==='cloud'&&!demo){if(!navigator.onLine)throw Error('Conecte-se para salvar na sua conta.');const owner=Cloud.user?.id,gen=loadGeneration;let saved;if(type==='doses'&&cloudVialDiaryReady()){const result=await Cloud.vialDiary('put_dose',{record:C.validRecord(type,r),revision:r._revision??null,vial_id:raw.diaryVialId??null});if(owner!==Cloud.user?.id||gen!==loadGeneration||mode!=='cloud'||demo)throw Error('A conta mudou. Atualize o histórico.');saved={...C.validRecord(type,r),_revision:result.revision};next.vialDiary=result.diary;next.vialDiaryStatus='ready';}else saved=await Cloud.put(type,r);if(!existing&&Cloud.user?.id===owner)engagementTrack(({weights:'weight_record_created',measures:'measurement_record_created',journal:'journal_record_created',doses:'application_record_created',protocols:'protocol_record_created',reminders:'reminder_created'})[type]);next[type]=next[type].map(x=>x.id===r.id?(saved||r):x);await refreshAfterWrite(next)}else{if(!localConsent())return false;next.profile={...state.profile,consent:true};persist(next)}return true}
 async function toggleReminder(id){const r=state.reminders.find(x=>x.id===id);if(!r)return;const changed={...r,enabled:!r.enabled},next={...state,reminders:state.reminders.map(x=>x.id===id?changed:x)};if(mode==='cloud'&&!demo){const saved=await Cloud.put('reminders',changed);next.reminders=next.reminders.map(x=>x.id===id?(saved||changed):x);await refreshAfterWrite(next)}else persist(next);render();toast(changed.enabled?'Lembrete ativado. Atualize a agenda se necessário.':'Lembrete pausado no aplicativo. Eventos já exportados devem ser ajustados na agenda.')}
 let avatarCrop={zoom:1,x:50,y:50},avatarCropURL='',avatarCropImage=null;
 function clearAvatarCrop(){if(avatarCropURL)URL.revokeObjectURL(avatarCropURL);avatarCropURL='';avatarCropImage=null;avatarCrop={zoom:1,x:50,y:50}}
@@ -2375,7 +2404,7 @@ document.addEventListener('input',event=>{
  paintAvatarCrop();
 });
 document.addEventListener('click',event=>{if(!event.target.closest?.('[data-add="avatar"]'))return;setTimeout(()=>{const button=document.querySelector('#saveRecord');if(button)button.textContent=avatarURL?'Alterar foto':'Salvar foto'},0)});
-$('#recordForm').addEventListener('submit',async e=>{e.preventDefault();if(busy)return;busy=true;$('#saveRecord').disabled=true;$('#saveRecord').textContent='Salvando…';let savedWarning='';try{if(formKind==='photo'){await submitPhotoBatch(e.target);return}const f=new FormData(e.target),r=Object.fromEntries(f);r.id=editing?.id||draftRecordId||uid();if(formKind==='avatar'){if(mode==='cloud'&&!state.profile.consent)throw Error('Complete seu perfil e consentimento antes de enviar fotos.');if(demo)throw Error('Fotos reais não são adicionadas à demonstração.');if(!localConsent())return;const generation=loadGeneration;const blob=await encodePhoto(f.get('photo'),{crop:true});if(generation!==loadGeneration)throw Error('A conta mudou. Abra novamente o formulário.');if(!C.validDate(r.date)||r.date>C.today())throw Error('Data inválida.');const role=formKind==='avatar'?'avatar':'progress';let uploaded=null;if(mode==='cloud'){if(!f.has('photoConsent'))throw Error('Confirme a autorização para fotografias.');await authorizePhotoUpload(e.target);const thumbnail=await encodePhoto(blob,{edge:160,quality:.68});requirePhotoOwner(e.target);uploaded=await Cloud.uploadPhoto(blob,r.date,role,thumbnail);requirePhotoOwner(e.target);}else await photoStore('put',{id:r.id,date:r.date,role,blob,thumbnail:await encodePhoto(blob,{edge:160,quality:.68}),created_at:new Date().toISOString()});if(role==='avatar'&&uploaded?.url){avatarURL=uploaded.url;photoList=photoList.filter(p=>p.role!=='avatar').concat(uploaded);window.NeoCommunity?.refreshIdentity?.();if(uploaded.communitySynced===false)savedWarning='Foto aplicada ao perfil. A foto da comunidade não foi atualizada; tente alterar a foto novamente.'}else try{await loadPhotos()}catch{savedWarning='Foto salva. Não foi possível atualizar a galeria; use Atualizar fotos para conferir.'}}else{if(formKind==='reminder'){r.title=C.reminderTitle(r.recordTarget,r.title);r.enabled=f.has('enabled');r.weekday=new Date(r.date+'T12:00').getDay()}if(formKind==='dose'){if(e.target.dataset.vialOwner!==calcStorageKey())throw Error('A conta mudou. Abra novamente o registro.');if(mode==='cloud'&&!demo&&(!state.profile.consent||!navigator.onLine||cloudError))throw Error('Confirme o consentimento e atualize os registros da conta antes de salvar.');prepareDiaryVialLink(C.validRecord('doses',r),editing,String(f.get('diaryVialId')||''));}if(!await putRecord(kindType[formKind],r))return;if(formKind==='dose'){const stored=readCalcVials(),vial=stored.items.find(item=>item.id===stored.active);if(vial&&vialBalance(vial,stored.links).mass===0)savedWarning='Aplicação registrada. O frasco está vazio; adicione um novo frasco.';}}formDirty=false;$('#dialog').close();render();toast(savedWarning||(demo?'Alteração apenas na demonstração.':'Registro salvo. Mais um passo na sua jornada.'))}catch(e){if(mode==='cloud'&&!demo)Cloud.reportError?.(formKind==='photo'||formKind==='avatar'?'photo_failed':'profile_failed');$('#formError').textContent=e.message}finally{busy=false;$('#saveRecord').disabled=false;$('#saveRecord').textContent='Salvar registro';if(formKind==='photo')paintPhotoBatch()}});
+$('#recordForm').addEventListener('submit',async e=>{e.preventDefault();if(busy)return;busy=true;$('#saveRecord').disabled=true;$('#saveRecord').textContent='Salvando…';let savedWarning='';try{if(formKind==='photo'){await submitPhotoBatch(e.target);return}const f=new FormData(e.target),r=Object.fromEntries(f);r.id=editing?.id||draftRecordId||uid();if(formKind==='avatar'){if(mode==='cloud'&&!state.profile.consent)throw Error('Complete seu perfil e consentimento antes de enviar fotos.');if(demo)throw Error('Fotos reais não são adicionadas à demonstração.');if(!localConsent())return;const generation=loadGeneration;const blob=await encodePhoto(f.get('photo'),{crop:true});if(generation!==loadGeneration)throw Error('A conta mudou. Abra novamente o formulário.');if(!C.validDate(r.date)||r.date>C.today())throw Error('Data inválida.');const role=formKind==='avatar'?'avatar':'progress';let uploaded=null;if(mode==='cloud'){if(!f.has('photoConsent'))throw Error('Confirme a autorização para fotografias.');await authorizePhotoUpload(e.target);const thumbnail=await encodePhoto(blob,{edge:160,quality:.68});requirePhotoOwner(e.target);uploaded=await Cloud.uploadPhoto(blob,r.date,role,thumbnail);requirePhotoOwner(e.target);}else await photoStore('put',{id:r.id,date:r.date,role,blob,thumbnail:await encodePhoto(blob,{edge:160,quality:.68}),created_at:new Date().toISOString()});if(role==='avatar'&&uploaded?.url){avatarURL=uploaded.url;photoList=photoList.filter(p=>p.role!=='avatar').concat(uploaded);window.NeoCommunity?.refreshIdentity?.();if(uploaded.communitySynced===false)savedWarning='Foto aplicada ao perfil. A foto da comunidade não foi atualizada; tente alterar a foto novamente.'}else try{await loadPhotos()}catch{savedWarning='Foto salva. Não foi possível atualizar a galeria; use Atualizar fotos para conferir.'}}else{if(formKind==='reminder'){r.title=C.reminderTitle(r.recordTarget,r.title);r.enabled=f.has('enabled');r.weekday=new Date(r.date+'T12:00').getDay()}if(formKind==='dose'){if(e.target.dataset.vialOwner!==calcStorageKey())throw Error('A conta mudou. Abra novamente o registro.');if(mode==='cloud'&&!demo&&(!state.profile.consent||!navigator.onLine||cloudError))throw Error('Confirme o consentimento e atualize os registros da conta antes de salvar.');r.diaryVialId=prepareDiaryVialLink(C.validRecord('doses',r),editing,String(f.get('diaryVialId')||''))||null;}if(!await putRecord(kindType[formKind],r))return;if(formKind==='dose'){const stored=readCalcVials(),vial=stored.items.find(item=>item.id===stored.active);if(vial&&vialBalance(vial,stored.links).mass===0)savedWarning='Aplicação registrada. O frasco está vazio; adicione um novo frasco.';}}formDirty=false;$('#dialog').close();render();toast(savedWarning||(demo?'Alteração apenas na demonstração.':'Registro salvo. Mais um passo na sua jornada.'))}catch(e){if(mode==='cloud'&&!demo)Cloud.reportError?.(formKind==='photo'||formKind==='avatar'?'photo_failed':'profile_failed');$('#formError').textContent=e.message}finally{busy=false;$('#saveRecord').disabled=false;$('#saveRecord').textContent='Salvar registro';if(formKind==='photo')paintPhotoBatch()}});
 $('#close').onclick=()=>{if(!busy)$('#dialog').close()};
 $('#dialog').addEventListener('cancel',event=>{if(busy)event.preventDefault()});
 async function importReview(candidate){const incoming=C.validateBackup(candidate);const preview=C.merge(state,incoming);migrationCandidate=incoming;formKind='migration';editing=null;$('#dialogTitle').textContent='Revisar importação';$('#fields').innerHTML=`<p class="sub">${preview.added} registros novos · ${preview.skipped} duplicados ignorados.</p><div class="notice">Os registros existentes e seu perfil serão preservados. Nada será removido. ${mode==='cloud'?'Os novos registros serão enviados à conta '+esc(Cloud.user?.email||'conectada')+'.':'Os novos registros ficarão neste navegador.'}</div><button type="button" class="secondary full" id="migrationBackup">1. Exportar backup atual</button><label class="check space"><input type="checkbox" id="migrationConsent">Confirmo a importação aditiva e o armazenamento dos registros neste destino.</label><button type="button" class="primary full" id="confirmMigration">2. Importar registros</button>`;$('#formError').textContent='';$('#saveRecord').hidden=true;$('#dialog').showModal();}
