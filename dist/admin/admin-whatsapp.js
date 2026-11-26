@@ -202,7 +202,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  const field=(name,label,attrs='')=>'<label>'+label+'<input name="'+name+'" '+attrs+'></label>';
  const action=(key,label)=>'<button type="button" class="secondary" data-wa="'+key+'" name="'+key+'">'+label+'</button>';
  const dateLabel=(instant,timezone)=>instant?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:timezone}).format(new Date(instant))+' · '+timezone:'';
- const states={pending:'Pendente',scheduled:'Programada',late:'Atrasada',done:'Concluída manualmente',cancelled:'Cancelada'};
+ const states={paused:'Pausada',pending:'Pendente',scheduled:'Programada',late:'Atrasada',done:'Concluída manualmente',cancelled:'Cancelada'};
  const mayAct=row=>['pending','scheduled','late'].includes(row.state);
  const sharedQueueEnabled=(window.NEO_CONFIG?.campaignOfficialCentralEnabled===true||window.NEO_CONFIG?.campaignTestEnabled===true)&&typeof cloud.campaignCentral==='function';
  const dayNames=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
@@ -241,7 +241,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  ${dayNames.map((name,i)=>`<label class="check"><input type="checkbox" name="weekday" value="${i}">${name}</label>`).join('')}</div></fieldset>
  <label class="check"><input type="checkbox" name="remind"> Lembrete no painel</label>
  <button type="submit" class="primary">Salvar publicação</button></form>
- <fieldset class="space"><legend data-campaign-legend="state">Fila de publicações</legend>${sharedQueueEnabled?`<section class="shared-campaign-queue"><div class="between"><h3>Fila central · administradores</h3>${action('refresh_shared','Atualizar')}</div><p class="sub">Acompanhamento de mensagens automáticas e manuais. Ações de envio continuam sujeitas às permissões do responsável.</p><label>Estado<select data-shared-filter><option value="">Todos</option><option value="waiting">Aguardando</option><option value="review_pending">Aguardando aprovação</option><option value="review_rejected">Recusada na revisão</option><option value="scheduled">Agendada</option><option value="in_progress">Processando</option><option value="accepted">Aceita pelo cliente</option><option value="manual_done">Confirmada manualmente</option><option value="uncertain">Incerta</option><option value="refused">Recusada</option><option value="cancelled">Cancelada</option></select></label><div data-shared-queue role="status">Carregando fila…</div><section data-review-section hidden><h4>Revisão independente</h4><div data-review-list></div></section><h4>Fluxo manual</h4></section>`:''}<div data-wa-queue></div></fieldset>`;
+ <fieldset class="space"><legend data-campaign-legend="state">Fila de publicações</legend>${sharedQueueEnabled?`<section class="shared-campaign-queue"><div class="between"><h3>Fila central · administradores</h3>${action('refresh_shared','Atualizar')}</div><p class="sub">Acompanhamento de mensagens automáticas e manuais. Ações de envio continuam sujeitas às permissões do responsável.</p><label>Estado<select data-shared-filter><option value="">Todos</option><option value="waiting">Aguardando</option><option value="paused">Pausadas</option><option value="review_pending">Aguardando aprovação</option><option value="review_rejected">Recusada na revisão</option><option value="scheduled">Agendada</option><option value="in_progress">Processando</option><option value="accepted">Aceita pelo cliente</option><option value="manual_done">Confirmada manualmente</option><option value="uncertain">Incerta</option><option value="refused">Recusada</option><option value="cancelled">Cancelada</option></select></label><div data-shared-queue role="status">Carregando fila…</div><section data-review-section hidden><h4>Revisão independente</h4><div data-review-list></div></section><h4>Fluxo manual</h4></section>`:''}<div data-wa-queue></div></fieldset>`;
  const connect=q('[data-wa-connect]');
  const syncCatalog=embedded?mountSyncedCampaignGroups(q('[data-wa-sync-catalog]'),{cloud}):null;
  const syncPicker=embedded?mountSyncedCampaignGroups(q('[data-wa-sync-recipients]'),{cloud,picking:true}):null;
@@ -303,7 +303,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  function setCampaigns(rows){
   campaigns=rows;
   const chosen=select.value;
-  select.innerHTML='<option value="">Selecione</option>'+campaigns.filter(row=>row.whatsapp_enabled&&row.status!=='archived')
+  select.innerHTML='<option value="">Selecione</option>'+campaigns.filter(row=>row.whatsapp_enabled&&row.status!=='archived'&&row.status!=='paused')
    .map(row=>`<option value="${esc(row.id)}">${esc(row.title)}</option>`).join('');
   if(chosen)select.value=chosen;
  }
@@ -320,7 +320,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
   destination.prepend(...retained);
  }
  let sharedRows=[],sharedToken=0,sharedFailed=false;
- const sharedLabels={waiting:'Aguardando',review_pending:'Aguardando aprovação',review_rejected:'Recusada na revisão',scheduled:'Agendada',in_progress:'Processando',accepted:'Aceita pelo cliente',manual_done:'Confirmada manualmente',uncertain:'Resultado incerto · revisar',refused:'Recusada',cancelled:'Cancelada'};
+ const sharedLabels={paused:'Pausada',waiting:'Aguardando',review_pending:'Aguardando aprovação',review_rejected:'Recusada na revisão',scheduled:'Agendada',in_progress:'Processando',accepted:'Aceita pelo cliente',manual_done:'Confirmada manualmente',uncertain:'Resultado incerto · revisar',refused:'Recusada',cancelled:'Cancelada'};
  function renderSharedQueue(){
   const holder=q('[data-shared-queue]');if(!holder)return;
   if(sharedFailed){holder.textContent='Fila consolidada indisponível; use a fila manual abaixo.';return;}
