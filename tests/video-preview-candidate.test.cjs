@@ -17,7 +17,16 @@ test('synthetic 12s MP4 yields silent H264 preview no longer than 6.3s and <=500
  try{
   const file=path.join(work,'input.mp4');
   execFileSync(ffmpeg,['-nostdin','-v','error','-f','lavfi','-i','testsrc2=size=360x640:rate=12:duration=12','-c:v','libx264','-threads','1','-pix_fmt','yuv420p',file],{timeout:30000});
-  const result=await generateVideoPreview(fs.readFileSync(file),{ffmpeg,ffprobe});
+  const result=await generateVideoPreview(file,{ffmpeg,ffprobe});
   assert.equal(result.mime,'video/mp4');assert.ok(result.duration>=5.8&&result.duration<=6.3);assert.ok(result.bytes.length<=PREVIEW_MAX);assert.deepEqual([result.width,result.height],[270,480]);
+ }finally{fs.rmSync(work,{recursive:true,force:true});}
+});
+
+test('preview source limit is 200 MiB; oversized file is rejected before FFmpeg',async()=>{
+ const {generateVideoPreview,PREVIEW_SOURCE_MAX,PREVIEW_MAX}=await import(modulePath);
+ assert.equal(PREVIEW_SOURCE_MAX,209715200);assert.equal(PREVIEW_MAX,512000);
+ const work=fs.mkdtempSync(path.join(os.tmpdir(),'neo-test-large-preview-')),file=path.join(work,'large.mp4');
+ try{fs.closeSync(fs.openSync(file,'w'));fs.truncateSync(file,PREVIEW_SOURCE_MAX+1);
+  await assert.rejects(generateVideoPreview(file,{ffmpeg:'/not-run',ffprobe:'/not-run'}),/acima de 200 MB/);
  }finally{fs.rmSync(work,{recursive:true,force:true});}
 });

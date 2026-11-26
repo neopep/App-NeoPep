@@ -141,11 +141,11 @@ sealed partial class Connect {
     async Task DownloadPreviewSource(string source,string destination){
         var request=(HttpWebRequest)WebRequest.Create(profile.Endpoint("/storage/v1/object/authenticated/neo-library/"+source));
         request.AllowAutoRedirect=false;request.Headers["Authorization"]="Bearer "+access;request.Headers["apikey"]=profile.PublishableKey;
-        using(var deadline=new System.Threading.Timer(_=>request.Abort(),null,TimeSpan.FromSeconds(90),System.Threading.Timeout.InfiniteTimeSpan))
+        using(var deadline=new System.Threading.Timer(_=>request.Abort(),null,TimeSpan.FromMinutes(10),System.Threading.Timeout.InfiniteTimeSpan))
         using(var response=(HttpWebResponse)await request.GetResponseAsync())
         using(var input=response.GetResponseStream())
         using(var output=new FileStream(destination,FileMode.CreateNew,FileAccess.Write,FileShare.None)){
-            const int limit=50*1024*1024;
+            const int limit=200*1024*1024;
             if(response.StatusCode!=HttpStatusCode.OK||response.ContentLength>limit)throw new IOException();
             var buffer=new byte[65536];int count;
             while((count=await input.ReadAsync(buffer,0,buffer.Length))!=0){

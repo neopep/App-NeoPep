@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os';
 import {join,isAbsolute} from 'node:path';
 const exec=promisify(execFile);
 export const PREVIEW_MAX=500*1024;
+export const PREVIEW_SOURCE_MAX=200*1024*1024;
 export function previewRanges(duration){
  if(!Number.isFinite(duration)||duration<=0||duration>10800)throw Error('Duração do vídeo inválida.');
  if(duration<=6)return [{start:0,length:duration}];
@@ -16,16 +17,19 @@ export function previewDimensions(w,h){
  const s=Math.min(1,480/Math.max(w,h));
  return [Math.max(2,Math.floor(w*s/2)*2),Math.max(2,Math.floor(h*s/2)*2)];
 }
-export async function generateVideoPreview(bytes,{ffmpeg,ffprobe,signal}={}){
- if(!Buffer.isBuffer(bytes)||!bytes.length||bytes.length>50*1024*1024)throw Error('Vídeo inválido ou acima de 50 MB.');
+export async function generateVideoPreview(source,{ffmpeg,ffprobe,signal}={}){
+ const buffer=Buffer.isBuffer(source);
+ if(buffer?(!source.length||source.length>PREVIEW_SOURCE_MAX):(typeof source!=='string'||!isAbsolute(source)))throw Error('Vídeo inválido ou acima de 200 MB.');
+ if(!buffer){const info=await stat(source);if(!info.isFile()||info.size<=0||info.size>PREVIEW_SOURCE_MAX)throw Error('Vídeo inválido ou acima de 200 MB.');}
  if(!isAbsolute(ffmpeg||'')||!isAbsolute(ffprobe||''))throw Error('Conversor local ainda não configurado.');
  signal?.throwIfAborted();
  const work=await mkdtemp(join(tmpdir(),'neo-video-preview-'));
  const run=async(bin,args)=>{signal?.throwIfAborted();return exec(bin,args,{cwd:work,shell:false,windowsHide:true,timeout:45000,maxBuffer:1024*1024,signal});};
  const probe=async(name)=>JSON.parse((await run(ffprobe,['-v','error','-protocol_whitelist','file,pipe','-show_entries','format=format_name,duration:stream=codec_type,codec_name,width,height,duration','-of','json',name])).stdout);
  try{
-  await writeFile(join(work,'input.media'),bytes,{flag:'wx',mode:0o600});
-  const input=await probe('input.media');
+  const inputPath=buffer?join(work,'input.media'):source;
+  if(buffer)await writeFile(inputPath,source,{flag:'wx',mode:0o600});
+  const input=await probe(inputPath);
   if(!/(^|,)(mov|mp4|webm|matroska)(,|$)/.test(input.format?.format_name||''))throw Error('Formato de vídeo não suportado.');
   const video=input.streams?.find(s=>s.codec_type==='video');
   if(!video)throw Error('Arquivo sem vídeo.');
@@ -37,13 +41,13 @@ export async function generateVideoPreview(bytes,{ffmpeg,ffprobe,signal}={}){
    const offsets=[range.start,Math.min(Math.max(0,duration-range.length),range.start+range.length),Math.max(0,range.start-range.length)];
    let chosen;
    for(const start of [...new Set(offsets)]){
-    const result=await run(ffmpeg,['-nostdin','-hide_banner','-v','info','-protocol_whitelist','file,pipe','-threads','1','-ss',String(start),'-i','input.media','-t',String(range.length),'-map','0:v:0','-an','-sn','-dn','-vf','scale=160:-2,blackdetect=d=0.10:pix_th=0.10:pic_th=0.98','-f','null','-']);
+    const result=await run(ffmpeg,['-nostdin','-hide_banner','-v','info','-protocol_whitelist','file,pipe','-threads','1','-ss',String(start),'-i',inputPath,'-t',String(range.length),'-map','0:v:0','-an','-sn','-dn','-vf','scale=160:-2,blackdetect=d=0.10:pix_th=0.10:pic_th=0.98','-f','null','-']);
     const black=[...result.stderr.matchAll(/black_duration:([0-9.]+)/g)].reduce((n,m)=>n+Number(m[1]),0);
     if(black<range.length*.5){chosen=start;break;}
    }
    if(chosen===undefined)continue;
    const out='part'+i+'.mp4';
-   await run(ffmpeg,['-nostdin','-hide_banner','-v','error','-protocol_whitelist','file,pipe','-threads','1','-ss',String(chosen),'-i','input.media','-t',String(range.length),'-map','0:v:0','-an','-sn','-dn','-vf','scale='+w+':'+h+':force_original_aspect_ratio=decrease:force_divisible_by=2,pad='+w+':'+h+':(ow-iw)/2:(oh-ih)/2,setsar=1,fps=12,setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration=0.25,trim=duration='+range.length,'-c:v','libx264','-threads','1','-profile:v','baseline','-pix_fmt','yuv420p','-bf','0','-b:v','380k','-maxrate','420k','-bufsize','420k','-movflags','+faststart','-map_metadata','-1','-map_chapters','-1','-y',out]);
+   await run(ffmpeg,['-nostdin','-hide_banner','-v','error','-protocol_whitelist','file,pipe','-threads','1','-ss',String(chosen),'-i',inputPath,'-t',String(range.length),'-map','0:v:0','-an','-sn','-dn','-vf','scale='+w+':'+h+':force_original_aspect_ratio=decrease:force_divisible_by=2,pad='+w+':'+h+':(ow-iw)/2:(oh-ih)/2,setsar=1,fps=12,setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration=0.25,trim=duration='+range.length,'-c:v','libx264','-threads','1','-profile:v','baseline','-pix_fmt','yuv420p','-bf','0','-b:v','380k','-maxrate','420k','-bufsize','420k','-movflags','+faststart','-map_metadata','-1','-map_chapters','-1','-y',out]);
    files.push(out);
   }
   if(!files.length)throw Error('Não foi possível localizar trechos visíveis.');
