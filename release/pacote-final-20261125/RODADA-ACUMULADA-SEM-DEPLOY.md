@@ -135,3 +135,28 @@ Todos exigem validação em ambiente isolado, checagem de privilégios e RLS, ro
 - Fila: delegação explícita de aprovação/despacho automático entre administradores e conexões sincronizadas ainda pendente; reserva manual já preparada. Não contornar ownership.
 - Executar suíte completa, teste visual iPhone, Windows e teste de integração em ambiente isolado. A sincronização do diário de frascos entre aparelhos ainda permanece pendente (saldo local).
 - Deploy automático continua desativado. Nenhum deploy ou mensagem real disparado. Prioridades 2 e 3 anteriores continuam adiadas. Publicação solicitada continua Produção → Teste, somente depois de concluir a preparação e receber autorização de deploy.
+
+
+## Continuação — notificações App e preparação oficial (cache v56)
+
+### Implementação candidata
+- `campaign_app_rich_popup_candidate.sql` (oitavo patch de Teste, depois de app_settings): snapshot de blocos ordenados para pop-up (texto, JPEG, PDF, MP4, link HTTPS, referências autorizadas de produto/Biblioteca/Comunidade), consentimento, allowlist, prioridade e leitura de mídia limitada à ocorrência oferecida, tipo, caminho e janela de cinco minutos. Arquivos privados por URL assinada de 120 segundos; ainda exige teste real de Storage/navegador. Referências Biblioteca/Loja abrem a rota existente, não expõem anexos privados nem duplicam automaticamente o arquivo original da Biblioteca.
+- Renderer compartilhado em src/app.js e dist/app.js, preservando notificações antigas e usando DOM/textContent para conteúdo novo. Editor habilita a composição rica somente após detectar o contrato. Originais PDF/MP4 aceitos conforme limite anterior de 5 MiB. TXT local não é enviado. CSP Admin permite prévia de vídeo.
+- Produção: `campaign_official_app_popup_candidate.sql` e `campaign_official_app_central_candidate.sql`, em ordem, com precondições de fingerprint das funções oficiais, sem reaproveitar emissor JWT de Teste nem alterar configuração de despacho. Mantêm o mecanismo existente de público, planos, janela, opt-in e fila de push (um push por campanha/dispositivo, não push a cada repetição), e central App com hierarquia e recibos oficiais. A interface detecta app_list e preserva o painel antigo se o contrato não existir. O cancelamento oficial continua sujeito às restrições existentes, inclusive edição/cancelamento de agendamento futuro.
+- Cache v56, assets Admin campanhas-central-6, bundle cloud.js com nova referência de versão. Build-staging agora remove apenas seu bloco próprio de marca d'água, evitando truncar estilos futuros. src/cloud.js atualizado; regenerar dist/cloud.js com npm run build.
+
+### Verificação nesta rodada
+- Oito patches de Teste ensaiados juntos em subtransação revertida. Testes funcionais fictícios: criar/salvar/publicar popup de dois blocos (texto + link), oferta, confirmação única, frequência mínima, nova exibição, máximo de duas, revogação de allowlist. Nenhum lote ou ativação persistiu.
+- Teste de mídia por metadados fictícios: acesso negado antes da oferta; caminho/tipo exatos autorizados depois da oferta; caminho/tipo incorretos, janela expirada e revogação negados. Não houve arquivo real no Storage.
+- Simulação estrutural das duas candidatas oficiais em Teste, com definições atuais de Produção temporariamente carregadas e rollback: criar/salvar/get, diagnóstico, gate de publicação bloqueado, mídia sem autorização negada. NÃO equivale a execução no banco real de Produção nem a homologação de push.
+- Pós-verificação por leitura confirmou: Teste sem tabelas/funções/bucket novos e sem fixtures, gate/allowlist permanecem desativados; Produção sem alterações e gates de despacho desativados.
+- 13 verificações de sintaxe/estrutura/versão aprovadas. Testes de regressão adicionados em tests/campaign-popup-release.test.cjs; suíte Node completa, CI, teste visual iPhone, arquivo real e Windows não confirmados.
+- GitHub compare, antes das últimas alterações, mostrou divergência entre a branch acumulada Teste e preparacao/auditoria-final-producao-20261125 (145 commits à frente / 172 atrás). A branch Teste tem CSP/configuração específica e build Vercel restrito ao projeto Teste. Não promover por merge integral ou apontar Produção para essa branch.
+
+### Próximas pendências reais
+1. Portar apenas os ajustes compartilhados à candidata oficial, reconciliar diferenças de ambiente e scripts de Produção para recorrência, cópia bidirecional, fila e originais. Central WhatsApp oficial e cópia em Produção ainda não foram habilitadas. Evitar sobrescrever o Connect oficial, pagamentos, IA e push existentes.
+2. Finalizar recorrência App na agenda, conversão de regras entre canais e liberação explícita por outro administrador no envio automático. A reserva manual já tem candidata.
+3. Gerar bundle web, executar suíte completa e testes de interface. Compilar instalador Connect versionado para cada ambiente e testar PDF/MP4 integral, acesso Storage, recebimento e recibo. A rota de originais permanece bloqueada.
+4. Homologar pop-up rico e push com dispositivo/conta autorizados e verificar frequência, plano e audiência real. Em Teste não há conta habilitada e o gate permanece fechado; não ampliar a lista automaticamente.
+5. Sincronização do diário de frascos entre dispositivos continua pendente, fora do ajuste de campanhas.
+6. Manter prioridades 2 e 3 anteriores adiadas, deploy automático desativado e ordem de publicação Produção → Teste após concluir preparação. Nenhum deploy, push ou mensagem real nesta rodada.
