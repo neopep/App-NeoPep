@@ -79,11 +79,36 @@
   const setLocal=(key,value)=>{try{localStorage.setItem(key,value);}catch{}};
   const removeLocal=key=>{try{localStorage.removeItem(key);}catch{}};
   function localDrafts(){
-   const prefix='neo-campaign-editor:'+account+':'+channel+':'+current+':',found=[];
-   try{for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i);if(!key?.startsWith(prefix))continue;const id=key.slice(prefix.length);try{const item=JSON.parse(localStorage.getItem(key));if(!item?.draft||!Array.isArray(item.draft.blocks)||item.savedDraft===JSON.stringify(item.draft)&&!String(item.compose||'').trim()&&!item.editing)continue;found.push({id,item});}catch{}}}catch{}
-   const pending=getLocal(pointer());if(pending&&!found.some(r=>r.id===pending))found.push({id:pending,item:null});return found;
+   const prefix='neo-campaign-editor:'+account+':'+channel+':'+current+':',found=[],cleanIds=new Set();
+   const dirty=item=>{
+    if(!item?.draft||!Array.isArray(item.draft.blocks))return false;
+    const compose=String(item.compose||'').trim();
+    if(item.editing){
+     const block=item.draft.blocks.find(b=>b.id===item.editing);
+     if(!block||compose!==String(block.text||'').trim())return true;
+    }else if(compose)return true;
+    return item.savedDraft!==JSON.stringify(item.draft);
+   };
+   try{for(let i=0;i<localStorage.length;i++){
+    const key=localStorage.key(i);if(!key?.startsWith(prefix))continue;
+    const id=key.slice(prefix.length);
+    try{const item=JSON.parse(localStorage.getItem(key));if(!item?.draft||!Array.isArray(item.draft.blocks))continue;
+     if(!dirty(item)){cleanIds.add(id);continue;}
+     found.push({id,item});
+    }catch{}
+   }}catch{}
+   const pending=getLocal(pointer());
+   if(pending&&!found.some(r=>r.id===pending)){
+    const saved=typeof detail!=='undefined'&&detail?.publications?.some(p=>p.id===pending);
+    if(saved||cleanIds.has(pending)){if(typeof removeLocal==='function')removeLocal(pointer());}
+    else found.push({id:pending,item:null});
+   }
+   return found;
   }
-  function localDraftCards(){return localDrafts().map(({id,item})=>{const d=item?.draft;return `<article class="monitor-block central-local-draft"><div class="between"><strong>${escape(d?.title||'Nova publicação')}</strong><span class="campaign-state">Rascunho local</span></div><p class="sub">${d?.blocks?.length||0} bloco(s) · ${d?.groups?.length||0} grupo(s)${d?.planned_local?' · '+escape(local(d.planned_local)):''}${item?.compose?.trim()?' · Texto em edição':''}</p><div class="inline-actions">${button('resume','Abrir rascunho',id)}${button('discard','Descartar',id)}</div></article>`;}).join('');}
+  function localDraftCards(){return localDrafts().map(({id,item})=>{
+   const d=item?.draft,pub=detail.publications.find(p=>p.id===id),locked=Boolean(pub&&(pub.deleted_at||pub.legacy_dispatch||pub.batches?.length));
+   return `<article class="monitor-block central-local-draft"><div class="between"><strong>${escape(d?.title||'Nova publicação')}</strong><span class="campaign-state">${locked?'Alterações não salvas':'Rascunho local'}</span></div><p class="sub">${d?.blocks?.length||0} bloco(s) · ${d?.groups?.length||0} grupo(s)${d?.planned_local?' · '+escape(local(d.planned_local)):''}${item?.compose?.trim()?' · Texto em edição':''}</p><div class="inline-actions">${button('resume',locked?'Recuperar alterações':'Abrir rascunho',id)}${button('discard','Descartar',id)}</div></article>`;
+  }).join('');}
   function show(message){if(active())root.querySelector('[data-central-status]').textContent=message;}
   function status(pub){return labels[state(pub)];}
   function stopStatusPoll(){if(statusTimer!==null){clearTimeout(statusTimer);statusTimer=null;}}
@@ -429,7 +454,41 @@
     if(action==='add')await editor(crypto.randomUUID(),control,{new:true,fresh:true});
     if(action==='resume'&&localDrafts().some(row=>row.id===id)){
      const saved=detail.publications.find(pub=>pub.id===id);
-     if(saved&&(detail.archived_at||saved.deleted_at||saved.legacy_dispatch||saved.batches[0]&&(saved.batches[0].cancelled_at==null||saved.batches[0].states?.some(value=>value!=='cancelled')))){show('A publicação salva está bloqueada para edição. O rascunho local foi preservado.');return;}
+     if(saved&&(detail.archived_at||saved.deleted_at||saved.legacy_dispatch||saved.batches[0]&&(saved.batches[0].cancelled_at==null||saved.batches[0].states?.some(value=>value!=='cancelled')))){
+      if(detail.archived_at||isApp||!canRepublish(saved)){show('A publicação está bloqueada. Suas alterações locais foram preservadas. Confira o histórico antes de recuperar.');return;}
+      const item=localDrafts().find(row=>row.id===id)?.item;
+      if(!item?.draft){show('Não foi possível recuperar as alterações locais.');return;}
+      if(getLocal(pointer())&&getLocal(pointer())!==id){show('Salve o outro rascunho local antes de recuperar.');return;}
+      const campaignId=current,oldKey='neo-campaign-editor:'+account+':'+channel+':'+campaignId+':'+id;
+      const raw=getLocal(oldKey);
+      const key='neo-campaign-recover:'+account+':'+channel+':'+campaignId+':'+id+':'+saved.revision;
+      const request=getLocal(key)||crypto.randomUUID();
+      if(!confirm('Recuperar as alterações em um novo rascunho? A publicação enviada será preservada. Nenhuma mensagem será enviada agora.'))return;
+      setLocal(key,request);
+      await rpc('duplicate',{publication_id:id,request_id:request,planned_local:''});
+      if(!active()||current!==campaignId)return;
+      await load(campaignId);
+      if(!active()||current!==campaignId)return;
+      const copy=detail.publications.find(p=>p.id===request);
+      if(!copy||copy.deleted_at||copy.batches?.length)throw Error('recover_copy_unconfirmed');
+      const base=await rpc('load',{publication_id:copy.id});
+      if(!active()||current!==campaignId||!base?.draft||!base.editor_id)return;
+      const newKey='neo-campaign-editor:'+account+':'+channel+':'+campaignId+':'+copy.id;
+      if(getLocal(newKey)){await editor(copy.id,control);return;}
+      const recovered={editorId:base.editor_id,revision:base.revision,remoteId:base.campaign_id,
+       draft:{...item.draft,planned_local:''},savedDraft:JSON.stringify(base.draft),compose:item.compose||'',editing:item.editing||null,
+       captionTarget:item.captionTarget||null,recoveryEditorId:item.recoveryEditorId||item.editorId};
+      const data=JSON.stringify(recovered);
+      localStorage.setItem(newKey,data);
+      if(getLocal(newKey)!==data)throw Error('recover_not_saved');
+      if(getLocal(oldKey)===raw){
+       const alias='neo-campaign-editor:'+account+':'+channel+':'+item.editorId;
+       if(getLocal(alias)===raw)removeLocal(alias);
+       removeLocal(oldKey);
+      }
+      if(getLocal(pointer())===id)removeLocal(pointer());
+      removeLocal(key);await editor(copy.id,control);return;
+     }
      await editor(id,control,{new:!saved});
     }
     if(action==='discard'&&localDrafts().some(row=>row.id===id)&&confirm('Descartar somente o rascunho local desta publicação? A versão salva na Central será preservada.')){
