@@ -267,6 +267,30 @@ const api={configured,connectTestEnabled:connectEnabled,
   const result=await fetch(endpoint+(official?'':'?mode=geo'),{method:'POST',headers:{Authorization:'Bearer '+session.access_token}});
   if(version===identityVersion&&result.ok)return result.json();
  },
+ async captureDeviceCity(position){
+  // The live GPS coordinates are sent only to BigDataCloud by the device, never to Supabase.
+  const latitude=Number(position?.latitude),longitude=Number(position?.longitude);
+  if(!Number.isFinite(latitude)||!Number.isFinite(longitude)||Math.abs(latitude)>90||Math.abs(longitude)>180)return null;
+  need();const version=identityVersion,account=user.id;
+  const url='https://api.bigdatacloud.net/data/reverse-geocode-client?latitude='+encodeURIComponent(String(latitude))+
+   '&longitude='+encodeURIComponent(String(longitude))+'&localityLanguage=pt';
+  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),8000);
+  let place;
+  try{
+   const response=await fetch(url,{method:'GET',mode:'cors',cache:'no-store',referrerPolicy:'no-referrer',
+    headers:{Accept:'application/json'},signal:controller.signal});
+   if(!response.ok)return null;
+   place=await response.json();
+  }finally{clearTimeout(timeout)}
+  if(version!==identityVersion||user?.id!==account)return null;
+  // Do not mistake the provider's IP fallback for a device-derived locality.
+  if(/ip/i.test(String(place?.lookupSource||'')))return null;
+  const city=typeof place?.city==='string'?place.city.trim():'',
+   region=typeof place?.principalSubdivision==='string'?place.principalSubdivision.trim():'',
+   country=typeof place?.countryCode==='string'?place.countryCode.trim().toUpperCase():'';
+  if(!city||!region||city.length>120||region.length>100||!/^[A-Z]{2}$/.test(country))return null;
+  return ok(await client.rpc('neo_geo_device_city',{p_country:country,p_region:region,p_city:city}));
+ },
  async adminOperations(section,days=30,review=null){need();return ok(await client.rpc('neo_admin_operations',{p_section:section,p_days:days,p_review:review}))},
  async qualityObserve(metric,duration=null,revision=''){need();return ok(await client.rpc('neo_quality_observe',{p_metric:metric,p_duration:duration,p_revision:revision}))},
  async adminSystem(action='snapshot',payload={}){need();return ok(await client.rpc('neo_admin_system',{p_action:action,p_payload:payload}))},
