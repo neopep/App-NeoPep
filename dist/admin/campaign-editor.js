@@ -452,7 +452,7 @@
   }
   function referenceCard(block){
    const model=contentPreviews.get(block.ref);
-   if(!model)return '';
+   if(!model)return block.type==='community'?'<p class="sub">Carregando publicação ou conteúdo indisponível.</p>':'';
    if(block.type==='community')return `<section class="structured-reference structured-community-reference">
     <strong class="structured-community-author">${e(model.meta||'Comunidade')}</strong>
     ${model.snapshot&&window.NeoCommunity?.summaryCard?window.NeoCommunity.summaryCard(model.snapshot):''}
@@ -1148,7 +1148,7 @@
      if(post.photo_path)blocks.push({type:'image',layout:'caption',text:'',name:'publicacao-comunidade.jpg'});
      else if(post.body==='Foto compartilhada')throw Error('A imagem original não está disponível. Use a referência ou tente novamente.');
      if(post.body&&!(post.photo_path&&post.body==='Foto compartilhada'))blocks.push(...communityTextBlocks(post.body));
-     if(post.file)blocks.push({type:'community',ref:post.id,label:'Documento da publicação original',text:''});
+     if(post.file)blocks.push({type:'link',url:linkFor({type:'community',ref:post.id}),text:'Documento da publicação original — acesse na Comunidade'});
      if(!blocks.length)throw Error('Não há conteúdo editável disponível.');
      if(draft.blocks.length+blocks.length>32)throw Error('Limite de 32 blocos por rascunho.');
      const prepared=blocks.map(block=>({id:uuid(),...block})),image=prepared.find(b=>b.type==='image');
