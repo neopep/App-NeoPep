@@ -34,6 +34,10 @@
   if(states.includes('accepted'))return 'accepted';
   return 'cancelled';
  }
+ function canRepublish(pub){
+  const states=pub.batches?.[0]?.states||[];
+  return !pub.deleted_at&&!pub.legacy_dispatch&&states.includes('accepted')&&states.every(s=>s==='accepted'||s==='cancelled');
+ }
  function mount({root,cloud,legacy,openLegacy,recoverLegacy,onConnect,channel='whatsapp',onCross}){
   const isApp=channel==='app',channelLabel=isApp?'App':'WhatsApp';
   const testEnvironment=window.NEO_CONFIG?.campaignTestEnabled===true;
@@ -192,6 +196,7 @@
      ${view==='agenda'&&editable&&!paused&&pub.planned_local&&!locked?`<label class="check"><input type="checkbox" name="selected-publication" value="${escape(pub.id)}" aria-label="Selecionar para agendar"> Agendar</label>`:''}
      <details class="central-action-menu"><summary aria-label="Opções da publicação">⋯</summary><div class="central-action-popover">${button('edit',locked||!editable?'Ver publicação':'Editar publicação',pub.id)}
      ${!isApp&&reviewReady&&editable&&!paused&&!locked?button('request_review','Solicitar aprovação de outro admin',pub.id):''}
+     ${!isApp&&editable&&canRepublish(pub)?button('republish_edit','Editar e republicar',pub.id):''}
      ${editable&&!pub.deleted_at?button('duplicate_form','Duplicar / distribuir',pub.id)+((isApp?appRepeatReady:!paused&&typeof cloud.campaignWeekly==='function')?button('weekly_form',isApp?'Preparar repetição':'Programar repetição',pub.id):''):''}
      ${batch?.states?.includes('waiting')&&editable&&!pub.deleted_at?button('cancel','Cancelar pendências',pub.id):''}
      ${editable&&!pub.deleted_at?button('delete_publication','Excluir publicação',pub.id):''}</div></details>
@@ -439,6 +444,24 @@
     }
     if(action==='edit'&&pub)await editor(id,control,{readOnly:Boolean(detail.archived_at||pub.deleted_at||pub.legacy_dispatch||pub.batches[0]&&
      (pub.batches[0].cancelled_at==null||pub.batches[0].states?.some(value=>value!=='cancelled')))});
+    if(action==='republish_edit'&&pub&&!isApp){
+     if(detail.archived_at||!canRepublish(pub)){show('Confira o estado do envio anterior antes de republicar.');return;}
+     if(getLocal(pointer())){show('Salve ou descarte o outro rascunho local antes de republicar.');return;}
+     const campaignId=current;
+     const key='neo-campaign-republish:'+account+':'+channel+':'+campaignId+':'+id+':'+pub.revision;
+     const request=getLocal(key)||crypto.randomUUID();
+     if(!confirm('Criar uma nova versão editável com o mesmo conteúdo e anexos? O envio anterior será preservado. Nenhuma mensagem será enviada agora.'))return;
+     setLocal(key,request);
+     await rpc('duplicate',{publication_id:id,request_id:request,planned_local:''});
+     if(!active()||current!==campaignId)return;
+     await load(campaignId);
+     if(!active()||current!==campaignId)return;
+     const copy=detail.publications.find(p=>p.id===request);
+     if(!copy||copy.deleted_at||copy.batches?.length)throw Error('republish_copy_unconfirmed');
+     await editor(copy.id,control,{fresh:true});
+     if(active()&&current===campaignId)removeLocal(key);
+     return;
+    }
     if(action==='duplicate_form'&&pub)duplicateForm(pub);
     if(action==='request_review'&&pub&&!isApp&&reviewReady){
      if(detail?.paused_at){show('Reative a campanha antes de solicitar aprovação.');return;}
