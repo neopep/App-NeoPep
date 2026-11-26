@@ -17,6 +17,32 @@
    return '<'+tag+'>'+e(part.slice(1,-1))+'</'+tag+'>';
   }).join('');
  }
+ // Locally generated canvas covers are data URLs. Decode bytes without fetch:
+ // img-src permits data: for previews, but connect-src intentionally does not.
+ function localCoverBlob(source){
+  if(typeof source!=='string'||!source.startsWith('data:'))return null;
+  const match=/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(source);
+  if(!match||match[2].length>4*1024*1024)throw Error('A capa local não é uma imagem válida. Gere outra capa.');
+  let raw;try{raw=atob(match[2]);}catch{throw Error('A capa local não pôde ser lida. Gere outra capa.');}
+  if(!raw.length||raw.length>3*1024*1024)throw Error('A capa local está acima do limite.');
+  const bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
+  return new Blob([bytes],{type:match[1]});
+ }
+ async function referenceCoverBlob(reference,signal,origin){
+  if(reference.coverBlob)return reference.coverBlob;
+  const local=localCoverBlob(reference.image);
+  if(local)return local;
+  if(signal.aborted)throw Error('Editor fechado. Reabra a publicação.');
+  let url;try{url=new URL(reference.image);}catch{throw Error('Capa indisponível. Selecione outra imagem.');}
+  if(url.protocol!=='https:'||url.origin!==origin||url.username||url.password||!/^\/storage\/v1\/object\/sign\/(?:neo-campaign-images|neo-library|neo-campaign-thumbnails)\//.test(url.pathname))throw Error('Capa indisponível ou não autorizada.');
+  try{
+   const response=await fetch(url.href,{signal,cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer',redirect:'error'});
+   if(!response.ok)throw Error('cover_http');
+   const blob=await response.blob();
+   if(!/^image\/(jpeg|png|webp)$/.test(blob.type)||!blob.size||blob.size>10*1024*1024)throw Error('cover_invalid');
+   return blob;
+  }catch{throw Error('Não foi possível recuperar a capa autorizada. Reabra o material ou escolha outra capa. Seu rascunho foi mantido.');}
+ }
  function validLink(value){
   try{
    const url=new URL(value);
@@ -377,7 +403,7 @@
    if(!model)return '';
    return `<section class="structured-reference">
     ${model.image?`<img src="${e(model.image)}" alt="" referrerpolicy="no-referrer">`:''}
-    <p class="sub">${e(model.meta||'')}${model.excerpt?' · '+e(model.excerpt):''}</p>
+    <p class="sub">${e(model.meta==='Vídeo'?'Capa estática do vídeo · link para a Biblioteca':model.meta==='PDF'?'Capa do PDF · link para a Biblioteca':model.meta||'')}${model.excerpt?' · '+e(model.excerpt):''}</p>
     ${model.file?`<button type="button" class="text-btn" data-editor="open_reference" data-ref="${e(block.ref)}">Abrir na Biblioteca</button>`:''}
     ${!readOnly&&['PDF','Vídeo'].includes(model.meta)&&!model.image?
       `<label class="sub">Capa automática indisponível: escolher imagem alternativa<input type="file" name="reference_cover" data-ref="${e(block.ref)}" accept="image/jpeg,image/png,image/webp"></label>`:''}
@@ -759,7 +785,7 @@
      const mime=reference.file?.mime||'';
      if(mime!=='application/pdf'&&!mime.startsWith('video/'))continue;
      if(!reference.image&&!reference.coverBlob)throw Error('A capa não pôde ser gerada. Selecione a capa deste material antes de salvar.');
-     localImage=reference.coverBlob||await (await fetch(reference.image,{signal:previewAbort.signal})).blob();
+     localImage=await referenceCoverBlob(reference,previewAbort.signal,window.NEO_CONFIG?.supabaseUrl);
     }else localImage=await storeMedia('readonly',store=>store.get(mediaKey(block.id)));
     if(!localImage)throw Error('Imagem não encontrada neste dispositivo. Anexe novamente.');
     const jpeg=await jpegForDispatch(localImage);
@@ -807,8 +833,8 @@
    if(!draft.title.trim()){tell('Informe o título do rascunho.');return;}
    if(advancedApp&&draft.app_settings){const a=draft.app_settings;if((!a.popup_enabled&&!a.push_requested)||(a.audience!=='all'&&!a.targets.length)||!a.weekdays.length||!a.opens_at||a.opens_at>=a.closes_at||!Number.isInteger(a.frequency_hours)||a.frequency_hours<1||a.frequency_hours>8760||!Number.isInteger(a.max_views)||a.max_views<1||a.max_views>100||!Number.isInteger(a.priority)||a.priority<0||a.priority>100){tell('Confira público, dias, horário, canais e limites de exibição.');return;}}
    if((testWA||testApp||channel==='app'&&gates.app_rich_popup===true)&&draft.blocks.some(b=>['image','document'].includes(b.type)&&!b.media_path)){
-    saving=true;tell('Preparando mídia privada para homologação…');
-    try{await uploadRichImages();}catch(error){tell(error.message||'Não foi possível preparar a imagem.');saving=false;return;}
+    saveLocal();saving=true;tell('Preparando mídia privada para homologação…');
+    try{await uploadRichImages();}catch(error){if(current()){saveLocal();tell(/^(Load failed|Failed to fetch|NetworkError)$/i.test(error.message||'')?'Falha ao preparar ou enviar a capa. Seu rascunho foi mantido. Tente novamente.':error.message||'Não foi possível preparar a imagem. Seu rascunho foi mantido.');}saving=false;return;}
     saving=false;
    }
    if((channel==='app'&&(testApp?testGate.rich_popup===true:gates.app_rich_popup===true)||testWA&&Object.prototype.hasOwnProperty.call(gates.whatsapp_rich||{},'originals_enabled'))&&draft.blocks.some(b=>b.type==='file'&&!b.media_path)){
