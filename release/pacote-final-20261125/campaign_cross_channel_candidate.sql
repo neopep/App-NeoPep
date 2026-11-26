@@ -50,7 +50,7 @@ begin
    union all select a.id,a.id,a.created_at from neo_private.campaign_app_publications a where source_kind='app' and a.campaign_id=source_key and a.deleted_at is null
   ) p join lateral(select ev.draft from neo_private.campaign_editor_versions ev where ev.editor_id=p.editor_id and ev.owner_id=actor and ev.channel=source_kind order by ev.revision desc limit 1)v on true order by p.created_at,p.id
  loop
-  if exists(select 1 from jsonb_array_elements(item.draft->'blocks') b where b->>'type'='file' or (b->>'type'='image' and nullif(b->>'media_path','') is null)) then
+  if exists(select 1 from jsonb_array_elements(item.draft->'blocks') b where b->>'type' in ('file','image') and nullif(b->>'media_path','') is null) then
    raise exception 'campaign_copy_original_media_unavailable' using errcode='22023';
   end if;
   new_pub:=gen_random_uuid();
