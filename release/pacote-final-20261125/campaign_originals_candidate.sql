@@ -1,6 +1,10 @@
 -- Candidate for Teste, originals disabled by default. Deploy the new worker and web build before enabling.
 begin;
 set local lock_timeout='5s';
+lock table neo_private.campaign_wa_rich_messages in share row exclusive mode;
+do $idle$ begin
+ if exists(select 1 from neo_private.campaign_wa_rich_messages where state in ('waiting','leased','started')) then raise exception 'campaign_originals_requires_idle_queue';end if;
+end$idle$;
 do $guard$ begin
  if md5(pg_get_functiondef('public.neo_campaign_editor_v1(text,jsonb)'::regprocedure)) is distinct from '083e8d654b6ed2d0690b6ea34ee72b4f' then raise exception 'campaign_originals_contract_changed: neo_campaign_editor_v1';end if;
  if md5(pg_get_functiondef('public.neo_campaign_rich_admin_v1(text,jsonb)'::regprocedure)) is distinct from '50abb207589e3bf95592dc58192b5c81' then raise exception 'campaign_originals_contract_changed: neo_campaign_rich_admin_v1';end if;
