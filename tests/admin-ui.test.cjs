@@ -84,11 +84,12 @@ test('visão geral coloca cadastros e estatísticas entre indicadores e funciona
  await a.refresh();
  await new Promise(setImmediate);
  const root=a.document.querySelector('.admin-overview');
- assert.equal(root.children.length,4);
- assert.ok(root.children[0].matches('.stats'));
- assert.ok(root.children[1].hasAttribute('data-admin-signups'));
- assert.match(root.children[2].textContent,/Estatísticas de público/);
- assert.equal(root.children[3].hasAttribute('open'),false);
+ assert.equal(root.children.length,5);
+ assert.ok(root.children[0].matches('[data-admin-tab="campaigns"].admin-campaign-shortcut'));
+ assert.ok(root.children[1].matches('.stats'));
+ assert.ok(root.children[2].hasAttribute('data-admin-signups'));
+ assert.match(root.children[3].textContent,/Estatísticas de público/);
+ assert.equal(root.children[4].hasAttribute('open'),false);
  const toast=a.document.querySelector('[data-signup-notice]');
  toast.querySelector('button').click();
  a.advance(200);

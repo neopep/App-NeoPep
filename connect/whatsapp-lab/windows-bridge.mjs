@@ -1,7 +1,7 @@
 // Protocolo privado por pipes herdados. Nenhuma porta HTTP é aberta.
 import {createInterface} from 'node:readline';
 import {fileURLToPath} from 'node:url';
-import {createBaileysProvider} from './whatsapp-provider.mjs';
+import {createBaileysProvider,validCampaignFile,CAMPAIGN_FILE_MAX} from './whatsapp-provider.mjs';
 
 export function createBridge({emit,providerFactory=createBaileysProvider,renderQr}){
  let current,generation=0,qrVersion=0,state='desconectado',checking=false,sending=false,closed=false;
@@ -48,7 +48,7 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
       if(revision===generation&&state==='conectado')output('groups',rows.filter(row=>/^[0-9-]+@g\.us$/.test(row?.id))
        .map(row=>({id:row.id,name:String(row.name||'Sem nome').slice(0,120),members:Number.isSafeInteger(row.members)&&row.members>=0?row.members:null})));
      }finally{checking=false;}
-    }else if((message.action==='send_text'||message.action==='send_image')){
+    }else if((message.action==='send_text'||message.action==='send_image'||message.action==='send_file')){
      const requestId=typeof message.request_id==='string'&&/^[a-f0-9-]{36}$/i.test(message.request_id)?message.request_id:null;
      if(!requestId)return;
      if(sending||state!=='conectado'||!current){
@@ -56,19 +56,25 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
      }
      const jid=message.group_jid,text=message.text;
      const isImage=message.action==='send_image';
+     const isFile=message.action==='send_file';
      const base64=message.image;
      let image;
      if(isImage&&typeof base64==='string'&&base64.length<=1398104&&base64.length%4===0&&/^[A-Za-z0-9+/]+={0,2}$/.test(base64)){
       const bytes=Buffer.from(base64,'base64');
       if(bytes.length>=4&&bytes.length<=1024*1024&&bytes[0]===255&&bytes[1]===216&&bytes.at(-2)===255&&bytes.at(-1)===217)image=bytes;
      }
+     let file;
+     if(isFile&&typeof message.file==='string'&&message.file.length<=Math.ceil(CAMPAIGN_FILE_MAX/3)*4&&message.file.length%4===0&&/^[A-Za-z0-9+/]+={0,2}$/.test(message.file)){
+      const bytes=Buffer.from(message.file,'base64');
+      if(bytes.toString('base64')===message.file&&validCampaignFile(bytes,message.mime,message.name))file=bytes;
+     }
      if(typeof jid!=='string'||!/^[0-9-]{1,64}@g\.us$/.test(jid)
-       ||typeof text!=='string'||text.length>2000||(isImage?!image:!text.trim())){
+       ||typeof text!=='string'||text.length>2000||(isImage?!image:isFile?(!file||text.length>1000||typeof current.sendFile!=='function'):!text.trim())){
       output('send_result',{request_id:requestId,status:'rejected',reason:'Grupo ou texto inválido.'});return;
      }
      sending=true;const revision=generation,provider=current;
      try{
-      const receipt=isImage?await provider.sendImage(jid,text,image):await provider.sendText(jid,text);
+      const receipt=isImage?await provider.sendImage(jid,text,image):isFile?await provider.sendFile(jid,text,file,message.mime,message.name):await provider.sendText(jid,text);
       output('send_result',{request_id:requestId,status:revision===generation&&state==='conectado'?'accepted':'uncertain',
        message_id:String(receipt?.messageId??'').slice(0,160)});
      }catch{

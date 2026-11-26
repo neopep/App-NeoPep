@@ -42,7 +42,8 @@ test('staging installs at the root and keeps the former launch and worker routes
   assert.doesNotMatch(fs.readFileSync('dist/style.css','utf8'), /content:"TESTE"/);
   assert.match(read('style.css'), /content:"TESTE";display:block/);
   assert.match(read('style.css'), /pointer-events:none/);
-  assert.match(read('admin/index.html'), /href="..\/style.css"/);
+  assert.match(read('admin/index.html'), /href="\.\.\/style\.css(?:\?v=[a-z0-9-]+)?"/);
+  assert.equal((read('style.css').match(/content:"TESTE"/g)||[]).length,1);
   const manifest = JSON.parse(read('manifest.webmanifest'));
   assert.deepEqual([manifest.id, manifest.start_url, manifest.scope], ['/', '/', '/']);
   assert.equal(manifest.name, 'NeoPep Teste');
@@ -60,8 +61,8 @@ test('staging installs at the root and keeps the former launch and worker routes
     URL, self: { registration: { scope }, addEventListener() {} }
   });
   assert.notEqual(cache('https://test.example/'), cache('https://test.example/neo/'));
-  assert.match(cache('https://test.example/'),/pwa-v49-lembretes-padrao$/);
-  assert.match(cache('https://test.example/neo/'),/pwa-v49-lembretes-padrao$/);
+  assert.match(cache('https://test.example/'),/pwa-v67-agenda$/);
+  assert.match(cache('https://test.example/neo/'),/pwa-v67-agenda$/);
   assert.match(read('sw.js'),/'appearance\.js'/);
   assert.match(read('sw.js'),/'library-video\.js','library-files\.js'/);
   for(const file of ['index.html','neo/index.html']){

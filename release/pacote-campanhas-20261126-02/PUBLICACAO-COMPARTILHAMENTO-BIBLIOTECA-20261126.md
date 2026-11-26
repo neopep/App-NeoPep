@@ -1,0 +1,5 @@
+# Compartilhamento da Biblioteca — Teste — 26/11/2026
+
+Migração 20261126182442 library_campaign_share_test_20261126 aplicada e verificada. SQL blob 3c429a2a1ce5815e4e6de4b3fbcebb5a8a776c98. Interface e SDK já servidos no deployment dpl_GmBRZCeSzEkP3JFH3ogAME9gZXXX, commit 3e68e4e1ba9bc8d064f0c126d21e7a6b0d756456, domínio teste.app.neopep.com.br; HTTP 200 e presença do novo controle confirmadas. Sem novo deploy necessário. CI 45869622584 aprovada na base documental 05beef487fc1cfd7c25ba2b815409cc7aae88915.
+
+Permissões existentes preservadas (inherit), nenhuma autorização individual alterada. RLS mantido; anon sem EXECUTE; RPC autenticada verifica admin, propriedade e acesso ao material. Consulta sem sessão rejeitada com 42501. Advisor alerta sobre RPC SECURITY DEFINER autenticada, intencional para intermediar esquema privado; guardas de autorização e testes de isolamento mantidos. Não foi realizado envio real. Prévia requer processamento pelo Connect; arquivo integral PDF/MP4 até 5 MiB. Homologação em iPhone pendente. Mercado Pago e IA intactos.

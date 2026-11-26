@@ -49,7 +49,7 @@ internal static class ConnectVersion {
     $bridge = Join-Path $bundle 'bridge'
     New-Item -ItemType Directory -Force $bridge | Out-Null
     Copy-Item $node (Join-Path $bundle 'node.exe')
-    foreach ($name in @('windows-bridge.mjs','whatsapp-provider.mjs','package.json','package-lock.json','node_modules')) {
+    foreach ($name in @('windows-bridge.mjs','whatsapp-provider.mjs','video-preview.mjs','video-preview-cli.mjs','package.json','package-lock.json','node_modules')) {
         Copy-Item (Join-Path $lab $name) $bridge -Recurse
     }
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -71,7 +71,7 @@ internal static class ConnectVersion {
     foreach($dependency in @($wvCore,$wvForms,$wvLoader)){Copy-Item -LiteralPath $dependency -Destination $Output -Force}
     $icon = Join-Path $PSScriptRoot 'neopep.ico'
     $brand = Join-Path (Split-Path (Split-Path $PSScriptRoot)) 'dist/assets/icon-192.png'
-    & $csc /nologo /target:winexe /platform:x64 /codepage:65001 /warnaserror:4014 "/win32icon:$icon" "/resource:$brand,NeoPepBrand" "/out:$client" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Security.dll /r:System.Web.Extensions.dll @trustResource @wvReferences $versionSource "$PSScriptRoot\ConnectProfile.cs" "$PSScriptRoot\Turnstile.cs" "$PSScriptRoot\Connect.cs" "$PSScriptRoot\ConnectTheme.cs" "$PSScriptRoot\WhatsApp.cs" "$PSScriptRoot\CampaignComposer.cs" "$PSScriptRoot\UpdateTrust.cs" "$PSScriptRoot\UpdateUi.cs"
+    & $csc /nologo /target:winexe /platform:x64 /codepage:65001 /warnaserror:4014 "/win32icon:$icon" "/resource:$brand,NeoPepBrand" "/out:$client" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Security.dll /r:System.Web.Extensions.dll /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll @trustResource @wvReferences $versionSource "$PSScriptRoot\ConnectProfile.cs" "$PSScriptRoot\Turnstile.cs" "$PSScriptRoot\Connect.cs" "$PSScriptRoot\VideoPreview.cs" "$PSScriptRoot\ConnectTheme.cs" "$PSScriptRoot\WhatsApp.cs" "$PSScriptRoot\CampaignComposer.cs" "$PSScriptRoot\UpdateTrust.cs" "$PSScriptRoot\UpdateUi.cs"
     if ($LASTEXITCODE) { throw 'Falha ao compilar o cliente' }
     & $csc /nologo /target:winexe /platform:x64 /codepage:65001 "/win32icon:$icon" "/out:$setup" /r:System.Windows.Forms.dll /r:System.IO.Compression.FileSystem.dll "/resource:$client,NeoPepConnect.exe" @runtimeResources $versionSource "$PSScriptRoot\ConnectProfile.cs" "$PSScriptRoot\Installer.cs"
     if ($LASTEXITCODE) { throw 'Falha ao compilar o instalador' }

@@ -98,7 +98,7 @@ test('nuvem lista metadados, assina apenas a variante pedida e recupera retentat
  const ctx={window:null,NeoCore:C,NEO_CONFIG:{supabaseUrl:'https://project.supabase.co',supabasePublishableKey:'sb_publishable_fixture'},
   createClient:()=>sdk,URL,setTimeout};
  ctx.window=ctx;vm.createContext(ctx);
- vm.runInContext(fs.readFileSync('src/cloud.js','utf8').replace(/^import[^\n]*\n/,''),ctx);
+ vm.runInContext(fs.readFileSync('src/cloud.js','utf8').replace(/^import[^\n]*\n/,'').replace("import { uploadLibraryTus, LIBRARY_CHUNK } from './library-upload.mjs';",''),ctx);
  const cloud=ctx.NeoCloud;
  await cloud.init(()=>{});
  vm.runInContext("consents=[{purpose:'health',version:'2026-11-v1',granted:true},{purpose:'terms',version:'2026-11-v1',granted:true},{purpose:'photos',version:'2026-11-v1',granted:true}]",ctx);
@@ -628,4 +628,21 @@ test('cabeçalho e Perfil usam o mesmo arquivo principal do avatar salvo',async(
  assert.deepEqual(calls,[['private/crop.jpg','original']]);
  assert.equal(run.document.querySelector('#avatar img').getAttribute('src'),'https://test.invalid/recorte.jpg');
  assert.match(run("mode='local';profilePage()"),/<div class="avatar"><img src="https:\/\/test\.invalid\/recorte\.jpg"/);
+});
+
+test('histórico permite excluir foto de evolução sem depender de miniatura',()=>{
+ const run=app();const html=run("photoTiles([{id:'old-photo',date:'2026-02-01',role:'progress'},{id:'profile',date:'2026-02-01',role:'avatar'}])");
+ const {document}=parseHTML('<main>'+html+'</main>');
+ const tile=document.querySelector('[data-photo-delete="old-photo"]');
+ assert.ok(tile);assert.equal(tile.parentElement.querySelector('[data-photo-media]').hasAttribute('src'),false);
+ assert.equal(document.querySelector('[data-photo-delete="profile"]'),null);
+ assert.equal(tile.parentElement.querySelector('[data-photo-open]').contains(tile),false);
+});
+test('calculadora compacta preserva informacoes, alertas e tres capacidades',()=>{
+ const run=app();const html=run('calculator()');const {document}=parseHTML('<main>'+html+'</main>');
+ assert.equal(document.querySelectorAll('.calc-capacity-choice').length,3);
+ assert.ok(document.querySelector('.calc-capacity .calc-info-balloon').textContent.includes('profissional de saúde'));
+ assert.ok(document.querySelector('.calc-result .calc-info-balloon').textContent.includes('seguro'));
+ assert.ok(document.querySelector('#calc-dose-limit'));
+ assert.ok(document.querySelector('#calc-dose-brief'));
 });
