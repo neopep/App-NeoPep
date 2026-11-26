@@ -1,0 +1,7 @@
+# Agenda e histórico WhatsApp — Produção — 26/11/2026
+
+Publicado com autorização do responsável, domínio app.neopep.com.br, SHA servido 27c3a3484caca046868297dbf36ee5864d4c6a46, deployment dpl_571TGWLemdN4JzHEc3zAaYgfkr9J READY, alias confirmado. Rollback frontend anterior dpl_7YHzbzooEFtMBXQsfaupYsGbdFk7. CI 45878155235: 540 web + 11 Connect aprovados, zero falhas, um ignorado na web. Smoke HTTP 200 /admin/, campaign-central.js?v=campanhas-central-18, SW integracao-67-agenda; presença dos novos controles confirmada.
+
+Migração 20261126184504 campaign_agenda_metadata_production_20261126 aplicada, blob e2f394836bc275499871b62cb41df5e463263a05. Alteração de leitura nas RPCs existentes, sem modificar estados ou disparos. ACL anônima negativa e guarda de proprietário preservadas. Oito lotes anteriores com datas de criação e aceite: cinco manuais, três agendados. Origem desconhecida não é inferida. Aceite WhatsApp não equivale a entrega/leitura pelo destinatário.
+
+Agenda mostra rascunhos e lotes pendentes; Histórico mostra terminais e incertos; recorrências agrupadas por série, calendário expansível e progresso por ocorrência, não por mensagem. Séries em andamento com ocorrências resolvidas podem constar nas duas abas. Teste de renderização sintético aprovado; homologação no iPhone pendente. Não houve envio de mensagens, alteração de permissões da Biblioteca, Mercado Pago ou IA. Gate de homologação pública integral não foi alterado.

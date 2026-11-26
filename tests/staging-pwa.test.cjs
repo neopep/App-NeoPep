@@ -42,7 +42,7 @@ test('staging installs at the root and keeps the former launch and worker routes
   assert.doesNotMatch(fs.readFileSync('dist/style.css','utf8'), /content:"TESTE"/);
   assert.match(read('style.css'), /content:"TESTE";display:block/);
   assert.match(read('style.css'), /pointer-events:none/);
-  assert.match(read('admin/index.html'), /href="..\/style.css"/);
+  assert.match(read('admin/index.html'), /href="\.\.\/style\.css(?:\?v=[a-z0-9-]+)?"/);
   const manifest = JSON.parse(read('manifest.webmanifest'));
   assert.deepEqual([manifest.id, manifest.start_url, manifest.scope], ['/', '/', '/']);
   assert.equal(manifest.name, 'NeoPep Teste');

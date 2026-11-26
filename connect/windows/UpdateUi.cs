@@ -33,6 +33,10 @@ sealed partial class Connect {
         page.Controls.Add(check);page.Controls.Add(updateInstall);page.Controls.Add(defer);
         page.Controls.Add(enabled);AddField(page,"Intervalo de verificação em minutos",interval);
         AddField(page,"Histórico local",updateHistory);
+        videoToolsInstall=Button("Preparar prévias de vídeo");
+        videoToolsStatus=new Label{Text="Conversor separado do instalador; necessário uma única vez por versão do conversor.",AutoSize=true,MaximumSize=new Size(500,0)};
+        AddField(page,"Processamento de vídeos",videoToolsStatus);page.Controls.Add(videoToolsInstall);
+        videoToolsInstall.Click+=async delegate {await PrepareVideoTools();};
         check.Click+=async delegate {await CheckUpdate(true);};
         updateInstall.Click+=async delegate {await InstallUpdate();};
         defer.Click+=delegate {
@@ -97,7 +101,7 @@ sealed partial class Connect {
         File.Delete(receipt);
     }
     async Task InstallUpdate(){
-        if(checkingUpdate||installingUpdate||exiting||!SessionReady()||offer==null)return;
+        if(checkingUpdate||installingUpdate||provisioningVideoTools||videoPreviewBusy||exiting||!SessionReady()||offer==null)return;
         if(busy||whatsappOpen||(sibling!=null&&(sibling.busy||sibling.whatsappOpen||sibling.checkingUpdate))){updateDetails.Text="Aguarde o fim da operação ou feche a janela WhatsApp antes de atualizar.";return;}
         if(MessageBox.Show("Instalar a atualização aprovada em "+profile.EnvironmentName+"? As duas janelas serão reiniciadas.",
             "Atualizações",MessageBoxButtons.YesNo,MessageBoxIcon.Question)!=DialogResult.Yes)return;

@@ -42,7 +42,7 @@ document.addEventListener('click',event=>{
 function persist(next){if(demo){state=C.validateBackup(next);return}if(mode!=='local')throw Error('Operação local indisponível nesta conta.');if(localError)throw Error('Exporte e recupere os dados locais antes de gravar.');const valid=C.validateBackup(next);try{localStorage.setItem(KEY,JSON.stringify(valid))}catch{throw Error('Não foi possível salvar neste dispositivo. O armazenamento pode estar cheio ou indisponível. Exporte um backup.')}state=valid;localState=valid}
 function localConsent(){return state.profile.consent||confirm('Estes registros podem conter dados de saúde. Você autoriza guardá-los neste navegador? Em dispositivos compartilhados, outras pessoas poderão acessá-los. Você pode exportar e excluir os dados no Perfil.')}
 function download(name,data,type){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([data],{type}));a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000)}
-async function backup(){const gen=loadGeneration,snapshot=JSON.parse(JSON.stringify(state));let accountMetadata=null;if(mode==='cloud'&&!demo){
+async function backup(){const gen=loadGeneration,snapshot=JSON.parse(JSON.stringify(state));try{const local=readLocalVials();if(local.items.length)snapshot.legacyLocalVialDiary=local;}catch{}let accountMetadata=null;if(mode==='cloud'&&!demo){
  const account=await Cloud.exportMetadata();
  if(gen!==loadGeneration)throw Error('A conta mudou durante a exportação.');
  const [statistics,location]=await Promise.allSettled([Cloud.audience('export'),Cloud.geoControl('export')]);
@@ -87,7 +87,7 @@ function evolution(){return head('Sua evolução, em detalhes.','Uma visão comp
 function comparison(){const days=period==='all'?30:Number(period),now=C.epoch(C.today()),current=state.weights.filter(r=>C.epoch(r.date)>=now-(days-1)*C.DAY),previous=state.weights.filter(r=>C.epoch(r.date)>=now-(days*2-1)*C.DAY&&C.epoch(r.date)<now-(days-1)*C.DAY),avg=a=>a.length?a.reduce((t,r)=>t+r.value,0)/a.length:null,a=avg(current),b=avg(previous);return `<div class="task"><div><b>Últimos ${days} dias</b><small>Média de ${current.length} registros</small></div><strong>${weight(a)} ${unit()}</strong></div><div class="task"><div><b>${days} dias anteriores</b><small>Média de ${previous.length} registros</small></div><strong>${weight(b)} ${unit()}</strong></div><p class="sub space">${a!=null&&b!=null?'Variação entre médias: '+(a-b>0?'+':'')+weight(a-b)+' '+unit()+'.':'Faltam registros em um dos períodos para comparar.'}</p>`}
 function records(){return head('Tudo o que faz parte da sua jornada.','Seus registros, organizados em um só lugar.')+`<div class="record-menu">${[['diario','Diário pessoal','Seu bem-estar, dia a dia','journal'],['aplicacoes','Aplicações','Seu histórico de cuidado','drop'],['protocolos','Protocolos','Organize seus registros','layers'],['fotos','Fotos de evolução','Um olhar sobre as mudanças','photo'],['calculadora','Calculadora','Volume e marcações U-100','calc'],['relatorios','Relatórios','Dados em perspectiva','report'],['lembretes','Lembretes','Uma rotina que combina com você','bell'],['evolucao','Peso e medidas','Cada mudança conta','measure']].map(([p,t,s,i])=>`<button class="card menu-tile" data-go="${p}">${icon(i)}<span><b>${t}</b><small>${s}</small></span></button>`).join('')}</div><section class="card space"><div class="card-head"><h2>Histórico de peso</h2>${addBtn('weight','Registrar peso')}</div>${historyTable('weights')}</section><section class="card space"><div class="card-head"><h2>Medidas corporais</h2>${addBtn('measure','Registrar medidas')}</div>${measureSummary()}${historyTable('measures')}</section><section class="card space"><div class="card-head"><h2>Histórico de aplicações</h2>${addBtn('dose','Registrar aplicação')}</div>${historyTable('doses')}</section>`}
 function journal(){const js=C.periodRows(state.journal,period),mean=k=>{const a=js.filter(r=>r[k]!=null);return a.length?fmt(a.reduce((v,r)=>v+r[k],0)/a.length):'—'};return head('Como você se sente também importa.','Um diário opcional para observar sua rotina.',addBtn('journal','Registrar meu dia'))+`<section class="card"><div class="card-head"><h2>Um olhar para o seu bem-estar</h2><span class="tag">${js.length} registros</span></div>${periods()}<div class="journal-row">${[['Energia média',mean('energy')+'/5'],['Sono médio',mean('sleep')+' h'],['Hidratação média',mean('water')+' L'],['Atividade média',mean('activity')+' min']].map(([l,v])=>`<div><span>${l}</span><b>${v}</b></div>`).join('')}</div><p class="sub space">Médias dos registros informados no período. Estes dados não estabelecem diagnóstico ou relação com aplicações.</p></section><section class="card space"><h2>Meu diário</h2>${historyTable('journal',js)}</section>`}
-function applications(){return head('Seu diário de aplicações.','Registre o que foi aplicado conforme sua prescrição.',addBtn('dose','Registrar aplicação'))+`<div class="notice">Este diário não define doses, frequência ou adequação de produtos. Não há sugestões automáticas de administração.</div><section class="card"><div class="card-head"><h2>Histórico de aplicações</h2><button class="text-btn" data-go="protocolos">Ver protocolos</button></div><label class="space">Protocolo<select id="protocolFilter"><option value="">Todos os protocolos</option>${state.protocols.map(p=>`<option value="${esc(p.id)}" ${selectedProtocol===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label>${historyTable('doses',selectedProtocol?state.doses.filter(r=>r.protocolId===selectedProtocol):state.doses)}</section>`}
+function applications(){return head('Seu diário de aplicações.','Registre o que foi aplicado conforme sua prescrição.',addBtn('dose','Registrar aplicação'))+`<div class="notice">Este diário não define doses, frequência ou adequação de produtos. Não há sugestões automáticas de administração.</div>${diaryVials()}<section class="card"><div class="card-head"><h2>Histórico de aplicações</h2><button class="text-btn" data-go="protocolos">Ver protocolos</button></div><label class="space">Protocolo<select id="protocolFilter"><option value="">Todos os protocolos</option>${state.protocols.map(p=>`<option value="${esc(p.id)}" ${selectedProtocol===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label>${historyTable('doses',selectedProtocol?state.doses.filter(r=>r.protocolId===selectedProtocol):state.doses)}</section>`}
 function protocolCards(){return state.protocols.map(p=>{const applications=C.sorted(state.doses.filter(d=>d.protocolId===p.id)),last=applications.at(-1);return `<article class="card protocol-card"><div class="between"><h3>${esc(p.name)}</h3><span class="tag">${p.status==='active'?'Em acompanhamento':'Encerrado'}</span></div><p class="sub">Desde ${date(p.date)}${p.end?' · até '+date(p.end):''}</p><div class="protocol-count"><strong>${applications.length}</strong><span>aplicações registradas</span></div><p class="sub">${last?'Último registro: '+date(last.date):'Ainda sem aplicação vinculada.'}</p>${p.note?`<p class="sub protocol-note">${esc(p.note)}</p>`:''}<button class="text-btn" data-protocol-apps="${esc(p.id)}">Ver aplicações ${icon('arrow')}</button></article>`}).join('')}
 function protocols(){return head('Seu histórico de protocolos.','Organize datas e informações cadastradas por você.',addBtn('protocol','Novo protocolo'))+`<div class="notice">Este espaço organiza registros pessoais. Não cria esquemas de administração nem recomenda mudanças de dose.</div>${state.protocols.length?`<div class="two-cols">${protocolCards()}</div>`:''}<section class="card space"><h2>Protocolos registrados</h2>${historyTable('protocols')}</section>`}
 const calcFields={
@@ -218,17 +218,17 @@ function syringeSymbol(capacity,mark=0,compact=false,calculated=null){
  ${label?`<g class="calc-level-label"><path d="M${labelX} 19L${piston} ${top}"/><rect x="${labelX-labelWidth/2}" y="2" width="${labelWidth}" height="17" rx="5"/><text x="${labelX}" y="14" text-anchor="middle">${label}</text></g>`:''}
  </svg>`;
 }
+function calcInfo(label,content){return `<details class="calc-info"><summary aria-label="Informações: ${esc(label)}"><span aria-hidden="true">i</span></summary><div class="calc-info-balloon">${content}</div></details>`;}
 function calcField(id){
  const {label,unit,max,step,choices}=calcFields[id];
  return `<section class="card calc-card calc-card-${id}">
-  <h2>${label}</h2>${id==='dose'?'':calcVial(id)}
-  ${id==='volume'?'<p class="sub" id="calc-volume-help">Use o volume final efetivo no cálculo. Se ele diferir do volume de diluente adicionado, informe o volume final.</p>':''}
+  <div class="calc-heading"><h2>${label}</h2>${id==='volume'?calcInfo(label,'<p id="calc-volume-help">Use o volume final efetivo no cálculo. Se ele diferir do volume de diluente adicionado, informe o volume final.</p>'):id==='dose'?calcInfo(label,'<p id="calc-dose-limit"></p><p>A entrada manual preserva valores entre passos ou fora da escala. Informe somente a dose prescrita.</p>'):''}</div>${id==='dose'?'':calcVial(id)}
   <label for="calc-range-${id}" class="calc-range-label">Ajustar ${label.toLocaleLowerCase('pt-BR')}</label>
   <div class="calc-slider"><output class="calc-bubble" data-calc-bubble="${id}" aria-hidden="true">—</output>
    <input id="calc-range-${id}" data-calc-range="${id}" type="range" min="0" max="${max}" step="${step}" value="0" aria-valuetext="Não informado" ${id==='volume'?'aria-describedby="calc-volume-help"':''}>
   </div>
   <div class="calc-limits" aria-hidden="true"><span>0</span><span data-calc-max="${id}">${calcNumber(max)} ${unit}</span></div>
-  ${id==='dose'?'<p class="sub" id="calc-dose-limit"></p>':''}
+  ${id==='dose'?'<p class="calc-brief" id="calc-dose-brief" aria-live="polite"></p>':''}
   <div class="calc-chips" role="group" aria-label="Valores rápidos de ${label}">${choices.map(value=>`<button type="button" class="secondary" data-calc-chip="${id}" data-value="${value}" aria-pressed="false">${calcNumber(value)} ${unit}</button>`).join('')}</div>
   <details class="calc-manual"><summary>Entrada manual${id==='dose'?' e unidade':''}</summary>
    <div class="${id==='dose'?'calc-number-group':''}">
@@ -241,7 +241,7 @@ function calcField(id){
 }
 function calcCapacity(){
  return `<section class="card calc-card calc-capacity" aria-labelledby="calc-capacity-title">
-  <h2 id="calc-capacity-title">Capacidade da seringa U-100</h2>
+  <div class="calc-heading"><h2 id="calc-capacity-title">Capacidade da seringa U-100</h2>${calcInfo('Capacidade da seringa U-100','<p>Para volumes pequenos, uma seringa de menor capacidade pode oferecer divisões mais finas e facilitar a leitura. Confira a graduação impressa no seu modelo e confirme a medida com um profissional de saúde. A seringa não define nem altera a dose prescrita.</p>')}</div>
   <div class="calc-capacities" role="radiogroup" aria-labelledby="calc-capacity-title">
    ${Object.keys(syringeModels).sort((a,b)=>Number(a)-Number(b)).map(value=>`
     <label class="calc-capacity-choice" data-calc-capacity="${value}">
@@ -253,7 +253,7 @@ function calcCapacity(){
      </span>
     </label>`).join('')}
   </div>
-  <p class="sub calc-capacity-guidance">Para volumes pequenos, uma seringa de menor capacidade pode oferecer divisões mais finas e facilitar a leitura. Confira a graduação impressa no seu modelo e confirme a medida com um profissional de saúde. A seringa não define nem altera a dose prescrita.</p>
+  <p class="calc-brief">Confira a graduação da sua seringa. Ela não define a dose prescrita.</p>
  </section>`;
 }
 function syringeScale(capacity,units=null){
@@ -291,28 +291,54 @@ function updateCalc(commit=false,track=true){
   ${exceedsMass?'<p class="error">O valor informado excede a massa total do frasco.</p>':''}
   ${outside?'<p class="error">O volume excede a capacidade da seringa selecionada.</p>':''}
   <dl class="calc-result-details"><div><dt>Concentração</dt><dd>${calcDisplay(r.concentration)} mg/mL</dd></div><div><dt>Razão massa ÷ dose</dt><dd>${calcDisplay(r.doses)}</dd></div></dl>
-  <p class="sub">A exibição usa até duas casas decimais. Os cálculos mantêm a precisão dos valores informados.</p><button type="button" class="primary" data-calc-saved-action="save">Salvar dosagem</button><p class="sub" data-calc-result-save-status role="status"></p>`;
+  ${page==='frasco'?'':'<button type="button" class="primary" data-calc-saved-action="save">Salvar dosagem</button><p class="sub" data-calc-result-save-status role="status"></p>'}`;
  }catch(err){
   if(track&&commit&&calcOutcome!=='invalid')engagementTrack('calculator_validation_error','calculadora');
   calcOutcome='invalid';
   result.innerHTML=`${syringeScale(capacity)}<p class="error">${esc(err.message)}</p>`;
  }
 }
-function calculator(){
+// Neutral diary vocabulary: generic names, never dosage suggestions or shop links.
+// FDA product-specific peptide guidance and drug labels; Anvisa safety notices, checked 26/11/2026.
+const diaryProductNames=['Abaloparatida','Afamelanotida','Bivalirudina','Bremelanotida','Calcitonina','Cetrorelix','Degarelix','Desmopressina','Dulaglutida','Eptifibatida','Exenatida','Ganirelix','Glucagon','Goserrelina','Icatibanto','Insulina','Lanreotida','Leuprorrelina','Liraglutida','Lixisenatida','Mecasermina','Octreotida','Ocitocina','Pasireotida','Semaglutida','Setmelanotida','Somatropina','Teduglutida','Teriparatida','Terlipressina','Tesamorelina','Tirzepatida','Triptorrelina','Vasopressina','Vosoritida','Ziconotida'];
+const diaryResearchNames=['Retatrutida','Cagrilintida','BPC-157','CJC-1295','GHK-Cu','Ipamorelina','TB-500','Epitalon','MOTS-c','KPV','Semax','Selank','AOD-9604','GHRP-2','GHRP-6','Blend KLOW'];
+function diaryProductKey(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');}
+function diaryProductOptions(query=''){
+ const key=diaryProductKey(query);
+ const names=diaryProductNames.filter(name=>!key||diaryProductKey(name).includes(key)).map(name=>({name,research:false}));
+ // Research names appear only on an explicit search; not in the default list.
+ if(key.length>=3)for(const name of diaryResearchNames)if(diaryProductKey(name).includes(key))names.push({name,research:true});
+ return names.sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+}
+function diaryProductNotice(value){
+ const key=diaryProductKey(value);
+ if(/retatrut|retratut/.test(key))return 'Retatrutida: substância experimental, sem aprovação da Anvisa para uso. Identificação de registro, não recomendação.';
+ if(diaryResearchNames.some(name=>key.includes(diaryProductKey(name)))||/ipamorelin|cagrilint|epithalon|motsc/.test(key))return 'Substância de pesquisa ou produto de regularização não verificada. O registro não autoriza seu uso.';
+ return '';
+}
+function diaryProductOptionMarkup(query=''){return '<option value="">Escolher da lista (opcional)</option>'+diaryProductOptions(query).map(item=>'<option value="'+esc(item.name)+'">'+esc(item.name)+(item.research?' · pesquisa / regularização não verificada':'')+'</option>').join('');}
+function diaryProductField(){return '<label for="diary-vial-product">Produto</label><input id="diary-vial-product" maxlength="80" autocomplete="off" required placeholder="Pesquisar ou escrever o nome" aria-describedby="diary-product-help diary-product-notice"><label for="diary-product-list" class="sub">Lista de referência</label><select id="diary-product-list">'+diaryProductOptionMarkup()+'</select><p id="diary-product-help" class="sub">Escolha um nome da lista ou escreva outro. Apenas identificação do registro, sem indicação de uso. Confira a regularização do produto.</p><p id="diary-product-notice" class="sub" role="status" hidden></p>';}
+function updateDiaryProductField(){
+ const field=$('#diary-vial-product'),list=$('#diary-product-list'),notice=$('#diary-product-notice');if(!field||!list||!notice)return;
+ list.innerHTML=diaryProductOptionMarkup(field.value);const warning=diaryProductNotice(field.value);notice.textContent=warning;notice.hidden=!warning;
+}
+document.addEventListener('input',event=>{if(page!=='frasco')return;if(event.target.id==='diary-vial-product')updateDiaryProductField();if(['diary-vial-product','mass','volume','dose'].includes(event.target.id))event.target.removeAttribute('aria-invalid');});
+document.addEventListener('change',event=>{if(page!=='frasco'||event.target.id!=='diary-product-list'||!event.target.value)return;const field=$('#diary-vial-product');if(!field)return;field.value=event.target.value;field.removeAttribute('aria-invalid');updateDiaryProductField();});
+function diaryInvalidField(id,message){const field=$('#'+id);if(field){field.setAttribute('aria-invalid','true');field.focus({preventScroll:true});field.scrollIntoView?.({block:'center',behavior:'smooth'});}throw Error(message);}
+function calculator(forVial=false){
  calcOutcome='';calcCapacityValue=1;
- return head('Calculadora de volume','Conversão matemática de dados confirmados do frasco e da prescrição.')+
- `<div class="calc-layout"><form id="calcForm" class="calc-inputs" data-calc-owner="${esc(calcStorageKey()||'')}" novalidate>
+ return (forVial?head('Adicionar frasco','Registre os dados do seu frasco e a dose informada conforme sua prescrição.'):head('Calculadora de volume','Conversão matemática de dados confirmados do frasco e da prescrição.'))+
+ `<div class="calc-layout">${forVial?'<section class="card calc-vial-overview">'+diaryProductField()+'<p class="sub">'+(cloudVialDiaryReady()?'O acompanhamento é sincronizado na conta.':'O acompanhamento é armazenado neste navegador.')+'</p></section>':''}<form id="calcForm" class="calc-inputs" data-calc-owner="${esc(calcStorageKey()||'')}" novalidate>
  ${calcField('mass')}${calcField('volume')}${calcCapacity()}${calcField('dose')}
  </form>
- <section class="card calc-result"><h2>Resultado</h2><div id="result" role="status" aria-live="polite">${calcEmpty()}</div>
- <p class="sub calc-context">Na escala U-100, 100 unidades correspondem a 1 mL. Essa graduação mede volume e é distinta das unidades de atividade de outras substâncias. Um valor caber na escala não indica que seja prescrito ou seguro.</p></section>
- <section class="card calc-vial-overview"><h2>Saldo e duração do frasco</h2>
+ <section class="card calc-result"><div class="calc-heading"><h2>Resultado</h2>${calcInfo('Resultado','<p>Na escala U-100, 100 unidades correspondem a 1 mL. Essa graduação mede volume e é distinta das unidades de atividade de outras substâncias. Um valor caber na escala não indica que seja prescrito ou seguro.</p><p>A exibição usa até duas casas decimais. Os cálculos mantêm a precisão dos valores informados.</p>')}</div><div id="result" role="status" aria-live="polite">${calcEmpty()}</div>
+ <p class="calc-brief">A conversão de volume não confirma a segurança da dose.</p></section>
+ ${forVial?'<section class="card calc-vial-overview"><button type="button" class="primary full" data-diary-vial-save>Salvar frasco</button><p class="sub" id="diary-vial-status" role="status"></p></section>':`<section class="card calc-vial-overview"><h2>Previsão de duração do frasco</h2>
  <label>Dosagem acompanhada<select id="calc-vial-select"><option value="">Cálculo atual (automático)</option></select></label>
  <p class="sub">Usa a dosagem salva mais recente como padrão. Alterações nos campos da calculadora atualizam a estimativa imediatamente, sem sobrescrever a dosagem salva.</p>
  <label>Aplicações por semana (frequência informada)<select id="calc-vial-weekly">${[1,2,3,4,5,6,7].map(n=>`<option value="${n}" ${n===calcVialWeekly?'selected':''}>${n}</option>`).join('')}</select></label>
  <div id="calc-vial-summary" aria-live="polite"></div>
- <label>Frasco físico vinculado a aplicações (opcional)<select id="calc-vial-tracked-select"><option value="">Nenhum frasco físico vinculado</option></select></label>
- <div class="calc-vial-actions"><button type="button" class="secondary" data-calc-vial-action="new">Registrar frasco físico</button><button type="button" class="text-btn" data-calc-vial-action="remove">Excluir vínculo do frasco</button></div><p class="sub" role="status" id="calc-vial-status"></p></section>
+ <p class="sub" role="status" id="calc-vial-status"></p></section>
  <section class="card calc-formula"><h2>Como o cálculo funciona</h2><ol>
  <li><strong>Concentração</strong><span>Massa total ÷ volume final</span></li>
  <li><strong>Volume</strong><span>Dose informada em mg ÷ concentração</span></li>
@@ -323,7 +349,7 @@ function calculator(){
  <p class="sub">Salvas neste navegador. As dosagens não são sincronizadas entre dispositivos.</p>
  <div class="calc-saved-entry"><label for="calc-saved-name">Nome (opcional)<input id="calc-saved-name" maxlength="80"></label>
  <button id="calc-save" type="button" class="primary" data-calc-saved-action="save">Salvar dosagem</button></div>
- <p class="sub" id="calc-saved-status" role="status"></p><div id="calc-saved-list"></div></section>
+ <p class="sub" id="calc-saved-status" role="status"></p><div id="calc-saved-list"></div></section>`}
  </div>`;
 }
 function calcSliderConfig(id){
@@ -356,7 +382,7 @@ function syncCalcField(id,commit=false){
  $('[data-calc-max='+id+']').textContent=calcDisplay(max)+' '+unit;
  $('[data-calc-unit='+id+']').textContent='('+unit+')';
  if(id==='dose')$('#calcDoseStep').disabled=unit==='mg';
- if(id==='dose')$('#calc-dose-limit').textContent=limit===null?'':`Limite volumétrico calculado: ${calcDisplay(limit)} ${unit}. A entrada manual preserva valores entre passos ou fora da escala.`;
+ if(id==='dose'){const text=limit===null?'':`Limite volumétrico calculado: ${calcDisplay(limit)} ${unit}.`;$('#calc-dose-limit').textContent=text;$('#calc-dose-brief').textContent=text;}
  const multiplier=id==='dose'&&unit==='mcg'?1000:1;
  for(const chip of document.querySelectorAll('[data-calc-chip='+id+']')){
   const amount=Number(chip.dataset.value)*multiplier;
@@ -439,7 +465,13 @@ function calcVialStoreKey(){
  const key=calcStorageKey();
  return key?'neo-calc-vials-v1:'+key:null;
 }
+function cloudVialDiaryReady(){return mode==='cloud'&&!demo&&state.vialDiaryStatus==='ready'&&typeof Cloud.vialDiary==='function';}
 function readCalcVials(){
+ if(cloudVialDiaryReady())return JSON.parse(JSON.stringify(state.vialDiary));
+ if(mode==='cloud'&&!demo&&state.vialDiaryStatus==='error')throw Error('Não foi possível sincronizar o diário de frascos. Atualize os registros.');
+ return readLocalVials();
+}
+function readLocalVials(){
  const key=calcVialStoreKey();
  const empty={items:[],links:{},active:null};
  if(!key)return empty;
@@ -450,48 +482,116 @@ function readCalcVials(){
   throw Error('Não foi possível ler o histórico local de frascos. Os registros existentes foram preservados.');
  return {items:saved.items.filter(item=>item&&typeof item.id==='string'&&
    typeof item.name==='string'&&item.name.length<=80&&Number.isFinite(item.mass)&&item.mass>0&&
-   Number.isFinite(item.volume)&&item.volume>0).slice(0,30),
+   Number.isFinite(item.volume)&&item.volume>0),
   links:saved.links,active:saved.active};
 }
 function saveCalcVials(saved){
+ if(cloudVialDiaryReady())throw Error('O diário desta conta deve ser salvo na nuvem.');
  const key=calcVialStoreKey();
- if(!key||saved.items.length>30)throw Error('Limite de 30 frascos neste dispositivo.');
+ if(!key||saved.items.length>300)throw Error('Limite de 300 frascos neste dispositivo.');
  const data=JSON.stringify(saved);
- if(data.length>100000)throw Error('Limite de armazenamento local atingido.');
+ if(data.length>500000)throw Error('Limite de armazenamento local atingido.');
  localStorage.setItem(key,data);
 }
-function vialMassUsed(vial,links){
- return state.doses.reduce((used,record)=>{
-  if(links[record.id]!==vial.id)return used;
-  const amount=Number(record.amount);
-  if(!Number.isFinite(amount)||amount<=0)return used;
-  const mg=record.unit==='mcg'?amount/1000:
-   record.unit==='mL'?amount*vial.mass/vial.volume:record.unit==='mg'?amount:0;
-  return used+mg;
- },0);
+
+function vialDoseMass(vial,record){
+ const amount=Number(record.amount);
+ if(!Number.isFinite(amount)||amount<=0)return 0;
+ return record.unit==='mcg'?amount/1000:record.unit==='mL'?amount*vial.mass/vial.volume:record.unit==='mg'?amount:0;
 }
+function vialBalance(vial,links,excludeId=null){
+ const used=state.doses.reduce((sum,record)=>links[record.id]===vial.id&&record.id!==excludeId?sum+vialDoseMass(vial,record):sum,0);
+ const mass=Math.max(0,vial.mass-used);
+ const remaining=mass<=vial.mass*1e-10?0:mass;
+ return {mass:remaining,volume:remaining/vial.mass*vial.volume,percent:remaining/vial.mass*100};
+}
+function vialProduct(vial,stored){
+ if(vial.product)return vial.product;
+ const names=[...new Set(state.doses.filter(r=>stored.links[r.id]===vial.id).map(r=>String(r.product||'').trim()).filter(Boolean))];
+ return names.length===1?names[0]:'';
+}
+function activeDiaryVial(stored){
+ const vial=stored.items.find(item=>item.id===stored.active);
+ return vial&&vialProduct(vial,stored)&&vialBalance(vial,stored.links).mass>0?vial:null;
+}
+function diaryVialCard(vial,stored,active){
+ const balance=vialBalance(vial,stored.links);
+ const level=39*balance.percent/100;
+ const art=calcVial('diary-'+vial.id).replace('y="85" width="42" height="0"','y="'+(85-level)+'" width="42" height="'+level+'"');
+ const stamp=Number.isFinite(Date.parse(vial.createdAt))?new Date(vial.createdAt).toLocaleDateString('pt-BR'):'Data não informada';
+ const count=state.doses.filter(r=>stored.links[r.id]===vial.id).length;
+ return '<div class="calc-vial-display"><div class="calc-vial-art" role="img" aria-label="Frasco com '+esc(calcDisplay(balance.percent))+'% restante">'+art+'<strong class="calc-vial-percent">'+esc(calcDisplay(balance.percent))+'% restante</strong></div><div class="calc-vial-facts"><strong>'+esc(vialProduct(vial,stored)||vial.name)+'</strong><span>Registrado em '+esc(stamp)+'</span><span>'+esc(calcDisplay(balance.volume))+' de '+esc(calcDisplay(vial.volume))+' mL</span><span>'+esc(calcDisplay(balance.mass))+' de '+esc(calcDisplay(vial.mass))+' mg</span>'+(vial.dose?'<span>Dose informada no cadastro: '+esc(calcDisplay(vial.dose))+' '+esc(vial.unit)+'</span>':'')+'<span>'+count+(count===1?' aplicação vinculada':' aplicações vinculadas')+'</span><span class="tag">'+(balance.mass===0?'Vazio':active?'Ativo':'Encerrado')+'</span></div></div>';
+}
+function diaryVials(){
+ try{
+  const stored=readCalcVials(),current=stored.items.find(item=>item.id===stored.active),active=activeDiaryVial(stored),history=stored.items.filter(item=>item.id!==active?.id);
+  return '<section class="card calc-vial-overview space"><div class="card-head"><h2>Meu frasco</h2><button type="button" class="primary" data-go="frasco">Adicionar frasco</button></div>'+
+   (active?diaryVialCard(active,stored,true):'<div class="calc-vial-display diary-vial-empty"><div class="calc-vial-art" role="img" aria-label="Ilustração de frasco vazio">'+calcVial('diary-empty')+'</div><div class="calc-vial-facts"><strong>'+(current&&vialBalance(current,stored.links).mass===0?'Frasco vazio':'Nenhum frasco ativo')+'</strong><span>Toque em Adicionar frasco para cadastrar os dados do seu frasco. Depois, registre cada aplicação no histórico abaixo para acompanhar o saldo restante.</span></div></div>')+
+   (history.length?'<details><summary>Histórico de frascos · '+history.length+'</summary><div class="diary-vial-history">'+history.map(item=>diaryVialCard(item,stored,false)).join('')+'</div></details>':'')+
+   (cloudVialDiaryReady()&&!stored.items.length&&readLocalVials().items.length?'<button type="button" class="secondary" data-diary-vial-import>Importar frascos deste navegador</button><p class="sub">Os frascos locais não serão apagados.</p>':'')+
+   '<p class="sub">Saldo calculado pelos registros vinculados; não considera perdas nem confirma o volume físico. Não é uma orientação de aplicação. '+(cloudVialDiaryReady()?'Histórico sincronizado pela conta.':'O histórico permanece neste navegador e não é sincronizado.')+'</p></section>';
+ }catch(error){return '<section class="card space"><h2>Meu frasco</h2><p class="error">'+esc(error.message)+'</p></section>';}
+}
+document.addEventListener('click',async event=>{
+ if(!event.target.closest('[data-diary-vial-import]')||busy||!cloudVialDiaryReady()||page!=='aplicacoes')return;
+ try{
+  const local=readLocalVials(),remote=readCalcVials(),owner=Cloud.user?.id,gen=loadGeneration;
+  if(remote.items.length||!local.items.length)throw Error('A importação exige um diário online vazio.');
+  const items=local.items.map(vial=>({...vial,product:vialProduct(vial,local)||vial.name}));
+  if(!confirm('Importar o histórico local de frascos para esta conta? Somente aplicações já existentes nesta conta serão vinculadas. O histórico local será preservado.'))return;
+  busy=true;const diary=await Cloud.vialDiary('import_local',{items,links:local.links,active:local.active,confirmed:true});
+  if(owner!==Cloud.user?.id||gen!==loadGeneration||mode!=='cloud'||demo)throw Error('A conta mudou. Atualize os registros.');
+  state={...state,vialDiary:diary,vialDiaryStatus:'ready'};render();toast('Histórico de frascos importado.');
+ }catch(error){toast(error.message);}finally{busy=false;}
+});
 function calcVialDosePicker(record={}){
- let stored;
- try{stored=readCalcVials();}catch{return '';}
- if(!stored.items.length)return '';
- const selected=stored.links[record.id]||'';
- return '<label>Frasco usado nesta aplicação (opcional)<select name="vialId">'+
-  '<option value="">Não vincular a um frasco</option>'+
-  stored.items.map(item=>'<option value="'+esc(item.id)+'"'+(item.id===selected?' selected':'')+'>'+esc(item.name)+'</option>').join('')+
-  '</select></label><p class="form-help">Só o frasco escolhido terá o saldo reduzido. O vínculo fica neste dispositivo.</p>';
+ const stored=readCalcVials();
+ const vial=record.id?stored.items.find(item=>item.id===stored.links[record.id]):activeDiaryVial(stored);
+ if(!vial)return '<p class="sub">Registro anterior sem vínculo com frasco.</p>';
+ return '<input type="hidden" name="diaryVialId" value="'+esc(vial.id)+'"><p class="notice">Frasco vinculado: '+esc(vialProduct(vial,stored)||vial.name)+'</p>';
 }
-function assignCalcVialDose(recordId,vialId){
- const saved=readCalcVials();
- if(vialId&&!saved.items.some(item=>item.id===vialId))throw Error('Frasco não encontrado.');
- if(vialId)saved.links[recordId]=vialId;
- else delete saved.links[recordId];
- saveCalcVials(saved);
+function prepareDiaryVialLink(record,existing,expectedVialId){
+ const stored=readCalcVials();
+ const vial=existing?stored.items.find(item=>item.id===stored.links[record.id]):activeDiaryVial(stored);
+ if(!vial){if(existing&&!stored.links[record.id])return;throw Error('Adicione um novo frasco antes de registrar uma aplicação.');}
+ if(vial.id!==expectedVialId)throw Error('O frasco mudou. Feche e abra novamente o registro.');
+ const product=vialProduct(vial,stored);
+ if(product&&String(record.product||'').trim().toLocaleLowerCase('pt-BR')!==product.trim().toLocaleLowerCase('pt-BR'))throw Error('O produto informado não corresponde ao frasco vinculado.');
+ const used=vialDoseMass(vial,record),available=vialBalance(vial,stored.links,record.id).mass;
+ if(!used||used>available+vial.mass*1e-10)throw Error('A quantidade registrada excede o saldo calculado do frasco. Confira seus registros ou adicione outro frasco.');
+ if(!existing&&!cloudVialDiaryReady()){stored.links[record.id]=vial.id;saveCalcVials(stored);}
+ return vial.id;
 }
+document.addEventListener('click',async event=>{
+ if(!event.target.closest('[data-diary-vial-save]')||page!=='frasco'||busy)return;
+ const status=$('#diary-vial-status');
+ try{
+  if($('#calcForm')?.dataset.calcOwner!==calcStorageKey())throw Error('A conta mudou. Abra novamente o formulário.');
+  if(mode==='cloud'&&!demo&&(!state.profile.consent||!navigator.onLine||cloudError))throw Error('Conecte-se e confirme o consentimento antes de registrar.');
+  if(mode==='local'&&!demo&&!localConsent())return;
+  const product=String($('#diary-vial-product').value||'').trim();
+  const snap=calcSnapshot({mass:Number($('#mass').value),volume:Number($('#volume').value),dose:Number($('#dose').value),unit:$('#doseUnit').value,capacity:calcCapacityValue});
+  if(!product||product.length>80)diaryInvalidField('diary-vial-product','Informe o nome do produto (até 80 caracteres).');
+  for(const [id,label] of [['mass','massa total'],['volume','volume final'],['dose','dose informada']])if(!Number.isFinite(Number($('#'+id).value))||Number($('#'+id).value)<calcMinimum)diaryInvalidField(id,'Informe um valor válido para '+label+'.');
+  if(!snap||snap.ml>snap.volume*(1+1e-10))diaryInvalidField('dose','Confira a dose, os dados do frasco e a capacidade da seringa.');
+  const stored=readCalcVials(),previous=activeDiaryVial(stored);
+  if(previous&&!confirm('O frasco atual ainda tem saldo registrado. Encerrar seu acompanhamento e ativar o novo frasco?'))return;
+  const form=$('#calcForm'),item={id:form.dataset.vialRequest||uid(),name:product,product,mass:snap.mass,volume:snap.volume,dose:snap.dose,unit:snap.unit,createdAt:new Date().toISOString()};
+  form.dataset.vialRequest=item.id;
+  if(cloudVialDiaryReady()){
+   const owner=Cloud.user?.id,gen=loadGeneration;busy=true;
+   try{
+    const diary=await Cloud.vialDiary('add',{vial:item,expected_active:stored.active||null});
+    if(owner!==Cloud.user?.id||gen!==loadGeneration||mode!=='cloud'||demo)throw Error('A conta mudou. Atualize os registros.');
+    state={...state,vialDiary:diary,vialDiaryStatus:'ready'};
+   }finally{busy=false;}
+  }else{stored.items.unshift(item);stored.active=item.id;saveCalcVials(stored);}
+  formDirty=false;go('aplicacoes');toast('Frasco registrado.');
+ }catch(error){if(status)status.textContent=error.message;}
+});
 function updateCalcVial(){
  const root=$('#calc-vial-summary');
  if(!root)return;
- let stored;
- try{stored=readCalcVials()}catch(error){root.textContent=error.message;return}
  let saved={items:[]};
  try{saved=readCalcSaved(calcStorageKey())}catch{/* Sem dosagens salvas. O cálculo atual permanece disponível. */}
  const formula=$('#calc-vial-select');
@@ -502,35 +602,25 @@ function updateCalcVial(){
      esc(item.name||'Dosagem salva')+' · '+calcDisplay(item.dose)+' '+item.unit+'</option>').join('');
   formula.value=calcVialFormulaSelection;
  }
- const tracked=$('#calc-vial-tracked-select');
- if(tracked){
-  tracked.innerHTML='<option value="">Nenhum frasco físico vinculado</option>'+
-   stored.items.map(item=>'<option value="'+esc(item.id)+'"'+(item.id===stored.active?' selected':'')+'>'+esc(item.name)+'</option>').join('');
-  tracked.value=stored.active||'';
- }
- const vial=stored.items.find(item=>item.id===stored.active);
  const fields=['mass','volume','dose'].map(id=>$('#'+id));
  const valid=fields.every(field=>field&&field.value!==''&&!field.validity?.badInput&&Number.isFinite(Number(field.value))&&Number(field.value)>0);
  const enteredMass=valid?Number($('#mass').value):0;
  const doseRaw=valid?Number($('#dose').value):0;
  const dose=$('#doseUnit')?.value==='mcg'?doseRaw/1000:doseRaw;
- const mass=vial?.mass||enteredMass;
- const applied=vial?vialMassUsed(vial,stored.links):0;
- const remaining=Math.max(0,mass-applied);
+ const mass=enteredMass;
+ const remaining=mass;
  const percent=valid&&mass>0?Math.max(0,Math.min(100,remaining/mass*100)):0;
  const counts=valid&&dose>0&&mass>0?Math.max(0,Math.floor((remaining+1e-10)/dose)):null;
  const weeks=counts===null?null:counts/calcVialWeekly;
- const subtitle=vial?'Acompanhamento do frasco físico: '+esc(vial.name):
-  calcVialFormulaSelection?'Estimativa da dosagem salva, usando os valores atuais da tela.':'Prévia do cálculo atual, sem frasco físico cadastrado.';
+ const subtitle=calcVialFormulaSelection?'Estimativa da dosagem salva, usando os valores atuais da tela.':'Prévia do cálculo atual, independente dos frascos cadastrados.';
  root.innerHTML='<div class="calc-vial-display"><div class="calc-vial-art" role="img" aria-label="Frasco com '+
   esc(calcDisplay(percent))+'% de saldo estimado">'+calcVial('balance')+
   '<strong class="calc-vial-percent">'+calcDisplay(percent)+'% restante</strong></div>'+
   '<div class="calc-vial-facts"><span>'+subtitle+'</span>'+
   (valid?'<span>Saldo estimado: '+calcDisplay(remaining)+' de '+calcDisplay(mass)+' mg</span>':
    '<span>Preencha massa, volume e dose para estimar o rendimento.</span>')+
-  (vial?'<span>Aplicações vinculadas: '+state.doses.filter(item=>stored.links[item.id]===vial.id).length+'</span>':'')+
   (counts===null?'':'<strong>'+counts+' aplicação(ões) completas estimadas</strong><span>'+calcDisplay(weeks)+' semana(s) na frequência informada</span>')+
-  '</div></div><p class="sub">Estimativa matemática. O frasco ilustrado usa o mesmo desenho da calculadora; o saldo real só é descontado quando uma aplicação é vinculada a um frasco físico. Não considera perdas, estabilidade nem substitui prescrição.</p>';
+  '</div></div><p class="sub">Estimativa matemática. O frasco ilustrado usa o mesmo desenho da calculadora. Esta tela é apenas uma previsão, sem movimentar o saldo de frascos registrados no diário. Não considera perdas, estabilidade nem substitui prescrição.</p>';
  const fill=root.querySelector('[data-calc-fill="balance"]');
  if(fill){const height=39*percent/100;fill.setAttribute('y',85-height);fill.setAttribute('height',height);}
 }
@@ -550,41 +640,7 @@ document.addEventListener('change',event=>{
    updateCalcVial();
   }catch(error){const node=$('#calc-vial-status');if(node)node.textContent=error.message;}
  }
- if(event.target.id==='calc-vial-tracked-select'){
-  try{const stored=readCalcVials();stored.active=event.target.value||null;saveCalcVials(stored);updateCalcVial();}
-  catch(error){const node=$('#calc-vial-status');if(node)node.textContent=error.message;}
- }
 });
-document.addEventListener('click',event=>{
- const action=event.target.closest('[data-calc-vial-action]')?.dataset.calcVialAction;
- if(!action)return;
- const status=$('#calc-vial-status');
- if(!status)return;
- try{
-  const stored=readCalcVials();
-  if(action==='new'){
-   const snapshot=calcSnapshot({mass:Number($('#mass')?.value),volume:Number($('#volume')?.value),
-    dose:Number($('#dose')?.value),unit:$('#doseUnit')?.value,capacity:calcCapacityValue});
-   if(!snapshot){status.textContent='Informe massa, volume e dose válidos antes de cadastrar o frasco.';return;}
-   if(stored.items.length>=30){status.textContent='Limite de frascos neste dispositivo atingido.';return;}
-   const name=window.prompt('Nome para identificar este frasco','Frasco '+new Date().toLocaleDateString('pt-BR'));
-   if(name===null)return;
-   if(!name.trim()||name.length>80){status.textContent='Informe um nome de até 80 caracteres.';return;}
-   const item={id:uid(),name:name.trim(),mass:snapshot.mass,volume:snapshot.volume,createdAt:new Date().toISOString()};
-   stored.items.unshift(item);stored.active=item.id;saveCalcVials(stored);
-   status.textContent='Frasco cadastrado. Vincule as próximas aplicações a ele no diário.';
-  }else if(action==='remove'){
-   if(!stored.active)return;
-   if(!window.confirm('Excluir este acompanhamento local de frasco? Os registros de aplicações continuarão salvos.'))return;
-   stored.items=stored.items.filter(item=>item.id!==stored.active);
-   for(const [id,vialId] of Object.entries(stored.links))if(vialId===stored.active)delete stored.links[id];
-   stored.active=stored.items[0]?.id||null;saveCalcVials(stored);
-   status.textContent='Acompanhamento local do frasco excluído. Os registros de aplicações foram mantidos.';
-  }
-  updateCalcVial();
- }catch(error){status.textContent=error.message||'Não foi possível atualizar o frasco.';}
-});
-
 function readCalcSaved(key){
  if(!key)throw Error('A conta ainda não está disponível para salvar dosagens.');
  const raw=localStorage.getItem(key);
@@ -786,7 +842,7 @@ function photoTiles(list){
  return [...days].map(([day,rows])=>`<section class="photo-day"><h3>${date(day)}</h3><div class="photo-grid">${rows.map(p=>`
   <article class="photo-card"><button type="button" class="photo-open" data-photo-open="${esc(p.id)}" aria-label="Ampliar foto de ${date(p.date)}">
   <span data-photo-placeholder>Ver foto</span><img hidden data-photo-media="${esc(p.id)}" data-photo-variant="thumbnail" alt="Foto privada em ${date(p.date)}">
-  </button></article>`).join('')}</div></section>`).join('');
+  </button>${p.role==='avatar'?'':`<button type="button" class="photo-remove-mini" data-photo-delete="${esc(p.id)}" aria-label="Excluir foto de ${date(p.date)}" title="Excluir foto"><span aria-hidden="true">×</span></button>`}</article>`).join('')}</div></section>`).join('');
 }
 const openedPhotoSections=new Set();
 function photosPage(){
@@ -1057,9 +1113,12 @@ function hydratePhotoImages(){
   const photo=photoList.find(row=>row.id===image.dataset.photoMedia);
   if(!photo)return;
   const url=await warmPhotoThumb(photo,needed,true);
-  if(!url||!needed())return;
+  if(!needed())return;
+  const placeholder=button.querySelector('[data-photo-placeholder]');
+  if(!url){placeholder.textContent='Prévia indisponível';return;}
+  image.onerror=()=>{if(needed()){image.hidden=true;image.removeAttribute('src');placeholder.hidden=false;placeholder.textContent='Prévia indisponível';}};
   image.src=url;image.hidden=false;
-  button.querySelector('[data-photo-placeholder]').hidden=true;
+  placeholder.hidden=true;
  };
  for(const figure of figures)if(!figure.querySelector('[data-photo-preview]').firstChild)loadFigure(figure,false);
  if(typeof IntersectionObserver!=='function'){figures.forEach(figure=>loadFigure(figure,true));return}
@@ -1562,10 +1621,10 @@ function engagementView(){
  engagementCalcStarted=false;
  if(Object.hasOwn(engagementViews,area))engagementTrack(engagementViews[area],area);
 }
-let geoAccount=null,geoAllowed=null,geoPending=false,geoNext=0,geoCaptureRequested=true;
+let geoAccount=null,geoAllowed=null,geoPending=false,geoNext=0,geoCaptureRequested=true,geoDevicePosition=null;
 async function syncGeo(){
  const account=mode==='cloud'&&!demo?Cloud.user?.id:null;
- if(geoAccount!==account){geoAccount=account;geoAllowed=null;geoPending=false;geoNext=0;geoCaptureRequested=true}
+ if(geoAccount!==account){geoAccount=account;geoAllowed=null;geoPending=false;geoNext=0;geoCaptureRequested=true;geoDevicePosition=null}
  const enabled=locationObservationEnabled();
  if(!account||!Cloud.geoControl||geoPending||document.visibilityState==='hidden'||(!enabled&&page!=='perfil')||Date.now()<geoNext)return;
  geoPending=true;
@@ -1575,7 +1634,15 @@ async function syncGeo(){
    if(geoAccount!==account||Cloud.user?.id!==account)return;
    geoAllowed=result.allowed===true;
   }
-  if(enabled&&geoAllowed&&geoCaptureRequested&&Cloud.captureGeo){await Cloud.captureGeo();geoCaptureRequested=false;}
+  if(enabled&&geoAllowed&&geoCaptureRequested){
+   // First record the IP fallback, then improve the city/state with the GPS result.
+   const device=geoDevicePosition;geoDevicePosition=null;
+   try{await Cloud.captureGeo?.()}catch{}
+   if(device&&geoAccount===account&&Cloud.user?.id===account){
+    try{await Cloud.captureDeviceCity?.(device)}catch{}
+   }
+   if(geoAccount===account)geoCaptureRequested=false;
+  }
  }catch{}finally{if(geoAccount===account){geoPending=false;geoNext=Date.now()+300000}}
 }
 
@@ -1666,7 +1733,7 @@ const privacyOptions=[
  ['statistics','Estatísticas do aplicativo'],
  ['usage','Medição de uso'],
  ['campaigns','Notificações de campanhas'],
- ['location','Localização aproximada']
+ ['location','Localização (cidade e estado)']
 ];
 function personalizationPanel(initial){
  return `<section class="card privacy-preferences personalization-panel" data-personalization hidden aria-labelledby="personalizationTitle">
@@ -1740,11 +1807,11 @@ function privacyPreferencesPage(){
   `<form id="privacyPreferences" class="card privacy-preferences" data-privacy-account="${esc(Cloud.user.id)}" data-privacy-page="${page}">
   ${initial?'<p class="sub">Revise as opções e confirme em OK. Você pode mudar depois no Perfil.</p>':''}
   <fieldset disabled aria-label="Permissões opcionais">
-  ${privacyOptions.map(([key,label])=>`<label class="privacy-option" for="privacy-${key}"><span>${label}</span><input id="privacy-${key}" name="${key}" type="checkbox" role="switch"${initial?' checked':''}></label>`).join('')}
+  ${privacyOptions.map(([key,label])=>`<label class="privacy-option" for="privacy-${key}"><span>${label}</span><input id="privacy-${key}" name="${key}" type="checkbox" role="switch"${initial&&key!=='location'?' checked':''}></label>`).join('')}
   </fieldset>
   ${initial?'<button type="button" class="secondary full" data-privacy-select-none>Desmarcar todas</button>':''}
   <p class="sub privacy-device-summary">Dispositivo atual: ${esc(deviceSummary||'Não identificado')}.</p>
-  <p class="form-help">A região é aproximada pela conexão. As coordenadas GPS não são armazenadas.</p>
+  <p class="form-help">Ao autorizar, primeiro usamos a cidade e o estado estimados pela conexão (Vercel). Se o aparelho permitir, usamos a posição do dispositivo para consultar cidade e estado na BigDataCloud, que recebe coordenadas e IP. O NeoPep guarda apenas cidade, estado, país e fonte (não guarda coordenadas). Você pode revogar no Perfil.</p>
   <p class="sub" data-privacy-notice role="status">Consultando preferências…</p>
   <a class="text-btn privacy-policy-link" href="#privacidade" target="_blank" rel="noopener">Política de Privacidade</a>
   <button type="submit" class="primary full" disabled>${initial?'OK':'Salvar preferências'}</button>
@@ -1754,7 +1821,7 @@ function privacyPreferencesPage(){
 function privacyHelp(form){
  const messages=[];
  if(window.Notification?.permission==='denied')messages.push('Notificações bloqueadas. Para liberá-las, abra os ajustes de notificações do aparelho ou do navegador.');
- if(form.querySelector('[name=location]')?.disabled)messages.push('A localização aproximada ainda está indisponível neste ambiente.');
+ if(form.querySelector('[name=location]')?.disabled)messages.push('A identificação de cidade e estado está indisponível neste ambiente.');
  return messages.join(' ');
 }
 function locationObservationEnabled(){
@@ -1764,15 +1831,22 @@ function locationObservationEnabled(){
 }
 function requestDeviceLocation(){
  return new Promise(resolve=>{
-  const timeout=setTimeout(()=>finish(false),8000);
-  function finish(allowed){clearTimeout(timeout);resolve(allowed);}
+  let settled=false;
+  const timeout=setTimeout(()=>finish(null),10000);
+  function finish(position){if(settled)return;settled=true;clearTimeout(timeout);resolve(position);}
   try{
    const geo=navigator.geolocation;
-   if(!geo){finish(false);return;}
-   geo.getCurrentPosition(()=>finish(true),()=>finish(false),{
-    enableHighAccuracy:false,maximumAge:0,timeout:8000
-   });
-  }catch{finish(false);}
+   if(!geo){finish(null);return;}
+   geo.getCurrentPosition(position=>{
+    try{
+     const latitude=Number(position.coords.latitude),longitude=Number(position.coords.longitude);
+     const accuracy=Number(position.coords.accuracy);
+     if(!Number.isFinite(latitude)||!Number.isFinite(longitude)||Math.abs(latitude)>90||Math.abs(longitude)>180)return finish(null);
+     // Kept only in memory until city/state are resolved; never persisted.
+     finish({latitude,longitude,accuracy:Number.isFinite(accuracy)?accuracy:null});
+    }catch{finish(null);}
+   },()=>finish(null),{enableHighAccuracy:true,maximumAge:0,timeout:9000});
+  }catch{finish(null);}
  });
 }
 function mountPrivacyPreferences(){
@@ -1794,7 +1868,7 @@ function mountPrivacyPreferences(){
   baseline=values;
   for(const [key] of privacyOptions){
    const field=form.querySelector('[name='+key+']');
-   if(field)field.checked=initial&&values.pending?true:values[key]===true;
+   if(field)field.checked=initial&&values.pending&&key!=='location'?true:values[key]===true;
   }
   const locationField=form.querySelector('[name=location]');
   if(locationField)locationField.disabled=!values.location&&!locationObservationEnabled();
@@ -1827,13 +1901,14 @@ function mountPrivacyPreferences(){
   // Start native authorization within the submit gesture, before the network request.
   const wantsCampaigns=choices.campaigns===true;
   const nativeNotice=wantsCampaigns?Promise.resolve(window.NeoPush?.enable?.()).then(active=>active?'Notificações ativadas neste dispositivo.':'Confira a ativação de notificações em Lembretes.').catch(error=>error?.message||'O aparelho não autorizou as notificações; confira os ajustes do iPhone.'):Promise.resolve('');
-  const locationCheck=choices.location===true?requestDeviceLocation():null;
+  const locationCheck=!skipping&&form.querySelector('[name=location]')?.checked===true&&locationObservationEnabled()?requestDeviceLocation():null;
   saving=true;fields.disabled=true;save.disabled=true;if(skip)skip.disabled=true;
   status.textContent=locationCheck?'Aguardando a permissão do aparelho…':'Salvando preferências…';
   try{
-   const locationUnavailable=locationCheck!==null&&!(await locationCheck);
+   const devicePosition=locationCheck!==null?await locationCheck:null;
+   const locationUnavailable=locationCheck!==null&&!devicePosition;
    if(!current())return;
-   if(locationUnavailable)delete choices.location;
+   // If GPS is declined, the user may still opt in to the approximate IP lookup.
    const values=await Cloud.privacyPreferences(skipping?null:choices,initial);
    if(Cloud.user?.id!==account)return;
    if(choices.statistics!==undefined){
@@ -1845,12 +1920,14 @@ function mountPrivacyPreferences(){
     resetEngagement(account);engagementAllowed=values.usage;engagementChecked=true;
     if(values.usage)void syncEngagement();
    }
-   if(choices.location!==undefined){
-    geoAccount=account;geoAllowed=values.location;geoNext=0;geoCaptureRequested=values.location;
+   if(choices.location!==undefined||locationCheck!==null){
+    geoAccount=account;geoAllowed=values.location===true;geoNext=0;
+    geoCaptureRequested=values.location===true;
+    geoDevicePosition=values.location===true?devicePosition:null;
     if(values.location)void syncGeo();
    }
    const notificationMessage=await nativeNotice;
-   const notice=[notificationMessage,locationUnavailable?'A localização continua desativada. Você pode autorizá-la no Perfil.':''].filter(Boolean).join(' ');
+   const notice=[notificationMessage,locationUnavailable?'O aparelho não liberou GPS; a localização aproximada da conexão continua disponível.':''].filter(Boolean).join(' ');
    if(!current())return;
    apply(values);
    if(initial){
@@ -1882,7 +1959,7 @@ function arrivalWelcome(){return `<section class="card arrival-welcome"><span cl
 function onboarding(){const p=state.profile;return `<section class="card onboarding-card onboarding-minimal"><p class="eyebrow">SEU PONTO DE PARTIDA</p><h1>Vamos conhecer você.</h1><p class="sub">Preencha seus dados. Você pode ajustar depois.</p><form id="onboardingForm" class="space">${input('name','Nome completo','text','required maxlength="100" autocomplete="name"',p.name)}<div class="form-grid">${input('height','Altura (cm)','number','required min="40" max="260" step="0.1"',p.height??'')}${input('initialWeight','Peso inicial (kg)','number','required min="1" max="650" step="0.01"',p.initialWeight??'')}${input('goal','Meta de peso (kg)','number','required min="1" max="650" step="0.01"',p.goal??'')}</div><p class="sub onboarding-goal-intent" id="onboardingGoalIntent" role="status">${goalIntent(p.initialWeight,p.goal)}</p><details class="onboarding-options"><summary>O que quero acompanhar</summary>${[['weight','Peso'],['measures','Medidas'],['journal','Bem-estar'],['photos','Fotos de evolução'],['applications','Aplicações']].map(([key,label])=>`<label class="check"><input type="checkbox" name="track_${key}" ${p.tracking?.[key]?'checked':''}>${label}</label>`).join('')}</details><label class="check"><input type="checkbox" name="health" required><span>Autorizo o uso dos dados de saúde que registrar para acompanhar minha evolução. Posso retirar a autorização no Perfil.</span></label><label class="check"><input type="checkbox" name="terms" required><span>Li a <a href="#privacidade">Política de Privacidade</a> e aceito os <a href="#termos">Termos de Uso</a>.</span></label><p id="onboardingError" class="error" role="alert"></p><button class="primary full" type="submit">Entrar no meu espaço ${icon('arrow')}</button></form></section>`;}
 function terms(){return head('Termos de Uso','Versão final · 16 de novembro de 2026')+`<article class="card privacy"><p>Estes Termos regulam o acesso e o uso do NeoPep. Ao criar uma conta ou continuar usando o aplicativo, você declara que leu e aceita estas condições e a Política de Privacidade.</p><h2>1. Finalidade do aplicativo</h2><p>O NeoPep oferece ferramentas para acompanhamento pessoal, registros de peso e medidas, fotos, diário, aplicações, lembretes, comunidade, biblioteca, atendimento e compras. O aplicativo não substitui médico, nutricionista, farmacêutico ou outro profissional habilitado, não realiza diagnóstico e não prescreve tratamentos, produtos, doses ou protocolos. Resultados de calculadoras são apenas matemáticos e devem ser conferidos antes do uso.</p><h2>2. Conta e segurança</h2><p>A conta é pessoal. Você deve fornecer informações verdadeiras, proteger senha, e-mail e dispositivo e comunicar acessos suspeitos. É proibido acessar conta de terceiros, contornar controles, testar vulnerabilidades sem autorização, automatizar abuso ou usar a plataforma para atividade ilegal. A pessoa usuária responde pelo conteúdo e pelas ações realizadas em sua conta até comunicar comprometimento.</p><h2>3. Registros pessoais e consentimentos</h2><p>Você escolhe quais informações registrar. Dados de saúde e fotografias dependem de consentimentos específicos. É possível editar, exportar ou excluir registros e retirar consentimentos pelos controles disponíveis. A retirada pode impedir novas gravações sem apagar automaticamente dados que devam ser preservados por obrigação legal, segurança ou relação comercial. Consulte a Política de Privacidade para detalhes.</p><h2>4. Comunidade, biblioteca e atendimento</h2><p>Conteúdos publicados no Grupo podem ser vistos pelos membros. Não publique dados de terceiros sem autorização, conteúdo ofensivo, discriminatório, fraudulento, ilegal, perigoso ou que viole direitos autorais. A equipe pode moderar, ocultar ou remover conteúdo e restringir contas para proteger a comunidade. Materiais da biblioteca têm finalidade informativa e não representam orientação individual.</p><p>Conversas privadas podem ser atendidas pela equipe ou por assistente virtual identificado. Quando habilitado, o agente processa textos da conversa conforme a Política de Privacidade e pode encaminhar o atendimento a uma pessoa. Não envie senhas, códigos de autenticação ou dados completos de pagamento.</p><h2>5. Loja, pagamento e entrega</h2><p>Antes de finalizar, confira produto, quantidade, preço, descontos, frete, endereço e identificação. O pagamento é processado no ambiente do Mercado Pago; o NeoPep não recebe os dados completos do cartão. A aprovação exibida no provedor depende da confirmação recebida pelo sistema. Prazos de entrega são estimativas e podem variar por endereço, transportadora e eventos externos.</p><p>Pedidos ainda não pagos podem ser cancelados conforme a opção disponível. Para pedidos pagos, o cliente pode solicitar cancelamento e a loja analisará o estado do envio, as condições informadas e a legislação aplicável. Aprovar um cancelamento não significa reembolso instantâneo: o estorno depende do Mercado Pago, do meio de pagamento e dos prazos financeiros. Produtos já entregues seguem as condições de troca, arrependimento e garantia aplicáveis.</p><h2>6. Notificações e lembretes</h2><p>Com permissão do dispositivo, o aplicativo pode enviar lembretes e avisos de mensagens mesmo quando estiver fechado. A entrega depende do sistema operacional, navegador, conexão e serviços de terceiros e pode atrasar ou não ocorrer. Notificações são apoio de organização e não devem ser usadas como único alerta para medicação, emergência ou cuidado de saúde.</p><h2>7. Propriedade intelectual</h2><p>A marca, identidade visual, software, textos próprios e organização da plataforma pertencem ao responsável ou aos respectivos licenciadores. O uso da conta não transfere esses direitos. Você mantém os direitos sobre o conteúdo que envia e concede apenas a autorização necessária para armazená-lo, exibi-lo e processá-lo dentro das funções solicitadas.</p><h2>8. Disponibilidade e alterações</h2><p>Podem ocorrer manutenção, indisponibilidade, falhas de conexão ou mudanças nas integrações. Funcionalidades podem ser corrigidas, substituídas ou descontinuadas para segurança, conformidade ou evolução do serviço. Alterações relevantes destes Termos serão apresentadas com nova versão e poderão exigir nova aceitação.</p><h2>9. Suspensão e encerramento</h2><p>A conta pode ser suspensa em caso de fraude, abuso, risco à segurança, violação destes Termos ou obrigação legal, assegurados os direitos aplicáveis. Você pode solicitar a exclusão da conta. Pedidos, disputas, obrigações financeiras e registros que precisem ser legalmente preservados devem ser resolvidos ou anonimizados conforme a Política de Privacidade.</p><h2>10. Responsabilidade</h2><p>O serviço é fornecido com esforços razoáveis de segurança e continuidade, sem garantia de operação ininterrupta. O responsável não responde por decisões clínicas tomadas com base em registros, calculadoras ou conteúdos informativos, nem por falhas externas do dispositivo, internet, Mercado Pago, transportadoras ou outros provedores, sem prejuízo das responsabilidades que não possam ser excluídas pela legislação brasileira.</p><h2>11. Legislação e contato</h2><p>Aplicam-se as leis da República Federativa do Brasil, inclusive as normas de proteção do consumidor e de dados pessoais quando cabíveis. Antes de qualquer medida, procure o canal de atendimento para tentativa de solução.</p><p><strong>${esc(window.NEO_CONFIG.controllerName||'NeoPep')}</strong>${window.NEO_CONFIG.controllerCnpj?`<br>CNPJ: ${esc(window.NEO_CONFIG.controllerCnpj)}`:''}<br>Contato: <a href="mailto:${esc(window.NEO_CONFIG.privacyContact||'neopeptideos@proton.me')}">${esc(window.NEO_CONFIG.privacyContact||'neopeptideos@proton.me')}</a></p><button class="secondary" data-go="perfil">Voltar ao Perfil</button></article>`}
 
-const routes={loja:()=>window.NeoShop.view({cloud:mode==='cloud'&&!demo,user:Cloud.user,admin:Cloud.admin,demo,sanitizePhoto,profileName:state.profile.name}),comunidade:()=>window.NeoCommunity.view({cloud:mode==='cloud'&&!demo,user:Cloud.user,admin:Cloud.admin,demo,sanitizePhoto,profileName:state.profile.name}),preparar:arrivalWelcome,onboarding,termos:terms,inicio:overview,evolucao:evolution,peso:evolution,registros:records,diario:journal,aplicacoes:applications,protocolos:protocols,calculadora:calculator,relatorios:reports,calendario:calendarPage,lembretes:remindersPage,fotos:photosPage,perfil:profilePage,permissoes:privacyPreferencesPage,'permissoes-iniciais':privacyPreferencesPage,bemvindo:welcome,privacidade:privacy};
+const routes={loja:()=>window.NeoShop.view({cloud:mode==='cloud'&&!demo,user:Cloud.user,admin:Cloud.admin,demo,sanitizePhoto,profileName:state.profile.name}),comunidade:()=>window.NeoCommunity.view({cloud:mode==='cloud'&&!demo,user:Cloud.user,admin:Cloud.admin,demo,sanitizePhoto,profileName:state.profile.name}),preparar:arrivalWelcome,onboarding,termos:terms,inicio:overview,evolucao:evolution,peso:evolution,registros:records,diario:journal,aplicacoes:applications,frasco:()=>calculator(true),protocolos:protocols,calculadora:calculator,relatorios:reports,calendario:calendarPage,lembretes:remindersPage,fotos:photosPage,perfil:profilePage,permissoes:privacyPreferencesPage,'permissoes-iniciais':privacyPreferencesPage,bemvindo:welcome,privacidade:privacy};
 let workspaceEntered=false;
 let dailySeen=new Set(),dailyOwner='',dailyDate='',dailyPrompt=null,reminderSetupPrompt=null;
 function resetDailyVisit(){reminderSetupPrompt?.remove();reminderSetupPrompt=null;dailySeen.clear();dailyDate=C.today();dailyPrompt?.remove();dailyPrompt=null;}
@@ -2016,10 +2093,11 @@ function syncCampaign(){
   if(!item||campaignBlocked()||typeof HTMLDialogElement==='undefined')return;
   const dialog=document.createElement('dialog');
   dialog.className='neo-campaign-dialog';dialog.setAttribute('aria-labelledby','neoCampaignTitle');
-  dialog.innerHTML=`<h2 id="neoCampaignTitle">${esc(item.title)}</h2>${item.image_url&&!item.image_path?`<img src="${esc(item.image_url)}" alt="">`:''}<p>${esc(item.body)}</p>
-   <div class="neo-campaign-actions">${item.link_url?`<a class="primary" target="_blank" rel="noopener noreferrer" href="${esc(item.link_url)}">${esc(item.link_label)}</a>`:''}
+  const rich=Array.isArray(item.blocks)&&item.blocks.length>0;
+  dialog.innerHTML=`<h2 id="neoCampaignTitle">${esc(item.title)}</h2>${!rich&&item.image_url&&!item.image_path?`<img src="${esc(item.image_url)}" alt="">`:''}<div data-campaign-blocks>${rich?'':`<p>${esc(item.body)}</p>`}</div>
+   <div class="neo-campaign-actions">${!rich&&item.link_url?`<a class="primary" target="_blank" rel="noopener noreferrer" href="${esc(item.link_url)}">${esc(item.link_label)}</a>`:''}
    <form method="dialog"><button class="secondary" autofocus>Fechar</button></form></div>`;
-  if(item.image_path&&Cloud.campaignImageURL){
+  if(!rich&&item.image_path&&Cloud.campaignImageURL){
    Cloud.campaignImageURL(item.image_path).then(url=>{
     if(campaignDialog!==dialog||owner!==Cloud.user?.id)return;
     const image=document.createElement('img');image.src=url;image.alt='';
@@ -2029,6 +2107,7 @@ function syncCampaign(){
   dialog.addEventListener('close',()=>{dialog.remove();if(campaignDialog===dialog)campaignDialog=null;},{once:true});
   document.body.append(dialog);dialog.showModal();campaignDialog=dialog;
   const shown=Cloud.campaignVisit('displayed',item.impression).catch(()=>false);
+  if(rich){renderCampaignBlocks(dialog,item.blocks,owner,()=>{void shown.then(ok=>{if(ok&&owner===Cloud.user?.id)return Cloud.campaignVisit('clicked',item.impression);}).catch(()=>{});});return;}
   dialog.querySelector('a')?.addEventListener('click',event=>{
    const url=new URL(event.currentTarget.href,location.href),route=url.hash.slice(1);
    const material=url.searchParams.get('material'),product=url.searchParams.get('produto');
@@ -2042,6 +2121,41 @@ function syncCampaign(){
    void shown.then(ok=>{if(ok&&owner===Cloud.user?.id)return Cloud.campaignVisit('clicked',item.impression)}).catch(()=>{});
   },{once:true});
  }).catch(()=>{if(owner===campaignOwner)campaignChecked=true;}).finally(()=>{if(owner===campaignOwner)campaignPending=false;});
+}
+// Shared rich notification renderer. No HTML from campaign content is inserted.
+function renderCampaignBlocks(dialog,blocks,owner,onClicked){
+ const holder=dialog.querySelector('[data-campaign-blocks]');
+ if(!holder||!Array.isArray(blocks)||!blocks.length)return;
+ const alive=()=>dialog.isConnected&&dialog.open&&owner===Cloud.user?.id;
+ const text=(node,value)=>{if(typeof value==='string'&&value.trim()){const p=document.createElement('p');p.textContent=value;node.append(p);}};
+ for(const block of blocks.slice(0,12)){
+  if(!block||!['text','image','file','link','document','product','community'].includes(block.type))continue;
+  const section=document.createElement('section');section.className='neo-campaign-content-block';holder.append(section);
+  if(block.type==='image'||block.type==='file'){
+   const status=document.createElement('p');status.className='sub';status.textContent='Carregando conteúdo…';section.append(status);
+   const isImage=block.type==='image';
+   const load=isImage?Cloud.campaignImageURL:Cloud.campaignOriginalURL;
+   const expected=isImage?/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.jpg$/:/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.(pdf|mp4)$/;
+   if(typeof load==='function'&&expected.test(block.media_path||'')){
+    void load.call(Cloud,block.media_path).then(url=>{
+     if(!alive())return;
+     if(isImage){const img=document.createElement('img');img.src=url;img.alt='Imagem da campanha';img.addEventListener('error',()=>{if(alive()){status.textContent='Imagem indisponível.';img.replaceWith(status);}},{once:true});status.replaceWith(img);}
+     else if(block.mime==='video/mp4'){const v=document.createElement('video');v.src=url;v.controls=true;v.preload='metadata';v.playsInline=true;status.replaceWith(v);}
+     else if(block.mime==='application/pdf'){const a=document.createElement('a');a.className='secondary';a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=block.name||'Abrir PDF';a.addEventListener('click',()=>{if(alive())onClicked?.();});status.replaceWith(a);}
+     else status.textContent='Arquivo indisponível.';
+    }).catch(()=>{if(alive())status.textContent='Conteúdo indisponível ou sem autorização.';});
+   }else status.textContent='Conteúdo indisponível.';
+  }
+  text(section,block.text);
+  if(block.type==='link'){
+   try{const u=new URL(block.url);if(u.protocol==='https:'&&!u.username&&!u.password&&!/\/storage\/v1\/|[?&](token|signature|apikey|x-amz-[^=]*)=/i.test(u.href)){const a=document.createElement('a');a.className='secondary';a.href=u.href;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Abrir link';a.addEventListener('click',()=>{if(alive())onClicked?.();});section.append(a);}}catch{}
+  }
+  if(['product','document','community'].includes(block.type)&&/^[a-f0-9-]{36}$/.test(block.ref||'')){
+   const button=document.createElement('button');button.type='button';button.className='secondary';button.textContent=block.type==='product'?'Abrir produto':block.type==='document'?'Abrir material na Biblioteca':'Abrir Comunidade';
+   button.addEventListener('click',()=>{if(!alive())return;onClicked?.();dialog.close();if(block.type==='product'){window.NeoShop?.openCampaignProduct?.(block.ref,Cloud.user);void go('loja');}else if(block.type==='document')void go('comunidade',true,false,'library',block.ref);else void go('comunidade');});
+   section.append(button);
+  }
+ }
 }
 // A campanha de homologação usa apenas a caixa interna de Teste, separada da fila oficial.
 if(window.NEO_CONFIG?.campaignTestEnabled===true&&Cloud.campaignTestVisit){
@@ -2057,9 +2171,10 @@ if(window.NEO_CONFIG?.campaignTestEnabled===true&&Cloud.campaignTestVisit){
    if(typeof dialog.showModal!=='function')return;
    dialog.className='neo-campaign-dialog';
    dialog.setAttribute('aria-labelledby','neoTestCampaignTitle');
-   dialog.innerHTML=`<p class="sub">Campanha de homologação</p><h2 id="neoTestCampaignTitle">${esc(item.title)}</h2><p>${esc(item.body)}</p><form method="dialog"><button type="submit" class="secondary" autofocus>Fechar</button></form>`;
+   dialog.innerHTML=`<p class="sub">Campanha de homologação</p><h2 id="neoTestCampaignTitle">${esc(item.title)}</h2><div data-campaign-blocks>${Array.isArray(item.blocks)&&item.blocks.length?'':`<p>${esc(item.body)}</p>`}</div><form method="dialog"><button type="submit" class="secondary" autofocus>Fechar</button></form>`;
    dialog.addEventListener('close',()=>{dialog.remove();if(campaignDialog===dialog)campaignDialog=null;},{once:true});
    document.body.append(dialog);dialog.showModal();campaignDialog=dialog;
+   renderCampaignBlocks(dialog,item.blocks,owner);
    await Cloud.campaignTestVisit('displayed',item.id);
   }catch{}finally{testCampaignPending=false;}
  }
@@ -2075,13 +2190,13 @@ function render(){applyTheme();void Promise.resolve().then(syncCampaign);void Pr
  $('#banner').innerHTML='';
  $('#content').innerHTML='<div class="session-start" role="status"><img src="assets/logo-neopep.png" alt=""><p>Verificando sua sessão…</p></div>';
  return;
-}if(window.NeoInstall?.blocking){document.body.classList.add('auth-screen');document.body.classList.remove('community-route');document.querySelector('.app-header').hidden=true;$('#nav').hidden=true;document.querySelector('#app > footer').hidden=true;$('#banner').innerHTML='';$('#content').innerHTML=window.NeoInstall.screen();window.NeoArrival?.sync(false,false);window.NeoCaptcha?.remove();return;}window.NeoLibraryShelf?.session?.(mode==='cloud'&&!demo?Cloud.user:null);window.NeoCommunity?.materialSession?.(mode==='cloud'&&!demo?Cloud.user:null);if(page!=='comunidade')window.NeoCommunity?.closeMaterialEditor?.();window.NeoLibraryFiles?.session(mode==='cloud'&&!demo?Cloud.user:null);if(page!=='comunidade')window.NeoLibraryFiles?.close();if(page!=='comunidade')window.NeoSupport?.leave?.();window.NeoShop?.session(mode==='cloud'&&!demo?Cloud.user:null);window.NeoLibrary?.session(mode==='cloud'&&!demo?Cloud.user:null);window.NeoSupport?.session(mode==='cloud'&&!demo?Cloud.user:null);document.body.classList.toggle('community-route',page==='comunidade');const authScreen=['bemvindo','preparar','onboarding','permissoes-iniciais'].includes(page)||!(demo||(mode==='cloud'&&Cloud.user)||workspaceEntered);document.body.classList.toggle('auth-screen',authScreen);document.querySelector('.app-header').hidden=authScreen;const showAdmin=!authScreen&&mode==='cloud'&&!demo&&!!Cloud.user&&Cloud.admin===true;$('#adminShortcut').hidden=!showAdmin;renderSignupBadge($('#adminShortcut'),showAdmin?Cloud.user.id:null);document.querySelector('.app-header').classList.toggle('has-admin-shortcut',showAdmin);$('#nav').hidden=authScreen;document.querySelector('#app > footer').hidden=authScreen;const active=['peso','evolucao'].includes(page)?'evolucao':['aplicacoes','diario','protocolos','calculadora','relatorios','fotos','lembretes'].includes(page)?'registros':page;$('#nav').innerHTML=[['inicio','Início','home'],['evolucao','Evolução','trend'],['comunidade','Comunidade','community'],['registros','Registros','plus'],['loja','Loja','shop']].map(([p,t,i])=>`<button data-go="${p}" class="${p==='comunidade'?'nav-community ':''}${active===p?'active':''}" ${active===p?'aria-current="page"':''}>${icon(i)}<span>${t}</span>${p==='comunidade'?'<b class="nav-community-count" data-message-badge="all" hidden></b>':''}</button>`).join('');$('#bell').innerHTML=icon('bell');$('#connection').textContent=demo?'Demonstração':mode==='cloud'?(navigator.onLine?'Conta conectada':'Sem conexão'):'Neste dispositivo';$('#avatar').innerHTML=avatarURL&&!demo?`<img src="${esc(avatarURL)}" alt="Sua foto">`:esc(state.profile.name.slice(0,1).toUpperCase()||'N');let banner='';if(demo)banner+='<div class="banner demo-banner"><span>Demonstração · Dados fictícios, separados dos seus registros.</span><button class="text-btn" id="exitDemo">Sair</button></div>';else if(mode==='local'&&page!=='bemvindo')banner+='<div class="banner"><span>Modo local · Seus registros ficam neste dispositivo.</span><button class="text-btn" data-go="bemvindo">Minha conta</button></div>';if(!navigator.onLine)banner+='<div class="banner offline-banner">Sem conexão. '+(mode==='cloud'?'Os dados da conta não podem ser alterados agora.':'Seus registros locais continuam disponíveis.')+'</div>';if(localError)banner+='<div class="notice error">'+esc(localError)+'</div>';if(cloudError)banner+='<div class="notice error">'+esc(cloudError)+' <button class="text-btn" id="refresh">Tentar novamente</button></div>';if(window.NeoWaitingWorker)banner+='<div class="banner"><span>Atualização disponível. Salve os registros antes de atualizar.</span><button class="text-btn" id="applyUpdate">Atualizar agora</button></div>';$('#banner').innerHTML=banner;
+}if(window.NeoInstall?.blocking){document.body.classList.add('auth-screen');document.body.classList.remove('community-route');document.querySelector('.app-header').hidden=true;$('#nav').hidden=true;document.querySelector('#app > footer').hidden=true;$('#banner').innerHTML='';$('#content').innerHTML=window.NeoInstall.screen();window.NeoArrival?.sync(false,false);window.NeoCaptcha?.remove();return;}window.NeoLibraryShelf?.session?.(mode==='cloud'&&!demo?Cloud.user:null);window.NeoCommunity?.materialSession?.(mode==='cloud'&&!demo?Cloud.user:null);if(page!=='comunidade')window.NeoCommunity?.closeMaterialEditor?.();window.NeoLibraryFiles?.session(mode==='cloud'&&!demo?Cloud.user:null);if(page!=='comunidade')window.NeoLibraryFiles?.close();if(page!=='comunidade')window.NeoSupport?.leave?.();window.NeoShop?.session(mode==='cloud'&&!demo?Cloud.user:null);window.NeoLibrary?.session(mode==='cloud'&&!demo?Cloud.user:null);window.NeoSupport?.session(mode==='cloud'&&!demo?Cloud.user:null);document.body.classList.toggle('community-route',page==='comunidade');const authScreen=['bemvindo','preparar','onboarding','permissoes-iniciais'].includes(page)||!(demo||(mode==='cloud'&&Cloud.user)||workspaceEntered);document.body.classList.toggle('auth-screen',authScreen);document.querySelector('.app-header').hidden=authScreen;const showAdmin=!authScreen&&mode==='cloud'&&!demo&&!!Cloud.user&&Cloud.admin===true;$('#adminShortcut').hidden=!showAdmin;renderSignupBadge($('#adminShortcut'),showAdmin?Cloud.user.id:null);document.querySelector('.app-header').classList.toggle('has-admin-shortcut',showAdmin);$('#nav').hidden=authScreen;document.querySelector('#app > footer').hidden=authScreen;const active=['peso','evolucao'].includes(page)?'evolucao':['aplicacoes','frasco','diario','protocolos','calculadora','relatorios','fotos','lembretes'].includes(page)?'registros':page;$('#nav').innerHTML=[['inicio','Início','home'],['evolucao','Evolução','trend'],['comunidade','Comunidade','community'],['registros','Registros','plus'],['loja','Loja','shop']].map(([p,t,i])=>`<button data-go="${p}" class="${p==='comunidade'?'nav-community ':''}${active===p?'active':''}" ${active===p?'aria-current="page"':''}>${icon(i)}<span>${t}</span>${p==='comunidade'?'<b class="nav-community-count" data-message-badge="all" hidden></b>':''}</button>`).join('');$('#bell').innerHTML=icon('bell');$('#connection').textContent=demo?'Demonstração':mode==='cloud'?(navigator.onLine?'Conta conectada':'Sem conexão'):'Neste dispositivo';$('#avatar').innerHTML=avatarURL&&!demo?`<img src="${esc(avatarURL)}" alt="Sua foto">`:esc(state.profile.name.slice(0,1).toUpperCase()||'N');let banner='';if(demo)banner+='<div class="banner demo-banner"><span>Demonstração · Dados fictícios, separados dos seus registros.</span><button class="text-btn" id="exitDemo">Sair</button></div>';else if(mode==='local'&&page!=='bemvindo')banner+='<div class="banner"><span>Modo local · Seus registros ficam neste dispositivo.</span><button class="text-btn" data-go="bemvindo">Minha conta</button></div>';if(!navigator.onLine)banner+='<div class="banner offline-banner">Sem conexão. '+(mode==='cloud'?'Os dados da conta não podem ser alterados agora.':'Seus registros locais continuam disponíveis.')+'</div>';if(localError)banner+='<div class="notice error">'+esc(localError)+'</div>';if(cloudError)banner+='<div class="notice error">'+esc(cloudError)+' <button class="text-btn" id="refresh">Tentar novamente</button></div>';if(window.NeoWaitingWorker)banner+='<div class="banner"><span>Atualização disponível. Salve os registros antes de atualizar.</span><button class="text-btn" id="applyUpdate">Atualizar agora</button></div>';$('#banner').innerHTML=banner;
 const privacyForm=$('#privacyPreferences');
 if(sessionFailed||mode!=='cloud'||demo||!privacyForm||privacyForm.dataset.privacyAccount!==Cloud.user?.id||privacyForm.dataset.privacyPage!==page)
  $('#content').innerHTML=sessionFailed
  ?'<div class="session-start" role="alert"><p>Não foi possível verificar sua sessão. Confira a conexão e tente novamente.</p><button class="primary" id="retrySession">Tentar novamente</button></div>'
  :(routes[page]||overview)();mountPrivacyPreferences();if(page==='calculadora')restoreCalcSaved();hydratePhotoImages();window.NeoArrival?.sync(arrivalReady&&page==='inicio'&&mode==='cloud'&&!demo&&Cloud.onboardingComplete===true,state.settings.showArrivalGuide!==false);scheduleDailyCheck();updateResetCooldown();document.title=(window.NEO_CONFIG?.appDisplayName||'NeoPep')+' — Sua evolução, em suas mãos.';if(page==='bemvindo')window.NeoCaptcha?.mount();else if(!document.querySelector('.deletion-choice #captcha'))window.NeoCaptcha?.remove();window.NeoCommunityAlerts?.refresh(mode==='cloud'&&!demo?Cloud.user:null);if(page==='inicio'&&mode==='cloud'&&!demo)window.NeoShop?.loadHome?.({cloud:true,user:Cloud.user,admin:Cloud.admin,sanitizePhoto});if(page==='inicio'&&mode==='cloud'&&!demo)window.NeoLibrary?.loadHome?.({cloud:true,user:Cloud.user,admin:Cloud.admin});if(page==='loja')window.NeoShop.load();if(page==='comunidade')window.NeoCommunity.load({cloud:mode==='cloud'&&!demo,user:Cloud.user,admin:Cloud.admin,demo,sanitizePhoto,profileName:state.profile.name,avatarURL});}
-function navigateBack(fallback='auto'){if(formDirty&&!confirm('Há alterações não salvas. Deseja voltar?'))return;if((history.state?.neoDepth||0)>0&&typeof history.back==='function'){history.back();return;}const target=fallback!=='auto'?fallback:page==='permissoes'?'perfil':['diario','aplicacoes','protocolos','fotos','calculadora','relatorios','lembretes'].includes(page)?'registros':'inicio';go(target,false);}
+function navigateBack(fallback='auto'){if(formDirty&&!confirm('Há alterações não salvas. Deseja voltar?'))return;if((history.state?.neoDepth||0)>0&&typeof history.back==='function'){history.back();return;}const target=fallback!=='auto'?fallback:page==='permissoes'?'perfil':page==='frasco'?'aplicacoes':['diario','aplicacoes','protocolos','fotos','calculadora','relatorios','lembretes'].includes(page)?'registros':'inicio';go(target,false);}
 const validSharedMaterial=value=>/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(String(value||''));
 function pendingLibraryMaterial(){let fromURL='';try{fromURL=new URL(location.href).searchParams.get('material')||'';}catch{}if(validSharedMaterial(fromURL)){try{if(typeof sessionStorage!=='undefined')sessionStorage.setItem('neo-library-destination',fromURL);}catch{}return fromURL;}try{const saved=typeof sessionStorage!=='undefined'?sessionStorage.getItem('neo-library-destination'):'';return validSharedMaterial(saved)?saved:'';}catch{return '';}}
 async function openAccountDestination(checkPrivacy=true){
@@ -2098,12 +2213,12 @@ async function go(p,focus=true,direct=false,communityTab='feed',materialID=''){i
 function input(name,label,type='number',extra='',value=''){if(type==='password'){const id='auth-'+name,description=name==='confirmPassword'?'confirmação de senha':label.toLowerCase();return `<div class="password-field"><label for="${id}">${label}</label><div class="password-input"><input id="${id}" name="${name}" type="password" ${extra} value="${esc(value)}"><button type="button" class="password-toggle" data-password-toggle="${id}" data-password-label="${esc(description)}" aria-controls="${id}" aria-pressed="false" aria-label="Mostrar ${esc(description)}">${icon('eye')}</button></div></div>`;}return `<label>${label}<input name="${name}" type="${type}" ${extra} value="${esc(value)}"></label>`}
 function textarea(name,label,value='',limit=2000){return `<label>${label}<textarea name="${name}" maxlength="${limit}">${esc(value)}</textarea></label>`}
 const kindType={weight:'weights',measure:'measures',dose:'doses',journal:'journal',protocol:'protocols',reminder:'reminders'};
-function openRecord(kind,record=null){if(busy)return;if(!record&&kind!=='avatar'){if(kind==='weight')engagementTrack('weight_record_started');if(page==='inicio')engagementTrack('home_quick_action');}clearPhotoBatch();draftRecordId=record?.id||uid();formKind=kind;editing=record;$('#recordForm').dataset.photoOwner=mode==='cloud'?Cloud.user?.id||'':'';const r=record||{},title={weight:'Como está seu peso?',measure:'Suas medidas',dose:'Registrar aplicação',journal:'Um momento para você',protocol:'Seu protocolo',reminder:'Novo lembrete',photo:'Foto de evolução',avatar:'Sua foto de perfil'}[kind];$('#dialogTitle').textContent=title;$('#formError').textContent='';$('#saveRecord').disabled=false;$('#saveRecord').textContent='Salvar registro';let fields=input('date','Data','date',`${kind==='reminder'?'':`max="${C.today()}"`} required`,r.date||C.today());if(kind==='weight')fields+=input('value','Peso (kg)','number','required min="1" max="650" step="0.01" inputmode="decimal"',r.value??'')+input('fat','Gordura corporal (%) · opcional','number','min="1" max="80" step="0.1" inputmode="decimal"',r.fat??'')+textarea('note','Como você está se sentindo? (opcional)',r.note,500)+'<p class="form-help">Se houver peso nesta data, confirme para atualizar esse registro.</p>';if(kind==='measure')fields+='<div class="form-grid">'+[['waist','Cintura'],['hip','Quadril'],['chest','Peito'],['arm','Braço'],['thigh','Coxa']].map(([k,l])=>input(k,l+' (cm)','number',`${k==='waist'?'required':''} min="1" max="400" step="0.1" inputmode="decimal"`,r[k]??'')).join('')+input('fat','Gordura corporal (%)','number','min="1" max="80" step="0.1"',r.fat??'')+'</div>'+textarea('note','Observações (opcional)',r.note,500);if(kind==='dose')fields+=input('product','Nome do produto','text','required maxlength="80"',r.product||'')+'<div class="form-grid">'+input('amount','Dose aplicada','number','required min="0.000001" max="100000" step="any" inputmode="decimal"',r.amount??'')+`<label>Unidade<select name="unit">${['mg','mcg','mL'].map(v=>`<option ${r.unit===v?'selected':''}>${v}</option>`).join('')}</select></label></div>`+input('site','Local de aplicação (opcional)','text','maxlength="80"',r.site||'')+`<label>Protocolo (opcional)<select name="protocolId"><option value="">Sem vínculo</option>${state.protocols.map(p=>`<option value="${esc(p.id)}" ${r.protocolId===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label>`+textarea('note','Observação pessoal',r.note,500)+calcVialDosePicker(r);if(kind==='journal')fields+='<div class="form-grid">'+[['wellbeing','Bem-estar'],['energy','Energia'],['appetite','Apetite']].map(([k,l])=>`<label>${l} (1 baixo · 5 alto)<select name="${k}"><option value="">Não informar</option>${[1,2,3,4,5].map(v=>`<option value="${v}" ${+r[k]===v?'selected':''}>${v}</option>`).join('')}</select></label>`).join('')+input('sleep','Sono (horas)','number','min="0" max="24" step="0.1"',r.sleep??'')+input('water','Água (litros)','number','min="0" max="15" step="0.1"',r.water??'')+input('activity','Atividade física (minutos)','number','min="0" max="1440" step="1"',r.activity??'')+'</div>'+textarea('note','Suas observações',r.note);if(kind==='protocol')fields+=input('name','Nome do protocolo','text','required maxlength="100"',r.name||'')+input('end','Data de encerramento (opcional)','date','max="'+C.today()+'"',r.end||'')+`<label>Status<select name="status"><option value="active">Em acompanhamento</option><option value="closed" ${r.status==='closed'?'selected':''}>Encerrado</option></select></label>`+textarea('note','Informações cadastradas por você',r.note);if(kind==='reminder')fields+=`<label>Registro associado<select name="recordTarget">${[['general','Outro lembrete'],['weight','Peso'],['measure','Medidas'],['dose','Aplicação']].map(([value,label])=>`<option value="${value}" ${(C.reminderRecordKind(r)||'general')===value?'selected':''}>${label}</option>`).join('')}</select></label>`+input('title','Título do lembrete','text','required maxlength="80"',(r.title||'').replace(/^(Peso|Medidas|Aplicação|Lembrete) · /,''))+input('time','Horário','time','required',r.time||'09:00')+`<label>Repetição<select name="repeat">${[['once','Uma vez'],['daily','Todos os dias'],['weekly','Semanalmente no dia selecionado']].map(([v,l])=>`<option value="${v}" ${r.repeat===v?'selected':''}>${l}</option>`).join('')}</select></label><label class="check"><input type="checkbox" name="enabled" ${r.enabled!==false?'checked':''}>Lembrete ativo</label>`;if(kind==='photo'||kind==='avatar')fields+=(mode==='cloud'?`<label class="check"><input type="checkbox" name="photoConsent" required ${Cloud.user?.id&&Cloud.hasConsent('photos')?'checked':''}>Autorizo guardar esta fotografia em armazenamento privado da minha conta, para perfil ou acompanhamento.</label>`:'')+input('photo','Arquivo de imagem','file',(kind==='photo'?'multiple':'required')+' accept="image/*,.heic,.heif,.avif"')+(kind==='photo'?'<p id="photoBatchTotal" role="status"></p><progress id="photoBatchProgress" aria-label="Fotos enviadas"></progress><label class="check" id="photoBatchDateMode" hidden><input type="checkbox" name="captureDate">Usar a data de captura quando disponível; nas demais, usar a data comum.</label><ul id="photoBatchList" class="photo-batch"></ul>':'')+'<p class="form-help">Fotos do aparelho, incluindo HEIC quando suportado. Máximo 25 MB. A imagem será convertida para JPEG, sem metadados, e reduzida antes do envio.</p>';$('#fields').innerHTML=fields;if(kind==='photo')paintPhotoBatch();$('#dialog').showModal()}
+function openRecord(kind,record=null){if(busy)return;if(kind==='dose'){try{const stored=readCalcVials();if(!record&&!activeDiaryVial(stored)){toast('Adicione um novo frasco para registrar a aplicação.');return go('frasco');}}catch(error){return toast(error.message);}}if(!record&&kind!=='avatar'){if(kind==='weight')engagementTrack('weight_record_started');if(page==='inicio')engagementTrack('home_quick_action');}clearPhotoBatch();draftRecordId=record?.id||uid();formKind=kind;editing=record;$('#recordForm').dataset.photoOwner=mode==='cloud'?Cloud.user?.id||'':'';$('#recordForm').dataset.vialOwner=calcStorageKey()||'';const r=record||{},title={weight:'Como está seu peso?',measure:'Suas medidas',dose:'Registrar aplicação',journal:'Um momento para você',protocol:'Seu protocolo',reminder:'Novo lembrete',photo:'Foto de evolução',avatar:'Sua foto de perfil'}[kind];$('#dialogTitle').textContent=title;$('#formError').textContent='';$('#saveRecord').disabled=false;$('#saveRecord').textContent='Salvar registro';let fields=input('date','Data','date',`${kind==='reminder'?'':`max="${C.today()}"`} required`,r.date||C.today());if(kind==='weight')fields+=input('value','Peso (kg)','number','required min="1" max="650" step="0.01" inputmode="decimal"',r.value??'')+input('fat','Gordura corporal (%) · opcional','number','min="1" max="80" step="0.1" inputmode="decimal"',r.fat??'')+textarea('note','Como você está se sentindo? (opcional)',r.note,500)+'<p class="form-help">Se houver peso nesta data, confirme para atualizar esse registro.</p>';if(kind==='measure')fields+='<div class="form-grid">'+[['waist','Cintura'],['hip','Quadril'],['chest','Peito'],['arm','Braço'],['thigh','Coxa']].map(([k,l])=>input(k,l+' (cm)','number',`${k==='waist'?'required':''} min="1" max="400" step="0.1" inputmode="decimal"`,r[k]??'')).join('')+input('fat','Gordura corporal (%)','number','min="1" max="80" step="0.1"',r.fat??'')+'</div>'+textarea('note','Observações (opcional)',r.note,500);if(kind==='dose')fields+=input('product','Nome do produto','text','required maxlength="80"',r.product||(!record?(()=>{const stored=readCalcVials(),vial=activeDiaryVial(stored);return vial?vialProduct(vial,stored):''})():'') )+'<div class="form-grid">'+input('amount','Dose aplicada','number','required min="0.000001" max="100000" step="any" inputmode="decimal"',r.amount??'')+`<label>Unidade<select name="unit">${['mg','mcg','mL'].map(v=>`<option ${r.unit===v?'selected':''}>${v}</option>`).join('')}</select></label></div>`+input('site','Local de aplicação (opcional)','text','maxlength="80"',r.site||'')+`<label>Protocolo (opcional)<select name="protocolId"><option value="">Sem vínculo</option>${state.protocols.map(p=>`<option value="${esc(p.id)}" ${r.protocolId===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label>`+textarea('note','Observação pessoal',r.note,500)+calcVialDosePicker(r);if(kind==='journal')fields+='<div class="form-grid">'+[['wellbeing','Bem-estar'],['energy','Energia'],['appetite','Apetite']].map(([k,l])=>`<label>${l} (1 baixo · 5 alto)<select name="${k}"><option value="">Não informar</option>${[1,2,3,4,5].map(v=>`<option value="${v}" ${+r[k]===v?'selected':''}>${v}</option>`).join('')}</select></label>`).join('')+input('sleep','Sono (horas)','number','min="0" max="24" step="0.1"',r.sleep??'')+input('water','Água (litros)','number','min="0" max="15" step="0.1"',r.water??'')+input('activity','Atividade física (minutos)','number','min="0" max="1440" step="1"',r.activity??'')+'</div>'+textarea('note','Suas observações',r.note);if(kind==='protocol')fields+=input('name','Nome do protocolo','text','required maxlength="100"',r.name||'')+input('end','Data de encerramento (opcional)','date','max="'+C.today()+'"',r.end||'')+`<label>Status<select name="status"><option value="active">Em acompanhamento</option><option value="closed" ${r.status==='closed'?'selected':''}>Encerrado</option></select></label>`+textarea('note','Informações cadastradas por você',r.note);if(kind==='reminder')fields+=`<label>Registro associado<select name="recordTarget">${[['general','Outro lembrete'],['weight','Peso'],['measure','Medidas'],['dose','Aplicação']].map(([value,label])=>`<option value="${value}" ${(C.reminderRecordKind(r)||'general')===value?'selected':''}>${label}</option>`).join('')}</select></label>`+input('title','Título do lembrete','text','required maxlength="80"',(r.title||'').replace(/^(Peso|Medidas|Aplicação|Lembrete) · /,''))+input('time','Horário','time','required',r.time||'09:00')+`<label>Repetição<select name="repeat">${[['once','Uma vez'],['daily','Todos os dias'],['weekly','Semanalmente no dia selecionado']].map(([v,l])=>`<option value="${v}" ${r.repeat===v?'selected':''}>${l}</option>`).join('')}</select></label><label class="check"><input type="checkbox" name="enabled" ${r.enabled!==false?'checked':''}>Lembrete ativo</label>`;if(kind==='photo'||kind==='avatar')fields+=(mode==='cloud'?`<label class="check"><input type="checkbox" name="photoConsent" required ${Cloud.user?.id&&Cloud.hasConsent('photos')?'checked':''}>Autorizo guardar esta fotografia em armazenamento privado da minha conta, para perfil ou acompanhamento.</label>`:'')+input('photo','Arquivo de imagem','file',(kind==='photo'?'multiple':'required')+' accept="image/*,.heic,.heif,.avif"')+(kind==='photo'?'<p id="photoBatchTotal" role="status"></p><progress id="photoBatchProgress" aria-label="Fotos enviadas"></progress><label class="check" id="photoBatchDateMode" hidden><input type="checkbox" name="captureDate">Usar a data de captura quando disponível; nas demais, usar a data comum.</label><ul id="photoBatchList" class="photo-batch"></ul>':'')+'<p class="form-help">Fotos do aparelho, incluindo HEIC quando suportado. Máximo 25 MB. A imagem será convertida para JPEG, sem metadados, e reduzida antes do envio.</p>';$('#fields').innerHTML=fields;if(kind==='photo')paintPhotoBatch();$('#dialog').showModal()}
 async function action(fn){if(busy)return;busy=true;try{await fn()}catch(e){toast(e.message||'Não foi possível concluir. Tente novamente.')}finally{busy=false}}
 let formDirty=false,lastCloudSync=null;
 async function reloadCloud(){cloudError='';const gen=loadGeneration;try{const next=await Cloud.load();if(gen!==loadGeneration||demo||mode!=='cloud')return;state=next;try{await loadPhotos()}catch{/* A conta continua disponível e a foto será tentada novamente na próxima sincronização. */}if(gen!==loadGeneration||demo||mode!=='cloud')return;arrivalReady=true;lastCloudSync=new Date();render()}catch(e){Cloud.reportError?.('sync_failed');cloudError='Não foi possível carregar a nuvem. Os dados locais e os registros já salvos foram preservados.';render();throw e}}
 async function refreshAfterWrite(next){state=next;try{await reloadCloud()}catch{cloudError='A alteração foi salva na sua conta, mas não foi possível atualizar o histórico completo. Use Atualizar para conferir novamente.';render()}}
-async function putRecord(type,raw){if(mode==='cloud'&&!demo&&!state.profile.consent)throw Error('Salve seu perfil e o consentimento antes de adicionar registros à conta.');let r=C.validRecord(type,raw);if(type==='journal'&&!r.note&&['wellbeing','energy','sleep','appetite','water','activity'].every(k=>r[k]==null))throw Error('Preencha ao menos um campo do diário ou escreva uma observação.');let next={...state,[type]:[...state[type]]},existing=editing;if(type==='weights'&&!existing)existing=state.weights.find(w=>w.date===r.date);if(existing){if(type==='weights'&&!editing&&!confirm('Já existe um peso nesta data. Atualizar esse registro?'))return false;r={...r,id:existing.id,_revision:existing._revision};next[type]=next[type].filter(x=>x.id!==existing.id)}next[type].push(r);if(mode==='cloud'&&!demo){if(!navigator.onLine)throw Error('Conecte-se para salvar na sua conta.');const owner=Cloud.user?.id;const saved=await Cloud.put(type,r);if(!existing&&Cloud.user?.id===owner)engagementTrack(({weights:'weight_record_created',measures:'measurement_record_created',journal:'journal_record_created',doses:'application_record_created',protocols:'protocol_record_created',reminders:'reminder_created'})[type]);next[type]=next[type].map(x=>x.id===r.id?(saved||r):x);await refreshAfterWrite(next)}else{if(!localConsent())return false;next.profile={...state.profile,consent:true};persist(next)}return true}
+async function putRecord(type,raw){if(mode==='cloud'&&!demo&&!state.profile.consent)throw Error('Salve seu perfil e o consentimento antes de adicionar registros à conta.');let r=C.validRecord(type,raw);if(type==='journal'&&!r.note&&['wellbeing','energy','sleep','appetite','water','activity'].every(k=>r[k]==null))throw Error('Preencha ao menos um campo do diário ou escreva uma observação.');let next={...state,[type]:[...state[type]]},existing=editing;if(type==='weights'&&!existing)existing=state.weights.find(w=>w.date===r.date);if(existing){if(type==='weights'&&!editing&&!confirm('Já existe um peso nesta data. Atualizar esse registro?'))return false;r={...r,id:existing.id,_revision:existing._revision};next[type]=next[type].filter(x=>x.id!==existing.id)}next[type].push(r);if(mode==='cloud'&&!demo){if(!navigator.onLine)throw Error('Conecte-se para salvar na sua conta.');const owner=Cloud.user?.id,gen=loadGeneration;let saved;if(type==='doses'&&cloudVialDiaryReady()){const result=await Cloud.vialDiary('put_dose',{record:C.validRecord(type,r),revision:r._revision??null,vial_id:raw.diaryVialId??null});if(owner!==Cloud.user?.id||gen!==loadGeneration||mode!=='cloud'||demo)throw Error('A conta mudou. Atualize o histórico.');saved={...C.validRecord(type,r),_revision:result.revision};next.vialDiary=result.diary;next.vialDiaryStatus='ready';}else saved=await Cloud.put(type,r);if(!existing&&Cloud.user?.id===owner)engagementTrack(({weights:'weight_record_created',measures:'measurement_record_created',journal:'journal_record_created',doses:'application_record_created',protocols:'protocol_record_created',reminders:'reminder_created'})[type]);next[type]=next[type].map(x=>x.id===r.id?(saved||r):x);await refreshAfterWrite(next)}else{if(!localConsent())return false;next.profile={...state.profile,consent:true};persist(next)}return true}
 async function toggleReminder(id){const r=state.reminders.find(x=>x.id===id);if(!r)return;const changed={...r,enabled:!r.enabled},next={...state,reminders:state.reminders.map(x=>x.id===id?changed:x)};if(mode==='cloud'&&!demo){const saved=await Cloud.put('reminders',changed);next.reminders=next.reminders.map(x=>x.id===id?(saved||changed):x);await refreshAfterWrite(next)}else persist(next);render();toast(changed.enabled?'Lembrete ativado. Atualize a agenda se necessário.':'Lembrete pausado no aplicativo. Eventos já exportados devem ser ajustados na agenda.')}
 let avatarCrop={zoom:1,x:50,y:50},avatarCropURL='',avatarCropImage=null;
 function clearAvatarCrop(){if(avatarCropURL)URL.revokeObjectURL(avatarCropURL);avatarCropURL='';avatarCropImage=null;avatarCrop={zoom:1,x:50,y:50}}
@@ -2321,7 +2436,7 @@ document.addEventListener('input',event=>{
  paintAvatarCrop();
 });
 document.addEventListener('click',event=>{if(!event.target.closest?.('[data-add="avatar"]'))return;setTimeout(()=>{const button=document.querySelector('#saveRecord');if(button)button.textContent=avatarURL?'Alterar foto':'Salvar foto'},0)});
-$('#recordForm').addEventListener('submit',async e=>{e.preventDefault();if(busy)return;busy=true;$('#saveRecord').disabled=true;$('#saveRecord').textContent='Salvando…';let savedWarning='';try{if(formKind==='photo'){await submitPhotoBatch(e.target);return}const f=new FormData(e.target),r=Object.fromEntries(f);r.id=editing?.id||draftRecordId||uid();if(formKind==='avatar'){if(mode==='cloud'&&!state.profile.consent)throw Error('Complete seu perfil e consentimento antes de enviar fotos.');if(demo)throw Error('Fotos reais não são adicionadas à demonstração.');if(!localConsent())return;const generation=loadGeneration;const blob=await encodePhoto(f.get('photo'),{crop:true});if(generation!==loadGeneration)throw Error('A conta mudou. Abra novamente o formulário.');if(!C.validDate(r.date)||r.date>C.today())throw Error('Data inválida.');const role=formKind==='avatar'?'avatar':'progress';let uploaded=null;if(mode==='cloud'){if(!f.has('photoConsent'))throw Error('Confirme a autorização para fotografias.');await authorizePhotoUpload(e.target);const thumbnail=await encodePhoto(blob,{edge:160,quality:.68});requirePhotoOwner(e.target);uploaded=await Cloud.uploadPhoto(blob,r.date,role,thumbnail);requirePhotoOwner(e.target);}else await photoStore('put',{id:r.id,date:r.date,role,blob,thumbnail:await encodePhoto(blob,{edge:160,quality:.68}),created_at:new Date().toISOString()});if(role==='avatar'&&uploaded?.url){avatarURL=uploaded.url;photoList=photoList.filter(p=>p.role!=='avatar').concat(uploaded);window.NeoCommunity?.refreshIdentity?.();if(uploaded.communitySynced===false)savedWarning='Foto aplicada ao perfil. A foto da comunidade não foi atualizada; tente alterar a foto novamente.'}else try{await loadPhotos()}catch{savedWarning='Foto salva. Não foi possível atualizar a galeria; use Atualizar fotos para conferir.'}}else{if(formKind==='reminder'){r.title=C.reminderTitle(r.recordTarget,r.title);r.enabled=f.has('enabled');r.weekday=new Date(r.date+'T12:00').getDay()}if(!await putRecord(kindType[formKind],r))return;if(formKind==='dose'&&f.has('vialId'))try{assignCalcVialDose(r.id,String(f.get('vialId')||''))}catch(error){savedWarning='Aplicação salva, mas o vínculo local com o frasco não pôde ser registrado.'}}formDirty=false;$('#dialog').close();render();toast(savedWarning||(demo?'Alteração apenas na demonstração.':'Registro salvo. Mais um passo na sua jornada.'))}catch(e){if(mode==='cloud'&&!demo)Cloud.reportError?.(formKind==='photo'||formKind==='avatar'?'photo_failed':'profile_failed');$('#formError').textContent=e.message}finally{busy=false;$('#saveRecord').disabled=false;$('#saveRecord').textContent='Salvar registro';if(formKind==='photo')paintPhotoBatch()}});
+$('#recordForm').addEventListener('submit',async e=>{e.preventDefault();if(busy)return;busy=true;$('#saveRecord').disabled=true;$('#saveRecord').textContent='Salvando…';let savedWarning='';try{if(formKind==='photo'){await submitPhotoBatch(e.target);return}const f=new FormData(e.target),r=Object.fromEntries(f);r.id=editing?.id||draftRecordId||uid();if(formKind==='avatar'){if(mode==='cloud'&&!state.profile.consent)throw Error('Complete seu perfil e consentimento antes de enviar fotos.');if(demo)throw Error('Fotos reais não são adicionadas à demonstração.');if(!localConsent())return;const generation=loadGeneration;const blob=await encodePhoto(f.get('photo'),{crop:true});if(generation!==loadGeneration)throw Error('A conta mudou. Abra novamente o formulário.');if(!C.validDate(r.date)||r.date>C.today())throw Error('Data inválida.');const role=formKind==='avatar'?'avatar':'progress';let uploaded=null;if(mode==='cloud'){if(!f.has('photoConsent'))throw Error('Confirme a autorização para fotografias.');await authorizePhotoUpload(e.target);const thumbnail=await encodePhoto(blob,{edge:160,quality:.68});requirePhotoOwner(e.target);uploaded=await Cloud.uploadPhoto(blob,r.date,role,thumbnail);requirePhotoOwner(e.target);}else await photoStore('put',{id:r.id,date:r.date,role,blob,thumbnail:await encodePhoto(blob,{edge:160,quality:.68}),created_at:new Date().toISOString()});if(role==='avatar'&&uploaded?.url){avatarURL=uploaded.url;photoList=photoList.filter(p=>p.role!=='avatar').concat(uploaded);window.NeoCommunity?.refreshIdentity?.();if(uploaded.communitySynced===false)savedWarning='Foto aplicada ao perfil. A foto da comunidade não foi atualizada; tente alterar a foto novamente.'}else try{await loadPhotos()}catch{savedWarning='Foto salva. Não foi possível atualizar a galeria; use Atualizar fotos para conferir.'}}else{if(formKind==='reminder'){r.title=C.reminderTitle(r.recordTarget,r.title);r.enabled=f.has('enabled');r.weekday=new Date(r.date+'T12:00').getDay()}if(formKind==='dose'){if(e.target.dataset.vialOwner!==calcStorageKey())throw Error('A conta mudou. Abra novamente o registro.');if(mode==='cloud'&&!demo&&(!state.profile.consent||!navigator.onLine||cloudError))throw Error('Confirme o consentimento e atualize os registros da conta antes de salvar.');r.diaryVialId=prepareDiaryVialLink(C.validRecord('doses',r),editing,String(f.get('diaryVialId')||''))||null;}if(!await putRecord(kindType[formKind],r))return;if(formKind==='dose'){const stored=readCalcVials(),vial=stored.items.find(item=>item.id===stored.active);if(vial&&vialBalance(vial,stored.links).mass===0)savedWarning='Aplicação registrada. O frasco está vazio; adicione um novo frasco.';}}formDirty=false;$('#dialog').close();render();toast(savedWarning||(demo?'Alteração apenas na demonstração.':'Registro salvo. Mais um passo na sua jornada.'))}catch(e){if(mode==='cloud'&&!demo)Cloud.reportError?.(formKind==='photo'||formKind==='avatar'?'photo_failed':'profile_failed');$('#formError').textContent=e.message}finally{busy=false;$('#saveRecord').disabled=false;$('#saveRecord').textContent='Salvar registro';if(formKind==='photo')paintPhotoBatch()}});
 $('#close').onclick=()=>{if(!busy)$('#dialog').close()};
 $('#dialog').addEventListener('cancel',event=>{if(busy)event.preventDefault()});
 async function importReview(candidate){const incoming=C.validateBackup(candidate);const preview=C.merge(state,incoming);migrationCandidate=incoming;formKind='migration';editing=null;$('#dialogTitle').textContent='Revisar importação';$('#fields').innerHTML=`<p class="sub">${preview.added} registros novos · ${preview.skipped} duplicados ignorados.</p><div class="notice">Os registros existentes e seu perfil serão preservados. Nada será removido. ${mode==='cloud'?'Os novos registros serão enviados à conta '+esc(Cloud.user?.email||'conectada')+'.':'Os novos registros ficarão neste navegador.'}</div><button type="button" class="secondary full" id="migrationBackup">1. Exportar backup atual</button><label class="check space"><input type="checkbox" id="migrationConsent">Confirmo a importação aditiva e o armazenamento dos registros neste destino.</label><button type="button" class="primary full" id="confirmMigration">2. Importar registros</button>`;$('#formError').textContent='';$('#saveRecord').hidden=true;$('#dialog').showModal();}
@@ -2349,7 +2464,7 @@ function resetRecordView(){homeDetailsOpen=false;historyPrefs={};selectedProtoco
 async function switchLocal(openWorkspace=true){resetRecordView();workspaceEntered=openWorkspace;loadGeneration++;clearPhotoURLs();mode='local';demo=false;state=localState;cloudError='';backupDone=false;go(openWorkspace?'inicio':'bemvindo')}
 async function enterDemo(){if(busy)return;resetRecordView();loadGeneration++;clearPhotoURLs();demo=true;state=C.demoState();go('inicio')}
 async function authChanged(event,user){if(suppressAuth||demo)return;if(user&&mode==='cloud'&&signedInAccountId===user.id&&['SIGNED_IN','INITIAL_SESSION','TOKEN_REFRESHED'].includes(event))return;if(event==='SIGNED_IN'||event==='SIGNED_OUT')resetRecordView();if(user&&recoveryFlow&&event!=='PASSWORD_RECOVERY'&&['verifycode','newpassword'].includes(authMode)){signedInAccountId=user.id;mode='cloud';return;}if(event==='PASSWORD_RECOVERY'){arrivalReady=false;resetDailyVisit();window.NeoArrival?.reset();recoveryFlow=true;authEmail=user?.email||authEmail;rememberRecovery('newpassword');signedInAccountId=user?.id||null;loadGeneration++;clearPhotoURLs();mode='cloud';state=C.blank();authMode='newpassword';await go('bemvindo');return}if(!user){arrivalReady=false;arrivalWelcomeStarted=false;window.NeoArrival?.reset();signedInAccountId=null;if(mode==='cloud')await switchLocal(false);return}if(mode==='cloud'&&event==='TOKEN_REFRESHED')return;arrivalReady=false;resetDailyVisit();window.NeoArrival?.arm(user.id,event==='SIGNED_IN');signedInAccountId=user.id;loadGeneration++;clearPhotoURLs();mode='cloud';state=C.blank();render();try{await reloadCloud();if(!Cloud.onboardingComplete)await go(arrivalWelcomeStarted?'onboarding':'preparar');else await openAccountDestination();Cloud.heartbeat?.().catch(()=>{});const u=new URL(location.href);if(u.searchParams.has('code')){u.searchParams.delete('code');history.replaceState(history.state||null,'',u)}}catch(e){toast(e.message)}}
-document.addEventListener('click',e=>{const b=e.target.closest('button');const tip=e.target.closest('[data-tip]');if(tip){if(page==='evolucao'||page==='peso')engagementTrack('weight_chart_interaction','evolucao');const target=tip.closest('.card').querySelector('.chart-tip');if(target)target.textContent=tip.dataset.tip}if(!b)return;if(b.hasAttribute('data-home-details')){setHomeDetails(!homeDetailsOpen);return;}if(b.dataset.passwordToggle){const field=document.getElementById(b.dataset.passwordToggle);if(!field||!field.closest('#authForm,#deletionPasswordForm'))return;const show=field.type==='password';field.type=show?'text':'password';b.setAttribute('aria-pressed',String(show));b.setAttribute('aria-label',(show?'Ocultar ':'Mostrar ')+b.dataset.passwordLabel);b.innerHTML=icon(show?'eyeOff':'eye');return;}if(b.hasAttribute('data-start-profile')){arrivalWelcomeStarted=true;return go('onboarding');}if(b.dataset.back){navigateBack(b.dataset.back);return;}if(b.dataset.historyReset){delete historyPrefs[b.dataset.historyReset];render();return}if(b.dataset.historyPage){const [type,p]=b.dataset.historyPage.split(':');historyPrefs[type]={...(historyPrefs[type]||{}),page:Math.max(0,Number(p)||0)};render();return}if(b.dataset.protocolApps){selectedProtocol=b.dataset.protocolApps;return go('aplicacoes')}if(b.dataset.toggleReminder)return action(()=>toggleReminder(b.dataset.toggleReminder));if(b.dataset.go==='loja'&&b.closest('#nav'))window.NeoShop?.openCatalog?.();if(b.dataset.go==='comunidade'&&page==='inicio'&&b.dataset.communitySection==='library')engagementTrack('home_library_open');if(b.dataset.go)return go(b.dataset.go,true,b.dataset.supportShortcut==='true',b.dataset.communitySection||'feed',b.dataset.material||'');if(b.dataset.period){if(String(period)!==b.dataset.period)engagementTrack(page==='relatorios'?'reports_period_changed':'comparison_period_changed');period=b.dataset.period;render();return}if(b.dataset.add)return openRecord(b.dataset.add);if(b.dataset.edit){if(page==='calendario')engagementTrack('calendar_event_open','calendario');const [type,...rest]=b.dataset.edit.split(':'),id=rest.join(':'),record=state[type]?.find(r=>r.id===id);if(record)return openRecord(Object.keys(kindType).find(k=>kindType[k]===type),record)}if(b.dataset.auth){if(busy)return;authEmail=$('#authForm [name=email]')?.value||authEmail;authRemember=$('#authForm [name=remember]')?.checked??authRemember;authMode=b.dataset.auth;if(['login','signup','reset'].includes(authMode)){recoveryFlow=false;clearRecovery();}authMessage='';render();return}if(b.dataset.calview){if(calendarView!==b.dataset.calview)engagementTrack('calendar_period_changed','calendario');calendarView=b.dataset.calview;render();return}if(b.dataset.day){selectedDate=b.dataset.day;render();return}if(b.dataset.oauth)return action(async()=>{if(authMode==='signup'&&!$('#authLegalConsent')?.checked)throw Error('Leia a política e aceite os Termos de Uso para criar a conta.');authRemember=$('#authForm [name=remember]')?.checked??authRemember;await Cloud.oauth(b.dataset.oauth,{remember:authRemember})});if(b.dataset.delete)return action(async()=>{const [type,...rest]=b.dataset.delete.split(':'),id=rest.join(':'),r=state[type]?.find(x=>x.id===id);if(!r||!confirm(type==='protocols'?'Excluir este protocolo? As aplicações serão mantidas; a referência ao nome deste protocolo deixará de aparecer.':'Excluir este registro? Essa ação remove somente o item selecionado.'))return;if(mode==='cloud'&&!demo){await Cloud.remove(type,r);await refreshAfterWrite({...state,[type]:state[type].filter(x=>x.id!==id)})}else persist({...state,[type]:state[type].filter(x=>x.id!==id)});render();toast('Registro excluído.')});if(b.dataset.photoOpen)return action(()=>showPhoto(b.dataset.photoOpen,b));if(b.dataset.photoDelete)return action(async()=>{const p=photoList.find(p=>p.id===b.dataset.photoDelete);if(!p||!confirm('Excluir esta foto privada? Exporte antes se quiser manter uma cópia.'))return;if(mode==='cloud')await Cloud.deletePhoto(p);else await photoStore('delete',p.id);await loadPhotos();render();toast('Foto excluída.')});if(b.dataset.photoExport)return action(async()=>{const p=photoList.find(p=>p.id===b.dataset.photoExport);const blob=mode==='cloud'?await Cloud.photoBlob(p):p.blob;download('neopeptideos-foto-'+p.date+'.jpg',blob,blob.type)});switch(b.id){case'retrySession':return location.reload();case'demo':return enterDemo();case'exitDemo':demo=false;return mode==='cloud'?action(async()=>{state=C.blank();await reloadCloud();go('inicio')}):switchLocal();case'localMode':if(Cloud.user)return toast('Saia da conta no Perfil antes de mudar para o modo local.');return switchLocal();case'backup':case'migrationBackup':return action(backup);case'csvPeriod':engagementTrack('reports_csv_export','relatorios');download((demo?'DEMONSTRACAO-':'')+'neopeptideos-periodo-'+C.today()+'.csv',C.exportCsv(C.reportState(state,period)),'text/csv;charset=utf-8');break;case'csv':download((demo?'DEMONSTRACAO-':'')+'neopeptideos-'+C.today()+'.csv',C.exportCsv(state),'text/csv;charset=utf-8');break;case'print':engagementTrack('reports_print_requested','relatorios');window.print();break;case'calendarExport':download('neopeptideos-lembretes.ics',C.calendar(state),'text/calendar;charset=utf-8');break;case'legacyBackup':return action(legacyBackup);case'legacyImport':return action(async()=>{if(!legacyBackupDone)throw Error('Exporte o backup dos registros anteriores primeiro.');await importReview(JSON.parse(localStorage.getItem(LEGACY)))});case'restore':backupDone=false;$('#restoreFile').value='';$('#restoreFile').click();break;case'rawBackup':download('neopeptideos-recuperacao-bruta.json',localStorage.getItem(KEY)||'','application/json');break;case'confirmMigration':return action(async()=>{if(!backupDone)throw Error('Exporte o backup atual antes de importar.');if(!$('#migrationConsent').checked)throw Error('Confirme o destino e o armazenamento antes de importar.');if(!migrationCandidate)throw Error('Selecione os dados novamente.');if(mode==='cloud'&&!demo&&!state.profile.consent)throw Error('Salve seu perfil e consentimento antes de importar.');const result=mode==='cloud'&&!demo?await Cloud.importRecords(migrationCandidate):C.merge(state,migrationCandidate);if(result.data)persist(result.data);else await reloadCloud();$('#dialog').close();render();toast(result.added+' registros importados'+(result.verified?' e conferidos no servidor':'')+'. Original preservado.')});case'clearLocal':return deletionChoice('local');case'deleteAccount':return deletionChoice('cloud');case'refreshPhotos':return action(async()=>{await loadPhotos();render();toast('Fotos atualizadas.');});case'refresh':return action(async()=>{await reloadCloud();if(page==='fotos'||page==='perfil'){await loadPhotos();render()}toast('Dados atualizados.')});case'logoutAll':return action(async()=>{if(!confirm('Encerrar as sessões em todos os dispositivos? Tokens de acesso já emitidos podem permanecer válidos até expirarem.'))return;await Cloud.logout('global');await switchLocal(false);toast('Sessões encerradas. Novos acessos exigem autenticação.');});case'logout':authEmail='';authMessage='';return action(async()=>{if(!confirm('Sair desta conta? Os dados salvos na nuvem permanecem disponíveis no próximo acesso.'))return;suppressAuth=true;try{await Cloud.logout();await switchLocal(false)}finally{suppressAuth=false}toast('Você saiu da conta.')});case'withdrawHealth':return action(async()=>{if(!confirm('Retirar o consentimento para novas gravações de saúde? Você ainda poderá exportar, excluir dados e excluir a conta.'))return;await Cloud.setConsent('health',false);await reloadCloud();go('perfil');toast('Consentimento retirado. Novas gravações estão bloqueadas.');});case'withdrawPhotos':return action(async()=>{if(!confirm('Impedir novos envios de fotos? As fotos existentes continuam disponíveis para você exportar ou excluir.'))return;await Cloud.setConsent('photos',false);render();toast('Autorização para novas fotos retirada.');});case'notify':return action(async()=>{if(!('Notification'in window))throw Error('Este navegador não permite estes avisos. Use a exportação para a agenda.');const permission=await Notification.requestPermission();const next={...state,settings:{...state.settings,enabled:permission==='granted'}};if(mode==='cloud'&&!demo){await Cloud.saveProfile(state.profile,next.settings);await reloadCloud()}else persist(next);toast(permission==='granted'?'Avisos habilitados enquanto o app estiver aberto.':'Permissão não concedida. Use a agenda.');render()});case'prevMonth':case'nextMonth':{engagementTrack('calendar_period_changed','calendario');const n=b.id==='prevMonth'?-1:1;if(calendarView==='week')calendarDate.setDate(calendarDate.getDate()+n*7);else calendarDate=new Date(calendarDate.getFullYear(),calendarDate.getMonth()+n,1);selectedDate=C.today(calendarDate);render();break}case'calToday':calendarDate=new Date();selectedDate=C.today();render();break;case'applyUpdate':swReloadAllowed=true;window.NeoWaitingWorker?.postMessage({type:'SKIP_WAITING'});break;}});
+document.addEventListener('click',e=>{const b=e.target.closest('button');const tip=e.target.closest('[data-tip]');if(tip){if(page==='evolucao'||page==='peso')engagementTrack('weight_chart_interaction','evolucao');const target=tip.closest('.card').querySelector('.chart-tip');if(target)target.textContent=tip.dataset.tip}if(!b)return;if(b.hasAttribute('data-home-details')){setHomeDetails(!homeDetailsOpen);return;}if(b.dataset.passwordToggle){const field=document.getElementById(b.dataset.passwordToggle);if(!field||!field.closest('#authForm,#deletionPasswordForm'))return;const show=field.type==='password';field.type=show?'text':'password';b.setAttribute('aria-pressed',String(show));b.setAttribute('aria-label',(show?'Ocultar ':'Mostrar ')+b.dataset.passwordLabel);b.innerHTML=icon(show?'eyeOff':'eye');return;}if(b.hasAttribute('data-start-profile')){arrivalWelcomeStarted=true;return go('onboarding');}if(b.dataset.back){navigateBack(b.dataset.back);return;}if(b.dataset.historyReset){delete historyPrefs[b.dataset.historyReset];render();return}if(b.dataset.historyPage){const [type,p]=b.dataset.historyPage.split(':');historyPrefs[type]={...(historyPrefs[type]||{}),page:Math.max(0,Number(p)||0)};render();return}if(b.dataset.protocolApps){selectedProtocol=b.dataset.protocolApps;return go('aplicacoes')}if(b.dataset.toggleReminder)return action(()=>toggleReminder(b.dataset.toggleReminder));if(b.dataset.go==='loja'&&b.closest('#nav'))window.NeoShop?.openCatalog?.();if(b.dataset.go==='comunidade'&&page==='inicio'&&b.dataset.communitySection==='library')engagementTrack('home_library_open');if(b.dataset.go)return go(b.dataset.go,true,b.dataset.supportShortcut==='true',b.dataset.communitySection||'feed',b.dataset.material||'');if(b.dataset.period){if(String(period)!==b.dataset.period)engagementTrack(page==='relatorios'?'reports_period_changed':'comparison_period_changed');period=b.dataset.period;render();return}if(b.dataset.add)return openRecord(b.dataset.add);if(b.dataset.edit){if(page==='calendario')engagementTrack('calendar_event_open','calendario');const [type,...rest]=b.dataset.edit.split(':'),id=rest.join(':'),record=state[type]?.find(r=>r.id===id);if(record)return openRecord(Object.keys(kindType).find(k=>kindType[k]===type),record)}if(b.dataset.auth){if(busy)return;authEmail=$('#authForm [name=email]')?.value||authEmail;authRemember=$('#authForm [name=remember]')?.checked??authRemember;authMode=b.dataset.auth;if(['login','signup','reset'].includes(authMode)){recoveryFlow=false;clearRecovery();}authMessage='';render();return}if(b.dataset.calview){if(calendarView!==b.dataset.calview)engagementTrack('calendar_period_changed','calendario');calendarView=b.dataset.calview;render();return}if(b.dataset.day){selectedDate=b.dataset.day;render();return}if(b.dataset.oauth)return action(async()=>{if(authMode==='signup'&&!$('#authLegalConsent')?.checked)throw Error('Leia a política e aceite os Termos de Uso para criar a conta.');authRemember=$('#authForm [name=remember]')?.checked??authRemember;await Cloud.oauth(b.dataset.oauth,{remember:authRemember})});if(b.dataset.delete)return action(async()=>{const [type,...rest]=b.dataset.delete.split(':'),id=rest.join(':'),r=state[type]?.find(x=>x.id===id);if(!r||!confirm(type==='protocols'?'Excluir este protocolo? As aplicações serão mantidas; a referência ao nome deste protocolo deixará de aparecer.':'Excluir este registro? Essa ação remove somente o item selecionado.'))return;if(mode==='cloud'&&!demo){await Cloud.remove(type,r);await refreshAfterWrite({...state,[type]:state[type].filter(x=>x.id!==id)})}else persist({...state,[type]:state[type].filter(x=>x.id!==id)});render();toast('Registro excluído.')});if(b.dataset.photoOpen)return action(()=>showPhoto(b.dataset.photoOpen,b));if(b.dataset.photoDelete)return action(async()=>{const p=photoList.find(p=>p.id===b.dataset.photoDelete);if(!p||!confirm('Excluir esta foto privada? Comparações já salvas permanecem separadas. Exporte antes se quiser manter uma cópia.'))return;const generation=loadGeneration;if(mode==='cloud')await Cloud.deletePhoto(p);else await photoStore('delete',p.id);if(generation!==loadGeneration)return;photoList=photoList.filter(row=>row.id!==p.id);for(const [key,item] of photoCache)if(key.startsWith(p.id+':')){if(item.objectURL)URL.revokeObjectURL(item.objectURL);photoCache.delete(key)}for(const [key,item] of comparisonThumbs)if(item.photo.id===p.id){item.controller?.abort();if(item.url)URL.revokeObjectURL(item.url);comparisonThumbs.delete(key)}for(let side=0;side<2;side++)if(comparisonSelection[side]?.id===p.id){comparisonSelection[side]=null;comparisonPrepared[side]=null}comparisonWeightCache=null;const viewer=$('#photoViewer');if(viewer?.querySelector('[data-photo-delete]')?.dataset.photoDelete===p.id){viewer.close();viewer.remove()}try{await loadPhotos()}catch{}if(generation!==loadGeneration)return;render();toast('Foto excluída.')});if(b.dataset.photoExport)return action(async()=>{const p=photoList.find(p=>p.id===b.dataset.photoExport);const blob=mode==='cloud'?await Cloud.photoBlob(p):p.blob;download('neopeptideos-foto-'+p.date+'.jpg',blob,blob.type)});switch(b.id){case'retrySession':return location.reload();case'demo':return enterDemo();case'exitDemo':demo=false;return mode==='cloud'?action(async()=>{state=C.blank();await reloadCloud();go('inicio')}):switchLocal();case'localMode':if(Cloud.user)return toast('Saia da conta no Perfil antes de mudar para o modo local.');return switchLocal();case'backup':case'migrationBackup':return action(backup);case'csvPeriod':engagementTrack('reports_csv_export','relatorios');download((demo?'DEMONSTRACAO-':'')+'neopeptideos-periodo-'+C.today()+'.csv',C.exportCsv(C.reportState(state,period)),'text/csv;charset=utf-8');break;case'csv':download((demo?'DEMONSTRACAO-':'')+'neopeptideos-'+C.today()+'.csv',C.exportCsv(state),'text/csv;charset=utf-8');break;case'print':engagementTrack('reports_print_requested','relatorios');window.print();break;case'calendarExport':download('neopeptideos-lembretes.ics',C.calendar(state),'text/calendar;charset=utf-8');break;case'legacyBackup':return action(legacyBackup);case'legacyImport':return action(async()=>{if(!legacyBackupDone)throw Error('Exporte o backup dos registros anteriores primeiro.');await importReview(JSON.parse(localStorage.getItem(LEGACY)))});case'restore':backupDone=false;$('#restoreFile').value='';$('#restoreFile').click();break;case'rawBackup':download('neopeptideos-recuperacao-bruta.json',localStorage.getItem(KEY)||'','application/json');break;case'confirmMigration':return action(async()=>{if(!backupDone)throw Error('Exporte o backup atual antes de importar.');if(!$('#migrationConsent').checked)throw Error('Confirme o destino e o armazenamento antes de importar.');if(!migrationCandidate)throw Error('Selecione os dados novamente.');if(mode==='cloud'&&!demo&&!state.profile.consent)throw Error('Salve seu perfil e consentimento antes de importar.');const result=mode==='cloud'&&!demo?await Cloud.importRecords(migrationCandidate):C.merge(state,migrationCandidate);if(result.data)persist(result.data);else await reloadCloud();$('#dialog').close();render();toast(result.added+' registros importados'+(result.verified?' e conferidos no servidor':'')+'. Original preservado.')});case'clearLocal':return deletionChoice('local');case'deleteAccount':return deletionChoice('cloud');case'refreshPhotos':return action(async()=>{await loadPhotos();render();toast('Fotos atualizadas.');});case'refresh':return action(async()=>{await reloadCloud();if(page==='fotos'||page==='perfil'){await loadPhotos();render()}toast('Dados atualizados.')});case'logoutAll':return action(async()=>{if(!confirm('Encerrar as sessões em todos os dispositivos? Tokens de acesso já emitidos podem permanecer válidos até expirarem.'))return;await Cloud.logout('global');await switchLocal(false);toast('Sessões encerradas. Novos acessos exigem autenticação.');});case'logout':authEmail='';authMessage='';return action(async()=>{if(!confirm('Sair desta conta? Os dados salvos na nuvem permanecem disponíveis no próximo acesso.'))return;suppressAuth=true;try{await Cloud.logout();await switchLocal(false)}finally{suppressAuth=false}toast('Você saiu da conta.')});case'withdrawHealth':return action(async()=>{if(!confirm('Retirar o consentimento para novas gravações de saúde? Você ainda poderá exportar, excluir dados e excluir a conta.'))return;await Cloud.setConsent('health',false);await reloadCloud();go('perfil');toast('Consentimento retirado. Novas gravações estão bloqueadas.');});case'withdrawPhotos':return action(async()=>{if(!confirm('Impedir novos envios de fotos? As fotos existentes continuam disponíveis para você exportar ou excluir.'))return;await Cloud.setConsent('photos',false);render();toast('Autorização para novas fotos retirada.');});case'notify':return action(async()=>{if(!('Notification'in window))throw Error('Este navegador não permite estes avisos. Use a exportação para a agenda.');const permission=await Notification.requestPermission();const next={...state,settings:{...state.settings,enabled:permission==='granted'}};if(mode==='cloud'&&!demo){await Cloud.saveProfile(state.profile,next.settings);await reloadCloud()}else persist(next);toast(permission==='granted'?'Avisos habilitados enquanto o app estiver aberto.':'Permissão não concedida. Use a agenda.');render()});case'prevMonth':case'nextMonth':{engagementTrack('calendar_period_changed','calendario');const n=b.id==='prevMonth'?-1:1;if(calendarView==='week')calendarDate.setDate(calendarDate.getDate()+n*7);else calendarDate=new Date(calendarDate.getFullYear(),calendarDate.getMonth()+n,1);selectedDate=C.today(calendarDate);render();break}case'calToday':calendarDate=new Date();selectedDate=C.today();render();break;case'applyUpdate':swReloadAllowed=true;window.NeoWaitingWorker?.postMessage({type:'SKIP_WAITING'});break;}});
 document.addEventListener('submit',e=>{const type=e.target.dataset.historyFilter;if(!type)return;e.preventDefault();const values=Object.fromEntries(new FormData(e.target));try{C.filterRecords(state[type],values);historyPrefs[type]={...values,page:0};formDirty=false;render()}catch(err){toast(err.message)}});
 document.addEventListener('change',e=>{if(e.target.id==='measureSeries'){selectedMeasure=e.target.value;render()}if(e.target.id==='protocolFilter'){selectedProtocol=e.target.value;delete historyPrefs.doses;render()}});
 document.addEventListener('focusin',e=>{const tip=e.target.closest('[data-tip]');if(tip){const target=tip.closest('.card').querySelector('.chart-tip');if(target)target.textContent=tip.dataset.tip}});

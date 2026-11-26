@@ -17,7 +17,7 @@ test('worker oficial e Teste exigem opt-in local e gate remoto',()=>{
   assert.match(connect,/TickRichCampaign\(window,connection\)/);
   assert.match(connect,/neo_campaign_rich_device_v1/);
 });
-test('worker baixa apenas media autenticada e imagem JPEG de ate 1 MB',()=>{
+test('worker baixa midia autenticada, JPEG de ate 1 MB e originais sob gate',()=>{
   assert.match(connect,/neo-campaign-images/);
   assert.match(connect,/neo-shop-products/);
   assert.match(connect,/storage\/v1\/object\/authenticated/);
@@ -40,7 +40,26 @@ test('editor so libera multi-blocos via gate rico e confirmacao',()=>{
   assert.match(editor,/gates\.whatsapp_rich\?\.ready===true/);
   assert.match(editor,/rich\?await cloud\.campaignRich\('publish'/);
   assert.match(editor,/cloud\.campaignMediaUpload/);
-  assert.match(editor,/if\(testWA&&draft\.blocks\.some/);
+  assert.match(editor,/if\(\(testWA\|\|testApp\|\|channel==='app'&&gates\.app_rich_popup===true\)&&draft\.blocks\.some/);
+  assert.match(editor,/draft\.blocks\.some\(b=>b\.type==='file'\)&&!libraryOriginalReady\(\)/);
+  const snippet=editor.slice(editor.indexOf('  function libraryOriginalReady(){'),editor.indexOf('  function libraryShareActive('));
+  const ready=(channel,testWA,testApp,gates,testGate={})=>new Function('channel','testWA','testApp','gates','testGate',snippet+';return libraryOriginalReady();')(channel,testWA,testApp,gates,testGate);
+  assert.equal(ready('whatsapp',true,false,{whatsapp_rich:{originals_enabled:false}}),false);
+  assert.equal(ready('whatsapp',true,false,{whatsapp_rich:{originals_enabled:true}}),true);
+  assert.equal(ready('whatsapp',false,false,{whatsapp_rich:{originals_enabled:true}}),false);
+  assert.equal(ready('app',false,true,{},{rich_popup:false}),false);
+  assert.equal(ready('app',false,true,{},{rich_popup:true}),true);
+  assert.equal(ready('app',false,false,{app_rich_popup:false}),false);
+  assert.match(editor,/block\.type!=='file'\|\|\(gates\.whatsapp_rich\?\.originals_enabled===true/);
   assert.match(cloud,/async campaignRich\(/);
   assert.match(cloud,/async campaignMediaUpload\(/);
+});
+
+test('originais exigem transporte privado, opt-in e capacidade do cliente',()=>{
+ assert.match(connect,/LoadRichCampaignOriginal/);
+ assert.match(connect,/neo-campaign-originals/);
+ assert.match(connect,/originals_v1=true/);
+ assert.match(connect,/data\.Length>5\*1024\*1024/);
+ assert.match(whatsapp,/DispatchCampaignFileAsync/);
+ assert.match(whatsapp,/action="send_file"/);
 });

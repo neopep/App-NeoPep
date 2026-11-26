@@ -123,23 +123,27 @@ test('permissão nativa de campanhas exige ação, respeita recusa e não ativa 
  assert.deepEqual(requests,['native']);
 });
 
-test('consulta nativa pede localização aproximada e descarta as coordenadas',async()=>{
+test('consulta nativa pede GPS de forma expressa e guarda coordenadas apenas em memoria',async()=>{
  const app=readFileSync('src/app.js','utf8');
  const source=app.slice(app.indexOf('function requestDeviceLocation()'),app.indexOf('function mountPrivacyPreferences()'));
  const native=async geolocation=>vm.runInNewContext(source+'\nrequestDeviceLocation()',{
   navigator:{geolocation},setTimeout,clearTimeout
  });
  let calls=0;
- assert.equal(await native({getCurrentPosition(success,_error,options){
+ const position=await native({getCurrentPosition(success,_error,options){
   calls++;
-  assert.equal(options.enableHighAccuracy,false);
-  assert.equal(options.timeout,8000);
-  success({coords:{get latitude(){throw Error('Coordenadas não devem ser lidas');}}});
- }}),true);
+  assert.equal(options.enableHighAccuracy,true);
+  assert.equal(options.timeout,9000);
+  success({coords:{latitude:-27.15,longitude:-48.5,accuracy:25}});
+ }});
  assert.equal(calls,1);
- assert.equal(await native({getCurrentPosition(_success,error){error({code:1});}}),false);
- assert.equal(await native(undefined),false);
+ assert.equal(position.latitude,-27.15);
+ assert.equal(position.longitude,-48.5);
+ assert.equal(position.accuracy,25);
+ assert.equal(await native({getCurrentPosition(_success,error){error({code:1});}}),null);
+ assert.equal(await native(undefined),null);
 });
+
 
 test('personalização registra decisão versionada, data, revogação e isolamento por conta',async()=>{
  const db=new PGlite();

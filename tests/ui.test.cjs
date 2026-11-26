@@ -625,61 +625,98 @@ test('card da Home mostra somente o último cálculo salvo da conta e abre a cal
 
 
 // Testes de regressão do ajuste #45 integrados ao ciclo de lançamento.
-test('onboarding pede localização somente ao confirmar as preferências, grava somente após permissão e permite revogar',async()=>{
- const account='account-a';
- const calls=[];
- const options={cloud:{user:{id:account},onboardingComplete:true,privacyPreferences:async(choices=null,complete=false)=>{
-  calls.push([choices,complete]);return {...preferences,...choices,pending:!complete&&preferences.pending};
- }}};
- let nativeCalls=0,preferences={pending:true,location:false,statistics:false,usage:false,campaigns:false};
- const a=setup({},options),q=selector=>a.document.querySelector(selector),tick=()=>new Promise(setImmediate);
+test('localizacao do cadastro e opcional; IP fica primeiro e GPS atualiza cidade/estado',async()=>{
+ const account='account-a',calls=[];
+ let preferences={pending:true,location:false,statistics:false,usage:false,campaigns:false};
+ const a=setup({}, {cloud:{user:{id:account},onboardingComplete:true,
+  privacyPreferences:async(choices=null,complete=false)=>{
+   calls.push(['prefs',choices,complete]);
+   preferences={...preferences,...choices,pending:!complete&&preferences.pending};
+   return preferences;
+  },
+  geoControl:async()=>({allowed:true}),
+  captureGeo:async()=>{calls.push(['ip'])},
+  captureDeviceCity:async position=>{calls.push(['gps',position])}
+ }});
+ const q=selector=>a.document.querySelector(selector),tick=()=>new Promise(setImmediate);
  a.ctx.NEO_CONFIG.stagingGeoEnabled=true;
- a.ctx.navigator.geolocation={getCurrentPosition(success){nativeCalls++;success({coords:{get latitude(){throw Error('coordenadas lidas');}}});}};
+ let nativeCalls=0;
+ a.ctx.navigator.geolocation={getCurrentPosition(success){
+  nativeCalls++;success({coords:{latitude:-27.1583,longitude:-48.547,accuracy:19}});
+ }};
  await a.run("mode='cloud';openAccountDestination()");await tick();
- assert.equal(nativeCalls,0);
  const switches=[...q('#privacyPreferences').querySelectorAll('input')];
- assert.ok(switches.every(field=>field.checked));
- assert.ok(calls.every(([choice])=>choice===null));
- q('[data-privacy-select-none]').click();
- assert.ok(switches.every(field=>!field.checked));
+ assert.equal(q('[name=location]').checked,false,'GPS nao pode vir pre-marcado');
+ assert.ok(switches.filter(field=>field.name!=='location').every(field=>field.checked));
+ assert.equal(nativeCalls,0);
  q('[name=location]').checked=true;
  q('#privacyPreferences').dispatchEvent(new a.ctx.Event('submit',{bubbles:true,cancelable:true}));
- await tick();
+ await tick();await tick();
  assert.equal(nativeCalls,1);
- assert.ok(calls.some(([choice,complete])=>choice?.location===true&&complete&&choice.campaigns===false));
+ assert.ok(calls.some(c=>c[0]==='prefs'&&c[1]?.location===true&&c[2]===true));
+ const ip=calls.findIndex(c=>c[0]==='ip'),gps=calls.findIndex(c=>c[0]==='gps');
+ assert.ok(ip>=0&&gps>ip,'coleta IP deve acontecer antes da cidade obtida do GPS');
+ assert.equal(calls[gps][1].latitude,-27.1583);
  preferences={...preferences,pending:false,location:true};
  await a.run("go('permissoes',false)");await tick();
  const field=q('[name=location]');assert.equal(field.checked,true);
  field.checked=false;
  q('#privacyPreferences').dispatchEvent(new a.ctx.Event('submit',{bubbles:true,cancelable:true}));await tick();
- assert.ok(calls.some(([choice])=>choice?.location===false));
+ assert.ok(calls.some(c=>c[0]==='prefs'&&c[1]?.location===false));
  assert.equal(nativeCalls,1);
 });
 
-test('onboarding continua com recusa, ausência da API, timeout e recurso desligado',async()=>{
+test('sem GPS o cadastro preserva a escolha de localizacao por IP e segue normalmente',async()=>{
  for(const outcome of ['denied','unsupported','timeout','disabled']){
   const calls=[];
-  const a=setup({}, {cloud:{user:{id:'current'},onboardingComplete:true,privacyPreferences:async(choices=null,complete=false)=>{
-   calls.push([choices,complete]);return {pending:!complete,location:false,statistics:false,usage:false,campaigns:false};
-  }}});
-  const q=selector=>a.document.querySelector(selector),tick=()=>new Promise(setImmediate);
+  const a=setup({}, {cloud:{user:{id:'current'},onboardingComplete:true,
+   privacyPreferences:async(choices=null,complete=false)=>{
+    calls.push([choices,complete]);return {pending:!complete,location:choices?.location===true,statistics:false,usage:false,campaigns:false};
+   },
+   captureGeo:async()=>{}
+  }});
+  const q=sel=>a.document.querySelector(sel),tick=()=>new Promise(setImmediate);
   a.ctx.NEO_CONFIG.stagingGeoEnabled=outcome!=='disabled';
   let native=0,fallback;
   if(outcome!=='unsupported')a.ctx.navigator.geolocation={getCurrentPosition(_success,error){native++;if(outcome==='denied')error({code:1});}};
-  a.ctx.setTimeout=(cb,ms)=>{if(ms===8000)fallback=cb;return 1;};
+  a.ctx.setTimeout=(cb,ms)=>{if(ms===10000)fallback=cb;return 1;};
   await a.run("mode='cloud';openAccountDestination()");await tick();
+  if(outcome!=='disabled')q('[name=location]').checked=true;
   const submit=new a.ctx.Event('submit',{bubbles:true,cancelable:true});
   if(outcome==='disabled')Object.defineProperty(submit,'submitter',{value:q('[name=skip]')});
   q('#privacyPreferences').dispatchEvent(submit);
   if(outcome==='timeout')fallback();
-  await tick();
+  await tick();await tick();
   assert.equal(native,['denied','timeout'].includes(outcome)?1:0);
   if(outcome==='disabled')assert.ok(calls.every(([choice])=>choice===null));
+  else assert.ok(calls.some(([choice])=>choice?.location===true),'IP continua permitido sem GPS');
   assert.equal(a.run('page'),'inicio',outcome);
-  assert.equal(calls.some(([choice])=>choice?.location===true),false);
  }
 });
 
+test('GPS autorizado por uma conta nao e aplicado a outra sessao',async()=>{
+ const writes=[],a=setup({}, {cloud:{user:{id:'account-a'},onboardingComplete:true,
+  privacyPreferences:async choices=>{
+   if(choices)writes.push(choices);
+   return {pending:true,location:false,statistics:false,usage:false,campaigns:false};
+  }
+ }});
+ const tick=()=>new Promise(setImmediate);
+ a.ctx.NEO_CONFIG.stagingGeoEnabled=true;
+ let grant;
+ a.ctx.navigator.geolocation={getCurrentPosition(success){grant=success;}};
+ await a.run("mode='cloud';openAccountDestination()");await tick();
+ a.document.querySelector('#privacyPreferences [name=location]').checked=true;
+ a.document.querySelector('#privacyPreferences').dispatchEvent(new a.ctx.Event('submit',{bubbles:true,cancelable:true}));
+ a.ctx.NeoCloud.user={id:'account-b'};
+ a.run('render()');await tick();
+ grant({coords:{latitude:-27.1,longitude:-48.6,accuracy:25}});await tick();
+ assert.deepEqual(writes,[]);
+ assert.equal(a.document.querySelector('#privacyPreferences [name=location]').checked,false);
+});
+
+
+// Testes de regressão do ajuste #46 integrados ao ciclo de lançamento.
 test('autorização nativa iniciada por outra conta não é aplicada à sessão atual',async()=>{
  const writes=[];
  const a=setup({}, {cloud:{user:{id:'account-a'},onboardingComplete:true,privacyPreferences:async choices=>{
@@ -687,18 +724,21 @@ test('autorização nativa iniciada por outra conta não é aplicada à sessão 
   return {pending:true,location:false,statistics:false,usage:false,campaigns:false};
  }}});
  const tick=()=>new Promise(setImmediate);
- a.ctx.NEO_CONFIG.stagingGeoEnabled=true;
+ a.ctx.NEO_CONFIG.supabaseUrl='https://cpslafpzjtbpmoxxysaa.supabase.co';
+ a.ctx.NEO_CONFIG.productionGeoEnabled=true;
  let grant;
  a.ctx.navigator.geolocation={getCurrentPosition(success){grant=success;}};
  await a.run("mode='cloud';openAccountDestination()");await tick();
+ a.document.querySelector('#privacyPreferences [name=location]').checked=true;
  a.document.querySelector('#privacyPreferences').dispatchEvent(new a.ctx.Event('submit',{bubbles:true,cancelable:true}));
  a.ctx.NeoCloud.user={id:'account-b'};
  a.run('render()');await tick();
- grant({coords:{latitude:0}});await tick();
+ assert.equal(typeof grant,'function');
+ grant({coords:{latitude:-27.1,longitude:-48.6,accuracy:25}});await tick();
  assert.deepEqual(writes,[]);
  assert.equal(a.data.has('neo-location-onboarding-v1:account-a'),false);
  assert.equal(a.data.has('neo-location-onboarding-v1:account-b'),false);
- assert.equal(a.document.querySelector('#privacyPreferences [name=location]').checked,true);
+ assert.equal(a.document.querySelector('#privacyPreferences [name=location]').checked,false);
 });
 
 

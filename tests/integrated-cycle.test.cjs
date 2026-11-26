@@ -7,7 +7,8 @@ const read=path=>fs.readFileSync(path,'utf8');
 
 test('consolidação preserva onboarding localização + personalização sem pular as etapas',()=>{
  const app=read('src/app.js');
- assert.match(app,/const locationCheck=choices.location===true\?requestDeviceLocation\(\):null/);
+ assert.match(app,/const locationCheck=!skipping&&form\.querySelector\('\[name=location\]'\)\?\.checked===true&&locationObservationEnabled\(\)\?requestDeviceLocation\(\):null/);
+ assert.match(app,/Cloud\.captureDeviceCity/);
  assert.match(app,/personalizationPanel\(initial\)/);
  assert.match(app,/await showPersonalization\(\)/);
  assert.match(app,/function mountPersonalization\(/);

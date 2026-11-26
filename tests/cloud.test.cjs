@@ -1,6 +1,6 @@
 // Testes de contrato com transporte simulado. NÃO validam provedores ou credenciais reais.
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),vm=require('vm'),C=require('../dist/core.js');
-function adapter({hasSession=true,putRows=[{revision:2}],authError=null}={}){const calls=[],u={id:'00000000-0000-4000-8000-000000000001',email:'test@example.invalid'},chain={update(v){calls.push(['update',v]);return this},eq(){return this},select(){return Promise.resolve({data:putRows,error:null})}};const sdk={auth:{onAuthStateChange(f){calls.push(['listener',f])},getSession:async()=>({data:{session:hasSession?{user:u}:null},error:null}),getUser:async()=>({data:{user:u},error:null}),signInWithOAuth:async v=>(calls.push(['oauth',v]),{data:{},error:authError}),signInWithPassword:async v=>(calls.push(['password',v]),{data:{user:u},error:authError}),signUp:async v=>(calls.push(['signup',v]),{data:{user:u},error:authError}),resetPasswordForEmail:async(e,o)=>(calls.push(['reset',e,o]),{data:{},error:authError}),updateUser:async v=>({data:{user:u},error:null}),signOut:async v=>(calls.push(['signout',v]),{error:null})},from:()=>chain};const ctx={window:null,NeoCore:C,NEO_CONFIG:{supabaseUrl:'https://project-test.supabase.co',supabasePublishableKey:'sb_publishable_test_only',providers:{google:true,apple:true,email:true},publicRegistration:true},sessionStorage:{},location:{href:'https://app.test/neo/?code=example#perfil'},URL,setTimeout:fn=>fn(),createClient:(url,key,options)=>(calls.push(['create',url,key,options]),sdk)};ctx.window=ctx;vm.createContext(ctx);const src=fs.readFileSync('src/cloud.js','utf8').replace("import { createClient } from '@supabase/supabase-js';",'');vm.runInContext(src,ctx);return {api:ctx.NeoCloud,calls,ctx,sdk}}
+function adapter({hasSession=true,putRows=[{revision:2}],authError=null}={}){const calls=[],u={id:'00000000-0000-4000-8000-000000000001',email:'test@example.invalid'},chain={update(v){calls.push(['update',v]);return this},eq(){return this},select(){return Promise.resolve({data:putRows,error:null})}};const sdk={auth:{onAuthStateChange(f){calls.push(['listener',f])},getSession:async()=>({data:{session:hasSession?{user:u}:null},error:null}),getUser:async()=>({data:{user:u},error:null}),signInWithOAuth:async v=>(calls.push(['oauth',v]),{data:{},error:authError}),signInWithPassword:async v=>(calls.push(['password',v]),{data:{user:u},error:authError}),signUp:async v=>(calls.push(['signup',v]),{data:{user:u},error:authError}),resetPasswordForEmail:async(e,o)=>(calls.push(['reset',e,o]),{data:{},error:authError}),updateUser:async v=>({data:{user:u},error:null}),signOut:async v=>(calls.push(['signout',v]),{error:null})},from:()=>chain};const ctx={window:null,NeoCore:C,NEO_CONFIG:{supabaseUrl:'https://project-test.supabase.co',supabasePublishableKey:'sb_publishable_test_only',providers:{google:true,apple:true,email:true},publicRegistration:true},sessionStorage:{},location:{href:'https://app.test/neo/?code=example#perfil'},URL,setTimeout:fn=>fn(),createClient:(url,key,options)=>(calls.push(['create',url,key,options]),sdk)};ctx.window=ctx;vm.createContext(ctx);const src=fs.readFileSync('src/cloud.js','utf8').replace("import { createClient } from '@supabase/supabase-js';",'').replace("import { uploadLibraryTus, LIBRARY_CHUNK } from './library-upload.mjs';",'');vm.runInContext(src,ctx);return {api:ctx.NeoCloud,calls,ctx,sdk}}
 test('contrato SDK: PKCE, armazenamento adaptável de sessão e redirects exatos',async()=>{const a=adapter();await a.api.init(()=>{});const options=a.calls.find(c=>c[0]==='create')[3];assert.equal(options.auth.flowType,'pkce');assert.equal(typeof options.auth.storage.getItem,'function');assert.equal(a.api.remember,true);await a.api.oauth('google');const r=a.calls.find(c=>c[0]==='oauth')[1];assert.equal(r.provider,'google');assert.equal(r.options.redirectTo,'https://app.test/neo/');await a.api.oauth('apple');assert.equal(a.calls.filter(c=>c[0]==='oauth')[1][1].options.scopes,'name email')});
 test('contrato e-mail: cadastro, senha, recuperação e logout usam SDK oficial',async()=>{const a=adapter();await a.api.init(()=>{});await a.api.email('signup','test@example.invalid','long-password','Teste');await a.api.email('login','test@example.invalid','long-password');await a.api.email('reset','test@example.invalid');assert.equal(a.calls.find(c=>c[0]==='signup')[1].options.data.full_name,'Teste');assert.equal(a.calls.find(c=>c[0]==='reset')[2].redirectTo,'https://app.test/neo/');await a.api.logout();assert.equal(a.api.user,null);assert.equal(a.calls.find(c=>c[0]==='signout')[1].scope,'local')});
 test('erro de autenticação não retorna sucesso e não cria usuário',async()=>{const a=adapter({hasSession:false,authError:{message:'Invalid credentials'}});assert.equal(await a.api.init(()=>{}),null);await assert.rejects(a.api.email('login','test@example.invalid','bad'),/Invalid credentials/);assert.equal(a.api.user,null)});
@@ -64,4 +64,33 @@ test('peso inicial do cadastro e enviado uma unica vez, com data local, na RPC t
  assert.equal(calls[0].payload.p_health,true);
  assert.equal(calls[0].payload.p_terms,true);
  assert.equal(profile.initialRecordDate,undefined,'o campo transitorio nao deve alterar o perfil do formulario');
+});
+
+test('GPS converte posicao no navegador em cidade/estado sem enviar coordenadas ao Supabase',async()=>{
+ const a=adapter(),requests=[];
+ a.ctx.AbortController=AbortController;
+ a.ctx.clearTimeout=()=>{};a.ctx.setTimeout=()=>1;
+ a.ctx.fetch=async(url)=>{
+  requests.push(['geocoder',String(url)]);
+  return {ok:true,json:async()=>({lookupSource:'coordinates',city:'Itapema',principalSubdivision:'Santa Catarina',countryCode:'BR'})};
+ };
+ a.sdk.rpc=async(name,params)=>{requests.push(['rpc',name,params]);return {data:true,error:null}};
+ await a.api.init(()=>{});
+ assert.equal(await a.api.captureDeviceCity({latitude:-27.1,longitude:-48.6,accuracy:10}),true);
+ assert.match(requests[0][1],/^https:\/\/api\.bigdatacloud\.net\/data\/reverse-geocode-client\?/);
+ assert.equal(requests[1][1],'neo_geo_device_city');
+ assert.deepEqual(JSON.parse(JSON.stringify(requests[1][2])),{p_country:'BR',p_region:'Santa Catarina',p_city:'Itapema'});
+ assert.equal(JSON.stringify(requests[1]).includes('-27.1'),false);
+ assert.equal(JSON.stringify(requests[1]).includes('-48.6'),false);
+});
+test('geocodificador IP ou coordenadas invalidas nao substituem municipio por GPS',async()=>{
+ const a=adapter(),requests=[];
+ a.ctx.AbortController=AbortController;
+ a.ctx.clearTimeout=()=>{};a.ctx.setTimeout=()=>1;
+ a.ctx.fetch=async()=>({ok:true,json:async()=>({lookupSource:'ipGeolocation',city:'Florianópolis',principalSubdivision:'Santa Catarina',countryCode:'BR'})});
+ a.sdk.rpc=async(name,payload)=>{requests.push([name,payload]);return {data:true,error:null}};
+ await a.api.init(()=>{});
+ assert.equal(await a.api.captureDeviceCity({latitude:-27.1,longitude:-48.6}),null);
+ assert.equal(await a.api.captureDeviceCity({latitude:999,longitude:0}),null);
+ assert.equal(requests.length,0);
 });

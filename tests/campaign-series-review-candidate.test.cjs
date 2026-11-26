@@ -1,0 +1,51 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const read=p=>fs.readFileSync(p,'utf8');
+const dir='release/pacote-final-20261125/';
+test('App series replaces and cancels future occurrences only, using existing cancellation route',()=>{
+ const sql=read(dir+'campaign_app_repeat_manage_candidate.sql');
+ assert.match(sql,/occ->>'date'<=now_wall/);
+ assert.match(sql,/b\.starts_at<=now\(\)/);
+ assert.match(sql,/campaign_app_central\('cancel'/);
+ assert.match(sql,/campaign_app_draft_repeat\('repeat_drafts'/);
+ assert.match(sql,/app_series_cancel_unconfirmed/);
+ assert.match(sql,/revoke all on function neo_private\.campaign_app_repeat_manage/);
+ const ui=read('dist/admin/campaign-central.js');
+ assert.match(ui,/app_repeat_edit/);assert.match(ui,/app_repeat_cancel/);
+ assert.match(ui,/replacing\?'repeat_replace':'repeat_drafts'/);
+});
+test('Independent WhatsApp review is optional, holds claim and start, and does not transfer ownership',()=>{
+ const sql=read(dir+'campaign_wa_independent_review_candidate.sql');
+ assert.match(sql,/review_independent_admin_required/);
+ assert.match(sql,/reviewed_by<>owner_id/);
+ assert.match(sql,/review_requires_saved_text_links/);
+ assert.match(sql,/review_destinations_unavailable/);
+ assert.match(sql,/campaign_wa_review_allows\(job\.batch_id\)/);
+ assert.match(sql,/campaign_wa_review_allows\(m\.batch_id\)/);
+ assert.match(sql,/r\.state<>'approved'/);
+ assert.match(sql,/revoke all on neo_private\.campaign_wa_review/);
+ assert.doesNotMatch(sql,/update neo_private\.connect_wa_connections/i);
+ assert.match(read('dist/admin/admin-whatsapp.js'),/review_approve/);
+ assert.match(read('dist/admin/campaign-central.js'),/request_review/);
+});
+
+
+test('Review approval fails closed when content is unavailable or account changed',()=>{
+ const sql=read(dir+'campaign_wa_independent_review_candidate.sql');
+ assert.match(sql,/review_content_unavailable/);
+ assert.match(sql,/e\.revision=b\.revision/);
+ const ui=read('dist/admin/admin-whatsapp.js');
+ const snippet=ui.slice(ui.indexOf(' function reviewCanDecide(row)'),ui.indexOf(' async function refreshReviews()'));
+ const cloud={user:{id:'reviewer'}},root={isConnected:true};
+ let reviewAccount='reviewer';
+ const guard=new Function('cloud','root','reviewAccount',snippet+';return {reviewCanApprove,reviewCanDecide};')(cloud,root,reviewAccount);
+ const row={can_review:true,own:false,state:'pending',groups:['grupo'],blocks:[{type:'text',text:'conteúdo'}]};
+ assert.equal(guard.reviewCanApprove(row),true);
+ for(const blocks of [[],[{type:'file',text:'arquivo'}],[{type:'image'}],[{type:'link',url:'javascript:alert(1)'}]])assert.equal(guard.reviewCanApprove({...row,blocks}),false);
+ assert.equal(guard.reviewCanApprove({...row,groups:[]}),false);
+ assert.equal(guard.reviewCanApprove({...row,own:true}),false);
+ cloud.user.id='different';assert.equal(guard.reviewCanApprove(row),false);
+ assert.match(ui,/reviewRows=\[\];reviewAccount=null;holder.hidden=true/);
+});

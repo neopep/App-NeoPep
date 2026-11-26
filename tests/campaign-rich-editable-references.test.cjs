@@ -19,7 +19,8 @@ test('product/library/community blocks can be edited as captions in the same bub
  assert.match(editor,/edited\.text=text/);
  assert.match(editor,/Legenda adicional:/);
  assert.match(editor,/richMode\(\)/);
- assert.match(editor,/\['text','image','link','product','document','community'\]/);
+ assert.match(editor,/\['text','image','link','product','document','community','file'\]/);
+ assert.match(editor,/block\.type!=='file'\|\|\(gates\.whatsapp_rich\?\.originals_enabled===true/);
 });
 
 test('product preserves authoritative name, bold price, and canonical shop link',()=>{
@@ -42,7 +43,7 @@ test('library and community deep links never disclose private signed media URLs'
 });
 
 test('admin loads new iPhone caption editor, while no send is added to the migration',()=>{
- assert.match(html,/campaign-editor\.js\?v=campanhas-capas-2/);
+ assert.match(html,/campaign-editor\.js\?v=campanhas-central-19/);
  const sql=migration.replace(/^--[^\n]*\n/gm,'').trim();
  assert.match(sql,/^CREATE OR REPLACE FUNCTION public\.neo_campaign_rich_admin_v1/);
  assert.match(sql,/\$function\$\s*;$/);
