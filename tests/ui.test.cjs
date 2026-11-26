@@ -1,5 +1,10 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),{parseHTML}=require('linkedom'),fs=require('fs'),vm=require('vm'),C=require('../dist/core.js');
-function setup(seed={},options={}){const {document,Event}=parseHTML(fs.readFileSync('dist/index.html','utf8'));const data=new Map(Object.entries(seed)),writes=[];let counter=0;let darkSystem=options.darkSystem??false;const systemEvents=[];const ctx={document,console,Event,localStorage:{getItem:k=>data.get(k)??null,setItem:(k,v)=>{if(options.quota)throw Error('quota');data.set(k,v);writes.push(k)},removeItem:k=>data.delete(k)},location:{hash:'',href:options.url||'https://example.test/',protocol:'https:'},history:{replaceState(a,b,hash){ctx.location.hash=hash}},navigator:{onLine:true},matchMedia:query=>({get matches(){return query.includes('color-scheme')&&darkSystem},addEventListener(type,fn){if(query.includes('color-scheme')&&type==='change')systemEvents.push(fn)}}),setInterval(){},setTimeout(){},clearTimeout(){},addEventListener(){},scrollTo(){},confirm:()=>true,prompt:()=>null,URL,Blob,Date:options.date||Date,Number,String,JSON,FormData:class{},crypto:{randomUUID:()=>String(++counter)},NeoCore:C,NeoCloud:{configured:false,init:async()=>null,...options.cloud},NEO_CONFIG:{providers:{google:false,apple:false,email:false}},indexedDB:null};ctx.window=ctx;document.querySelector('#dialog').showModal=function(){this.setAttribute('open','')};document.querySelector('#dialog').close=function(){this.removeAttribute('open');this.dispatchEvent(new Event('close'))};vm.createContext(ctx);vm.runInContext(fs.readFileSync('dist/appearance.js','utf8'),ctx);vm.runInContext(fs.readFileSync('dist/app.js','utf8'),ctx);return {ctx,document,data,writes,setSystem(dark){darkSystem=dark;for(const fn of systemEvents)fn({matches:dark});},run:code=>vm.runInContext(code,ctx)}}
+function setup(seed={},options={}){const {document,Event}=parseHTML(fs.readFileSync('dist/index.html','utf8'));const selectPrototype=Object.getPrototypeOf(document.createElement('select'));
+ const selectValue=Object.getOwnPropertyDescriptor(selectPrototype,'value');
+ if(selectValue?.get&&!selectValue.set)Object.defineProperty(selectPrototype,'value',{
+  ...selectValue,set(value){for(const option of this.options)option.toggleAttribute('selected',option.value===String(value));}
+ });
+ const data=new Map(Object.entries(seed)),writes=[];let counter=0;let darkSystem=options.darkSystem??false;const systemEvents=[];const ctx={document,console,Event,localStorage:{getItem:k=>data.get(k)??null,setItem:(k,v)=>{if(options.quota)throw Error('quota');data.set(k,v);writes.push(k)},removeItem:k=>data.delete(k)},location:{hash:'',href:options.url||'https://example.test/',protocol:'https:'},history:{replaceState(a,b,hash){ctx.location.hash=hash}},navigator:{onLine:true},matchMedia:query=>({get matches(){return query.includes('color-scheme')&&darkSystem},addEventListener(type,fn){if(query.includes('color-scheme')&&type==='change')systemEvents.push(fn)}}),setInterval(){},setTimeout(){},clearTimeout(){},addEventListener(){},scrollTo(){},confirm:()=>true,prompt:()=>null,URL,Blob,Date:options.date||Date,Number,String,JSON,FormData:class{},crypto:{randomUUID:()=>String(++counter)},NeoCore:C,NeoCloud:{configured:false,init:async()=>null,...options.cloud},NEO_CONFIG:{providers:{google:false,apple:false,email:false}},indexedDB:null};ctx.window=ctx;document.querySelector('#dialog').showModal=function(){this.setAttribute('open','')};document.querySelector('#dialog').close=function(){this.removeAttribute('open');this.dispatchEvent(new Event('close'))};vm.createContext(ctx);vm.runInContext(fs.readFileSync('dist/appearance.js','utf8'),ctx);vm.runInContext(fs.readFileSync('dist/app.js','utf8'),ctx);return {ctx,document,data,writes,setSystem(dark){darkSystem=dark;for(const fn of systemEvents)fn({matches:dark});},run:code=>vm.runInContext(code,ctx)}}
 test('todos os módulos renderizam em DOM e branding não contém Elo fora da migração',async()=>{const a=setup();for(const route of ['inicio','evolucao','registros','diario','aplicacoes','protocolos','calculadora','relatorios','calendario','lembretes','perfil','bemvindo','privacidade','fotos','onboarding','termos']){await a.run(`go('${route}',false)`);assert.ok(a.document.querySelector('#content').textContent.length>50,route)}assert.match(a.document.title,/NeoPep/);assert.equal(a.document.querySelectorAll('#nav button').length,5);assert.equal(a.writes.length,0)});
 test('prévia não migra nem grava elo-v1 automaticamente',()=>{const original=JSON.stringify({weights:[{id:1,date:C.today(),value:81}],measures:[],doses:[],settings:{}});const a=setup({'elo-v1':original});assert.equal(a.data.get('elo-v1'),original);assert.equal(a.writes.length,0);assert.equal(a.run('state.weights.length'),0)});
 test('CRUD local persiste e volta após nova abertura sem sobrescrever Elo',async()=>{const original='original',a=setup({'elo-v1':original});await a.run(`putRecord('weights',{id:'x',date:C.today(),value:80,note:''})`);assert.equal(a.writes.at(-1),'neo-v2');assert.equal(a.data.get('elo-v1'),original);assert.equal(a.run('state.weights.length'),1);const b=setup(Object.fromEntries(a.data));assert.equal(b.run('state.weights[0].value'),80);await a.run(`putRecord('weights',{id:'y',date:C.today(),value:79,note:''})`);assert.equal(a.run('state.weights.length'),1);assert.equal(a.run('state.weights[0].id'),'x');assert.equal(a.run('state.weights[0].value'),79)});
@@ -213,23 +218,80 @@ test('formulário do lembrete permite associar aplicação sem depender do títu
  assert.equal(a.document.querySelector('[name=title]').value,'Meu cuidado semanal');
 });
 
-test('orientação de lembretes vem depois das pendências e salva pular na conta',async()=>{
+test('lembretes padrao: Agora nao continua o onboarding sem ativar ou repetir a tela',async()=>{
  const a=setup();a.run("mode='cloud';Cloud.user={id:'intro-skip'};Cloud.onboardingComplete=true;arrivalReady=true;page='inicio';state.profile.consent=true;state.profile.tracking.measures=false;state.profile.tracking.applications=false;window.savedIntro=null;Cloud.saveProfile=async(p,settings)=>{window.savedIntro={...state,profile:p,settings}};Cloud.load=async()=>window.savedIntro;checkDailyRecords()");
- assert.ok(a.document.querySelector('[data-daily-later]'));assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
- a.document.querySelector('[data-daily-later]').click();a.run('checkDailyRecords()');
- assert.match(a.document.querySelector('.reminder-setup-prompt').textContent,/sininho no topo/);
- a.document.querySelector('[data-reminder-setup=skip]').click();
- for(let i=0;i<12;i++)await Promise.resolve();
- assert.equal(a.run('savedIntro.settings.reminderIntroSeen'),true);assert.equal(a.run('savedIntro.settings.reminderSetupPromptDate'),C.today());
+ assert.ok(!a.document.querySelector('[data-daily-later]'));
+ const prompt=a.document.querySelector('.reminder-setup-prompt');
+ assert.ok(prompt);assert.match(prompt.textContent,/Configurações de lembretes padrão/);
+ assert.match(prompt.textContent,/Perfil → Lembretes/);
+ prompt.querySelector('[data-reminder-setup=skip]').click();
+ for(let i=0;i<16;i++)await Promise.resolve();
+ assert.equal(a.run('savedIntro.settings.reminderIntroSeen'),true);
+ assert.equal(a.run('savedIntro.settings.enabled'),false);
+ assert.equal(a.run('savedIntro.settings.reminderScheduleConfigured'),false);
+ assert.equal(a.run('page'),'inicio');
  assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
- a.run('resetDailyVisit();checkDailyRecords()');assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
+ a.run('checkDailyRecords()');
+ assert.match(a.document.querySelector('.daily-record-item h3').textContent,/Peso/);
+ a.run('resetDailyVisit();checkDailyRecords()');
+ assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
+ assert.equal(a.run("NeoCore.shouldOfferReminderSetup(state,'2026-12-01')"),false);
 });
 
-test('orientação inicial abre configuração pelo mesmo destino do sininho',async()=>{
- const a=setup();a.run("mode='cloud';Cloud.user={id:'intro-configure'};Cloud.onboardingComplete=true;arrivalReady=true;page='inicio';state.profile.consent=true;state.profile.tracking.weight=false;state.profile.tracking.measures=false;state.profile.tracking.applications=false;window.savedIntro=null;Cloud.saveProfile=async(p,settings)=>{window.savedIntro={...state,profile:p,settings}};Cloud.load=async()=>window.savedIntro;checkDailyRecords()");
- a.document.querySelector('[data-reminder-setup=configure]').click();for(let i=0;i<12;i++)await Promise.resolve();
- assert.equal(a.run('page'),'lembretes');assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
- assert.equal(a.document.querySelector('#bell').dataset.go,'lembretes');
+test('primeiro peso gravado no onboarding nao pede novamente o peso de hoje',()=>{
+ const a=setup();
+ a.run("mode='cloud';Cloud.user={id:'first-weight'};Cloud.onboardingComplete=true;arrivalReady=true;page='inicio';state.profile.consent=true;state.profile.initialWeight=82.35;state.settings.reminderIntroSeen=true;state.settings.reminderScheduleConfigured=true;state.profile.tracking.measures=false;state.profile.tracking.applications=false;state.weights=[{id:'onboarding-initial',date:NeoCore.today(),value:82.35}];checkDailyRecords()");
+ assert.equal(a.document.querySelector('.daily-record-prompt'),null);
+ assert.equal(a.run('NeoCore.metrics(state).current'),82.35);
+ assert.equal(a.run('NeoCore.metrics(state).initial'),82.35);
+ assert.equal(a.run('state.weights.length'),1);
+ assert.equal(a.run('NeoCore.pendingDailyRecords(state).some(x=>x.kind==="weight")'),false);
+});
+
+test('registro de peso e apresentado no fim, depois de lembretes e medidas',async()=>{
+ const a=setup();
+ a.run("mode='cloud';Cloud.user={id:'weight-last'};Cloud.onboardingComplete=true;arrivalReady=true;page='inicio';state.profile.consent=true;state.settings.reminderIntroSeen=true;state.settings.reminderScheduleConfigured=true;state.settings.measureDay=String(new Date(NeoCore.today()+'T12:00').getDay());state.profile.tracking.applications=false;checkDailyRecords()");
+ const first=a.document.querySelector('.daily-record-prompt');
+ assert.ok(first);
+ assert.deepEqual([...first.querySelectorAll('.daily-record-item h3')].map(x=>x.textContent),['Medidas']);
+ assert.equal(first.querySelector('[data-daily-register=weight]'),null);
+ first.querySelector('[data-daily-later]').click();a.run('checkDailyRecords()');
+ const last=a.document.querySelector('.daily-record-prompt');
+ assert.ok(last);
+ assert.deepEqual([...last.querySelectorAll('.daily-record-item h3')].map(x=>x.textContent),['Peso']);
+ last.querySelector('[data-daily-later]').click();a.run('checkDailyRecords()');
+ assert.equal(a.document.querySelector('.daily-record-prompt'),null);
+});
+
+test('lembretes padrao: OK ativa horarios existentes sem navegar para configuracoes',async()=>{
+ const a=setup();a.run("mode='cloud';Cloud.user={id:'intro-accept'};Cloud.onboardingComplete=true;arrivalReady=true;page='inicio';state.profile.consent=true;state.profile.tracking.weight=false;state.profile.tracking.measures=false;state.profile.tracking.applications=false;window.savedIntro=null;Cloud.saveProfile=async(p,settings)=>{window.savedIntro={...state,profile:p,settings}};Cloud.load=async()=>window.savedIntro;checkDailyRecords()");
+ const prompt=a.document.querySelector('.reminder-setup-prompt');
+ assert.ok(prompt);assert.match(prompt.textContent,/08:00/);assert.match(prompt.textContent,/09:00/);
+ assert.match(prompt.textContent,/segundas-feiras/);
+ assert.equal(a.document.querySelector('[data-reminder-setup=configure]'),null);
+ prompt.querySelector('[data-reminder-setup=accept]').click();
+ for(let i=0;i<16;i++)await Promise.resolve();
+ assert.equal(a.run('savedIntro.settings.weightTime'),'08:00');
+ assert.equal(a.run('savedIntro.settings.measureTime'),'09:00');
+ assert.equal(a.run('savedIntro.settings.measureDay'),'1');
+ assert.equal(a.run('savedIntro.settings.enabled'),true);
+ assert.equal(a.run('savedIntro.settings.reminderIntroSeen'),true);
+ assert.equal(a.run('savedIntro.settings.reminderScheduleConfigured'),true);
+ assert.equal(a.run('page'),'inicio');
+ assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
+ a.run("Cloud.hasConsent=()=>true");
+ assert.match(a.run('profilePage()'),/data-go="lembretes"/);
+});
+
+test('falha de rede ao escolher lembretes nao impede continuar a sequencia na sessao',async()=>{
+ const a=setup();a.run("mode='cloud';Cloud.user={id:'intro-network'};Cloud.onboardingComplete=true;arrivalReady=true;page='inicio';state.profile.consent=true;state.profile.tracking.weight=false;state.profile.tracking.measures=false;state.profile.tracking.applications=false;Cloud.saveProfile=async()=>{throw Error('offline')};checkDailyRecords()");
+ assert.ok(a.document.querySelector('.reminder-setup-prompt'));
+ a.document.querySelector('[data-reminder-setup=skip]').click();
+ for(let i=0;i<12;i++)await Promise.resolve();
+ assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
+ assert.equal(a.run('page'),'inicio');
+ a.run('checkDailyRecords()');
+ assert.ok(!a.document.querySelector('.reminder-setup-prompt'));
 });
 
 test('recuperação consome CAPTCHA, explica expiração e impede reenvio logo após sucesso',async()=>{
@@ -463,7 +525,7 @@ test('dosagens preservam precisão, múltiplos itens, seleção, renomeação e 
  put('10','1','2','Outro');assert.equal(q('#calc-saved-list').children.length,1);
  const reopened=setup(Object.fromEntries(a.data));reopened.ctx.NeoCloud.user={id:owner};
  reopened.run("mode='cloud';page='calculadora';render()");
- assert.equal(reopened.document.querySelector('#dose').value,'4.275');
+ assert.equal(reopened.document.querySelector('#dose').value,'2.5');
  reopened.document.querySelector('[data-saved-id="'+first.id+'"] [data-calc-saved-action=remove]').click();
  assert.equal(reopened.document.querySelectorAll('.calc-saved-row').length,1);
 });
@@ -550,7 +612,7 @@ test('card da Home mostra somente o último cálculo salvo da conta e abre a cal
  home();
  assert.match(card().textContent,/Seringa de 1 mL/);
  await open();
- assert.equal(a.run('calcCapacityValue'),.3,'restauração continua respeitando a seleção existente');
+ assert.equal(a.run('calcCapacityValue'),1,'a abertura restaura a última dosagem salva');
  q('#calc-saved-list article:first-child [data-calc-saved-action=remove]').click();
  home();assert.match(card().textContent,/Seringa de 0,5 mL/);
  a.ctx.NeoCloud.user={id:other};home();
@@ -677,4 +739,24 @@ test('personalização é independente, opcional e revisável por conta',async()
  assert.equal(decisions.has('c'),false);
  assert.equal(q('#privacyPreferences').hidden,false);
  assert.match(q('[data-privacy-notice]').textContent,/Não foi possível confirmar/);
+});
+
+test('exportação de comparação aplica a paleta efetiva à curva e à escala',()=>{
+ const a=setup();
+ const commands=[];
+ a.ctx.graph={set strokeStyle(value){commands.push(value)},set fillStyle(value){commands.push(value)},
+  createLinearGradient(){return {addColorStop(index,value){commands.push(value)}}},
+  beginPath(){},moveTo(){},lineTo(){},closePath(){},stroke(){},fill(){},fillText(){},save(){},restore(){},setLineDash(){},arc(){}};
+ for(const [theme,background,title,accent,grid] of [
+  ['light','#F4F5F6','#142743','#223F63','#A8B4CC'],
+  ['dark','#12100e','#dfbd78','#dfbd78','#524233']
+ ]){
+  commands.length=0;
+  const palette=a.run(`comparisonExportPalette('${theme}')`);
+  assert.equal(palette.background,background);
+  assert.equal(palette.title,title);
+  a.run(`drawComparisonWeight(graph,{rows:[{date:'2026-01-01',value:80},{date:'2026-01-10',value:78}],reference:77,units:'kg'},'sans-serif',1300,comparisonExportPalette('${theme}'))`);
+  assert.ok(commands.includes(accent));
+  assert.ok(commands.includes(grid));
+ }
 });
