@@ -8,7 +8,7 @@ begin
  if actor is null or not coalesce(neo_private.campaign_admin_allowed(),false)
  or coalesce(auth.jwt()->>'iss','')<>'https://cpslafpzjtbpmoxxysaa.supabase.co/auth/v1'
  then raise exception 'campaign_queue_admin_required' using errcode='42501';end if;
- return coalesce((select jsonb_agg(to_jsonb(q) order by q.due_at desc,q.id) from (
+ return coalesce((select jsonb_agg(to_jsonb(q) order by q.due_at desc nulls last,q.id) from (
   select 'connect'::text as channel,b.id,coalesce(v.draft->>'title','Publicação') as title,b.due_at,
     b.owner_id=actor as own,
     case when bool_or(m.state='uncertain') then 'uncertain'
@@ -36,7 +36,8 @@ begin
   from neo_private.campaign_wa_publications p join neo_private.campaigns c on c.id=p.campaign_id
   left join neo_private.campaign_wa_sync_targets t on t.group_id=p.group_id
   where coalesce(p.dispatch_due,p.scheduled_at)>=now()-interval '30 days'
-  order by due_at desc,id limit 200
+    or (p.scheduled_at is null and p.dispatch_due is null and p.status='pending')
+  order by due_at desc nulls last,id limit 200
  ) q),'[]'::jsonb);
 end;$queue$;
 revoke all on function neo_private.campaign_shared_queue(jsonb) from public,anon,authenticated;
