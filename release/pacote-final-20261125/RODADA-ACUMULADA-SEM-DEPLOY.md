@@ -51,3 +51,12 @@ Após a PR #81, foi feita varredura cruzada do CSS e das telas de Comunidade (in
 | Novo cadastro (admin) | `.admin-signup-badge` | Já coberto |
 
 Paleta: fundo `#142743`, aro/borda `#223F63`, número `#FFFFFF`, exclusivamente em `[data-theme=light]`. Não incluir `.status-pill` ou selos promocionais, que não são contadores de mensagens. Testes agora verificam tanto os seletores CSS quanto as classes presentes nas telas reais. **A correção está apenas no código; nenhuma publicação na Vercel ou em Produção foi efetuada.**
+
+## Continuação — ajustes após bloqueio do GPS
+- GPS cidade/estado: manter candidata atual, sem publicar enquanto o limite da Vercel estiver ativo.
+- Ajuste 01: aviso de novo cadastro no Admin acompanha tema claro, preservando tema escuro.
+- Ajuste 02: novo card Meu frasco no Diário de aplicações, antes do histórico. Adicionar frasco abre tela dedicada reaproveitando campos, SVG e resultado da calculadora. Salvar retorna ao diário. Um frasco ativo; saldo por registros efetivamente vinculados, histórico preservado, aviso ao esvaziar, novo cadastro obrigatório antes de novo registro. Edições mantêm vínculo original; exclusões recalculam saldo. Calculadora principal mantém apenas previsão e dosagens salvas.
+- Limitação da candidata: frascos e vínculos continuam no armazenamento local, isolado por conta, como no recurso anterior. Não há sincronização entre aparelhos nem garantia de concorrência entre dispositivos; não apresentar como saldo físico confirmado. Planejar persistência transacional em nuvem antes de liberar o recurso como acompanhamento sincronizado.
+- Testes focados do arquivo vial-cover-regression: seis casos conferidos em execução isolada. Suíte Node completa e validação no iPhone pendentes.
+- Prioridades 2 e 3 da lista anterior: deliberadamente adiadas; fora do pacote atual.
+- Deploy automático da branch GPS desativado. Nenhum deploy solicitado nesta rodada. Ordem de publicação mais recente solicitada pelo usuário: Produção e depois Teste, com candidatas específicas e preservação das configurações de cada ambiente; não publicar enquanto houver bloqueio ou sem nova instrução.
