@@ -241,7 +241,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  ${dayNames.map((name,i)=>`<label class="check"><input type="checkbox" name="weekday" value="${i}">${name}</label>`).join('')}</div></fieldset>
  <label class="check"><input type="checkbox" name="remind"> Lembrete no painel</label>
  <button type="submit" class="primary">Salvar publicação</button></form>
- <fieldset class="space"><legend data-campaign-legend="state">Fila de publicações</legend>${sharedQueueEnabled?`<section class="shared-campaign-queue"><div class="between"><h3>Fila central · administradores</h3>${action('refresh_shared','Atualizar')}</div><p class="sub">Acompanhamento de mensagens automáticas e manuais. Ações de envio continuam sujeitas às permissões do responsável.</p><label>Estado<select data-shared-filter><option value="">Todos</option><option value="waiting">Aguardando</option><option value="scheduled">Agendada</option><option value="in_progress">Processando</option><option value="accepted">Aceita pelo cliente</option><option value="manual_done">Confirmada manualmente</option><option value="uncertain">Incerta</option><option value="refused">Recusada</option><option value="cancelled">Cancelada</option></select></label><div data-shared-queue role="status">Carregando fila…</div><h4>Fluxo manual</h4></section>`:''}<div data-wa-queue></div></fieldset>`;
+ <fieldset class="space"><legend data-campaign-legend="state">Fila de publicações</legend>${sharedQueueEnabled?`<section class="shared-campaign-queue"><div class="between"><h3>Fila central · administradores</h3>${action('refresh_shared','Atualizar')}</div><p class="sub">Acompanhamento de mensagens automáticas e manuais. Ações de envio continuam sujeitas às permissões do responsável.</p><label>Estado<select data-shared-filter><option value="">Todos</option><option value="waiting">Aguardando</option><option value="scheduled">Agendada</option><option value="in_progress">Processando</option><option value="accepted">Aceita pelo cliente</option><option value="manual_done">Confirmada manualmente</option><option value="uncertain">Incerta</option><option value="refused">Recusada</option><option value="cancelled">Cancelada</option></select></label><div data-shared-queue role="status">Carregando fila…</div><section data-review-section hidden><h4>Revisão independente</h4><div data-review-list></div></section><h4>Fluxo manual</h4></section>`:''}<div data-wa-queue></div></fieldset>`;
  const connect=q('[data-wa-connect]');
  const syncCatalog=embedded?mountSyncedCampaignGroups(q('[data-wa-sync-catalog]'),{cloud}):null;
  const syncPicker=embedded?mountSyncedCampaignGroups(q('[data-wa-sync-recipients]'),{cloud,picking:true}):null;
@@ -327,8 +327,22 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
   const filter=q('[data-shared-filter]').value;
   holder.innerHTML=sharedRows.filter(row=>!filter||row.state===filter).map(row=>`<article class="monitor-block"><div class="between"><strong>${esc(row.title)}</strong><span class="campaign-state">${esc(sharedLabels[row.state]||'Estado desconhecido')}</span></div><p class="sub">${esc(dateLabel(row.due_at,'America/Sao_Paulo'))} · ${row.channel==='connect'?'NeoPep Connect':'Manual'} · ${row.own?'Minha publicação':'Outra conta / fluxo compartilhado'} · ${Number(row.messages)||0} bloco(s)</p></article>`).join('')||'<p class="sub">Nenhuma publicação neste filtro.</p>';
  }
+ let reviewRows=[],reviewEpoch=0;
+ async function refreshReviews(){
+  const holder=q('[data-review-section]');if(!holder)return;
+  const epoch=++reviewEpoch,account=cloud.user?.id;
+  try{
+   const caps=await cloud.campaignCentral('review_capabilities',{});
+   if(caps?.enabled!==true)return;
+   const rows=await cloud.campaignCentral('review_list',{});
+   if(epoch!==reviewEpoch||!root.isConnected||cloud.user?.id!==account)return;
+   reviewRows=Array.isArray(rows)?rows:[];holder.hidden=false;
+   q('[data-review-list]').innerHTML=reviewRows.map(row=>`<article class="monitor-block"><strong>${esc(row.title||'Publicação')}</strong><p class="sub">${row.cancelled_at?'Cancelada':({pending:'Aguardando aprovação',approved:'Aprovada',rejected:'Recusada'})[row.state]||'Estado desconhecido'} · ${esc(dateLabel(row.due_at,'America/Sao_Paulo'))}</p><p class="sub">Grupos: ${esc((row.groups||[]).join(', ')||'Não disponíveis')}</p><details><summary>Conferir conteúdo</summary>${(row.blocks||[]).map(b=>`<p>${esc(b.text||'')}${b.url?' · '+esc(b.url):''}</p>`).join('')}</details>${row.can_review&&row.groups?.length?`<div class="inline-actions"><button type="button" class="primary" data-wa="review_approve" data-id="${esc(row.batch_id)}">Aprovar envio</button><button type="button" class="secondary" data-wa="review_reject" data-id="${esc(row.batch_id)}">Recusar</button></div>`:''}</article>`).join('')||'<p class="sub">Nenhuma solicitação.</p>';
+  }catch{if(epoch===reviewEpoch&&root.isConnected&&cloud.user?.id===account){reviewRows=[];if(!holder.hidden)q('[data-review-list]').textContent='Revisões indisponíveis. Atualize antes de decidir.';}}
+ }
  async function refreshSharedQueue(){
   if(!sharedQueueEnabled)return;
+  void refreshReviews();
   const token=++sharedToken,account=cloud.user?.id;
   try{const rows=await cloud.campaignCentral('shared_queue',{});if(token!==sharedToken||!root.isConnected||cloud.user?.id!==account)return;sharedRows=Array.isArray(rows)?rows:[];sharedFailed=false;renderSharedQueue();}
   catch{if(token===sharedToken&&root.isConnected&&cloud.user?.id===account){sharedRows=[];sharedFailed=true;renderSharedQueue();}}
@@ -459,6 +473,14 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
   if(wa==='manual'){openManual?.(button);return;}
   if(wa==='refresh_shared'){void refreshSharedQueue();return;}
   void protectedAction(async()=>{
+   if(wa==='review_approve'||wa==='review_reject'){
+    const row=reviewRows.find(r=>r.batch_id===id&&r.can_review);
+    if(!row||!confirm((wa==='review_approve'?'Aprovar o envio':'Recusar o envio')+' de '+(row.title||'publicação')+'? Confira o conteúdo e os grupos antes de confirmar.'))return;
+    const result=await cloud.campaignCentral(wa,{batch_id:id,confirmed:true});
+    if(!['approved','rejected'].includes(result?.state))throw Error('A decisão não foi confirmada.');
+    tell(result.state==='approved'?'Aprovação registrada. O Connect autorizado poderá processar no horário previsto.':'Recusa registrada. O envio permanece bloqueado.');
+    await refreshReviews();return;
+   }
    if(wa==='clear_group'){resetGroup();return;}
    if(wa==='edit_group'){
     const group=groupRows.find(row=>row.id===id);if(!group)return;
