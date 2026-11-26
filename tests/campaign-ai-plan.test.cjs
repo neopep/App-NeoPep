@@ -1,0 +1,20 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict');
+test('campaign AI plan: server owns dates and AI never controls publishing',async()=>{
+ const m=await import('../supabase/functions/_shared/campaign-ai-plan.mjs');
+ const now=new Date('2026-11-26T21:00:00Z');
+ const request=m.validateRequest({brief:'Hábitos de bem-estar',channel:'whatsapp',slots:['2026-12-01T09:00','2026-12-02T09:00'],images:true},now);
+ const output={publications:[{title:'Dia 1',text:'Um passo de cada vez.',image_prompt:'Luz do amanhecer'},{title:'Dia 2',text:'Organize sua rotina.',image_prompt:'Calendário minimalista'}]};
+ const plan=m.validateOutput(output,request);
+ assert.equal(plan[0].planned_local,request.slots[0]);assert.equal(plan[1].stage,'review');assert.equal(plan[0].timezone,'America/Sao_Paulo');
+ assert.throws(()=>m.validateRequest({...request,slots:['2026-11-25T09:00']},now),/invalid_slots/);
+ assert.throws(()=>m.validateRequest({...request,slots:['2026-12-30T09:00','2026-12-30T09:00']},now),/invalid_slots/);
+ assert.throws(()=>m.validateRequest({...request,slots:['2026-11-31T09:00']},now),/invalid_slots/);
+ assert.throws(()=>m.validateRequest({...request,recipients:['invented']},now),/unexpected_request/);
+ assert.throws(()=>m.validateOutput({publications:[{...output.publications[0],publish:true},output.publications[1]]},request),/unexpected_publication/);
+ assert.throws(()=>m.validateOutput({publications:[output.publications[0],output.publications[0]]},request),/duplicate_publication/);
+ assert.throws(()=>m.validateOutput({publications:[{...output.publications[0],text:'https://example.com'},output.publications[1]]},request),/unverified_url/);
+ assert.throws(()=>m.validateOutput(output,{...request,previous_titles:['Dia 1']}),/duplicate_publication/);
+ assert.throws(()=>m.validateOutput(output,{...request,images:false}),/unexpected_image/);
+ assert.equal(m.outputSchema(2,true).properties.publications.maxItems,2);
+});
