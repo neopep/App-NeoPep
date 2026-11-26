@@ -635,6 +635,7 @@ sealed partial class Connect : Form {
                 tray.BalloonTipText="Há divulgações manuais previstas. Consulte o painel.";
                 tray.ShowBalloonTip(5000);
             }
+            var previewTask=TickVideoPreview();
             await TickCampaignDispatch();
             if(profile.IsProduction)return;
             var job=await RPC("claim",new { });
