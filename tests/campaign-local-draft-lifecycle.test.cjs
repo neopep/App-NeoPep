@@ -30,5 +30,5 @@ test('envio confirmado limpa somente cópia local intacta e volta à Central',()
  assert.match(editor,/state\.dispatchConfirmed=true;state\.dispatchAttempt=null/);
  assert.match(editor,/if\(publication&&persisted&&draftIsClean\(\)\)\{dialog\.close\(\);\}/);
  assert.match(central,/recoveryEditorId:item\.recoveryEditorId\|\|item\.editorId/);
- assert.match(editor,/account\+':'+state\.recoveryEditorId\+':'+id/);
+ assert.ok(editor.includes("account+':'+state.recoveryEditorId+':'+id"));
 });
