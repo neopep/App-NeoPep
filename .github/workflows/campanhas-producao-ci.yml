@@ -2,6 +2,8 @@ name: Candidata consolidada de campanhas (sem deploy)
 on:
   push:
     branches: [preparacao/campanhas-producao-20261125]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
