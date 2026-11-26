@@ -19,7 +19,8 @@ test('product/library/community blocks can be edited as captions in the same bub
  assert.match(editor,/edited\.text=text/);
  assert.match(editor,/Legenda adicional:/);
  assert.match(editor,/richMode\(\)/);
- assert.match(editor,/\['text','image','link','product','document','community'\]/);
+ assert.match(editor,/\['text','image','link','product','document','community','file'\]/);
+ assert.match(editor,/block\.type!=='file'\|\|\(gates\.whatsapp_rich\?\.originals_enabled===true/);
 });
 
 test('product preserves authoritative name, bold price, and canonical shop link',()=>{
