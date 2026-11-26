@@ -172,6 +172,7 @@
     ${pane('link','Link','<label>Link HTTPS<input name="link" type="url" maxlength="2000"></label><button type="button" class="secondary" data-editor="link">Adicionar link</button>')}
     ${pane('catalog','Referências','<div class="central-search editor-search"><input name="catalog_search" type="search" maxlength="100" aria-label="Buscar referências" placeholder="Buscar referências"><button type="button" class="structured-icon" data-editor="catalog_search" aria-label="Buscar referências" title="Buscar referências"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button></div><div class="structured-catalog-tools"><button type="button" class="secondary" data-editor="prepare_thumbs" hidden>Preparar miniaturas faltantes</button><p class="sub" data-catalog-thumb-status role="status"></p></div><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
     ${pane('library_share','Como deseja compartilhar?','<p class="sub" data-library-share-name></p><div class="inline-actions"><button type="button" class="secondary" data-editor="library_share_cover">Capa + link</button><button type="button" class="secondary" data-editor="library_share_preview" disabled>Prévia curta + link</button><button type="button" class="secondary" data-editor="library_share_original" disabled>Arquivo original</button></div><div data-library-share-video></div><p class="sub" data-library-share-status role="status"></p>')}
+    ${pane('file_help','Envio de arquivos','<p>O envio de arquivos originais e prévias em vídeo depende da liberação no servidor e de um NeoPep Connect compatível. O documento pode permanecer no rascunho sem ser enviado.</p><p>Use Capa + link para materiais disponíveis na Biblioteca. Para liberar a modalidade de arquivo, confira a configuração do canal e os dispositivos autorizados.</p><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button>')}
     ${pane('schedule','Publicação e horário','<label>Horário planejado (São Paulo)<input name="planned_local" type="datetime-local" value="'+e(draft.planned_local)+'"></label><p data-editor-summary class="sub"></p><div class="inline-actions"><button type="button" class="secondary" data-editor="schedule" disabled>Programar</button><button type="button" class="secondary" data-editor="simulate">Ver prévia (sem enviar)</button></div><div class="structured-issues" data-editor-issues role="status"></div><p role="status" class="sub" data-editor-simulation></p><p class="sub">A prévia não envia mensagens. Para publicar, escolha os grupos e confirme o envio.</p><p class="sub" data-dispatch-gate></p>')}
     ${pane('confirmation','Confirmar campanha','<p data-confirm-question></p><p class="sub" data-confirm-summary></p><p class="structured-confirm-content" data-confirm-content></p><button type="button" class="primary" data-editor="confirm_dispatch">Confirmar</button> <button type="button" class="secondary" data-editor="sheet_close">Voltar à composição</button>')}
     ${channel==='whatsapp'&&!testWA?pane('recurrence','Recorrência','<label>Ocorrências semanais<input name="weekly_count" type="number" min="1" max="6" step="1" value="1"></label>'):''}
@@ -603,7 +604,7 @@
    if(editing||message.value.trim())add('text','Confirme o texto ou legenda','compose');
    if(!draft.blocks.length)add('content','Adicione conteúdo','menu');
    if(channel==='whatsapp'&&draft.blocks.length>6)add('limit','Limite de 6 blocos por grupo','menu');
-   if(draft.blocks.some(b=>b.type==='file')&&!libraryOriginalReady())add('file','Envio de arquivos bloqueado neste canal','schedule','blocked');
+   if(draft.blocks.some(b=>b.type==='file')&&!libraryOriginalReady())add('file','Envio de arquivos bloqueado neste canal','file_help','blocked');
    if(channel==='whatsapp'&&(!gates.whatsapp_rich?.ready&&richMode()))add('connect','Confira conexão e autorização','groups','blocked');
    if(testApp&&draft.app_settings?.popup_enabled===false)add('popup','Ative a exibição no App','audience');
    return issues;
@@ -1003,6 +1004,10 @@
     row.thumb=await cloud.campaignThumbnailUpload(kind,path,blob);if(!valid())return;showCatalogThumb(box,row,i,token,signal);
    }catch{failures++;}}}finally{if(valid()){catalogGenerating=false;catalogStatus();if(failures)$('[data-catalog-thumb-status]').textContent=failures+' miniatura(s) indisponíveis. Tente novamente.';}}
   }
+  function libraryFileDraftReady(){
+   // Storage preparation is separate from the explicit dispatch gate. No dispatch is performed here.
+   return libraryOriginalReady()||channel==='whatsapp'&&testWA&&Object.prototype.hasOwnProperty.call(gates.whatsapp_rich||{},'originals_enabled')&&typeof cloud.campaignOriginalUpload==='function';
+  }
   function libraryOriginalReady(){
    return channel==='app'?(testApp?testGate.rich_popup===true:gates.app_rich_popup===true):testWA&&gates.whatsapp_rich?.originals_enabled===true;
   }
@@ -1034,7 +1039,7 @@
     if(!file||(!file.mime?.startsWith('video/')&&file.mime!=='application/pdf')){addCatalogReference(row);return;}
     s.file=file;const video=file.mime.startsWith('video/');
     p.hidden=!video;
-    const permitted=file.allow_download===true&&libraryOriginalReady();
+    const permitted=file.allow_download===true&&libraryFileDraftReady();
     o.disabled=!permitted||!['video/mp4','application/pdf'].includes(file.mime)||!Number.isFinite(Number(file.size))||Number(file.size)<=0||Number(file.size)>5242880;
     if(video&&typeof cloud.libraryVideoPreview==='function'&&file.allow_download===true){
      try{s.preview=await cloud.libraryVideoPreview(row.id,file.path);}catch{}
@@ -1044,14 +1049,14 @@
     if(s.preview?.state==='ready'&&s.preview.url){
      const v=document.createElement('video');v.src=s.preview.url;v.muted=true;v.playsInline=true;v.loop=true;v.autoplay=!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;v.controls=true;v.preload='metadata';v.style.maxWidth='100%';v.setAttribute('aria-label','Prévia curta sem áudio');$('[data-library-share-video]').append(v);
     }
-    status.textContent=file.allow_download!==true?'Download não autorizado na Biblioteca. Somente capa + link está disponível; revise a permissão do material antes de compartilhar arquivos.':!libraryOriginalReady()?'Envio de arquivos desativado no servidor. Você pode usar capa + link e preparar a publicação sem enviar.':video&&s.preview?.state!=='ready'?'Prévia curta ainda não disponível. Confira o processamento no NeoPep Connect e reabra este material.':o.disabled?'Original acima de 5 MB ou formato não suportado.':'Selecione como compartilhar.';
+    status.textContent=file.allow_download!==true?'Download não autorizado na Biblioteca. Somente capa + link está disponível; revise a permissão do material antes de compartilhar arquivos.':!libraryFileDraftReady()?'Preparação de arquivos indisponível neste canal. Use capa + link.':video&&s.preview?.state!=='ready'?'Prévia curta ainda não disponível. Confira o processamento no NeoPep Connect e reabra este material.':o.disabled?'Original acima de 5 MB ou formato não suportado.':!libraryOriginalReady()?'Você pode adicionar o arquivo ou prévia ao rascunho. O envio continua desativado no servidor.':'Selecione como compartilhar.';
    }catch{if(libraryShareActive(s))status.textContent='Não foi possível consultar o arquivo. Você pode tentar capa + link.';}
   }
   async function addLibraryFile(mode){
    const s=libraryShare;if(!s||!libraryShareActive(s)||s.busy)return;
    if(mode==='cover'){addCatalogReference(s.row);return;}
    const file=s.file,short=mode==='preview';
-   if(!file||file.allow_download!==true||!libraryOriginalReady()||short&&s.preview?.state!=='ready'||!short&&(!['video/mp4','application/pdf'].includes(file.mime)||!(Number(file.size)>0&&Number(file.size)<=5242880)))return;
+   if(!file||file.allow_download!==true||!libraryFileDraftReady()||short&&s.preview?.state!=='ready'||!short&&(!['video/mp4','application/pdf'].includes(file.mime)||!(Number(file.size)>0&&Number(file.size)<=5242880)))return;
    if(draft.blocks.length+(short?2:1)>32){tell('Limite de 32 blocos por rascunho.');return;}
    s.busy=true;const status=$('[data-library-share-status]');status.textContent='Preparando arquivo autorizado…';
    for(const b of sheet.querySelectorAll('[data-editor^="library_share_"]'))b.disabled=true;
@@ -1059,7 +1064,7 @@
     // Revalidate the attachment and renew the signed URL before each download.
     const latest=(await cloud.library('get',{id:s.row.id}))?.material?.attachments?.find(f=>f.path===file.path);
     if(!libraryShareActive(s))return;
-    if(!latest||latest.allow_download!==true||latest.mime!==file.mime||Number(latest.size)!==Number(file.size)||!libraryOriginalReady())throw Error('O material mudou ou não permite mais este envio.');
+    if(!latest||latest.allow_download!==true||latest.mime!==file.mime||Number(latest.size)!==Number(file.size)||!libraryFileDraftReady())throw Error('O material mudou ou não permite mais este envio.');
     const refreshed=short?await cloud.libraryVideoPreview(s.row.id,file.path):null;
     if(short&&(refreshed?.state!=='ready'||!refreshed.url))throw Error('Prévia indisponível. Reabra o material para consultar novamente.');
     const url=short?refreshed.url:await cloud.libraryMediaURL(file,true);
@@ -1169,7 +1174,7 @@
      catalogKind=target;field('catalog_search').value='';openPane('catalog',control);void searchCatalog();return;
     }
     if(sheet&&!sheet.hidden&&target==='menu'&&control===sheetTrigger){closeSheet();return;}
-    openPane(target,control);return;
+    openPane(target,control);if(control.classList.contains('structured-issue')){if(target==='settings')field('title')?.focus();if(target==='schedule')field('planned_local')?.focus();}return;
    }
    const format=control.dataset.format;
    if(format){toggleFormat(format);return;}
