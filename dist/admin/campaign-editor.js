@@ -582,7 +582,7 @@
    const eligible=channel==='app'||draft.groups.length>0&&draft.groups.every(id=>groups.some(row=>row.id===id&&row.state==='eligible'));
    const pinned=!testWA||draft.groups.length===1&&draft.groups[0]===gates.whatsapp_test?.destination;
    const short=!testWA||draft.blocks.map(block=>block.text||'').join('\n\n').trim().length<=160;
-   const appRich=testApp&&testGate.rich_popup===true;
+   const appRich=channel==='app'&&(testApp?testGate.rich_popup===true:gates.app_rich_popup===true);
    const appBlocks=draft.blocks.length>0&&draft.blocks.length<=12&&draft.blocks.every(b=>['text','image','file','link','product','document','community'].includes(b.type)
     &&(b.text||'').length<=2000&&!/(https?:\/\/|www\.)/i.test(b.text||'')
     &&(!['image','file'].includes(b.type)||Boolean(b.media_path))
@@ -601,7 +601,7 @@
      'Homologação WhatsApp · somente o grupo autorizado e texto sem links de até 160 caracteres. ')+
      ((rich?gates.whatsapp_rich?.ready:gates.whatsapp_test.schedule_ready)?'Agendamento disponível.':'Agendamento indisponível.'):
      'WhatsApp em simulação. Confira o Connect e o grupo autorizado.'):enabled?
-    'O despacho exige uma versão registrada, somente texto e destinos autorizados. Aceitação pelo cliente não confirma entrega.':
+    (appRich?'Notificações App com múltiplos conteúdos. Confira público, canais, frequência e horário.':'O despacho exige uma versão registrada, somente texto e destinos autorizados. Aceitação pelo cliente não confirma entrega.'):
     'Envio e agendamento automáticos bloqueados. Somente texto no contrato de despacho.';
   }
   async function refreshGate(){
@@ -669,7 +669,7 @@
   }
   function dispatchSummary(scheduled){
    const names=draft.groups.map(id=>groups.find(group=>group.id===id)?.name||'Grupo indisponível');
-   const destinations=testApp?'Somente '+(testGate.destinations||0)+' conta(s) de homologação · sem push':channel==='app'?('Público: '+({all:'Todos',free:'Free',premium:'Premium'}[draft.audience]||'Todos')):`${names.length} grupo(s)${names.length?' · '+names.join(', '):''}`;
+   const destinations=testApp?'Somente '+(testGate.destinations||0)+' conta(s) de homologação · sem push':channel==='app'?('Público: '+(draft.app_settings?(draft.app_settings.audience==='all'?'Todos':draft.app_settings.targets.join(', '))+' · '+(draft.app_settings.popup_enabled?'Pop-up':'Sem pop-up')+(draft.app_settings.push_requested?' · Push':''):({all:'Todos',free:'Free',premium:'Premium'}[draft.audience]||'Todos'))):`${names.length} grupo(s)${names.length?' · '+names.join(', '):''}`;
    const when=scheduled&&draft.planned_local?draft.planned_local.replace('T',' ')+' (São Paulo)':'Agora';
    const description=draft.blocks.map(block=>labels[block.type]||block.type).join(', ')||'Sem conteúdo';
    return [destinations,when,`${draft.blocks.length} bloco(s): ${description}`].join(' · ');
@@ -684,7 +684,7 @@
    if(editing||message.value.trim()){explain('Confirme o texto ou a legenda com a seta antes de continuar.');return;}
    if(!draft.blocks.length){explain('Adicione conteúdo antes de continuar.');return;}
    if(testApp&&draft.app_settings?.popup_enabled===false){explain('Em Teste, somente o pop-up está disponível. Marque a exibição interna para homologar.');return;}
-   if(draft.blocks.some(b=>b.type==='file')&&!(testApp&&testGate.rich_popup===true)&&(!testWA||gates.whatsapp_rich?.originals_enabled!==true)){explain('O envio integral de arquivos ainda não está habilitado neste canal. O arquivo permanece como rascunho.');return;}
+   if(draft.blocks.some(b=>b.type==='file')&&!(channel==='app'&&(testApp?testGate.rich_popup===true:gates.app_rich_popup===true))&&(!testWA||gates.whatsapp_rich?.originals_enabled!==true)){explain('O envio integral de arquivos ainda não está habilitado neste canal. O arquivo permanece como rascunho.');return;}
    if(!state.remoteId||state.savedDraft!==JSON.stringify(draft)){
     explain('Salvando a versão antes da confirmação. Nenhuma mensagem será enviada.');
     await saveRemote();
@@ -710,7 +710,7 @@
    const base={editor_id:state.editorId,revision:state.revision,local_time:scheduled?draft.planned_local:null};
    const intent=testApp?{...base,confirmed:true,destination_count:testGate.destinations,audience_key:testGate.audience_key}:{...base,
     weekly_count:channel==='app'||testWA||!scheduled?1:Number(field('weekly_count').value),push:field('push')?.checked===true,
-    ...(testWA?{homologation:true,confirmed:true}:{})};
+    ...(testWA?{homologation:true,confirmed:true}:channel==='app'?{confirmed:true}:{})};
    const fingerprint=JSON.stringify(intent);
    const request=state.dispatchAttempt?.fingerprint===fingerprint?state.dispatchAttempt:{fingerprint,id:uuid()};
    state.dispatchAttempt=request;saveLocal();dispatching=true;
@@ -799,12 +799,12 @@
    if(editing||message.value.trim()){tell('Conclua o bloco de texto em edição antes de registrar a versão.');return;}
    if(!draft.title.trim()){tell('Informe o título do rascunho.');return;}
    if(advancedApp&&draft.app_settings){const a=draft.app_settings;if((!a.popup_enabled&&!a.push_requested)||(a.audience!=='all'&&!a.targets.length)||!a.weekdays.length||!a.opens_at||a.opens_at>=a.closes_at||!Number.isInteger(a.frequency_hours)||a.frequency_hours<1||a.frequency_hours>8760||!Number.isInteger(a.max_views)||a.max_views<1||a.max_views>100||!Number.isInteger(a.priority)||a.priority<0||a.priority>100){tell('Confira público, dias, horário, canais e limites de exibição.');return;}}
-   if((testWA||testApp)&&draft.blocks.some(b=>['image','document'].includes(b.type)&&!b.media_path)){
+   if((testWA||testApp||channel==='app'&&gates.app_rich_popup===true)&&draft.blocks.some(b=>['image','document'].includes(b.type)&&!b.media_path)){
     saving=true;tell('Preparando mídia privada para homologação…');
     try{await uploadRichImages();}catch(error){tell(error.message||'Não foi possível preparar a imagem.');saving=false;return;}
     saving=false;
    }
-   if((testApp&&testGate.rich_popup===true||testWA&&Object.prototype.hasOwnProperty.call(gates.whatsapp_rich||{},'originals_enabled'))&&draft.blocks.some(b=>b.type==='file'&&!b.media_path)){
+   if((channel==='app'&&(testApp?testGate.rich_popup===true:gates.app_rich_popup===true)||testWA&&Object.prototype.hasOwnProperty.call(gates.whatsapp_rich||{},'originals_enabled'))&&draft.blocks.some(b=>b.type==='file'&&!b.media_path)){
     saving=true;try{await uploadOriginalFiles();}catch(error){tell(error.message||'Não foi possível guardar o arquivo original.');return;}finally{saving=false;if(current())showGate();}
    }
    if(!current())return;
