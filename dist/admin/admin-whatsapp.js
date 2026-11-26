@@ -327,17 +327,20 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
   const filter=q('[data-shared-filter]').value;
   holder.innerHTML=sharedRows.filter(row=>!filter||row.state===filter).map(row=>`<article class="monitor-block"><div class="between"><strong>${esc(row.title)}</strong><span class="campaign-state">${esc(sharedLabels[row.state]||'Estado desconhecido')}</span></div><p class="sub">${esc(dateLabel(row.due_at,'America/Sao_Paulo'))} · ${row.channel==='connect'?'NeoPep Connect':'Manual'} · ${row.own?'Minha publicação':'Outra conta / fluxo compartilhado'} · ${Number(row.messages)||0} bloco(s)</p></article>`).join('')||'<p class="sub">Nenhuma publicação neste filtro.</p>';
  }
- let reviewRows=[],reviewEpoch=0;
+ let reviewRows=[],reviewEpoch=0,reviewAccount=null;
+ function reviewCanDecide(row){return Boolean(row&&row.can_review===true&&row.own===false&&row.state==='pending'&&!row.cancelled_at&&reviewAccount===cloud.user?.id&&reviewAccount&&root.isConnected);}
+ function reviewCanApprove(row){return Boolean(reviewCanDecide(row)&&Array.isArray(row.groups)&&row.groups.length&&row.groups.every(g=>typeof g==='string'&&g.trim())&&Array.isArray(row.blocks)&&row.blocks.length&&row.blocks.every(b=>b&&((b.type==='text'&&typeof b.text==='string'&&b.text.trim())||(b.type==='link'&&typeof b.url==='string'&&/^https:\/\//i.test(b.url)))));}
  async function refreshReviews(){
   const holder=q('[data-review-section]');if(!holder)return;
   const epoch=++reviewEpoch,account=cloud.user?.id;
+  reviewRows=[];reviewAccount=null;holder.hidden=true;q('[data-review-list]').textContent='Verificando autorização…';
   try{
    const caps=await cloud.campaignCentral('review_capabilities',{});
-   if(caps?.enabled!==true)return;
+   if(epoch!==reviewEpoch||!root.isConnected||cloud.user?.id!==account||caps?.enabled!==true)return;
    const rows=await cloud.campaignCentral('review_list',{});
    if(epoch!==reviewEpoch||!root.isConnected||cloud.user?.id!==account)return;
-   reviewRows=Array.isArray(rows)?rows:[];holder.hidden=false;
-   q('[data-review-list]').innerHTML=reviewRows.map(row=>`<article class="monitor-block"><strong>${esc(row.title||'Publicação')}</strong><p class="sub">${row.cancelled_at?'Cancelada':({pending:'Aguardando aprovação',approved:'Aprovada',rejected:'Recusada'})[row.state]||'Estado desconhecido'} · ${esc(dateLabel(row.due_at,'America/Sao_Paulo'))}</p><p class="sub">Grupos: ${esc((row.groups||[]).join(', ')||'Não disponíveis')}</p><details><summary>Conferir conteúdo</summary>${(row.blocks||[]).map(b=>`<p>${esc(b.text||'')}${b.url?' · '+esc(b.url):''}</p>`).join('')}</details>${row.can_review&&row.groups?.length?`<div class="inline-actions"><button type="button" class="primary" data-wa="review_approve" data-id="${esc(row.batch_id)}">Aprovar envio</button><button type="button" class="secondary" data-wa="review_reject" data-id="${esc(row.batch_id)}">Recusar</button></div>`:''}</article>`).join('')||'<p class="sub">Nenhuma solicitação.</p>';
+   reviewRows=Array.isArray(rows)?rows:[];reviewAccount=account;holder.hidden=false;
+   q('[data-review-list]').innerHTML=reviewRows.map(row=>`<article class="monitor-block"><strong>${esc(row.title||'Publicação')}</strong><p class="sub">${row.cancelled_at?'Cancelada':({pending:'Aguardando aprovação',approved:'Aprovada',rejected:'Recusada'})[row.state]||'Estado desconhecido'} · ${esc(dateLabel(row.due_at,'America/Sao_Paulo'))}</p><p class="sub">Grupos: ${esc((row.groups||[]).join(', ')||'Não disponíveis')}</p><details><summary>Conferir conteúdo</summary>${(Array.isArray(row.blocks)?row.blocks:[]).map(b=>b?.type==='text'||b?.type==='link'?`<p>${esc(b.text||'')}${b.url?' · '+esc(b.url):''}</p>`:'<p>Conteúdo não disponível para revisão segura.</p>').join('')}</details>${reviewCanDecide(row)?`<div class="inline-actions">${reviewCanApprove(row)?`<button type="button" class="primary" data-wa="review_approve" data-id="${esc(row.batch_id)}">Aprovar envio</button>`:'<p class="sub">Aprovação bloqueada: conteúdo ou destinos incompletos.</p>'}<button type="button" class="secondary" data-wa="review_reject" data-id="${esc(row.batch_id)}">Recusar</button></div>`:''}</article>`).join('')||'<p class="sub">Nenhuma solicitação.</p>';
   }catch{if(epoch===reviewEpoch&&root.isConnected&&cloud.user?.id===account){reviewRows=[];if(!holder.hidden)q('[data-review-list]').textContent='Revisões indisponíveis. Atualize antes de decidir.';}}
  }
  async function refreshSharedQueue(){
@@ -474,8 +477,10 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
   if(wa==='refresh_shared'){void refreshSharedQueue();return;}
   void protectedAction(async()=>{
    if(wa==='review_approve'||wa==='review_reject'){
-    const row=reviewRows.find(r=>r.batch_id===id&&r.can_review);
+    const row=reviewRows.find(r=>r.batch_id===id);
+    if(!reviewCanDecide(row)||(wa==='review_approve'&&!reviewCanApprove(row))){tell('Revisão indisponível ou conteúdo incompleto. Atualize antes de decidir.');return;}
     if(!row||!confirm((wa==='review_approve'?'Aprovar o envio':'Recusar o envio')+' de '+(row.title||'publicação')+'? Confira o conteúdo e os grupos antes de confirmar.'))return;
+    if(!reviewCanDecide(row)||(wa==='review_approve'&&!reviewCanApprove(row)))return;
     const result=await cloud.campaignCentral(wa,{batch_id:id,confirmed:true});
     if(!['approved','rejected'].includes(result?.state))throw Error('A decisão não foi confirmada.');
     tell(result.state==='approved'?'Aprovação registrada. O Connect autorizado poderá processar no horário previsto.':'Recusa registrada. O envio permanece bloqueado.');
