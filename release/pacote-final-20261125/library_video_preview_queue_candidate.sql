@@ -123,13 +123,13 @@ create function public.neo_library_video_preview_device(p_action text,p_device u
 revoke all on function public.neo_library_video_preview_device(text,uuid,text,jsonb) from public,anon;
 grant execute on function public.neo_library_video_preview_device(text,uuid,text,jsonb) to authenticated;
 -- Owner-only status; no original path, credentials or signed URL returned.
-create function public.neo_library_video_preview_status(p_material uuid) returns jsonb
+create function public.neo_library_video_preview_status(p_material uuid,p_source_path text) returns jsonb
  language sql stable security definer set search_path='' as $f$
  select coalesce(jsonb_agg(jsonb_build_object('id',j.id,'state',j.state,'output_path',case when j.state='ready' then j.output_path end) order by j.created_at),'[]'::jsonb)
  from neo_private.library_video_previews j where auth.uid() is not null and public.neo_admin_access()
- and j.owner_id=auth.uid() and j.material_id=p_material and neo_private.library_video_preview_current(j)
+ and j.owner_id=auth.uid() and j.material_id=p_material and j.source_path=p_source_path and neo_private.library_video_preview_current(j)
  and public.neo_library_media_access(j.source_path,false)
 $f$;
-revoke all on function public.neo_library_video_preview_status(uuid) from public,anon;
-grant execute on function public.neo_library_video_preview_status(uuid) to authenticated;
+revoke all on function public.neo_library_video_preview_status(uuid,text) from public,anon;
+grant execute on function public.neo_library_video_preview_status(uuid,text) to authenticated;
 commit;

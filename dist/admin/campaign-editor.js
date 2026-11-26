@@ -171,6 +171,7 @@
     <input type="file" name="media" accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4,text/plain" hidden>
     ${pane('link','Link','<label>Link HTTPS<input name="link" type="url" maxlength="2000"></label><button type="button" class="secondary" data-editor="link">Adicionar link</button>')}
     ${pane('catalog','Referências','<div class="central-search editor-search"><input name="catalog_search" type="search" maxlength="100" aria-label="Buscar referências" placeholder="Buscar referências"><button type="button" class="structured-icon" data-editor="catalog_search" aria-label="Buscar referências" title="Buscar referências"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button></div><div class="structured-catalog-tools"><button type="button" class="secondary" data-editor="prepare_thumbs" hidden>Preparar miniaturas faltantes</button><p class="sub" data-catalog-thumb-status role="status"></p></div><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
+    ${pane('library_share','Como deseja compartilhar?','<p class="sub" data-library-share-name></p><div class="inline-actions"><button type="button" class="secondary" data-editor="library_share_cover">Capa + link</button><button type="button" class="secondary" data-editor="library_share_preview" disabled>Prévia curta + link</button><button type="button" class="secondary" data-editor="library_share_original" disabled>Arquivo original</button></div><div data-library-share-video></div><p class="sub" data-library-share-status role="status"></p>')}
     ${pane('schedule','Publicação e horário','<label>Horário planejado (São Paulo)<input name="planned_local" type="datetime-local" value="'+e(draft.planned_local)+'"></label><p data-editor-summary class="sub"></p><div class="inline-actions"><button type="button" class="secondary" data-editor="schedule" disabled>Programar</button><button type="button" class="secondary" data-editor="simulate">Ver prévia (sem enviar)</button></div><p role="status" class="sub" data-editor-simulation></p><p class="sub">A prévia não envia mensagens. Para publicar, escolha os grupos e confirme o envio.</p><p class="sub" data-dispatch-gate></p>')}
     ${pane('confirmation','Confirmar campanha','<p data-confirm-question></p><p class="sub" data-confirm-summary></p><p class="structured-confirm-content" data-confirm-content></p><button type="button" class="primary" data-editor="confirm_dispatch">Confirmar</button> <button type="button" class="secondary" data-editor="sheet_close">Voltar à composição</button>')}
     ${channel==='whatsapp'&&!testWA?pane('recurrence','Recorrência','<label>Ocorrências semanais<input name="weekly_count" type="number" min="1" max="6" step="1" value="1"></label>'):''}
@@ -215,7 +216,7 @@
   const products=new Map(),contentPreviews=new Map(),previewAbort=new AbortController();let shopCatalog,communityFeed,openedReference=false;
   let testGate={};
   let gates={},dispatchReady={schedule:false,publish:false},dispatching=false,groups=[],pending,active=true,editing=null,removed=null,saving=false,revision=0,loadToken=0,catalogToken=0,selection=[0,0],catalogRows=[];
-  let catalogController=null,catalogReady=false,catalogGenerating=false;
+  let catalogController=null,catalogReady=false,catalogGenerating=false,libraryShare=null;
   const current=()=>active&&cloud.user?.id===account;
   const mediaKey=id=>account+':'+state.editorId+':'+id;
   let noticeTimer,composing=false,provisional=Number.isInteger(state.provisional)?state.provisional:null;
@@ -271,7 +272,7 @@
   composeAction();
   function closeSheet(focus=true){
    if(!sheet||sheet.hidden)return;
-   cancelCatalog();
+   cancelCatalog();libraryShare=null;$('[data-library-share-video]')?.replaceChildren();
    sheet.hidden=true;pendingDispatch=null;if(focus)sheetTrigger?.focus({preventScroll:true});sheetTrigger=null;
   }
   function openPane(name,trigger){
@@ -279,6 +280,7 @@
    const pane=$('[data-editor-pane="'+name+'"]');
    if(!pane)return;
    if(name!=='catalog')cancelCatalog();
+   if(name!=='library_share'){libraryShare=null;$('[data-library-share-video]')?.replaceChildren();}
    if(sheet.hidden)sheetTrigger=trigger;
    sheet.hidden=false;
    sheet.dataset.activePane=name;
@@ -538,7 +540,7 @@
      if(file.type==='application/pdf'&&window.NeoLibraryFiles?.pdfCover){
       try{const cover=await window.NeoLibraryFiles.pdfCover(url,previewAbort.signal);if(current()&&version===revision&&cover){const img=document.createElement('img');img.src=cover;img.alt='Primeira página do PDF';holder.append(img);}}catch{}
      }else if(file.type==='video/mp4'){
-      const video=document.createElement('video');video.src=url;video.controls=true;video.preload='metadata';video.playsInline=true;video.style.maxWidth='100%';holder.append(video);
+      const video=document.createElement('video');video.src=url;video.controls=true;video.preload='metadata';video.playsInline=true;video.style.maxWidth='100%';if(block.name?.startsWith('previa-neopep-')){video.muted=true;video.loop=true;video.autoplay=!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;label.textContent='Prévia curta · '+Math.ceil(file.size/1024)+' KB';}holder.append(video);
      }else if(file.type==='text/plain'){
       const excerpt=await file.slice(0,4096).text();if(current()&&version===revision){const pre=document.createElement('p');pre.className='sub';pre.textContent=excerpt.slice(0,400);holder.append(pre);}
      }
@@ -978,6 +980,80 @@
     row.thumb=await cloud.campaignThumbnailUpload(kind,path,blob);if(!valid())return;showCatalogThumb(box,row,i,token,signal);
    }catch{failures++;}}}finally{if(valid()){catalogGenerating=false;catalogStatus();if(failures)$('[data-catalog-thumb-status]').textContent=failures+' miniatura(s) indisponíveis. Tente novamente.';}}
   }
+  function libraryOriginalReady(){
+   return channel==='app'?(testApp?testGate.rich_popup===true:gates.app_rich_popup===true):testWA&&gates.whatsapp_rich?.originals_enabled===true;
+  }
+  function libraryShareActive(s){return current()&&libraryShare===s&&!sheet.hidden&&sheet.dataset.activePane==='library_share';}
+  function addCatalogReference(row){
+   const keepText=!editing&&Boolean(message.value.trim());
+   if(editing&&!commitEdit())return;
+   const id=uuid();
+   if(draft.blocks.length>=32){tell('Limite de 32 blocos por rascunho.');return;}
+   draft.blocks.push({id,type:row.kind,ref:row.id,label:row.kind==='community'?'Publicação da Comunidade':row.label,text:''});
+   captionTarget=id;if(!keepText){editing=id;message.value='';}
+   render();changed();composeAction();closeSheet();
+   tell(keepText?'Item adicionado. Seu texto provisório continua em edição.':'Item adicionado. Escreva a legenda e confirme com a seta.');
+   message.focus();
+  }
+  async function chooseLibraryShare(row,trigger){
+   if(row.kind!=='document'||typeof cloud.library!=='function'){addCatalogReference(row);return;}
+   openPane('library_share',trigger);
+   const s=libraryShare={row,file:null,preview:null,busy:false};
+   $('[data-library-share-name]').textContent=row.label;
+   $('[data-library-share-video]').replaceChildren();
+   const status=$('[data-library-share-status]'),p=$('[data-editor="library_share_preview"]'),o=$('[data-editor="library_share_original"]');
+   p.disabled=o.disabled=true;p.hidden=o.hidden=false;status.textContent='Consultando material autorizado…';
+   try{
+    const material=(await cloud.library('get',{id:row.id}))?.material;
+    if(!libraryShareActive(s))return;
+    if(!material)throw Error('Material indisponível.');
+    const file=material.attachments?.find(f=>f.mime==='application/pdf'||f.mime?.startsWith('video/'))||material.attachments?.[0];
+    if(!file||(!file.mime?.startsWith('video/')&&file.mime!=='application/pdf')){addCatalogReference(row);return;}
+    s.file=file;const video=file.mime.startsWith('video/');
+    p.hidden=!video;
+    const permitted=file.allow_download===true&&libraryOriginalReady();
+    o.disabled=!permitted||!['video/mp4','application/pdf'].includes(file.mime)||!Number.isFinite(Number(file.size))||Number(file.size)<=0||Number(file.size)>5242880;
+    if(video&&typeof cloud.libraryVideoPreview==='function'&&file.allow_download===true){
+     try{s.preview=await cloud.libraryVideoPreview(row.id,file.path);}catch{}
+    }
+    if(!libraryShareActive(s))return;
+    p.disabled=!permitted||s.preview?.state!=='ready'||!s.preview.url;
+    if(s.preview?.state==='ready'&&s.preview.url){
+     const v=document.createElement('video');v.src=s.preview.url;v.muted=true;v.playsInline=true;v.loop=true;v.autoplay=!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;v.controls=true;v.preload='metadata';v.style.maxWidth='100%';v.setAttribute('aria-label','Prévia curta sem áudio');$('[data-library-share-video]').append(v);
+    }
+    status.textContent=file.allow_download!==true?'O original não permite download. Use capa + link.':!libraryOriginalReady()?'O envio de arquivos neste canal ainda não foi habilitado. Use capa + link.':video&&s.preview?.state!=='ready'?'Prévia ainda não disponível. A fila de processamento é independente da publicação.':o.disabled?'Arquivo original acima do limite de 5 MB ou formato não suportado.':'Selecione como compartilhar.';
+   }catch{if(libraryShareActive(s))status.textContent='Não foi possível consultar o arquivo. Você pode tentar capa + link.';}
+  }
+  async function addLibraryFile(mode){
+   const s=libraryShare;if(!s||!libraryShareActive(s)||s.busy)return;
+   if(mode==='cover'){addCatalogReference(s.row);return;}
+   const file=s.file,short=mode==='preview';
+   if(!file||file.allow_download!==true||!libraryOriginalReady()||short&&s.preview?.state!=='ready'||!short&&(!['video/mp4','application/pdf'].includes(file.mime)||!(Number(file.size)>0&&Number(file.size)<=5242880)))return;
+   if(draft.blocks.length+(short?2:1)>32){tell('Limite de 32 blocos por rascunho.');return;}
+   s.busy=true;const status=$('[data-library-share-status]');status.textContent='Preparando arquivo autorizado…';
+   for(const b of sheet.querySelectorAll('[data-editor^="library_share_"]'))b.disabled=true;
+   try{
+    const url=short?s.preview.url:await cloud.libraryMediaURL(file,true);
+    if(!libraryShareActive(s))return;
+    const address=new URL(url),origin=window.NEO_CONFIG?.supabaseUrl;
+    if(address.origin!==origin||address.protocol!=='https:'||!address.pathname.startsWith('/storage/v1/object/sign/'+(short?'neo-library-video-previews':'neo-library')+'/'))throw Error('Origem não autorizada.');
+    const limit=short?512000:5242880,mime=short?'video/mp4':file.mime;
+    const response=await fetch(address.href,{signal:previewAbort.signal,credentials:'omit',cache:'no-store',redirect:'error',referrerPolicy:'no-referrer'});
+    if(!response.ok||Number(response.headers.get('content-length'))>limit||response.headers.get('content-type')?.split(';')[0]!==mime||!response.body?.getReader)throw Error('Arquivo indisponível.');
+    const reader=response.body.getReader(),parts=[];let size=0;
+    try{while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>limit||!libraryShareActive(s))throw Error('Arquivo acima do limite ou operação cancelada.');parts.push(value);}}finally{await reader.cancel().catch(()=>{});}
+    if(!size||!libraryShareActive(s))return;
+    const blob=new Blob(parts,{type:mime});
+    const id=uuid(),name=(short?'previa-neopep-':'')+String(s.row.label||'Material').replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g,'_').slice(0,88)+(mime==='application/pdf'?'.pdf':'.mp4');
+    await storeMedia('readwrite',store=>store.put(blob,mediaKey(id)));
+    if(!libraryShareActive(s))return;
+    if(editing&&!commitEdit())return;
+    draft.blocks.push({id,type:'file',name,text:''});
+    if(short)draft.blocks.push({id:uuid(),type:'link',url:linkFor({type:'document',ref:s.row.id}),text:'Assista ao vídeo completo no NeoPep'});
+    render();changed();closeSheet();tell(short?'Prévia curta e link adicionados. Nenhum envio realizado.':'Arquivo original adicionado. Nenhum envio realizado.');
+   }catch(error){if(libraryShareActive(s)){status.textContent=error.message||'Não foi possível preparar o arquivo.';$('[data-editor="library_share_cover"]').disabled=false;}}
+   finally{s.busy=false;}
+  }
   async function searchCatalog(){
    const action=catalogKind;cancelCatalog();const controller=catalogController=new AbortController(),{signal}=controller;
    const token=catalogToken,box=$('[data-editor-catalog]'),valid=()=>catalogCurrent(token,signal);box.textContent='Buscando referências…';catalogRows=[];catalogStatus();
@@ -1157,18 +1233,8 @@
    }
    if(action==='prepare_thumbs'){void prepareCatalogThumbs();return;}
    if(action==='catalog_search')void searchCatalog();
-   if(action==='reference'&&catalogRows[index]){
-    const keepText=!editing&&Boolean(message.value.trim());
-    if(editing&&!commitEdit())return;
-    const row=catalogRows[index];
-    const id=uuid();
-    if(draft.blocks.length>=32){tell('Limite de 32 blocos por rascunho.');return;}
-    draft.blocks.push({id,type:row.kind,ref:row.id,label:row.kind==='community'?'Publicação da Comunidade':row.label,text:''});
-    captionTarget=id;if(!keepText){editing=id;message.value='';}
-    render();changed();composeAction();closeSheet();
-    tell(keepText?'Item adicionado. Seu texto provisório continua em edição.':'Item adicionado. Escreva a legenda e confirme com a seta.');
-    message.focus();
-   }
+   if(action==='reference'&&catalogRows[index]){await chooseLibraryShare(catalogRows[index],control);return;}
+   if(action?.startsWith('library_share_')){await addLibraryFile(action.slice('library_share_'.length));return;}
    if(action==='text'){
     const text=message.value.trim();
     if(editing){
