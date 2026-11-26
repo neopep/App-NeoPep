@@ -35,6 +35,7 @@
  }
  function mount({root,cloud,legacy,openLegacy,recoverLegacy,onConnect,channel='whatsapp',onCross}){
   const isApp=channel==='app',channelLabel=isApp?'App':'WhatsApp';
+  const testEnvironment=window.NEO_CONFIG?.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co';
   let current=null, detail=null, weekly=[], rows=[], filter='', search='', view='agenda', screen='', busy=false, formKey='', page=0, more=false;
   const account=cloud.user.id;
   const active=()=>root.isConnected&&cloud.user?.id===account;
@@ -213,11 +214,14 @@
    const selected=[...root.querySelectorAll('[name=selected-publication]:checked')].map(element=>detail.publications.find(pub=>pub.id===element.value));
    if(!selected.length){show('Selecione uma ou mais publicações.');return;}
    if(isApp){
-    const diag=await cloud.campaignTest('diagnostics');
-    if(!diag.enabled||!diag.audience_key||diag.destinations<1||diag.destinations>30){show('Homologação App indisponível. Confira as contas autorizadas.');return;}
-    if(!confirm('Agendar somente para as '+diag.destinations+' contas autorizadas de Teste?\n\n'+selected.map(p=>p.title+' · '+local(p.planned_local)).join('\n')))return;
+    const diag=testEnvironment?await cloud.campaignTest('diagnostics'):await cloud.campaignDispatch('diagnostics',{});
+    if(testEnvironment?(!diag.enabled||!diag.audience_key||diag.destinations<1||diag.destinations>30):!diag.app_enabled){show('Agendamento App indisponível. Confira as autorizações.');return;}
+    const hydrated=await Promise.all(selected.map(async pub=>({pub,revision:await rpc('load',{publication_id:pub.id})})));
+    if(!active()||hydrated.some(({pub,revision})=>!revision||revision.revision!==pub.revision)){show('Uma publicação mudou. Atualize a agenda.');return;}
+    const audience=({revision})=>{const a=revision.draft.app_settings;return a?(a.audience==='all'?'Todos':a.targets.join(', '))+' · '+(a.popup_enabled?'Pop-up':'Sem pop-up')+(a.push_requested?' · Push':''):revision.draft.audience||'Todos';};
+    if(!confirm((testEnvironment?'Agendar somente para as '+diag.destinations+' contas autorizadas de Teste?':'Confirmar agendamento para os públicos abaixo?')+'\n\n'+hydrated.map(row=>row.pub.title+' · '+local(row.pub.planned_local)+' · '+audience(row)).join('\n')))return;
     const outcomes=[];
-    for(const pub of selected){if(!active())return;try{const v=await rpc('load',{publication_id:pub.id});if(!v||v.revision!==pub.revision)throw Error('revision');const key='neo-campaign-app-intent:'+account+':'+pub.id+':'+pub.revision+':'+pub.planned_local;const request=getLocal(key)||crypto.randomUUID();setLocal(key,request);await rpc('schedule',{publication_id:pub.id,revision:pub.revision,local_time:pub.planned_local,request_id:request,confirmed:true,destination_count:diag.destinations,audience_key:diag.audience_key});outcomes.push(pub.title+': agendada');}catch{outcomes.push(pub.title+': não confirmada');}}
+    for(const pub of selected){if(!active())return;try{const v=hydrated.find(row=>row.pub.id===pub.id)?.revision;if(!v||v.revision!==pub.revision)throw Error('revision');const key='neo-campaign-app-intent:'+account+':'+pub.id+':'+pub.revision+':'+pub.planned_local;const request=getLocal(key)||crypto.randomUUID();setLocal(key,request);await rpc('schedule',{publication_id:pub.id,revision:pub.revision,local_time:pub.planned_local,request_id:request,confirmed:true,...(testEnvironment?{destination_count:diag.destinations,audience_key:diag.audience_key}:{})});outcomes.push(pub.title+': agendada');}catch{outcomes.push(pub.title+': não confirmada');}}
     await load(current);show(outcomes.join(' · '));return;
    }
    const diagnostics=await cloud.campaignRich('diagnostics',{});
@@ -379,8 +383,8 @@
     }
     if(action==='schedule_selected')await scheduleSelected();
     if(action==='attempts'&&pub&&isApp){
-     const batches=await cloud.campaignTest('status',{editor_id:pub.editor_id});
-     if(active()&&control.parentElement.isConnected)control.parentElement.innerHTML=batches.map(b=>'<p class="sub">'+date(b.starts_at)+' · '+(b.cancelled_at?'Cancelada':(b.recipients||[]).filter(r=>r.status==='displayed').length+' exibição(ões) confirmada(s)')+'</p>').join('')||'<p>Sem histórico de publicação.</p>';
+     const batches=testEnvironment?await cloud.campaignTest('status',{editor_id:pub.editor_id}):await cloud.campaignDispatch('app_status',{editor_id:pub.editor_id});
+     if(active()&&control.parentElement.isConnected)control.parentElement.innerHTML=batches.map(b=>'<p class="sub">'+date(b.starts_at)+' · '+(b.cancelled_at?'Cancelada':(testEnvironment?(b.recipients||[]).filter(r=>r.status==='displayed').length+' exibição(ões) confirmada(s)':escape(b.status||'Registrada')))+'</p>').join('')||'<p>Sem histórico de publicação.</p>';
     }
     if(action==='attempts'&&pub&&!isApp){
      const rich=await cloud.campaignRich('status',{editor_id:pub.editor_id});
