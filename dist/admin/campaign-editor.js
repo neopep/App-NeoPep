@@ -582,7 +582,14 @@
    const eligible=channel==='app'||draft.groups.length>0&&draft.groups.every(id=>groups.some(row=>row.id===id&&row.state==='eligible'));
    const pinned=!testWA||draft.groups.length===1&&draft.groups[0]===gates.whatsapp_test?.destination;
    const short=!testWA||draft.blocks.map(block=>block.text||'').join('\n\n').trim().length<=160;
-   const allow=Boolean((!publication||channel==='app'||rich)&&enabled&&clean&&eligible&&pinned&&(rich?richBlocks:textOnly&&short));
+   const appRich=testApp&&testGate.rich_popup===true;
+   const appBlocks=draft.blocks.length>0&&draft.blocks.length<=12&&draft.blocks.every(b=>['text','image','file','link','product','document','community'].includes(b.type)
+    &&(b.text||'').length<=2000&&!/(https?:\/\/|www\.)/i.test(b.text||'')
+    &&(!['image','file'].includes(b.type)||Boolean(b.media_path))
+    &&(b.type!=='file'||/\.(pdf|mp4)$/.test(b.media_path||''))
+    &&(b.type!=='link'||Boolean(validLink(b.url)))
+    &&(!['product','document','community'].includes(b.type)||Boolean(b.ref)));
+   const allow=Boolean((!publication||channel==='app'||rich)&&enabled&&clean&&eligible&&pinned&&(appRich?appBlocks:rich?richBlocks:textOnly&&short));
    dispatchReady.publish=Boolean(allow&&!(channel==='whatsapp'&&!testWA&&!gates.devices?.some(d=>d.ready)));
    dispatchReady.schedule=Boolean(allow&&draft.planned_local&&!(testWA&&!(rich?gates.whatsapp_rich?.ready:gates.whatsapp_test?.schedule_ready)));
    $('[data-editor=publish]').disabled=dispatching||saving;
@@ -677,7 +684,7 @@
    if(editing||message.value.trim()){explain('Confirme o texto ou a legenda com a seta antes de continuar.');return;}
    if(!draft.blocks.length){explain('Adicione conteúdo antes de continuar.');return;}
    if(testApp&&draft.app_settings?.popup_enabled===false){explain('Em Teste, somente o pop-up está disponível. Marque a exibição interna para homologar.');return;}
-   if(draft.blocks.some(b=>b.type==='file')&&(!testWA||gates.whatsapp_rich?.originals_enabled!==true)){explain('O envio integral de arquivos ainda não está habilitado neste canal. O arquivo permanece como rascunho.');return;}
+   if(draft.blocks.some(b=>b.type==='file')&&!(testApp&&testGate.rich_popup===true)&&(!testWA||gates.whatsapp_rich?.originals_enabled!==true)){explain('O envio integral de arquivos ainda não está habilitado neste canal. O arquivo permanece como rascunho.');return;}
    if(!state.remoteId||state.savedDraft!==JSON.stringify(draft)){
     explain('Salvando a versão antes da confirmação. Nenhuma mensagem será enviada.');
     await saveRemote();
@@ -797,7 +804,7 @@
     try{await uploadRichImages();}catch(error){tell(error.message||'Não foi possível preparar a imagem.');saving=false;return;}
     saving=false;
    }
-   if(testWA&&Object.prototype.hasOwnProperty.call(gates.whatsapp_rich||{},'originals_enabled')&&draft.blocks.some(b=>b.type==='file'&&!b.media_path)){
+   if((testApp&&testGate.rich_popup===true||testWA&&Object.prototype.hasOwnProperty.call(gates.whatsapp_rich||{},'originals_enabled'))&&draft.blocks.some(b=>b.type==='file'&&!b.media_path)){
     saving=true;try{await uploadOriginalFiles();}catch(error){tell(error.message||'Não foi possível guardar o arquivo original.');return;}finally{saving=false;if(current())showGate();}
    }
    if(!current())return;
