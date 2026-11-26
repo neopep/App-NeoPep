@@ -91,13 +91,13 @@
    if(active())root.innerHTML='<p class="sub" role="status" data-central-status></p>'+content;
   }
   function switchCampaign(row){
-   if(row.legacy||row.archived_at||!Object.prototype.hasOwnProperty.call(row,'paused_at'))return '';
-   const enabled=!row.paused_at;return `<button type="button" class="central-campaign-switch" role="switch" aria-checked="${enabled}" aria-label="${enabled?'Desativar':'Ativar'} campanha ${escape(row.title)}" title="${enabled?'Desativar':'Ativar'} campanha" data-central="toggle_enabled" data-id="${escape(row.campaign_id)}" data-enabled="${enabled}"><span class="central-switch-track" aria-hidden="true"></span><small>${enabled?'Ligada':'Desligada'}</small></button>`;
+   if(row.archived_at||row.legacy&&(!legacyStates.get(row.campaign_id)?.can_toggle||row.status==='archived')||!row.legacy&&!Object.prototype.hasOwnProperty.call(row,'paused_at'))return '';
+   const enabled=row.legacy?row.status==='active':!row.paused_at;return `<button type="button" class="central-campaign-switch" role="switch" aria-checked="${enabled}" aria-label="${enabled?'Desativar':'Ativar'} campanha ${escape(row.title)}" title="${enabled?'Desativar':'Ativar'} campanha" data-central="toggle_enabled" data-id="${escape(row.campaign_id)}" data-enabled="${enabled}"><span class="central-switch-track" aria-hidden="true"></span><small>${enabled?'Ligada':'Desligada'}</small></button>`;
   }
   function list(){
    screen='list';current=null;detail=null;
    const seen=new Set(rows.map(row=>row.campaign_id));
-   const feed=[...rows,...legacy().filter(row=>(isApp?(row.popup_enabled!==false||row.push_requested):row.whatsapp_enabled)&&!row.structured_review_only&&!seen.has(row.id)&&!legacyStates.get(row.id)?.deleted).map(row=>({...row,campaign_id:row.id,legacy:true}))];
+   const feed=[...rows,...legacy().filter(row=>(isApp?(row.popup_enabled!==false||row.push_requested):row.whatsapp_enabled)&&!row.structured_review_only&&!seen.has(row.id)&&!legacyStates.get(row.id)?.deleted).map(row=>({...row,campaign_id:row.id,legacy:true,status:legacyStates.get(row.id)?.status||row.status}))];
    const visible=feed.filter(row=>(!filter||campaignState(row)===filter)&&(row.title||'').toLocaleLowerCase('pt-BR').includes(search));
    redraw(`<div class="between"><h2>Campanhas ${channelLabel}</h2>${button('new','+ Nova campanha','','primary')}</div>
     <div class="central-filters"><label class="central-search">${icon('search')}<input type="search" aria-label="Buscar campanha" placeholder="Buscar campanha" data-central-search value="${escape(search)}"></label><label>Estado<select data-central-filter>
@@ -349,10 +349,11 @@
    busy=true;
    try{
     if(action==='toggle_enabled'){
-     const row=screen==='detail'?detail:rows.find(r=>r.campaign_id===id);if(!row||row.archived_at||!Object.prototype.hasOwnProperty.call(row,'paused_at'))return;
-     const expected=!row.paused_at,enabled=!expected;if(String(expected)!==control.dataset.enabled){show('O estado mudou. Atualize a campanha.');return;}
+     const structured=screen==='detail'?detail:rows.find(r=>r.campaign_id===id),old=legacyStates.get(id),legacyRow=!structured&&old?.can_toggle;
+     const row=structured||(legacyRow?{legacy:true,status:old.status,campaign_id:id}:null);if(!row||row.archived_at||!row.legacy&&!Object.prototype.hasOwnProperty.call(row,'paused_at'))return;
+     const expected=row.legacy?row.status==='active':!row.paused_at,enabled=!expected;if(String(expected)!==control.dataset.enabled){show('O estado mudou. Atualize a campanha.');return;}
      if(!confirm(enabled?'Reativar esta campanha? Publicações futuras voltam a ficar elegíveis; datas vencidas precisam ser revisadas. Nada já entregue será reenviado.':'Desativar esta campanha e interromper as publicações pendentes? Os conteúdos, datas e histórico serão preservados.'))return;
-     await rpc('set_enabled',{campaign_id:id,expected_enabled:expected,enabled,confirmed:true});if(screen==='detail')await load(id);else await refresh();show(enabled?'Campanha reativada.':'Campanha pausada.');return;
+     await rpc(row.legacy?'legacy_set_enabled':'set_enabled',{campaign_id:id,expected_enabled:expected,enabled,confirmed:true});if(screen==='detail')await load(id);else await refresh();show(enabled?'Campanha reativada.':'Campanha pausada.');return;
     }
     if(action==='new')void creation();
     if(action==='back')await refresh();
