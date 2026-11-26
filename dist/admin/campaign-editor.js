@@ -105,6 +105,23 @@
   if(readOnly&&previewBlocks.length)draft.blocks=previewBlocks;
   if(readOnly&&previewModes){const model=previewModes('web');draft.blocks=model.blocks;previewImages=model.images;}
   if(channel==='app')draft.groups=[];
+  const advancedApp=channel==='app'&&Boolean(publication);
+  const defaultsApp=()=>({audience:draft.audience==='all'?'all':'plan',targets:draft.audience==='all'?[]:[draft.audience||'free'],popup_enabled:true,push_requested:false,frequency_hours:24,max_views:1,priority:0,weekdays:[0,1,2,3,4,5,6],opens_at:'00:00',closes_at:'24:00',ends_local:''});
+  const settingsApp=()=>({...defaultsApp(),...(draft.app_settings||{})});
+  function appSettingsPane(){
+   const a=settingsApp(),week=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+   return `<p class="sub">${testApp?'Em Teste, somente contas autorizadas recebem o pop-up; público e push ficam registrados para revisão, sem envio push.':'Configure a exibição e os destinos desta publicação.'}</p>
+   <label>Público<select name="app_audience">${[['all','Todos'],['plan','Planos'],['segment','Segmentos']].map(([v,n])=>`<option value="${v}" ${a.audience===v?'selected':''}>${n}</option>`).join('')}</select></label>
+   <label data-app-plans ${a.audience!=='plan'?'hidden':''}>Planos (códigos separados por vírgula)<input name="app_targets" maxlength="500" value="${e(a.audience==='plan'?a.targets.join(', '):'')}" placeholder="free, premium"></label>
+   <fieldset data-app-segments ${a.audience!=='segment'?'hidden':''}><legend>Segmentos</legend>${[['recent','Cadastros recentes'],['established','Cadastros antigos'],['community','Membros da comunidade']].map(([v,n])=>`<label class="check"><input type="checkbox" name="app_segment" value="${v}" ${a.targets.includes(v)?'checked':''}> ${n}</label>`).join('')}</fieldset>
+   <fieldset><legend>Exibição</legend><label class="check"><input type="checkbox" name="app_popup" ${a.popup_enabled?'checked':''}> Mostrar ao abrir o aplicativo</label>
+   <label class="check"><input type="checkbox" name="app_push" ${a.push_requested?'checked':''}> Notificação push (quando autorizada)</label>
+   <div class="form-grid"><label>Intervalo mínimo (horas)<input type="number" name="app_frequency" min="1" max="8760" value="${a.frequency_hours}"></label><label>Limite por conta<input type="number" name="app_views" min="1" max="100" value="${a.max_views}"></label></div>
+   <label>Prioridade<input type="number" name="app_priority" min="0" max="100" value="${a.priority}"></label>
+   <label>Encerramento (opcional)<input type="datetime-local" name="app_end" value="${e(a.ends_local)}"></label>
+   <div class="form-grid"><label>A partir das<input type="time" name="app_open" value="${e(a.opens_at)}"></label><label>Até (vazio = meia-noite)<input type="time" name="app_close" value="${e(a.closes_at==='24:00'?'':a.closes_at)}"></label></div>
+   <div class="inline-actions">${week.map((n,i)=>`<label class="check"><input type="checkbox" name="app_day" value="${i}" ${a.weekdays.includes(i)?'checked':''}> ${n}</label>`).join('')}</div></fieldset>`;
+  }
   const dialog=document.createElement('dialog');
   dialog.className='neo-structured-editor';dialog.dataset.channel=channel;
   dialog.setAttribute('aria-labelledby','neo-campaign-structured-title');
@@ -121,7 +138,7 @@
     </div>`)}
     ${pane('settings','Configurações',`<label>${publication?'Nome da publicação':'Nome da campanha'}<input name="title" maxlength="120" value="${e(draft.title)}"></label><button type="button" class="secondary" data-editor="name_continue">Salvar nome e continuar</button><p class="sub" data-structured-connection role="status">Conexão ainda não verificada.</p>
      <div class="inline-actions">${publication?'':'<button type="button" class="secondary" data-editor="fresh">Novo rascunho</button>'}${channel==='whatsapp'&&!publication?'<button type="button" class="secondary" data-editor="cross">Criar versão App</button>':''}</div>`)}
-    ${channel==='app'?pane('audience','Público App',testApp?'<p>Somente as contas de homologação autorizadas no servidor. Esta campanha não envia push.</p>':'<label>Público App<select name="audience"><option value="all">Todos</option><option value="free">Free</option><option value="premium">Premium</option></select></label><label class="check"><input name="push" type="checkbox"> Solicitar push App para contas com consentimento</label>'):
+    ${channel==='app'?pane('audience','Públicos, planos e exibição',advancedApp?appSettingsPane():testApp?'<p>Somente as contas de homologação autorizadas no servidor. Esta campanha não envia push.</p>':'<label>Público App<select name="audience"><option value="all">Todos</option><option value="free">Free</option><option value="premium">Premium</option></select></label><label class="check"><input name="push" type="checkbox"> Solicitar push App para contas com consentimento</label>'):
     pane('groups','Grupos sincronizados','<div class="inline-actions"><button type="button" class="secondary" data-editor="groups">Atualizar grupos e diagnóstico</button><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button></div><label class="central-search editor-search"><input name="group_search" type="search" aria-label="Pesquisar grupo ou conexão" placeholder="Pesquisar grupo ou conexão"><span class="search-decoration" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></span></label><p class="sub" data-editor-group-count></p><div data-editor-groups></div>')}
     ${pane('photo','Foto','<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">No ambiente de Teste, imagens JPEG com legenda podem ser enviadas ao grupo autorizado. Salve a versão antes de publicar.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto</button>')}
     ${pane('file','Documento','<button type="button" class="secondary" data-editor="choose_document">Escolher PDF, MP4 ou TXT</button>')}
@@ -156,7 +173,7 @@
     <div class="structured-toolbar">
      ${iconButton('plus','Adicionar conteúdo','data-pane-open="menu"')}
      ${iconButton('photo','Anexos','data-pane-open="photo"')}
-     ${channel==='whatsapp'?iconButton('group','Grupos','data-pane-open="groups"'):iconButton('audience','Público','data-pane-open="audience"')}
+     ${channel==='whatsapp'?iconButton('group','Grupos','data-pane-open="groups"'):iconButton('audience','Públicos, planos e exibição','data-pane-open="audience"')}
      ${iconButton('clock','Publicação e agendamento','data-pane-open="schedule"')}
      ${iconButton('gear','Configurações','data-pane-open="settings"')}
      ${iconButton('send','Publicar agora','data-editor="publish" disabled')}
@@ -659,6 +676,7 @@
    if(channel==='whatsapp'&&!draft.groups.length){explain('Selecione pelo menos um grupo sincronizado.');return;}
    if(editing||message.value.trim()){explain('Confirme o texto ou a legenda com a seta antes de continuar.');return;}
    if(!draft.blocks.length){explain('Adicione conteúdo antes de continuar.');return;}
+   if(testApp&&draft.app_settings?.popup_enabled===false){explain('Em Teste, somente o pop-up está disponível. Marque a exibição interna para homologar.');return;}
    if(draft.blocks.some(b=>b.type==='file')&&(!testWA||gates.whatsapp_rich?.originals_enabled!==true)){explain('O envio integral de arquivos ainda não está habilitado neste canal. O arquivo permanece como rascunho.');return;}
    if(!state.remoteId||state.savedDraft!==JSON.stringify(draft)){
     explain('Salvando a versão antes da confirmação. Nenhuma mensagem será enviada.');
@@ -773,6 +791,7 @@
    }
    if(editing||message.value.trim()){tell('Conclua o bloco de texto em edição antes de registrar a versão.');return;}
    if(!draft.title.trim()){tell('Informe o título do rascunho.');return;}
+   if(advancedApp&&draft.app_settings){const a=draft.app_settings;if((!a.popup_enabled&&!a.push_requested)||(a.audience!=='all'&&!a.targets.length)||!a.weekdays.length||!a.opens_at||a.opens_at>=a.closes_at||!Number.isInteger(a.frequency_hours)||a.frequency_hours<1||a.frequency_hours>8760||!Number.isInteger(a.max_views)||a.max_views<1||a.max_views>100||!Number.isInteger(a.priority)||a.priority<0||a.priority>100){tell('Confira público, dias, horário, canais e limites de exibição.');return;}}
    if((testWA||testApp)&&draft.blocks.some(b=>['image','document'].includes(b.type)&&!b.media_path)){
     saving=true;tell('Preparando mídia privada para homologação…');
     try{await uploadRichImages();}catch(error){tell(error.message||'Não foi possível preparar a imagem.');saving=false;return;}
@@ -826,6 +845,13 @@
   dialog.addEventListener('input',event=>{
    const name=event.target.name;
    if(name==='group_search'){renderGroups();return;}
+   if(advancedApp&&name.startsWith('app_')){
+    const audience=field('app_audience').value;
+    const checked=key=>[...dialog.querySelectorAll('[name="'+key+'"]:checked')].map(x=>x.value);
+    dialog.querySelector('[data-app-plans]').hidden=audience!=='plan';dialog.querySelector('[data-app-segments]').hidden=audience!=='segment';
+    draft.app_settings={audience,targets:audience==='plan'?[...new Set(field('app_targets').value.split(',').map(x=>x.trim()).filter(Boolean))]:audience==='segment'?checked('app_segment'):[],popup_enabled:field('app_popup').checked,push_requested:field('app_push').checked,frequency_hours:Number(field('app_frequency').value),max_views:Number(field('app_views').value),priority:Number(field('app_priority').value),weekdays:checked('app_day').map(Number),opens_at:field('app_open').value,closes_at:field('app_close').value||'24:00',ends_local:field('app_end').value};
+    changed();return;
+   }
    if(['title','planned_local','audience'].includes(name)){draft[name]=event.target.value;if(name==='title')$('[data-campaign-name]').textContent=draft.title;changed();}
    if(name==='message'){changed();paintLive(true);}
    if(['weekly_count','push','photo_quality'].includes(name))changed();
