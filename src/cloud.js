@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import { uploadLibraryTus, LIBRARY_CHUNK } from './library-upload.mjs';
+const libraryUploadTickets=new WeakMap();
 const C=window.NeoCore, config=window.NEO_CONFIG||{};
 let client=null,user=null,profileRevision=null,listener=null,consents=[],isAdmin=false,onboarded=false,identityVersion=0;
 // Mantém o callback já usado no Supabase ao abrir o aplicativo também na raiz.
@@ -238,17 +240,39 @@ const api={configured,connectTestEnabled:connectEnabled,
   for(const key of Object.keys(fallback)){const n=r.data[key];limits[key]=Number.isSafeInteger(n)&&n>=0&&n<=209715200?n:fallback[key];}
   return limits;
  },
- async uploadLibraryFile(file,allowDownload=true){
+ async uploadLibraryFile(file,allowDownload=true,options={}){
   need();const version=identityVersion,account=user?.id;
   const kind={'image/jpeg':'image','application/pdf':'pdf','text/plain':'text','video/mp4':'video','video/webm':'video','video/quicktime':'video'}[file?.type];
   if(!kind||!Number.isSafeInteger(file.size)||file.size<=0)throw Error('Arquivo inválido.');
   const limits=await api.libraryUploadLimits();
   if(version!==identityVersion||account!==user?.id)throw Error('A conta mudou.');
   if(file.size>limits[kind])throw Error('O limite atual para este arquivo é '+Math.floor(limits[kind]/1048576)+' MB.');
-  const reserved=await api.library('reserve',{name:file.name.slice(0,120),mime:file.type,size:file.size,allow_download:allowDownload});
-  if(version!==identityVersion||account!==user?.id)throw Error('A conta mudou.');
-  ok(await client.storage.from('neo-library').upload(reserved.path,file,{contentType:file.type,upsert:false}));
-  if(version!==identityVersion||account!==user?.id)throw Error('A conta mudou.');return reserved.path;
+  const valid=()=>version===identityVersion&&account===user?.id&&!options.signal?.aborted;
+  if(!valid())throw Error('Envio interrompido.');
+  let ticket=libraryUploadTickets.get(file);
+  if(ticket&&(ticket.account!==account||ticket.version!==version))throw Error('A conta mudou. Selecione novamente o arquivo.');
+  if(!ticket){
+   const reserved=await api.library('reserve',{name:file.name.slice(0,120),mime:file.type,size:file.size,allow_download:allowDownload});
+   if(!valid()||typeof reserved.path!=='string'||!reserved.path.startsWith(account+'/')||!/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.[a-z0-9]{1,12}$/.test(reserved.path))throw Error('Reserva indisponível.');
+   ticket={path:reserved.path,account,version,url:null,offset:0};
+   if(file.size>LIBRARY_CHUNK)libraryUploadTickets.set(file,ticket);
+  }
+  if(file.size<=LIBRARY_CHUNK){
+   ok(await client.storage.from('neo-library').upload(ticket.path,file,{contentType:file.type,upsert:false}));
+  }else{
+   const endpoint=config.supabaseUrl.replace('.supabase.co','.storage.supabase.co')+'/storage/v1/upload/resumable';
+   const credentials=async()=>{
+    const result=await client.auth.getSession();const session=result.data?.session;
+    if(!valid()||result.error||session?.user?.id!==account||!session.access_token)throw Error('Sessão expirada.');
+    return {Authorization:'Bearer '+session.access_token,apikey:config.supabasePublishableKey};
+   };
+   if(ticket.busy)throw Error('O arquivo já está sendo enviado.');
+   ticket.busy=true;
+   try{await uploadLibraryTus({file,ticket,endpoint,credentials,valid,signal:options.signal,onProgress:options.onProgress});}
+   finally{ticket.busy=false;}
+   libraryUploadTickets.delete(file);
+  }
+  if(!valid())throw Error('A conta mudou ou o envio foi interrompido.');return ticket.path;
  },
  async libraryMediaURL(file,download=false){need();const version=identityVersion;if(download&&file.allow_download===false)throw Error('O download deste arquivo não foi disponibilizado.');if(typeof file.allow_download==='boolean')await api.library('media_access',{path:file.path,download});if(version!==identityVersion)throw Error('A conta mudou.');const data=ok(await client.storage.from('neo-library').createSignedUrl(file.path,file.mime?.startsWith('video/')||file.mime==='application/pdf'?1800:60,download?{download:file.name}:{}));if(version!==identityVersion)throw Error('A conta mudou.');return data.signedUrl},
  async library(action='read',payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_library',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou. Reabra a biblioteca.');if(action==='read'&&data?.can_manage===true)data.upload_limits=await api.libraryUploadLimits();if(version!==identityVersion)throw Error('A conta mudou.');return data},
