@@ -22,6 +22,7 @@ test('campanhas: replay integral de migracoes e rotas de pausa (banco descartave
  await apply(old+'campaign_manual_claim_candidate.sql');
  await apply(next+'campaign_pause_test_candidate.sql');
  await apply(next+'campaign_pause_manual_test_candidate.sql');
+ await apply('release/pacote-campanhas-20261126-03/campaign_agenda_metadata.sql');
  const rpc=async(action,payload={})=>(await db.query('select public.neo_campaign_central_v1($1,$2::jsonb) as result',[action,JSON.stringify(payload)])).rows[0].result;
  const as=async id=>{await db.exec('reset role');await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claims',$2,false)",[id,JSON.stringify({iss:'https://qnuluspqfazdppciermw.supabase.co/auth/v1'})]);await db.exec('set role authenticated');};
  const request=()=>require('node:crypto').randomUUID();
