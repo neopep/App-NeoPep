@@ -13,7 +13,7 @@ test('campanhas: replay integral de migracoes e rotas de pausa (banco descartave
  await db.exec(fixture+`alter table storage.objects add column metadata jsonb default '{}'::jsonb; create function auth.jwt() returns jsonb language sql stable as $$ select nullif(current_setting('request.jwt.claims',true),'')::jsonb $$;`);
  for(const f of fs.readdirSync('supabase/migrations').sort())await apply('supabase/migrations/'+f);
  await apply('tests/fixtures/connect/whatsapp-grupos.sql');
- for(const path of ['campaign-editor/20261124233000_campaign_editor_versions.sql','campaign-dispatch/20261124234500_campaign_dispatch.sql','campaign-wa-homologation/20261125023000_campaign_wa_homologation.sql',...fs.readdirSync('release/campaign-rich').filter(f=>f.endsWith('.sql')).sort().map(f=>'campaign-rich/'+f)])await apply('release/'+path);
+ for(const path of ['campaign-editor/20261124233000_campaign_editor_versions.sql','campaign-dispatch/20261124234500_campaign_dispatch.sql','campaign-homologation/20261125020000_campaign_homologation.sql','campaign-wa-homologation/20261125023000_campaign_wa_homologation.sql',...fs.readdirSync('release/campaign-rich').filter(f=>f.endsWith('.sql')).sort().map(f=>'campaign-rich/'+f)])await apply('release/'+path);
  await apply('tests/campaign-central-seed.sql');
  await apply('release/campaign-central/preflight.sql');
  await apply('release/campaign-central/20261125143000_campaign_central.sql');
