@@ -1,6 +1,6 @@
 // Candidate worker orchestration. Transport must be supplied by the authenticated Connect host.
 // No WhatsApp calls, credential persistence or external network endpoint in this module.
-import {generateVideoPreview,PREVIEW_MAX} from './video-preview.mjs';
+import {generateVideoPreview,PREVIEW_MAX,PREVIEW_SOURCE_MAX} from './video-preview.mjs';
 const uuid='[a-f0-9-]{36}';
 const sourcePattern=new RegExp('^'+uuid+'/'+uuid+'\\.[a-z0-9]{1,12}$');
 const outputPattern=new RegExp('^'+uuid+'/'+uuid+'/'+uuid+'\\.mp4$');
@@ -14,7 +14,7 @@ export async function processOneLibraryPreview({transport,tools,signal,convert=g
  const receipt={...capability,id,fence};
  try{
   signal?.throwIfAborted();
-  const bytes=await transport.downloadAuthorized('neo-library',source,50*1024*1024,signal);
+  const bytes=await transport.downloadAuthorized('neo-library',source,PREVIEW_SOURCE_MAX,signal);
   const result=await convert(bytes,{...tools,signal});
   if(!Buffer.isBuffer(result.bytes)||!result.bytes.length||result.bytes.length>PREVIEW_MAX||result.mime!=='video/mp4')throw Error('Preview invalid');
   signal?.throwIfAborted();

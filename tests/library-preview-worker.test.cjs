@@ -5,7 +5,7 @@ test('preview worker leases, downloads and uploads only authorized paths, comple
  const {processOneLibraryPreview}=await import('../connect/whatsapp-lab/library-preview-worker.mjs');
  const calls=[];
  const transport={rpc:async(action,data)=>{calls.push(action);assert.equal(data.video_preview_v1,true);return action==='claim'?job:{state:'ready'};},
- downloadAuthorized:async(bucket,path,max)=>{assert.equal(bucket,'neo-library');assert.equal(path,job.source_path);assert.equal(max,50*1024*1024);calls.push('download');return Buffer.from('video');},
+ downloadAuthorized:async(bucket,path,max)=>{assert.equal(bucket,'neo-library');assert.equal(path,job.source_path);assert.equal(max,200*1024*1024);calls.push('download');return Buffer.from('video');},
  uploadNew:async(bucket,path,bytes,mime)=>{assert.equal(bucket,'neo-library-video-previews');assert.equal(path,job.output_path);assert.equal(mime,'video/mp4');calls.push('upload');}};
  assert.equal((await processOneLibraryPreview({transport,convert:async()=>({bytes:Buffer.from('preview'),mime:'video/mp4'})})).state,'ready');
  assert.deepEqual(calls,['claim','download','upload','finish']);
