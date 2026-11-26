@@ -825,14 +825,14 @@ html:has(.neo-structured-editor[open]),body:has(.neo-structured-editor[open]){ov
 [data-theme=light] .notification-toast :is(.notification-toast-icon,.notification-toast-close){background:#e2ebf8;color:#21436d;border-color:#b7c5da}
 [data-theme=light] .notification-toast-progress{background:#526c9a}
 @media(prefers-reduced-motion:reduce){.notification-toast,.notification-toast-progress{animation:none!important;transition:none!important}}
-dialog.neo-structured-editor[open]{inset:0;height:100dvh;background:var(--campaign-rail);max-height:none}
+dialog.neo-structured-editor[open]{inset:var(--structured-top,0px) 0 auto;height:var(--structured-frame-height,100dvh);background:var(--campaign-rail);max-height:none}
 dialog.neo-structured-editor::backdrop{background:#192720}
 [data-theme=light] dialog.neo-structured-editor::backdrop{background:#edf0f4}
 .structured-header{gap:5px;padding-block:max(4px,env(safe-area-inset-top)) 4px}
 .structured-header :is(.structured-icon,.structured-avatar){min-width:34px;width:34px;min-height:34px}
 .structured-header h2{font-size:clamp(.83rem,3.6vw,1.1rem);white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.12}
 .structured-header .sub,.structured-group-more{font-size:.68rem;line-height:1.1;min-height:0;margin:1px 0}
-.neo-structured-editor footer{position:relative;overflow:visible;max-height:none;margin-bottom:var(--structured-keyboard,0px);background:transparent;border:0;padding-top:0;padding-bottom:max(3px,env(safe-area-inset-bottom))}
+.neo-structured-editor footer{position:relative;overflow:visible;max-height:none;margin-bottom:0;transform:translateY(calc(-1 * var(--structured-keyboard,0px)));background:transparent;border:0;padding-top:0;padding-bottom:max(3px,env(safe-area-inset-bottom))}
 .structured-compose{background:color-mix(in srgb,var(--solid) 78%,transparent);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);padding:4px}
 .structured-compose-marks{display:grid;grid-area:1/1/3/2;gap:0}
 .structured-compose-marks .structured-icon{min-height:24px}
@@ -1118,3 +1118,9 @@ dialog.neo-structured-editor::backdrop{background:#192720}
 .calc-manual{margin-top:.45rem}
 .calc-capacity-content{min-height:76px;padding:.25rem}
 .calc-capacity-content svg{margin-block-end:.1rem}
+
+/* Keep the preview grid unchanged while the composer overlays it. */
+.neo-structured-editor.structured-keyboard-open footer{z-index:3;background:var(--campaign-rail);padding-bottom:3px}
+.neo-structured-editor .structured-community-body{white-space:pre-wrap;overflow-wrap:anywhere;margin:.4rem 0}
+.neo-structured-editor .structured-community-author{display:block;color:var(--ink);font-size:.85rem}
+.neo-structured-editor .structured-community-reference img{max-width:min(100%,480px);max-height:none;object-fit:contain;cursor:default}
