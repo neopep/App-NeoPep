@@ -83,3 +83,26 @@ Paleta: fundo `#142743`, aro/borda `#223F63`, número `#FFFFFF`, exclusivamente 
 - 17 verificações focadas executadas (sintaxe JS, datas locais/São Paulo, recorrência, menu, painel, catálogo, gate e bloqueio de envio não suportado, prévia App, bloqueio automático do deploy).
 - Testes de navegador adaptados ao menu de três pontos e catálogo visual, e regressões do pacote atualizadas. Suíte completa e teste visual iPhone/Windows ainda pendentes; não afirmar homologação integral.
 - Cache PWA v53-campanhas-central e versão de assets Admin campanhas-central-3. Nenhum deploy solicitado, nenhuma migração aplicada, nenhum envio real disparado. Branch permanece com deploy automático desativado. Manter pagamentos, IA e demais serviços em funcionamento sem alterações neste ajuste.
+
+
+## Continuação do Ajuste 03 — integração das campanhas (cache v54)
+- Recorrência: horários individuais para dias selecionados em `campaign-central.js` e patch `campaign_weekday_times.sql`. Seis casos de lógica JS aprovados, incluindo regras antigas e entradas inválidas. A consulta SQL somente leitura confirmou as ocorrências de uma regra personalizada; a função alterada ainda não foi instalada/testada integralmente.
+- Central App: candidata `campaign_app_central_candidate.sql` e interface compartilhada, com campanha/publicações, edição, agenda, duplicação individual, cancelamento, exclusão lógica e consulta de estado para homologação. Sem ampliação de audiência ou push em Teste. A interface antiga permanece se o contrato não estiver instalado.
+- Cópia App ↔ WhatsApp: candidata `campaign_cross_channel_candidate.sql`. Transação com verificação de proprietário, idempotência, origem, publicações salvas, blocos, datas e referências de mídia disponíveis. Regras de recorrência de origem são conservadas para consulta e ocorrências existentes como rascunhos; não ativa uma regra nova automaticamente. Destinos são revistos. Anexo local sem original remoto bloqueia a cópia integral em vez de descartar conteúdo.
+- Fila: candidata `campaign_shared_queue_candidate.sql` e visualização administrativa consolidada de estados manuais/Connect, somente leitura. EXPLAIN da consulta confirmou que a expressão é compatível com o esquema atual do Teste; não equivale à homologação do RPC. Ainda não permite outro administrador liberar envio.
+- Verificação: 15 checagens focadas (incluindo os seis casos de recorrência), sintaxe dos quatro JS administrativos e guardas estáticas. Acrescentado `tests/campaign-integration-candidate.test.cjs` para regressão futura. Suíte completa, testes de navegador e Windows não confirmados.
+
+### Ordem dos patches candidatos (somente Teste, antes de ativar UI)
+1. Confirmar presença do contrato anterior de recorrência (`20261125223000_campaign_recurrence_times.sql`).
+2. Ensaiar `campaign_weekday_times.sql`.
+3. Ensaiar `campaign_app_central_candidate.sql`.
+4. Ensaiar `campaign_cross_channel_candidate.sql`.
+5. Ensaiar `campaign_shared_queue_candidate.sql`.
+Todos exigem validação em ambiente isolado, checagem de privilégios e RLS, rollback, testes positivos/negativos de autorização e idempotência, e comparação de produção. Não aplicar SQL de Teste diretamente em Produção; há restrições de emissor JWT e contratos exclusivos de homologação. Nenhum patch foi aplicado aos ambientes nesta rodada.
+
+### Bloqueadores restantes — não considerar pacote pronto apenas para deploy
+- Renderer real de notificações App com mídia e opções persistentes por publicação (popup, público/planos, frequência, push e recorrência App); integração de produção.
+- Envio de originais PDF/MP4 no armazenamento privado, backend, bridge e Windows Connect, com recibos e testes; a rota atual continua JPEG/texto. Cópia de arquivos locais ainda bloqueada.
+- Liberação por outro administrador: fluxo explícito de autorização/revisão, registro do responsável e prevenção de duplicidade; a consulta da fila já existe como candidata, mas não delega envio.
+- Testar os quatro patches como unidade, suite completa, validar iPhone/Windows, preparar candidatas de Produção e Teste sem sobrescrever integrações existentes. Manter prioridades 2 e 3 anteriores adiadas.
+- Nenhum deploy Vercel solicitado, sem envio de mensagens, sem mudanças persistentes no Supabase. Branch permanece com deploy automático desativado.
