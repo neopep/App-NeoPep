@@ -724,18 +724,21 @@ test('autorização nativa iniciada por outra conta não é aplicada à sessão 
   return {pending:true,location:false,statistics:false,usage:false,campaigns:false};
  }}});
  const tick=()=>new Promise(setImmediate);
- a.ctx.NEO_CONFIG.stagingGeoEnabled=true;
+ a.ctx.NEO_CONFIG.supabaseUrl='https://cpslafpzjtbpmoxxysaa.supabase.co';
+ a.ctx.NEO_CONFIG.productionGeoEnabled=true;
  let grant;
  a.ctx.navigator.geolocation={getCurrentPosition(success){grant=success;}};
  await a.run("mode='cloud';openAccountDestination()");await tick();
+ a.document.querySelector('#privacyPreferences [name=location]').checked=true;
  a.document.querySelector('#privacyPreferences').dispatchEvent(new a.ctx.Event('submit',{bubbles:true,cancelable:true}));
  a.ctx.NeoCloud.user={id:'account-b'};
  a.run('render()');await tick();
- grant({coords:{latitude:0}});await tick();
+ assert.equal(typeof grant,'function');
+ grant({coords:{latitude:-27.1,longitude:-48.6,accuracy:25}});await tick();
  assert.deepEqual(writes,[]);
  assert.equal(a.data.has('neo-location-onboarding-v1:account-a'),false);
  assert.equal(a.data.has('neo-location-onboarding-v1:account-b'),false);
- assert.equal(a.document.querySelector('#privacyPreferences [name=location]').checked,true);
+ assert.equal(a.document.querySelector('#privacyPreferences [name=location]').checked,false);
 });
 
 
