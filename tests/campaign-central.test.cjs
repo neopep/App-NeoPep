@@ -40,16 +40,16 @@ test('central adota revisões, salva publicações separadas e protege os agenda
 });
 
 
-test('pacote UX: orientacao da seringa e rastreamento opt-in por frasco',()=>{
+test('pacote UX: orientacao da seringa e acompanhamento de frasco no diario',()=>{
  const app=fs.readFileSync('dist/app.js','utf8');
  const styles=fs.readFileSync('dist/style.css','utf8');
  assert.match(app,/Para volumes pequenos, uma seringa de menor capacidade/);
  assert.match(app,/function calcVialDosePicker/);
- assert.match(app,/function assignCalcVialDose/);
- assert.match(app,/vialMassUsed\(vial,stored\.links\)/);
+ assert.match(app,/function prepareDiaryVialLink/);
+ assert.match(app,/function vialBalance\(vial,links,excludeId=null\)/);
  assert.match(app,/Math\.floor\(\(remaining\+1e-10\)\/dose\)/);
- assert.match(app,/if\(formKind==='dose'&&f\.has\('vialId'\)\)/);
- assert.match(app,/vinculada a um frasco físico/);
+ assert.match(app,/prepareDiaryVialLink\(C\.validRecord\('doses',r\),editing/);
+ assert.match(app,/O frasco está vazio; adicione um novo frasco/);
  assert.match(styles,/\.calc-tracked-vial/);
 });
 test('pacote UX: autorizar notificacoes apenas com escolha explicita e registrar push',()=>{
