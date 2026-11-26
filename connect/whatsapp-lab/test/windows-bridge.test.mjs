@@ -150,3 +150,29 @@ test('duas bridges isolam QR, cofre, o mesmo ID de grupo e desconexão',async()=
  assert.equal(production.events.at(-1).type,'groups');
  await Promise.all([test.bridge.close(),production.bridge.close()]);
 });
+
+test('IPC preserva bytes PDF e MP4, rejeita nomes, MIME e destinos inválidos, e não repete resultado incerto',async()=>{
+ const sent=[],messages=[];
+ const bridge=createBridge({emit:message=>messages.push(message),providerFactory:async hooks=>({
+  start(){hooks.onState('conectado');},close(){},
+  async sendFile(jid,caption,bytes,mime,name){sent.push({jid,caption,bytes,mime,name});if(name==='incerto.pdf')throw Error('fixture');return {messageId:'fixture'};}
+ })});
+ const pdf=Buffer.from('%PDF-1.4\nfixture\n%%EOF\n');
+ const mp4=Buffer.from([0,0,0,16,102,116,121,112,105,115,111,109,0,0,0,0]);
+ const request={action:'send_file',request_id:'11111111-1111-4111-8111-111111111111',group_jid:'123@g.us',text:'Fixture',mime:'application/pdf',name:'fixture.pdf',file:pdf.toString('base64')};
+ await bridge.receive(request);assert.equal(sent.length,0);
+ await bridge.receive({action:'connect'});
+ for(const invalid of [{...request,name:'../fixture.pdf'},{...request,mime:'video/mp4'},{...request,file:'AAAB'},{...request,group_jid:'123@s.whatsapp.net'},{...request,file:Buffer.alloc(5*1024*1024+1).toString('base64')}]){
+  await bridge.receive(invalid);assert.equal(messages.at(-1).value.status,'rejected');
+ }
+ assert.equal(sent.length,0);
+ await bridge.receive(request);
+ assert.deepEqual(sent[0],{jid:'123@g.us',caption:'Fixture',bytes:pdf,mime:'application/pdf',name:'fixture.pdf'});
+ assert.equal(messages.at(-1).value.status,'accepted');
+ await bridge.receive({...request,mime:'video/mp4',name:'fixture.mp4',file:mp4.toString('base64')});
+ assert.deepEqual(sent[1].bytes,mp4);
+ await bridge.receive({...request,name:'incerto.pdf'});
+ assert.equal(sent.length,3);assert.equal(messages.at(-1).value.status,'uncertain');
+ assert.equal(JSON.stringify(messages).includes(request.file),false);
+ await bridge.close();
+});
