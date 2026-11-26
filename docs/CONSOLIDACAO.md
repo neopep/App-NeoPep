@@ -1,5 +1,7 @@
 # Estado atual — 12/11/2026
 
+> **Relatório histórico.** Para o estado vigente desde 26/11/2026, consulte [Marco oficial de continuidade](MARCO-20261126.md). Este relatório preserva as informações de 12/11 e não deve ser usado como instrução de publicação atual.
+
 ## Uma versão atual
 NeoPeptídeos é o único aplicativo mantido e publicado. O pacote antigo foi removido de `dist/elo/` e `releases/elo-1/`. A recuperação do código antigo permanece possível pelo histórico Git; ele não precisa estar acessível na publicação. A identificação do Site foi atualizada para NeoPeptídeos. O endereço técnico existente é mantido até a conexão do domínio próprio, evitando quebrar links.
 
