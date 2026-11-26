@@ -40,7 +40,9 @@ test('editor so libera multi-blocos via gate rico e confirmacao',()=>{
   assert.match(editor,/gates\.whatsapp_rich\?\.ready===true/);
   assert.match(editor,/rich\?await cloud\.campaignRich\('publish'/);
   assert.match(editor,/cloud\.campaignMediaUpload/);
-  assert.match(editor,/if\(testWA&&draft\.blocks\.some/);
+  assert.match(editor,/if\(\(testWA\|\|testApp\|\|channel==='app'&&gates\.app_rich_popup===true\)&&draft\.blocks\.some/);
+  assert.match(editor,/!testWA\|\|gates\.whatsapp_rich\?\.originals_enabled!==true/);
+  assert.match(editor,/block\.type!=='file'\|\|\(gates\.whatsapp_rich\?\.originals_enabled===true/);
   assert.match(cloud,/async campaignRich\(/);
   assert.match(cloud,/async campaignMediaUpload\(/);
 });
