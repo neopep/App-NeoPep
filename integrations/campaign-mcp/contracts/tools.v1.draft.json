@@ -1,0 +1,209 @@
+{
+  "schema_version": "1.0.0-draft",
+  "status": "candidate_not_implemented",
+  "environment_binding": "server",
+  "description": "Contrato inicial de leitura; não representa ferramentas ativas. IDs e cursores opacos retornados pelo servidor. Consultar apenas campanhas autorizadas. Nenhum dado de membro ou credencial.",
+  "tools": [
+    {
+      "name": "get_capabilities",
+      "description": "Consultar a versão real publicada, canais, ferramentas habilitadas, limites e operações bloqueadas no ambiente autenticado.",
+      "scope": "campaigns:read",
+      "phase": "read-only",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "output_contract": "environment, contract_version, release_id, enabled_tools, channels, limits, restrictions"
+    },
+    {
+      "name": "get_brand_context",
+      "description": "Consultar identidade visual e regras editoriais do NeoPep, sem incluir dados privados.",
+      "scope": "campaigns:read",
+      "phase": "read-only",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "output_contract": "brand_version, approved_assets, colors, typography, editorial_rules, examples"
+    },
+    {
+      "name": "list_campaigns",
+      "description": "Listar campanhas existentes acessíveis ao administrador, incluindo legadas identificadas separadamente.",
+      "scope": "campaigns:read",
+      "phase": "read-only",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "enum": [
+              "app",
+              "whatsapp"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived",
+              "all"
+            ]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 20
+          },
+          "cursor": {
+            "type": "string",
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "channel"
+        ],
+        "additionalProperties": false
+      },
+      "output_contract": "items (id, channel, title, state, kind, revision_if_available), next_cursor"
+    },
+    {
+      "name": "get_campaign",
+      "description": "Consultar uma campanha autorizada e publicações existentes, com conteúdo e revisão; não retornar destinatários individuais.",
+      "scope": "campaigns:read",
+      "phase": "read-only",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "enum": [
+              "app",
+              "whatsapp"
+            ]
+          },
+          "campaign_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 20
+          },
+          "cursor": {
+            "type": "string",
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "channel",
+          "campaign_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_contract": "campaign, publications, next_cursor, available_actions"
+    },
+    {
+      "name": "get_schedule_status",
+      "description": "Consultar agendamentos e recibos de uma campanha, diferenciando programado, aceito, entregue (se evidenciado), erro e cancelado.",
+      "scope": "campaigns:read",
+      "phase": "read-only",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "enum": [
+              "app",
+              "whatsapp"
+            ]
+          },
+          "campaign_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 20
+          },
+          "cursor": {
+            "type": "string",
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "channel",
+          "campaign_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_contract": "items (publication_id, planned_local, timezone, status, sanitized_error, evidence), next_cursor"
+    }
+  ],
+  "error_contract": {
+    "code": [
+      "AUTH_REQUIRED",
+      "FORBIDDEN",
+      "ENVIRONMENT_MISMATCH",
+      "INVALID_INPUT",
+      "NOT_FOUND_OR_FORBIDDEN",
+      "REVISION_CONFLICT",
+      "RATE_LIMITED",
+      "CAPABILITY_UNAVAILABLE",
+      "UPSTREAM_UNAVAILABLE"
+    ],
+    "fields": [
+      "code",
+      "message",
+      "correlation_id",
+      "retryable"
+    ]
+  },
+  "rules": [
+    "Nenhuma ferramenta ativa antes de autorização e testes",
+    "Nunca confiar em environment/actor/owner fornecidos pelo modelo",
+    "Nenhum fallback privilegiado via service_role",
+    "Não expor IDs de grupos sem autorização, membros, tokens, URL assinada em logs",
+    "Validar JSON schema e o contrato de retorno no backend",
+    "Campos de saída descritivos ainda precisam de JSON Schema exato confirmado contra RPCs",
+    "Não reutilizar cursor em outra conexão, ambiente ou filtro"
+  ]
+}
