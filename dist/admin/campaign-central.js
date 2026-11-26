@@ -3,6 +3,16 @@
  const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
  const date=value=>value?new Date(value).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}):'';
  const local=value=>value?.replace('T',' ')||'';
+ const dateBadge=pub=>{
+  const stamp=pub.batches[0]?.due_at;
+  const day=stamp?new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(stamp)):pub.planned_local?.slice(0,10);
+  if(!day)return '<strong>Sem data</strong>';
+  const d=new Date(day+'T12:00:00Z');
+  if(!Number.isFinite(d.getTime()))return '<strong>Sem data</strong>';
+  const month=new Intl.DateTimeFormat('pt-BR',{timeZone:'UTC',month:'short'}).format(d).replace('.','').toUpperCase();
+  const hour=stamp?new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(stamp)):pub.planned_local.slice(11,16);
+  return '<strong class="central-date-day">'+d.getUTCDate()+'</strong><small>'+month+' '+d.getUTCFullYear()+'</small><span class="central-date-hour">'+escape(hour)+'</span>';
+ };
  const button=(action,label,id='',kind='secondary')=>`<button type="button" class="${kind}" data-central="${action}" data-id="${escape(id)}">${label}</button>`;
  const symbols={rename:'<path d="m4 16 12-12 4 4L8 20H4z"/><path d="m14 6 4 4"/>',archive:'<rect x="3" y="3" width="18" height="5" rx="1"/><path d="M5 8v12h14V8M9 12h6"/>',delete:'<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>',search:'<circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/>'};
  const icon=name=>`<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${symbols[name]}</svg>`;
@@ -120,8 +130,7 @@
    const dated=ordered.filter(pub=>!undated.includes(pub));
    const cards=entries=>entries.map(pub=>{
     const batch=pub.batches[0],locked=Boolean(pub.deleted_at)||pub.legacy_dispatch||Boolean(batch&&(batch.cancelled_at==null||batch.states?.some(value=>value!=='cancelled')));
-    const stamp=batch?date(batch.due_at):local(pub.planned_local)||'Sem data';
-    return `<article class="monitor-block central-publication"><div class="central-date-badge"><strong>${escape(stamp.split(/[T ,]/)[0])}</strong><small>${escape(stamp.match(/\b\d{2}:\d{2}/)?.[0]||'—')}</small></div><div class="central-publication-body"><div class="central-publication-title"><strong>${escape(pub.title)}</strong><span class="campaign-state">${pub.deleted_at?'Excluída':status(pub)}</span></div>
+    return `<article class="monitor-block central-publication"><div class="central-date-badge">${dateBadge(pub)}</div><div class="central-publication-body"><div class="central-publication-title"><strong>${escape(pub.title)}</strong><span class="campaign-state">${pub.deleted_at?'Excluída':status(pub)}</span></div>
      <p class="sub">${pub.kinds?.length||0} mensagem(ns)${pub.kinds?.length?' · '+escape(pub.kinds.join(', ')):''}</p>
      ${view==='agenda'&&editable&&pub.planned_local&&!locked?`<label class="check"><input type="checkbox" name="selected-publication" value="${escape(pub.id)}" aria-label="Selecionar para agendar"> Agendar</label>`:''}
      <details class="central-action-menu"><summary aria-label="Opções da publicação">⋯</summary><div class="central-action-popover">${button('edit',locked||!editable?'Ver publicação':'Editar publicação',pub.id)}
@@ -165,12 +174,16 @@
   }
   function weeklyForm(pub,existing){
    const rule=existing?.rule||{};
+   const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+   const start=rule.start||(pub.planned_local?.slice(0,10)>today?pub.planned_local.slice(0,10):today);
+   const defaultDay=new Date(start+'T12:00:00Z').getUTCDay();
+   const legacyWeekly=Boolean(existing&&rule.frequency!=='daily'&&rule.times?.length>1);
    redraw(`${button('open','‹ Agenda',current)}<h2>Programar repetição</h2><p>${escape(pub.title)}</p>
-    <form data-central-form="weekly" data-id="${escape(pub.id)}" data-request="${crypto.randomUUID()}" data-replace="${escape(existing?.id)}" class="campaign-central-form">
+    <form data-central-form="weekly" data-id="${escape(pub.id)}" data-request="${crypto.randomUUID()}" data-replace="${escape(existing?.id)}" data-legacy-weekly="${legacyWeekly}" class="campaign-central-form">
     <label>Frequência<select name="frequency"><option value="weekly">Semanal</option><option value="daily" ${rule.frequency==='daily'?'selected':''}>Diária</option></select></label>
-    <fieldset><legend>Dias da semana (repetição semanal)</legend><div class="inline-actions">${weekdays.map((day,i)=>`<label class="check"><input type="checkbox" name="days" value="${i}" ${rule.days?.includes(i)?'checked':''}> ${day}</label>`).join('')}</div></fieldset>
-    <fieldset class="central-time-picker"><legend>Horários em São Paulo</legend><div data-central-times>${(rule.times?.length?rule.times:[rule.time||'09:00']).map(time=>`<div class="central-time-chip"><input type="time" name="time" value="${escape(time)}" required aria-label="Horário"><button type="button" class="text-btn" data-remove-time aria-label="Remover horário">×</button></div>`).join('')}</div><button type="button" class="secondary" data-add-time>+ Horário</button><p class="sub">Na frequência diária, adicione até 8 horários. Na semanal, escolha um horário para os dias selecionados.</p></fieldset>
-    <label>Início<input type="date" name="start" value="${escape(rule.start)}" required></label>
+    <fieldset><legend>Dias da semana (repetição semanal)</legend><div class="inline-actions">${weekdays.map((day,i)=>`<label class="check"><input type="checkbox" name="days" value="${i}" ${(rule.days||[defaultDay]).includes(i)?'checked':''}> ${day}</label>`).join('')}</div></fieldset>
+    <fieldset class="central-time-picker"><legend>Horários em São Paulo</legend><div data-central-times>${(rule.times?.length?rule.times:[rule.time||pub.planned_local?.slice(11,16)||'09:00']).map(time=>`<div class="central-time-chip"><input type="time" name="time" value="${escape(time)}" required aria-label="Horário"><button type="button" class="text-btn" data-remove-time aria-label="Remover horário">×</button></div>`).join('')}</div><button type="button" class="secondary" data-add-time>+ Horário</button><p class="sub">Na frequência diária, adicione até 8 horários. Na semanal, escolha um horário para os dias selecionados.${legacyWeekly?' Os horários de uma regra antiga foram preservados.':''}</p></fieldset>
+    <label>Início<input type="date" name="start" value="${escape(start)}" required></label>
     <label>Término (opcional)<input type="date" name="end" value="${escape(rule.end)}"></label>
     <label>Número máximo de ocorrências<input type="number" name="count" min="1" max="24" value="${rule.count||4}" required></label>
     <p class="sub">Até 24 ocorrências nos próximos 89 dias. As publicações em andamento mantêm o histórico.</p>
@@ -256,14 +269,15 @@
    if(remove&&list.childElementCount>1)remove.closest('.central-time-chip').remove();
    if(add&&form.elements.frequency.value==='daily'&&list.childElementCount<8){
     list.insertAdjacentHTML('beforeend','<div class="central-time-chip"><input type="time" name="time" required aria-label="Horário"><button type="button" class="text-btn" data-remove-time aria-label="Remover horário">×</button></div>');
-    list.lastElementChild.querySelector('input').focus();
+    const picker=list.lastElementChild.querySelector('input');picker.focus();try{picker.showPicker?.();}catch{}
    }
    syncTimeControls(form);
   });
   function syncTimeControls(form){
    const daily=form.elements.frequency.value==='daily',list=form.querySelector('[data-central-times]');
    form.querySelector('[data-add-time]').hidden=!daily;
-   for(const chip of [...list.children].slice(1)){chip.hidden=!daily;chip.querySelector('input').disabled=!daily;}
+   const multiple=daily||form.dataset.legacyWeekly==='true';
+   for(const chip of [...list.children].slice(1)){chip.hidden=!multiple;chip.querySelector('input').disabled=!multiple;}
    for(const day of form.querySelectorAll('[name=days]'))day.disabled=daily;
   }
   root.addEventListener('click',async event=>{
