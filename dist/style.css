@@ -922,3 +922,26 @@ dialog.neo-structured-editor::backdrop{background:#192720}
  border-color:#223F63;
  box-shadow:0 0 0 2px #223F63,0 3px 10px #14274330;
 }
+
+/* Admin: aviso de novo cadastro acompanha o tema claro, sem alterar o escuro. */
+[data-theme=light] .admin-signup-toast{
+ background:#f8fbff;
+ color:#172b49;
+ border-color:#b7c5da;
+ box-shadow:0 8px 32px #152d4b26;
+}
+[data-theme=light] .admin-signup-toast :is(strong,.admin-signup-toast-actions span,.admin-signup-toast-actions .icon-btn){
+ color:#142743;
+}
+[data-theme=light] .admin-signup-toast progress{
+ appearance:none;
+ -webkit-appearance:none;
+ background:#dbe3ee;
+ border:0;
+ border-radius:999px;
+ overflow:hidden;
+ accent-color:#223F63;
+}
+[data-theme=light] .admin-signup-toast progress::-webkit-progress-bar{background:#dbe3ee;border-radius:999px}
+[data-theme=light] .admin-signup-toast progress::-webkit-progress-value{background:#223F63;border-radius:999px}
+[data-theme=light] .admin-signup-toast progress::-moz-progress-bar{background:#223F63;border-radius:999px}
