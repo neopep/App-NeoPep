@@ -98,7 +98,7 @@ test('nuvem lista metadados, assina apenas a variante pedida e recupera retentat
  const ctx={window:null,NeoCore:C,NEO_CONFIG:{supabaseUrl:'https://project.supabase.co',supabasePublishableKey:'sb_publishable_fixture'},
   createClient:()=>sdk,URL,setTimeout};
  ctx.window=ctx;vm.createContext(ctx);
- vm.runInContext(fs.readFileSync('src/cloud.js','utf8').replace(/^import[^\n]*\n/,''),ctx);
+ vm.runInContext(fs.readFileSync('src/cloud.js','utf8').replace(/^import[^\n]*\n/,'').replace("import { uploadLibraryTus, LIBRARY_CHUNK } from './library-upload.mjs';",''),ctx);
  const cloud=ctx.NeoCloud;
  await cloud.init(()=>{});
  vm.runInContext("consents=[{purpose:'health',version:'2026-11-v1',granted:true},{purpose:'terms',version:'2026-11-v1',granted:true},{purpose:'photos',version:'2026-11-v1',granted:true}]",ctx);
