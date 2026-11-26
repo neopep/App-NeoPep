@@ -172,7 +172,7 @@
     ${pane('link','Link','<label>Link HTTPS<input name="link" type="url" maxlength="2000"></label><button type="button" class="secondary" data-editor="link">Adicionar link</button>')}
     ${pane('catalog','Referências','<div class="central-search editor-search"><input name="catalog_search" type="search" maxlength="100" aria-label="Buscar referências" placeholder="Buscar referências"><button type="button" class="structured-icon" data-editor="catalog_search" aria-label="Buscar referências" title="Buscar referências"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button></div><div class="structured-catalog-tools"><button type="button" class="secondary" data-editor="prepare_thumbs" hidden>Preparar miniaturas faltantes</button><p class="sub" data-catalog-thumb-status role="status"></p></div><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
     ${pane('library_share','Como deseja compartilhar?','<p class="sub" data-library-share-name></p><div class="inline-actions"><button type="button" class="secondary" data-editor="library_share_cover">Capa + link</button><button type="button" class="secondary" data-editor="library_share_preview" disabled>Prévia curta + link</button><button type="button" class="secondary" data-editor="library_share_original" disabled>Arquivo original</button></div><div data-library-share-video></div><p class="sub" data-library-share-status role="status"></p>')}
-    ${pane('schedule','Publicação e horário','<label>Horário planejado (São Paulo)<input name="planned_local" type="datetime-local" value="'+e(draft.planned_local)+'"></label><p data-editor-summary class="sub"></p><div class="inline-actions"><button type="button" class="secondary" data-editor="schedule" disabled>Programar</button><button type="button" class="secondary" data-editor="simulate">Ver prévia (sem enviar)</button></div><p role="status" class="sub" data-editor-simulation></p><p class="sub">A prévia não envia mensagens. Para publicar, escolha os grupos e confirme o envio.</p><p class="sub" data-dispatch-gate></p>')}
+    ${pane('schedule','Publicação e horário','<label>Horário planejado (São Paulo)<input name="planned_local" type="datetime-local" value="'+e(draft.planned_local)+'"></label><p data-editor-summary class="sub"></p><div class="inline-actions"><button type="button" class="secondary" data-editor="schedule" disabled>Programar</button><button type="button" class="secondary" data-editor="simulate">Ver prévia (sem enviar)</button></div><div class="structured-issues" data-editor-issues role="status"></div><p role="status" class="sub" data-editor-simulation></p><p class="sub">A prévia não envia mensagens. Para publicar, escolha os grupos e confirme o envio.</p><p class="sub" data-dispatch-gate></p>')}
     ${pane('confirmation','Confirmar campanha','<p data-confirm-question></p><p class="sub" data-confirm-summary></p><p class="structured-confirm-content" data-confirm-content></p><button type="button" class="primary" data-editor="confirm_dispatch">Confirmar</button> <button type="button" class="secondary" data-editor="sheet_close">Voltar à composição</button>')}
     ${channel==='whatsapp'&&!testWA?pane('recurrence','Recorrência','<label>Ocorrências semanais<input name="weekly_count" type="number" min="1" max="6" step="1" value="1"></label>'):''}
     ${pane('format','Formatação do trecho selecionado','<div class="inline-actions"><button type="button" class="secondary" data-format="*" aria-label="Aplicar negrito">Negrito</button><button type="button" class="secondary" data-format="_" aria-label="Aplicar itálico">Itálico</button><button type="button" class="secondary" data-format="~">Riscado</button><button type="button" class="secondary" data-format="&#96;">Monoespaçado</button></div>')}
@@ -188,7 +188,7 @@
    </header>
    <main class="neo-structured-scroll"><h3 class="structured-campaign-name" ${publication?'data-parent-campaign="'+e(publication.title)+'"':''} data-campaign-name>${e(draft.title)}</h3><div class="neo-structured-preview" aria-label="${channel==='app'?'Prévia da notificação no aplicativo':'Conversa simulada'}" data-editor-preview></div><div class="structured-live" data-editor-live hidden></div></main>
    ${readOnly?`<footer>${previewModes?'<label class="structured-preview-mode">Modo da simulação<select name="preview_mode"><option value="web">Painel · compartilhamento manual</option><option value="connect">Connect · imagem com legenda</option></select></label>':''}<p class="sub">Simulação visual. A disponibilidade de envio depende do canal e dos anexos.</p></footer>`:`<footer>
-    <p role="status" class="sub structured-compose-status" data-editor-status></p>
+    <div class="structured-issues structured-issues-compact" data-editor-issues-compact aria-label="Pendências da publicação"></div><p role="status" class="sub structured-compose-status" data-editor-status></p>
     <button type="button" class="text-btn structured-revert" data-editor="revert" hidden>Desfazer exclusão</button>
     <div class="structured-compose">
      <div class="structured-compose-marks"><button type="button" class="structured-icon" data-editor="caption" aria-label="Editar legenda do conteúdo" aria-pressed="false" disabled>L</button><button type="button" class="structured-icon" data-format="*" aria-label="Negrito" aria-pressed="false"><b>B</b></button><button type="button" class="structured-icon" data-format="_" aria-label="Itálico" aria-pressed="false"><i>I</i></button><button type="button" class="structured-icon extended-mark" data-format="~" aria-label="Riscado"><s>S</s></button><button type="button" class="structured-icon extended-mark" data-format="&#96;" aria-label="Monoespaçado">M</button></div>
@@ -538,7 +538,7 @@
      const label=document.createElement('p');label.className='sub';label.textContent=(file.type==='application/pdf'?'PDF':file.type==='video/mp4'?'MP4':'TXT')+' · '+Math.ceil(file.size/1024)+' KB · '+(block.name||'Documento');
      holder.replaceChildren(label);
      if(file.type==='application/pdf'&&window.NeoLibraryFiles?.pdfCover){
-      try{const cover=await window.NeoLibraryFiles.pdfCover(url,previewAbort.signal);if(current()&&version===revision&&cover){const img=document.createElement('img');img.src=cover;img.alt='Primeira página do PDF';holder.append(img);}}catch{}
+      try{const cover=await window.NeoLibraryFiles.pdfCover(file,previewAbort.signal);if(current()&&version===revision&&cover){const img=document.createElement('img');img.className='structured-document-cover';img.src=cover;img.alt='Primeira página do PDF';holder.append(img);}else if(current()&&version===revision){const note=document.createElement('p');note.className='sub';note.textContent='Não foi possível gerar a capa deste PDF. O arquivo continua disponível.';holder.append(note);}}catch{if(current()&&version===revision){const note=document.createElement('p');note.className='sub';note.textContent='Prévia do PDF indisponível. O arquivo foi preservado.';holder.append(note);}}
      }else if(file.type==='video/mp4'){
       const video=document.createElement('video');video.src=url;video.controls=true;video.preload='metadata';video.playsInline=true;video.style.maxWidth='100%';if(block.name?.startsWith('previa-neopep-')){video.muted=true;video.loop=true;video.autoplay=!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;label.textContent='Prévia curta · '+Math.ceil(file.size/1024)+' KB';}holder.append(video);
      }else if(file.type==='text/plain'){
@@ -593,8 +593,28 @@
   }
   const richMode=()=>testWA&&(Boolean(publication)||draft.blocks.length!==1||draft.blocks.some(block=>block.type!=='text'||/(https?:\/\/|www\.)/i.test(block.text||''))||
    draft.blocks.map(block=>block.text||'').join('\n\n').trim().length>160);
+  let checkDispatch=false,checkScheduled=false;
+  function dispatchIssues(scheduled){
+   const issues=[],add=(key,label,pane,severity='warning')=>issues.push({key,label,pane,severity});
+   if(!draft.title.trim())add('title','Nome da publicação','settings');
+   if(channel==='whatsapp'&&(!draft.groups.length||!draft.groups.every(id=>groups.some(g=>g.id===id&&g.state==='eligible'))))add('groups','Selecione grupos autorizados','groups');
+   if(scheduled&&!draft.planned_local)add('time','Defina data e horário','schedule');
+   if(editing||message.value.trim())add('text','Confirme o texto ou legenda','compose');
+   if(!draft.blocks.length)add('content','Adicione conteúdo','menu');
+   if(channel==='whatsapp'&&draft.blocks.length>6)add('limit','Limite de 6 blocos por grupo','menu');
+   if(draft.blocks.some(b=>b.type==='file')&&!libraryOriginalReady())add('file','Envio de arquivos bloqueado neste canal','schedule','blocked');
+   if(channel==='whatsapp'&&(!gates.whatsapp_rich?.ready&&richMode()))add('connect','Confira conexão e autorização','groups','blocked');
+   if(testApp&&draft.app_settings?.popup_enabled===false)add('popup','Ative a exibição no App','audience');
+   return issues;
+  }
+  function paintIssues(){
+   const items=dispatchIssues(checkScheduled);
+   const render=rows=>rows.map(i=>`<button type="button" class="structured-issue ${i.severity}" data-pane-open="${i.pane}" aria-label="Corrigir: ${e(i.label)}"><span aria-hidden="true">${i.severity==='blocked'?'⊘':'!'}</span><span>${e(i.label)}</span><span aria-hidden="true">›</span></button>`).join('');
+   const panel=$('[data-editor-issues]'),compact=$('[data-editor-issues-compact]');if(panel)panel.innerHTML=render(items);if(compact)compact.innerHTML=checkDispatch?render(items):'';
+  }
   function showGate(){
    if(readOnly)return;
+   paintIssues();
    const clean=state.remoteId&&state.savedDraft===JSON.stringify(draft)&&!message.value.trim()&&!editing;
    const rich=richMode();
    const enabled=publication&&channel==='whatsapp'?gates.whatsapp_rich?.ready===true:testApp?testGate.enabled&&testGate.destinations>0&&testGate.destinations<=30&&Boolean(testGate.audience_key):
@@ -706,6 +726,7 @@
   }
   async function requestDispatch(scheduled,trigger){
    if(saving||dispatching||!current())return;
+   checkDispatch=true;checkScheduled=scheduled;paintIssues();
    openPane('schedule',trigger);
    const explain=text=>{$('[data-editor-simulation]').textContent=text;tell(text);};
    if(!draft.title.trim()){explain('Informe o nome da publicação em Ajustes.');return;}
@@ -714,7 +735,7 @@
    if(editing||message.value.trim()){explain('Confirme o texto ou a legenda com a seta antes de continuar.');return;}
    if(!draft.blocks.length){explain('Adicione conteúdo antes de continuar.');return;}
    if(testApp&&draft.app_settings?.popup_enabled===false){explain('Em Teste, somente o pop-up está disponível. Marque a exibição interna para homologar.');return;}
-   if(draft.blocks.some(b=>b.type==='file')&&!(channel==='app'&&(testApp?testGate.rich_popup===true:gates.app_rich_popup===true))&&(!testWA||gates.whatsapp_rich?.originals_enabled!==true)){explain('O envio integral de arquivos ainda não está habilitado neste canal. O arquivo permanece como rascunho.');return;}
+   if(draft.blocks.some(b=>b.type==='file')&&!libraryOriginalReady()){explain('Envio de arquivo original desativado no servidor. O rascunho foi preservado; use Capa + link quando disponível.');return;}
    if(!state.remoteId||state.savedDraft!==JSON.stringify(draft)){
     explain('Salvando a versão antes da confirmação. Nenhuma mensagem será enviada.');
     await saveRemote();
@@ -1021,7 +1042,7 @@
     if(s.preview?.state==='ready'&&s.preview.url){
      const v=document.createElement('video');v.src=s.preview.url;v.muted=true;v.playsInline=true;v.loop=true;v.autoplay=!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;v.controls=true;v.preload='metadata';v.style.maxWidth='100%';v.setAttribute('aria-label','Prévia curta sem áudio');$('[data-library-share-video]').append(v);
     }
-    status.textContent=file.allow_download!==true?'O original não permite download. Use capa + link.':!libraryOriginalReady()?'O envio de arquivos neste canal ainda não foi habilitado. Use capa + link.':video&&s.preview?.state!=='ready'?'Prévia ainda não disponível. A fila de processamento é independente da publicação.':o.disabled?'Arquivo original acima do limite de 5 MB ou formato não suportado.':'Selecione como compartilhar.';
+    status.textContent=file.allow_download!==true?'Download não autorizado na Biblioteca. Somente capa + link está disponível; revise a permissão do material antes de compartilhar arquivos.':!libraryOriginalReady()?'Envio de arquivos desativado no servidor. Você pode usar capa + link e preparar a publicação sem enviar.':video&&s.preview?.state!=='ready'?'Prévia curta ainda não disponível. Confira o processamento no NeoPep Connect e reabra este material.':o.disabled?'Original acima de 5 MB ou formato não suportado.':'Selecione como compartilhar.';
    }catch{if(libraryShareActive(s))status.textContent='Não foi possível consultar o arquivo. Você pode tentar capa + link.';}
   }
   async function addLibraryFile(mode){
