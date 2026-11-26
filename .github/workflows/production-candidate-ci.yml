@@ -43,8 +43,53 @@ jobs:
       - name: Auditoria de dependencias
         run: npm audit --omit=dev --audit-level=high
 
+  # A PR #83 sincroniza somente codigo que ja esta publicado em Producao.
+  # Todos os outros PRs continuam sujeitos ao gate de prontidao publica.
+  sync-gate:
+    name: Gate da sincronizacao auditada (sem novo release)
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.number == 83 && github.head_ref == 'preparacao/auditoria-final-producao-20261125' }}
+    needs: [candidate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Garantir mesmo codigo funcional ja publicado
+        env:
+          PUBLISHED_SHA: 5f96533ee00452a1a6e3d6eb28284e587b18457d
+        run: |
+          set -euo pipefail
+          git cat-file -e "${PUBLISHED_SHA}^{commit}"
+          git merge-base --is-ancestor "$PUBLISHED_SHA" HEAD
+          mapfile -t changes < <(git diff --name-only "$PUBLISHED_SHA" HEAD)
+          if [[ "${#changes[@]}" -ne 2 ]]; then
+            echo "::error::Sincronizacao exige exatamente dois arquivos de controle alterados."
+            printf '%s\n' "${changes[@]}"
+            exit 1
+          fi
+          for path in "${changes[@]}"; do
+            case "$path" in
+              ".github/workflows/production-candidate-ci.yml"|"vercel.json") ;;
+              *) echo "::error::Arquivo funcional alterado: $path"; exit 1 ;;
+            esac
+          done
+          node <<'NODE'
+          const fs=require('node:fs');
+          const {execFileSync}=require('node:child_process');
+          const baseline=JSON.parse(execFileSync('git',['show',process.env.PUBLISHED_SHA+':vercel.json'],{encoding:'utf8'}));
+          const current=JSON.parse(fs.readFileSync('vercel.json','utf8'));
+          baseline.git.deploymentEnabled.main=false;
+          if(JSON.stringify(baseline)!==JSON.stringify(current)){
+            throw new Error('Vercel mudou fora da trava main=false');
+          }
+          console.log('Sincronizacao auditada: codigo funcional identico ao SHA publicado; main sem autodeploy.');
+          NODE
+
   release-gate:
     name: Gate de evidencias (NO-GO ate liberacao)
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.number == 83 && github.head_ref == 'preparacao/auditoria-final-producao-20261125') }}
     needs: [candidate]
     runs-on: ubuntu-latest
     timeout-minutes: 10
