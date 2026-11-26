@@ -158,8 +158,9 @@ function signupDate(value,formatter){
 }
 function signupLocation(value){
  if(!value?.country)return 'Localização não disponível';
+ const source=value.source==='device_city'?'Localização do aparelho (cidade/estado)':'Vercel (estimativa pela conexão)';
  return esc([value.city,value.region,value.country].filter(Boolean).join(', '))+
-  ' · Vercel (aproximada) · '+esc(signupDate(value.observed_at,signupFullTime));
+  ' · '+source+' · '+esc(signupDate(value.observed_at,signupFullTime));
 }
 function signupRow(row,observed={},geo={}){
  const name=esc(row.full_name||'Nome não informado'),email=esc(row.email||'E-mail não informado');
