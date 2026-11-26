@@ -10,7 +10,7 @@ test('campanhas: replay integral de migracoes e rotas de pausa (banco descartave
  const actor='00000000-0000-4000-8000-000000000001', other='00000000-0000-4000-8000-000000000002';
  try{
  const fixture=fs.readFileSync('tests/shop.test.cjs','utf8').match(/db\.exec\(`(create role service_role;[^\x60]+)`\)/)[1];
- await db.exec(fixture+`create function auth.jwt() returns jsonb language sql stable as $$ select nullif(current_setting('request.jwt.claims',true),'')::jsonb $$;`);
+ await db.exec(fixture+`alter table storage.objects add column metadata jsonb default '{}'::jsonb; create function auth.jwt() returns jsonb language sql stable as $$ select nullif(current_setting('request.jwt.claims',true),'')::jsonb $$;`);
  for(const f of fs.readdirSync('supabase/migrations').sort())await apply('supabase/migrations/'+f);
  await apply('tests/fixtures/connect/whatsapp-grupos.sql');
  for(const path of ['campaign-editor/20261124233000_campaign_editor_versions.sql','campaign-dispatch/20261124234500_campaign_dispatch.sql','campaign-wa-homologation/20261125023000_campaign_wa_homologation.sql',...fs.readdirSync('release/campaign-rich').filter(f=>f.endsWith('.sql')).sort().map(f=>'campaign-rich/'+f)])await apply('release/'+path);
