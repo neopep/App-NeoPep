@@ -51,7 +51,7 @@
   return 'cancelled';
  }
  function waActive(batch){return (batch?.states||[]).some(s=>['waiting','leased','started'].includes(s));}
- function waHistory(batch){return !waActive(batch)||(batch?.states||[]).some(s=>['accepted','refused','uncertain','cancelled'].includes(s));}
+ function waHistory(batch){return !waActive(batch)||(batch?.states||[]).includes('uncertain');}
  function seriesProgress(occurrences,publications,now=Date.now()){
   const rows=(occurrences||[]).map(o=>{const pub=publications.find(p=>p.id===o.publication_id),batch=pub?.batches?.find(b=>b.id===o.batch_id);
    return {...o,pub,batch,state:waBatchState(batch,now),pending:waActive(batch),history:waHistory(batch)};});
@@ -273,9 +273,9 @@
     if(view==='agenda'&&!p.pending||view==='history'&&!p.rows.some(r=>r.history))return '';
     const title=all.find(pub=>pub.id===item.publication_id)?.title||'Publicação recorrente';
     const frequency=item.rule?.frequency==='daily'?'Diariamente':item.rule?.frequency==='weekly'?'Semanalmente':'Datas programadas';
-    const summary=p.pending?(paused?'Pausada':'Em andamento'):p.failed?'Com falha ou pendência':p.cancelled===p.total?'Cancelada':'Concluída';
-    return `<article class="monitor-block central-series-card" data-central-series="${escape(item.id)}" data-day="${escape((p.next?.local_time||p.rows.at(-1)?.local_time||'').slice(0,10))}">
-     <div class="between"><strong>${escape(title)}</strong><span class="campaign-state central-status-${p.pending?'scheduled':p.failed?'refused':'accepted'}">${summary}</span></div>
+    const summary=p.pending?(paused?'Pausada':'Em andamento'):p.failed?'Com falha ou pendência':p.cancelled===p.total?'Cancelada':p.cancelled?'Concluída com cancelamentos':'Concluída';
+    return `<article class="monitor-block central-series-card" data-central-series="${escape(item.id)}" data-day="${escape((p.rows.filter(r=>r.pending).map(r=>r.local_time).sort().at(-1)||p.rows.at(-1)?.local_time||'').slice(0,10))}">
+     <div class="between"><strong>${escape(title)}</strong><span class="campaign-state central-status-${p.pending?(paused?'paused':'scheduled'):p.failed?'refused':p.sent===p.total?'accepted':'cancelled'}">${summary}</span></div>
      <div class="central-origin"><span class="campaign-state">Recorrente</span></div>
      <p class="sub">${frequency} · Configurado: ${escape(date(item.configured_at)||'Não registrado')}${p.next?' · Próxima: '+escape(local(p.next.local_time)):''}</p>
      <div class="central-series-progress"><span>Enviadas: ${p.sent} de ${p.total}</span><progress max="${p.total}" value="${p.sent}" aria-label="Progresso de envios"></progress><span>${p.pending} pendente(s) · ${p.failed} com falha ou incerta(s) · ${p.cancelled} cancelada(s)</span></div>
