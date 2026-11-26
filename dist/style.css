@@ -995,3 +995,62 @@ dialog.neo-structured-editor::backdrop{background:#192720}
 
 /* App: multi-block campaign notifications */
 .neo-campaign-content-block{margin:.6rem 0;display:grid;gap:.45rem;min-width:0;overflow-wrap:anywhere}.neo-campaign-content-block p{margin:.2rem 0;white-space:pre-wrap}.neo-campaign-content-block video{display:block;width:100%;max-height:45vh;border-radius:.65rem;background:#000}.neo-campaign-content-block a,.neo-campaign-content-block button{justify-self:start;max-width:100%;white-space:normal}
+
+/* Rodada 25/11: contadores NUMÉRICOS em azul-marinho no tema claro.
+   Alvos: atendimento, comunidade, loja, novos cadastros e avisos que descem.
+   Não alterar bolinhas de status, alertas, selos promocionais nem tema escuro. */
+[data-theme=light] :is(
+ .community-badge,
+ .community-badge.has-news,
+ .notification-count,
+ .nav-shop-count,
+ .nav-community-count,
+ .admin-signup-badge,
+ .support-thread-meta b,
+ .tab-unread,
+ .primary .tab-unread,
+ .notification-toast-main > b
+){
+ background:#142743;
+ color:#fff;
+ border:1px solid #223F63;
+ box-shadow:0 0 0 2px #223F63,0 3px 10px #14274330;
+ text-shadow:none;
+}
+/* Cores idênticas no badge com notícia nova; impedir o dourado residual. */
+[data-theme=light] .community-badge.has-news{
+ background:#142743;
+ color:#fff;
+ border-color:#223F63;
+ box-shadow:0 0 0 2px #223F63,0 3px 10px #14274330;
+}
+
+/* Admin: aviso de novo cadastro acompanha o tema claro, sem alterar o escuro. */
+[data-theme=light] .admin-signup-toast{
+ background:#f8fbff;
+ color:#172b49;
+ border-color:#b7c5da;
+ box-shadow:0 8px 32px #152d4b26;
+}
+[data-theme=light] .admin-signup-toast :is(strong,.admin-signup-toast-actions span,.admin-signup-toast-actions .icon-btn){
+ color:#142743;
+}
+[data-theme=light] .admin-signup-toast progress{
+ appearance:none;
+ -webkit-appearance:none;
+ background:#dbe3ee;
+ border:0;
+ border-radius:999px;
+ overflow:hidden;
+ accent-color:#223F63;
+}
+[data-theme=light] .admin-signup-toast progress::-webkit-progress-bar{background:#dbe3ee;border-radius:999px}
+[data-theme=light] .admin-signup-toast progress::-webkit-progress-value{background:#223F63;border-radius:999px}
+[data-theme=light] .admin-signup-toast progress::-moz-progress-bar{background:#223F63;border-radius:999px}
+
+/* Histórico de frascos do diário: mesmos cards e desenho da calculadora. */
+.diary-vial-history{display:grid;gap:.7rem;margin-top:.6rem}
+.calc-vial-overview .card-head{align-items:center;flex-wrap:wrap;margin-bottom:.2rem}
+.calc-vial-overview .card-head .primary{min-height:44px}
+.calc-vial-overview .calc-vial-facts .tag{width:max-content;max-width:100%}
+
