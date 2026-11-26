@@ -56,6 +56,9 @@ begin
  if not found or rev.owner_id=actor then raise exception 'review_independent_admin_required' using errcode='42501';end if;
  if rev.state=case when p_action='review_approve' then 'approved' else 'rejected' end then return jsonb_build_object('state',rev.state,'reused',true);end if;
  if rev.state<>'pending' or not exists(select 1 from neo_private.admin_members where user_id=rev.owner_id) or not exists(select 1 from neo_private.campaign_wa_rich_batches where id=bid and cancelled_at is null) or exists(select 1 from neo_private.campaign_wa_rich_messages where batch_id=bid and state<>'waiting') then raise exception 'review_no_longer_pending' using errcode='55000';end if;
+ if p_action='review_approve' and (not exists(select 1 from neo_private.campaign_wa_rich_messages where batch_id=bid)
+  or exists(select 1 from neo_private.campaign_wa_rich_messages m where m.batch_id=bid and not exists(select 1 from neo_private.campaign_wa_sync_targets t join neo_private.campaign_wa_groups g on g.id=t.group_id where t.owner_id=rev.owner_id and t.connection_id=m.connection_id and t.group_jid=m.group_jid and g.active)))
+ then raise exception 'review_destinations_unavailable' using errcode='55000';end if;
  update neo_private.campaign_wa_review set state=case when p_action='review_approve' then 'approved' else 'rejected' end,reviewed_by=actor,reviewed_at=now() where batch_id=bid returning * into rev;
  return jsonb_build_object('state',rev.state);
 end;$review$;
@@ -81,4 +84,13 @@ begin
   if not neo_private.campaign_wa_review_allows(m.batch_id) then raise exception 'review_required' using errcode='42501';end if;$b$);
  execute d;
 end;$patch$;
+do $queue_patch$
+declare d text:=pg_get_functiondef('neo_private.campaign_shared_queue(jsonb)'::regprocedure);
+ a constant text:=$a$     when bool_or(m.state='waiting') then case when b.due_at>now() then 'scheduled' else 'waiting' end$a$;
+begin
+ if cardinality(string_to_array(d,a))<>2 then raise exception 'review_queue_contract_changed';end if;
+ execute replace(d,a,$a$     when bool_or(m.state='waiting') and exists(select 1 from neo_private.campaign_wa_review r where r.batch_id=b.id and r.state='rejected') then 'review_rejected'
+     when bool_or(m.state='waiting') and not neo_private.campaign_wa_review_allows(b.id) then 'review_pending'
+$a$||a);
+end;$queue_patch$;
 commit;
