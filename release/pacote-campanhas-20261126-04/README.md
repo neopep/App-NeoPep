@@ -1,0 +1,9 @@
+# Troca automática de WhatsApp no Connect — 26/11/2026
+
+Solicitação: substituir o WhatsApp no mesmo perfil do Connect, sem ajuste manual do vínculo de campanhas. Candidata de Teste: de802947b14cc36106d632821d92f015fb1edaa9. CI: https://github.com/neopep/App-NeoPep/actions/runs/45891972380.
+
+O RPC existente de heartbeat autenticado passa a tentar atualizar o vínculo após registrar a presença. Não requer nova versão Windows ou deploy web. O helper é privado, SECURITY INVOKER, sem EXECUTE para anon/authenticated, chamado dentro da RPC que já verifica administrador, credencial do dispositivo e proprietário. Exige emissor JWT do ambiente, mesmo proprietário e dispositivo, revogação explícita do vínculo antigo, conexão nova única e sincronizada, presença recente, versão compatível, grupos selecionados e fila ociosa. Mantém pausa e escopo da autorização: Produção permite grupos selecionados conforme configuração existente; Teste mantém o grupo de homologação fixado, sem autorizar grupos diferentes automaticamente. Nenhuma alteração em grupos, histórico, mensagens, filas, horários ou gates.
+
+Se houver envio pendente, iniciado, incerto ou reserva manual, a troca aguarda resolução; não redireciona agendamentos antigos. Rascunhos que referenciem destinos antigos devem ter os grupos selecionados novamente. Queda temporária não é revogação. Se houver mais de uma conexão ativa, troca de dispositivo ou grupo de homologação diferente, não troca automaticamente.
+
+Ensaio PGlite com identidades fictícias em tests/campaign-wa-auto-rebind.test.cjs. A migração candidata só deve ser aplicada após confirmar CI e contrato do heartbeat. Não simular troca com conexão real para homologar. A conexão atual de Produção foi corrigida administrativamente na etapa anterior; Teste permanece desconectado por escolha do responsável.
