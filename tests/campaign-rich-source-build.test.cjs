@@ -31,7 +31,7 @@ test('upload always stays on the authenticated actor in the TESTE JPEG bucket',(
 });
 
 test('iPhone PWA and admin load the current cache-busted SDK',()=>{
- assert.match(app,/cloud\.js\?v=20261125campanhas57/);
- assert.match(admin,/cloud\.js\?v=20261125campanhas57/);
- assert.match(admin,/campaign-editor\.js\?v=campanhas-central-7/);
+ assert.match(app,/cloud\.js\?v=20261125integracao58/);
+ assert.match(admin,/cloud\.js\?v=20261125integracao58/);
+ assert.match(admin,/campaign-editor\.js\?v=campanhas-central-8/);
 });
