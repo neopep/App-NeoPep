@@ -140,7 +140,7 @@ function neoWhatsappPreview({cloud,read,trigger,form,onEdit,resolve}){
 
 function mountSyncedCampaignGroups(root,{cloud,picking=false}){
  const states={eligible:'Elegível',stale:'Sincronização desatualizada',disconnected:'Desconectado',unavailable:'Indisponível'};
- root.innerHTML=`<div class="form-grid"><label>Pesquisar grupos sincronizados<input type="search" maxlength="100"></label>
+ root.innerHTML=`<div class="form-grid"><label class="central-search"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input type="search" maxlength="100" aria-label="Pesquisar grupos sincronizados" placeholder="Pesquisar grupos sincronizados"></label>
  <label>Estado<select><option value="">Todos</option>${Object.entries(states).map(([id,label])=>`<option value="${id}">${label}</option>`).join('')}</select></label></div>
  <button type="button" class="secondary" data-sync-refresh>Atualizar grupos</button><p role="status" data-sync-status></p><div data-sync-rows></div>`;
  const search=root.querySelector('input'),filter=root.querySelector('select'),status=root.querySelector('[data-sync-status]');
@@ -204,13 +204,23 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  const dateLabel=(instant,timezone)=>instant?new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:timezone}).format(new Date(instant))+' · '+timezone:'';
  const states={pending:'Pendente',scheduled:'Programada',late:'Atrasada',done:'Concluída manualmente',cancelled:'Cancelada'};
  const mayAct=row=>['pending','scheduled','late'].includes(row.state);
+ const sharedQueueEnabled=(window.NEO_CONFIG?.campaignOfficialCentralEnabled===true||window.NEO_CONFIG?.campaignTestEnabled===true)&&typeof cloud.campaignCentral==='function';
  const dayNames=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
  let groupRows=[],queueRows=[],campaigns=[],prepared=null,selectedJob=null,files=[],refreshToken=0,prepareToken=0,working=false,groupSearch='',reminderTimer;
+ let claimEnabled=false,claimKnown=false,claimUnavailable=false,claims=new Map();
+ const claimKey=row=>'neo-campaign-manual-claim:'+cloud.user?.id+':'+row.id+':'+(row.scheduled_at||'unscheduled');
+ const claimToken=row=>{try{return localStorage.getItem(claimKey(row));}catch{return null;}};
+ function clearClaim(row){try{localStorage.removeItem(claimKey(row));}catch{}}
+ async function reserve(row){
+  let token=claimToken(row);if(!token){token=crypto.randomUUID();localStorage.setItem(claimKey(row),token);}
+  try{const result=await rpc('reserve_manual',row.id,{claim_id:token,expected_at:row.scheduled_at??null});if(result?.claim_id!==token)throw Error('Reserva não confirmada.');return token;}
+  catch(error){throw Error('Não foi possível reservar. A publicação pode estar em revisão por outro administrador ou dispositivo. Atualize a fila.');}
+ }
  root.innerHTML=`<div class="between" ${embedded?'hidden':''}><h3>WhatsApp</h3>${openManual?action('manual','<span aria-hidden="true">?</span> <span class="admin-pdf-accessible">Manual do WhatsApp</span>'):''}</div>
  <p class="sub" data-wa-channel-notice>O grupo é escolhido no WhatsApp. Confirme a publicação no painel após o envio.</p>
  <details class="space" data-wa-connect><summary>NeoPep Connect</summary><div data-connect-root></div></details><p role="status" data-wa-status></p><p role="status" data-wa-reminders></p>
  <details class="space"><summary>Grupos cadastrados</summary>
- <form data-wa-group-search>${field('group_search','Pesquisar grupos','maxlength="100"')}<button type="submit" class="secondary">Pesquisar</button></form>
+ <form data-wa-group-search class="central-search editor-search"><input name="group_search" type="search" maxlength="100" aria-label="Pesquisar grupos" placeholder="Pesquisar grupos"><button type="submit" class="structured-icon" aria-label="Pesquisar" title="Pesquisar"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button></form>
  <form class="space" data-wa-group>
  ${field('name','Nome do grupo','required maxlength="120"')}
  ${field('invite','Link de convite','type="url" maxlength="120"')}
@@ -224,14 +234,14 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
  <div data-wa-preview></div>
  <fieldset><legend data-campaign-legend="groups">Seleção de grupos</legend><div data-wa-recipients></div><div data-wa-sync-recipients></div></fieldset>
  <fieldset><legend data-campaign-legend="attachments">Anexos autorizados</legend>
- ${field('attachment_search','Pesquisar anexos','maxlength="100"')}${action('attachments','Buscar arquivos')}<div data-wa-attachments></div></fieldset>
+ <div class="central-search editor-search"><input name="attachment_search" type="search" maxlength="100" aria-label="Pesquisar anexos" placeholder="Pesquisar anexos"><button type="button" data-wa="attachments" class="structured-icon" aria-label="Buscar arquivos" title="Buscar arquivos"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button></div><div data-wa-attachments></div></fieldset>
  <div class="form-grid">${field('day','Data da divulgação','type="date"')}${field('time','Horário','type="time"')}
  ${field('timezone','Fuso horário','required maxlength="80" value="America/Sao_Paulo"')}</div>
  <fieldset><legend data-campaign-legend="repeat">Recorrência</legend><div class="campaign-weekdays">
  ${dayNames.map((name,i)=>`<label class="check"><input type="checkbox" name="weekday" value="${i}">${name}</label>`).join('')}</div></fieldset>
  <label class="check"><input type="checkbox" name="remind"> Lembrete no painel</label>
  <button type="submit" class="primary">Salvar publicação</button></form>
- <fieldset class="space"><legend data-campaign-legend="state">Fila de publicações</legend><div data-wa-queue></div></fieldset>`;
+ <fieldset class="space"><legend data-campaign-legend="state">Fila de publicações</legend>${sharedQueueEnabled?`<section class="shared-campaign-queue"><div class="between"><h3>Fila central · administradores</h3>${action('refresh_shared','Atualizar')}</div><p class="sub">Acompanhamento de mensagens automáticas e manuais. Ações de envio continuam sujeitas às permissões do responsável.</p><label>Estado<select data-shared-filter><option value="">Todos</option><option value="waiting">Aguardando</option><option value="scheduled">Agendada</option><option value="in_progress">Processando</option><option value="accepted">Aceita pelo cliente</option><option value="manual_done">Confirmada manualmente</option><option value="uncertain">Incerta</option><option value="refused">Recusada</option><option value="cancelled">Cancelada</option></select></label><div data-shared-queue role="status">Carregando fila…</div><h4>Fluxo manual</h4></section>`:''}<div data-wa-queue></div></fieldset>`;
  const connect=q('[data-wa-connect]');
  const syncCatalog=embedded?mountSyncedCampaignGroups(q('[data-wa-sync-catalog]'),{cloud}):null;
  const syncPicker=embedded?mountSyncedCampaignGroups(q('[data-wa-sync-recipients]'),{cloud,picking:true}):null;
@@ -309,12 +319,28 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
   destination.innerHTML=groupRows.filter(gr=>gr.active).map(gr=>`<label class="check"><input type="checkbox" name="group" value="${esc(gr.id)}" ${existing.has(gr.id)?'checked':''}>${esc(gr.name)}</label>`).join('')||'<p>Cadastre um grupo ativo para programar a divulgação.</p>';
   destination.prepend(...retained);
  }
+ let sharedRows=[],sharedToken=0,sharedFailed=false;
+ const sharedLabels={waiting:'Aguardando',scheduled:'Agendada',in_progress:'Processando',accepted:'Aceita pelo cliente',manual_done:'Confirmada manualmente',uncertain:'Resultado incerto · revisar',refused:'Recusada',cancelled:'Cancelada'};
+ function renderSharedQueue(){
+  const holder=q('[data-shared-queue]');if(!holder)return;
+  if(sharedFailed){holder.textContent='Fila consolidada indisponível; use a fila manual abaixo.';return;}
+  const filter=q('[data-shared-filter]').value;
+  holder.innerHTML=sharedRows.filter(row=>!filter||row.state===filter).map(row=>`<article class="monitor-block"><div class="between"><strong>${esc(row.title)}</strong><span class="campaign-state">${esc(sharedLabels[row.state]||'Estado desconhecido')}</span></div><p class="sub">${esc(dateLabel(row.due_at,'America/Sao_Paulo'))} · ${row.channel==='connect'?'NeoPep Connect':'Manual'} · ${row.own?'Minha publicação':'Outra conta / fluxo compartilhado'} · ${Number(row.messages)||0} bloco(s)</p></article>`).join('')||'<p class="sub">Nenhuma publicação neste filtro.</p>';
+ }
+ async function refreshSharedQueue(){
+  if(!sharedQueueEnabled)return;
+  const token=++sharedToken,account=cloud.user?.id;
+  try{const rows=await cloud.campaignCentral('shared_queue',{});if(token!==sharedToken||!root.isConnected||cloud.user?.id!==account)return;sharedRows=Array.isArray(rows)?rows:[];sharedFailed=false;renderSharedQueue();}
+  catch{if(token===sharedToken&&root.isConnected&&cloud.user?.id===account){sharedRows=[];sharedFailed=true;renderSharedQueue();}}
+ }
+ q('[data-shared-filter]')?.addEventListener('change',renderSharedQueue);
  function renderQueue(){
   q('[data-wa-queue]').innerHTML=queueRows.filter(row=>!q('[data-wa-queue-filter]')?.value||q('[data-wa-queue-filter]').value===row.state).map(row=>`<article class="monitor-block">
    <h4>${esc(row.title)} · ${esc(row.group_name)}</h4>
    <p>${states[row.state]} ${esc(dateLabel(row.scheduled_at,row.timezone))}</p>
    ${row.confirmed_at?`<p class="sub">Última confirmação ${esc(dateLabel(row.confirmed_at,row.timezone))}</p>`:''}
-   ${mayAct(row)?`<div class="neo-campaign-actions"><button type="button" class="secondary" data-wa="prepare" data-id="${esc(row.id)}">Preparar compartilhamento</button></div>`:''}</article>`).join('')||'<p>Nenhuma publicação.</p>';
+   ${claimEnabled&&claims.has(row.id)?`<p class="sub">${claims.get(row.id).own&&claimToken(row)?'Reservada neste dispositivo':'Reservada por outro administrador ou dispositivo'}</p>`:''}
+   ${mayAct(row)&&(!claimEnabled||!claims.has(row.id)||(claims.get(row.id).own&&claimToken(row)))?`<div class="neo-campaign-actions"><button type="button" class="secondary" data-wa="prepare" data-id="${esc(row.id)}">${claimEnabled?'Revisar e reservar':'Preparar compartilhamento'}</button>${claimEnabled&&claims.has(row.id)&&claimToken(row)?`<button type="button" class="secondary" data-wa="release_manual" data-id="${esc(row.id)}">Liberar sem envio</button>`:''}</div>`:''}</article>`).join('')||'<p>Nenhuma publicação.</p>';
  }
  async function reminders(){
   if(!root.isConnected||root.hidden||document.visibilityState==='hidden')return;
@@ -325,7 +351,14 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
   const token=++refreshToken;
   const [groups,queue]=await Promise.all([syncCatalog?[]:rpc('groups',null,{search:groupSearch}),rpc('queue')]);
   if(token!==refreshToken||!root.isConnected)return;
-  groupRows=groups;queueRows=queue;renderGroups();renderQueue();await reminders();
+  const account=cloud.user?.id;
+  let reservations=null;
+  if(sharedQueueEnabled){try{reservations=await rpc('claim_status');}catch{}}
+  claimUnavailable=claimKnown&&!Array.isArray(reservations);
+  claimKnown=claimKnown||Array.isArray(reservations);
+  if(token!==refreshToken||!root.isConnected||cloud.user?.id!==account)return;
+  claimEnabled=claimKnown;if(Array.isArray(reservations))claims=new Map(reservations.map(row=>[row.publication_id,row]));
+  groupRows=groups;queueRows=queue;renderGroups();renderQueue();void refreshSharedQueue();await reminders();
  }
  function preview(){
   const pane=q('[data-wa-preview]');
@@ -356,12 +389,14 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
   prepared=null;selectedJob=null;files=[];preview();
   if(syncPicker)void syncPicker.load(id||null);
   if(!id)return;
-  const campaign=await rpc('prepare',id,job?{publication:job.id}:{});
+  if(job&&claimUnavailable)throw Error('A consulta de reservas está indisponível. Atualize a fila antes de preparar.');
+  const reservation=job&&claimEnabled?await reserve(job):null;
+  const campaign=await rpc('prepare',id,job?{publication:job.id,...(reservation?{claim_id:reservation,expected_at:job.scheduled_at??null}:{})}:{});
   if(token!==prepareToken||!root.isConnected)return;
   const target=campaign.link_url?new URL(campaign.link_url,location.origin):null;
   prepared={...campaign,link:target&&target.protocol==='https:'?target.href:''};
   files=[...(campaign.image_path||campaign.image_url?[{name:'campanha.jpg',mime:'image/jpeg',image:true}]:[]),...(campaign.attachments||[])];
-  selectedJob=job;preview();
+  selectedJob=job?{...job,claim_id:reservation}:null;preview();
   if(job)q('[data-wa-preview]').scrollIntoView?.({block:'nearest'});
  }
  function resetGroup(){groupForm.reset();delete groupForm.dataset.id;}
@@ -425,6 +460,7 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
     form.querySelector('[name=group]:checked')?.closest('label')?.textContent.trim()})});return;
   }
   if(wa==='manual'){openManual?.(button);return;}
+  if(wa==='refresh_shared'){void refreshSharedQueue();return;}
   void protectedAction(async()=>{
    if(wa==='clear_group'){resetGroup();return;}
    if(wa==='edit_group'){
@@ -442,6 +478,12 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
     list.innerHTML=rows.map(row=>`<label class="check"><input type="checkbox" name="attachment" value="${esc(row.path)}" ${chosen.has(row.path)?'checked':''}>${esc(row.name)}</label>`).join('')||'<p>Nenhum anexo autorizado encontrado.</p>';
     list.prepend(...retained);return;
    }
+   if(wa==='release_manual'){
+    const row=queueRows.find(row=>row.id===id);if(!row||!claimEnabled||!claimToken(row))return;
+    if(!confirm('Confirma que nenhuma mensagem ou arquivo desta ocorrência foi enviado? Outro administrador poderá preparar a publicação. Se houver dúvida, não libere.'))return;
+    await rpc('release_manual',row.id,{claim_id:claimToken(row),expected_at:row.scheduled_at??null,not_sent:true});
+    clearClaim(row);if(selectedJob?.id===row.id){prepared=null;selectedJob=null;files=[];preview();}await refresh();tell('Reserva liberada. A publicação continua pendente.');return;
+   }
    if(wa==='prepare'){
     const row=queueRows.find(row=>row.id===id);if(row){if(embedded)showEditor('publications');else {root.dataset.waPage='publications';if(typeof showNeoWhatsappNavigation==='function')showNeoWhatsappNavigation(root);}select.value=row.campaign_id;await prepare(row.campaign_id,row);}return;
    }
@@ -451,7 +493,9 @@ function mountCampaignWhatsApp(root,{cloud,openManual,embedded=false}){
    }
    if((wa==='confirm'||wa==='cancel')&&selectedJob){
     if(!confirm(wa==='confirm'?'Você já publicou manualmente no WhatsApp?':'Cancelar a publicação e sua recorrência?'))return;
-    await rpc(wa,selectedJob.id,{expected_at:selectedJob.scheduled_at});
+    const result=await rpc(wa,selectedJob.id,{expected_at:selectedJob.scheduled_at??null,...(selectedJob.claim_id?{claim_id:selectedJob.claim_id}:{})});
+    if(result?.saved!==true)throw Error('O servidor não confirmou a operação. Atualize a fila.');
+    if(selectedJob.claim_id)clearClaim(selectedJob);
     prepared=null;selectedJob=null;preview();await refresh();tell(wa==='confirm'?'Publicação confirmada manualmente.':'Publicação cancelada.');return;
    }
    if(wa==='file'){
