@@ -1015,3 +1015,9 @@ dialog.neo-structured-editor::backdrop{background:#192720}
 .neo-structured-editor[data-channel=app] .structured-app-popup-title{font-size:1.25rem;overflow-wrap:anywhere;margin:0 0 .75rem}
 .structured-app-popup-footer{display:flex;justify-content:flex-end;border-top:1px solid var(--border);padding-top:.6rem}
 .neo-structured-editor[data-channel=app] .structured-app-popup-footer button{opacity:1}
+
+/* Recorrência: seletor por dia, preservando alvos de toque. */
+[data-weekday-times]{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:.45rem}
+.central-weekday-time{display:flex;align-items:center;gap:.4rem;padding:.35rem;border:1px solid var(--border);border-radius:10px;margin:0;font-size:.8rem;background:var(--soft)}
+.central-weekday-time input{min-width:0;flex:1;margin:0;padding:.25rem;min-height:44px}
+.central-weekday-time[hidden],[data-weekday-custom][hidden]{display:none!important}
