@@ -1021,3 +1021,6 @@ dialog.neo-structured-editor::backdrop{background:#192720}
 .central-weekday-time{display:flex;align-items:center;gap:.4rem;padding:.35rem;border:1px solid var(--border);border-radius:10px;margin:0;font-size:.8rem;background:var(--soft)}
 .central-weekday-time input{min-width:0;flex:1;margin:0;padding:.25rem;min-height:44px}
 .central-weekday-time[hidden],[data-weekday-custom][hidden]{display:none!important}
+
+/* App: multi-block campaign notifications */
+.neo-campaign-content-block{margin:.6rem 0;display:grid;gap:.45rem;min-width:0;overflow-wrap:anywhere}.neo-campaign-content-block p{margin:.2rem 0;white-space:pre-wrap}.neo-campaign-content-block video{display:block;width:100%;max-height:45vh;border-radius:.65rem;background:#000}.neo-campaign-content-block a,.neo-campaign-content-block button{justify-self:start;max-width:100%;white-space:normal}
