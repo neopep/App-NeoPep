@@ -116,18 +116,18 @@
     ${pane('menu','Adicionar ou configurar',`<div class="structured-tiles">
       ${tile('text','Texto','compose')}${tile('photo','Foto','photo')}${tile('file','Documento','file')}${tile('link','Link','link')}
       ${tile('product','Produto','product')}${tile('book','Biblioteca','document')}${channel==='whatsapp'?tile('group','Grupos','groups'):tile('audience','Público','audience')}${tile('clock','Agendar','schedule')}
-      ${channel==='whatsapp'&&!testWA?tile('repeat','Recorrência','recurrence'):''}${tile('text','Formatação','format')}${tile('gear','Ajustes','settings')}${tile('audio','Áudio indisponível','audio',true)}${tile('text','Formatar seleção','format')}
+      ${channel==='whatsapp'&&!testWA?tile('repeat','Recorrência','recurrence'):''}${tile('gear','Ajustes','settings')}${tile('audio','Áudio indisponível','audio',true)}
       ${tile('group','Comunidade','community')}${tile('more','Destinos','destinations')}
     </div>`)}
     ${pane('settings','Configurações',`<label>${publication?'Nome da publicação':'Nome da campanha'}<input name="title" maxlength="120" value="${e(draft.title)}"></label><button type="button" class="secondary" data-editor="name_continue">Salvar nome e continuar</button><p class="sub" data-structured-connection role="status">Conexão ainda não verificada.</p>
      <div class="inline-actions">${publication?'':'<button type="button" class="secondary" data-editor="fresh">Novo rascunho</button>'}${channel==='whatsapp'?'<button type="button" class="secondary" data-editor="cross">Criar versão App</button>':''}</div>`)}
     ${channel==='app'?pane('audience','Público App',testApp?'<p>Somente as contas de homologação autorizadas no servidor. Esta campanha não envia push.</p>':'<label>Público App<select name="audience"><option value="all">Todos</option><option value="free">Free</option><option value="premium">Premium</option></select></label><label class="check"><input name="push" type="checkbox"> Solicitar push App para contas com consentimento</label>'):
-    pane('groups','Grupos sincronizados','<div class="inline-actions"><button type="button" class="secondary" data-editor="groups">Atualizar grupos e diagnóstico</button><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button></div><label>Pesquisar grupo ou conexão<input name="group_search" type="search"></label><p class="sub" data-editor-group-count></p><div data-editor-groups></div>')}
+    pane('groups','Grupos sincronizados','<div class="inline-actions"><button type="button" class="secondary" data-editor="groups">Atualizar grupos e diagnóstico</button><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button></div><label class="central-search editor-search"><input name="group_search" type="search" aria-label="Pesquisar grupo ou conexão" placeholder="Pesquisar grupo ou conexão"><span class="search-decoration" aria-hidden="true">&#9906;</span></label><p class="sub" data-editor-group-count></p><div data-editor-groups></div>')}
     ${pane('photo','Foto','<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">No ambiente de Teste, imagens JPEG com legenda podem ser enviadas ao grupo autorizado. Salve a versão antes de publicar.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto</button>')}
     ${pane('file','Documento','<button type="button" class="secondary" data-editor="choose_document">Escolher PDF ou TXT</button>')}
     <input type="file" name="media" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain" hidden>
     ${pane('link','Link','<label>Link HTTPS<input name="link" type="url" maxlength="2000"></label><button type="button" class="secondary" data-editor="link">Adicionar link</button>')}
-    ${pane('catalog','Referências','<label>Buscar referências<input name="catalog_search" type="search" maxlength="100"></label><button type="button" class="secondary" data-editor="catalog_search">Buscar</button><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
+    ${pane('catalog','Referências','<div class="central-search editor-search"><input name="catalog_search" type="search" maxlength="100" aria-label="Buscar referências" placeholder="Buscar referências"><button type="button" class="structured-icon" data-editor="catalog_search" aria-label="Buscar referências" title="Buscar referências">&#9906;</button></div><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
     ${pane('schedule','Publicação e horário','<label>Horário planejado (São Paulo)<input name="planned_local" type="datetime-local" value="'+e(draft.planned_local)+'"></label><p data-editor-summary class="sub"></p><div class="inline-actions"><button type="button" class="secondary" data-editor="schedule" disabled>Programar</button><button type="button" class="secondary" data-editor="simulate">Ver prévia (sem enviar)</button></div><p role="status" class="sub" data-editor-simulation></p><p class="sub">A prévia não envia mensagens. Para publicar, escolha os grupos e confirme o envio.</p><p class="sub" data-dispatch-gate></p>')}
     ${pane('confirmation','Confirmar campanha','<p data-confirm-question></p><p class="sub" data-confirm-summary></p><p class="structured-confirm-content" data-confirm-content></p><button type="button" class="primary" data-editor="confirm_dispatch">Confirmar</button> <button type="button" class="secondary" data-editor="sheet_close">Voltar à composição</button>')}
     ${channel==='whatsapp'&&!testWA?pane('recurrence','Recorrência','<label>Ocorrências semanais<input name="weekly_count" type="number" min="1" max="6" step="1" value="1"></label>'):''}
@@ -145,8 +145,9 @@
    <main class="neo-structured-scroll"><h3 class="structured-campaign-name" ${publication?'data-parent-campaign="'+e(publication.title)+'"':''} data-campaign-name>${e(draft.title)}</h3><div class="neo-structured-preview" aria-label="Conversa simulada" data-editor-preview></div><div class="structured-live" data-editor-live hidden></div></main>
    ${readOnly?`<footer>${previewModes?'<label class="structured-preview-mode">Modo da simulação<select name="preview_mode"><option value="web">Painel · compartilhamento manual</option><option value="connect">Connect · imagem com legenda</option></select></label>':''}<p class="sub">Simulação visual. A disponibilidade de envio depende do canal e dos anexos.</p></footer>`:`<footer>
     <p role="status" class="sub structured-compose-status" data-editor-status></p>
+    <button type="button" class="text-btn structured-revert" data-editor="revert" hidden>Desfazer exclusão</button>
     <div class="structured-compose">
-     <div class="structured-compose-marks"><button type="button" class="structured-icon" data-editor="caption" aria-label="Editar legenda do conteúdo" aria-pressed="false" disabled>L</button><button type="button" class="structured-icon" data-format="*" aria-label="Negrito" aria-pressed="false"><b>B</b></button><button type="button" class="structured-icon" data-format="_" aria-label="Itálico" aria-pressed="false"><i>I</i></button></div>
+     <div class="structured-compose-marks"><button type="button" class="structured-icon" data-editor="caption" aria-label="Editar legenda do conteúdo" aria-pressed="false" disabled>L</button><button type="button" class="structured-icon" data-format="*" aria-label="Negrito" aria-pressed="false"><b>B</b></button><button type="button" class="structured-icon" data-format="_" aria-label="Itálico" aria-pressed="false"><i>I</i></button><button type="button" class="structured-icon extended-mark" data-format="~" aria-label="Riscado"><s>S</s></button><button type="button" class="structured-icon extended-mark" data-format="&#96;" aria-label="Monoespaçado">M</button></div>
      <label><span class="sr-only">Compor texto</span><textarea name="message" maxlength="4000" rows="2" placeholder="Escreva sua mensagem…"></textarea></label>
      ${iconButton('expand','Expandir campo','data-editor="expand" aria-expanded="false"')}
      ${iconButton('up','Adicionar texto ou salvar legenda','data-editor="text"')}
@@ -159,7 +160,7 @@
      ${iconButton('clock','Publicação e agendamento','data-pane-open="schedule"')}
      ${iconButton('gear','Configurações','data-pane-open="settings"')}
      ${iconButton('send','Publicar agora','data-editor="publish" disabled')}
-    </div><button type="button" class="text-btn" data-editor="revert" hidden>Desfazer exclusão</button>
+    </div>
    </footer>`}`;
   document.body.append(dialog);
   const $=s=>dialog.querySelector(s),field=name=>$('[name="'+name+'"]');
@@ -234,6 +235,8 @@
    if(!pane)return;
    if(sheet.hidden)sheetTrigger=trigger;
    sheet.hidden=false;
+   sheet.dataset.activePane=name;
+   sheet.scrollTop=0;
    for(const section of sheet.querySelectorAll('[data-editor-pane]'))section.hidden=section!==pane;
    if(document.activeElement!==message){const heading=pane.querySelector('h3');heading.tabIndex=-1;heading.focus({preventScroll:true});}
   }
@@ -821,10 +824,33 @@
       await endpoint(cloud,'catalog',{kind:action,search});
      if(!current()||token!==catalogToken)return;
      catalogRows=results.map(row=>({...row,kind:action}));
-     box.innerHTML=catalogRows.map((row,i)=>`<button type="button" class="secondary" data-editor="reference" data-index="${i}">${e(row.label)}${row.price_cents==null?'':' · '+e((row.price_cents/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}))}</button>`).join('')||'Nenhuma referência disponível.';
+     box.classList.add('structured-catalog-grid');
+     box.innerHTML=catalogRows.map((row,i)=>`<button type="button" class="structured-catalog-card" data-editor="reference" data-index="${i}"><span class="structured-catalog-thumb" data-catalog-thumb="${i}">${icon(action==='product'?'product':action==='community'?'group':'file')}</span><strong>${e(row.label)}</strong><small data-catalog-kind="${i}">${action==='product'?'Produto':action==='community'?'Comunidade':'Material da Biblioteca'}</small></button>`).join('')||'Nenhuma referência disponível.';
+     if(action==='document'&&typeof cloud.library==='function'){
+      // Carregar miniaturas progressivamente; uma falha não impede selecionar a referência.
+      void (async()=>{for(const [i,row] of catalogRows.entries()){
+       if(!current()||token!==catalogToken)return;
+       try{
+        const material=(await cloud.library('get',{id:row.id}))?.material;
+        const file=material?.attachments?.find(item=>item.mime==='application/pdf'||item.mime?.startsWith('video/'))||material?.attachments?.[0];
+        const mime=file?.mime||'';
+        const kind=mime==='application/pdf'?'PDF':mime.startsWith('video/')?'Vídeo':mime.startsWith('image/')?'Imagem':mime==='text/plain'?'Texto':material?.url?'Link':'Material';
+        if(!current()||token!==catalogToken)return;
+        box.querySelector('[data-catalog-kind="'+i+'"]').textContent=kind;
+        if(!file||typeof cloud.libraryMediaURL!=='function')continue;
+        const src=await cloud.libraryMediaURL(file,false);
+        const image=mime.startsWith('image/')?src:mime==='application/pdf'&&window.NeoLibraryFiles?.pdfCover?await window.NeoLibraryFiles.pdfCover(src,previewAbort.signal):mime.startsWith('video/')?await videoCover(src):null;
+        if(image&&current()&&token===catalogToken){
+         const img=document.createElement('img');img.src=image;img.alt='';img.loading='lazy';
+         box.querySelector('[data-catalog-thumb="'+i+'"]')?.replaceChildren(img);
+        }
+       }catch{}
+      }})();
+     }
     }catch{if(current()&&token===catalogToken)box.textContent='Catálogo indisponível.';}
    }
   dialog.addEventListener('keydown',event=>{
+   if(event.key==='Enter'&&event.target.name==='catalog_search'){event.preventDefault();void searchCatalog();return;}
    if(['Enter',' '].includes(event.key)&&event.target.matches('[data-editor-image]')){
     event.preventDefault();event.target.click();
    }
@@ -887,7 +913,7 @@
    }
    if(action==='expand'){
     const expanded=control.getAttribute('aria-expanded')!=='true';
-    control.setAttribute('aria-expanded',String(expanded));message.rows=expanded?10:2;message.focus();return;
+    control.setAttribute('aria-expanded',String(expanded));dialog.classList.toggle('structured-expanded',expanded);message.rows=expanded?10:2;message.focus();return;
    }
    if(action==='hd'){
     const quality=field('photo_quality');
