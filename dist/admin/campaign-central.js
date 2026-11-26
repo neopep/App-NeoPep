@@ -156,7 +156,7 @@
     <div class="inline-actions">${button('agenda','Agenda','',view==='agenda'?'primary':'secondary')}${button('history','Histórico','',view==='history'?'primary':'secondary')}</div>
     ${view==='agenda'? `<div class="central-publication-head"><h3>Publicações</h3>${editable&&!getLocal(pointer())?button('add','+ Adicionar publicação','','primary'):''}</div><label class="central-date-filter">A partir de<input type="date" data-central-date></label><div data-central-date-list>${cards(dated)||'<p>Sem publicações com data.</p>'}</div>
      <h3>Rascunhos sem data</h3>${cards(undated)||'<p>Sem rascunhos sem data.</p>'}
-     ${isApp&&appSeries.length?`<h3>Séries de rascunhos App</h3>${appSeries.map(item=>`<article class="monitor-block"><strong>${escape(items.find(pub=>pub.id===item.publication_id)?.title||'Publicação de origem')}</strong><p class="sub">${escape(item.dates.map(local).join(' · '))}</p><p class="sub">Confira o estado de cada ocorrência na agenda acima.</p></article>`).join('')}`:''}
+     ${isApp&&appSeries.length?`<h3>Séries de rascunhos App</h3>${appSeries.map(item=>`<article class="monitor-block"><strong>${escape(items.find(pub=>pub.id===item.publication_id)?.title||'Publicação de origem')}</strong><p class="sub">${escape(item.dates.map(local).join(' · '))}</p><p class="sub">${item.state==='cancelled'?'Cancelada':item.state==='replaced'?'Substituída':'Confira o estado de cada ocorrência na agenda acima.'}</p>${editable&&item.state==='drafts'?'<div class="inline-actions">'+button('app_repeat_edit','Editar próximas datas',item.id)+button('app_repeat_cancel','Cancelar próximas ocorrências',item.id)+'</div>':''}</article>`).join('')}`:''}
      ${weekly.length?`<h3>Repetições programadas</h3>${weekly.map(item=>`<article class="monitor-block">
       <strong>${escape(items.find(pub=>pub.id===item.publication_id)?.title||'Publicação')}</strong>
       <p class="sub">${({scheduled:'Agendada',paused:'Pausada',cancelled:'Cancelada'})[item.state]} · ${escape(item.dates.map(local).join(' · '))}</p>
@@ -191,7 +191,7 @@
   function weeklyForm(pub,existing){
    const rule=existing?.rule||{};
    const today=saoPauloDay(new Date());
-   const start=rule.start||(pub.planned_local?.slice(0,10)>today?pub.planned_local.slice(0,10):today);
+   const start=(isApp&&rule.start&&rule.start<today?today:rule.start)||(pub.planned_local?.slice(0,10)>today?pub.planned_local.slice(0,10):today);
    const defaultDay=new Date(start+'T12:00:00Z').getUTCDay();
    const legacyWeekly=Boolean(existing&&rule.frequency!=='daily'&&rule.times?.length>1);
    redraw(`${button('open','‹ Agenda',current)}<h2>${isApp?'Preparar repetição App':'Programar repetição'}</h2><p>${escape(pub.title)}</p>
@@ -201,7 +201,7 @@
     <fieldset class="central-time-picker"><legend>Horários em São Paulo</legend><div data-central-times>${(rule.times?.length?rule.times:[rule.time||pub.planned_local?.slice(11,16)||'09:00']).map(time=>`<div class="central-time-chip"><input type="time" name="time" value="${escape(time)}" required aria-label="Horário"><button type="button" class="text-btn" data-remove-time aria-label="Remover horário">×</button></div>`).join('')}</div><button type="button" class="secondary" data-add-time>+ Horário</button><p class="sub">Na frequência diária, adicione até 8 horários. Na semanal, escolha um horário para os dias selecionados.${legacyWeekly?' Os horários de uma regra antiga foram preservados.':''}</p></fieldset>
     <fieldset data-weekday-custom><legend>Horário por dia da semana</legend><label class="check"><input type="checkbox" name="custom_times" ${rule.day_times?'checked':''}> Personalizar horário de cada dia selecionado</label><div data-weekday-times>${weekdays.map((day,i)=>`<label class="central-weekday-time" data-weekday="${i}">${day}<input type="time" name="weekday_${i}" value="${escape(rule.day_times?.[i]||rule.times?.[0]||rule.time||pub.planned_local?.slice(11,16)||'09:00')}" aria-label="Horário de ${day}" required></label>`).join('')}</div></fieldset>
     <label>Início<input type="date" name="start" value="${escape(start)}" required></label>
-    <label>Término (opcional)<input type="date" name="end" value="${escape(rule.end)}"></label>
+    <label>Término (opcional)<input type="date" name="end" value="${escape(isApp&&rule.end&&rule.end<start?'':rule.end)}"></label>
     <label>Número máximo de ocorrências<input type="number" name="count" min="1" max="24" value="${rule.count||4}" required></label>
     <p class="sub">Até 24 ocorrências nos próximos 89 dias. ${isApp?'As datas geram rascunhos para revisão e agendamento.':'As publicações em andamento mantêm o histórico.'}</p>
     <button type="submit" class="primary">Conferir próximas datas</button></form>`);
@@ -274,10 +274,12 @@
      const dates=weeklyDates(rule),groups=source?.draft?.groups||[];
      if(isApp){
       if(!appRepeatReady||!dates.length||!source||source.editor_id!==form.dataset.id){show('Confira a regra e salve a publicação antes de continuar.');return;}
-      if(!active()||!confirm('Criar '+dates.length+' publicações App como rascunhos? Nenhum envio será agendado até você revisar e confirmar na agenda.\n\n'+dates.map(local).join('\n')))return;
-      const result=await rpc('repeat_drafts',{rule,dates,publication_id:form.dataset.id,source_revision:source.revision,request_id:form.dataset.request,confirmed:true});
-      if(!Array.isArray(result?.occurrences)||result.occurrences.length!==dates.length)throw Error('repeat_not_confirmed');
-      await load(current);show('Série criada. Selecione os rascunhos na agenda para revisar e agendar.');return;
+      const replacing=Boolean(form.dataset.replace);
+      if(!active()||!confirm((replacing?'Cancelar as ocorrências futuras da série anterior e criar ':'Criar ')+dates.length+' publicações App como rascunhos? O histórico iniciado é preservado. Nenhum novo envio será agendado até revisar e confirmar na agenda.\n\n'+dates.map(local).join('\n')))return;
+      const result=await rpc(replacing?'repeat_replace':'repeat_drafts',{rule,dates,publication_id:form.dataset.id,source_revision:source.revision,request_id:form.dataset.request,confirmed:true,...(replacing?{series_id:form.dataset.replace}:{})});
+      const created=replacing?result?.replacement:result;
+      if(!Array.isArray(created?.occurrences)||created.occurrences.length!==dates.length)throw Error('repeat_not_confirmed');
+      await load(current);show(replacing?'Série substituída. Confira os novos rascunhos na agenda.':'Série criada. Selecione os rascunhos na agenda para revisar e agendar.');return;
      }
      if(!dates.length||!groups.length){show('Confira datas e horários e selecione destinos na publicação.');return;}
      const catalog=await cloud.campaignWhatsAppSync('catalog');
@@ -372,6 +374,14 @@
      (pub.batches[0].cancelled_at==null||pub.batches[0].states?.some(value=>value!=='cancelled')))});
     if(action==='duplicate_form'&&pub)duplicateForm(pub);
     if(action==='weekly_form'&&pub)weeklyForm(pub);
+    if(action==='app_repeat_edit'&&isApp){
+     const item=appSeries.find(row=>row.id===id&&row.state==='drafts'),source=detail.publications.find(row=>row.id===item?.publication_id&&!row.deleted_at);
+     if(item&&source)weeklyForm(source,item);else show('A publicação original não está disponível para edição.');
+    }
+    if(action==='app_repeat_cancel'&&isApp&&appSeries.some(row=>row.id===id&&row.state==='drafts')&&confirm('Cancelar todas as ocorrências futuras desta série? As que já começaram e seu histórico serão preservados.')){
+     const result=await rpc('repeat_cancel',{series_id:id,confirmed:true});
+     await load(current);show('Série cancelada: '+Number(result.closed||0)+' ocorrência(s) encerrada(s), '+Number(result.retained||0)+' preservada(s).');
+    }
     if(action==='weekly_edit'){
      const item=weekly.find(row=>row.id===id),source=detail.publications.find(row=>row.id===item?.publication_id);
      if(item&&source)weeklyForm(source,item);
