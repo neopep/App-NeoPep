@@ -2054,6 +2054,41 @@ function syncCampaign(){
   },{once:true});
  }).catch(()=>{if(owner===campaignOwner)campaignChecked=true;}).finally(()=>{if(owner===campaignOwner)campaignPending=false;});
 }
+// Shared rich notification renderer. No HTML from campaign content is inserted.
+function renderCampaignBlocks(dialog,blocks,owner){
+ const holder=dialog.querySelector('[data-campaign-blocks]');
+ if(!holder||!Array.isArray(blocks)||!blocks.length)return;
+ const alive=()=>dialog.isConnected&&dialog.open&&owner===Cloud.user?.id;
+ const text=(node,value)=>{if(typeof value==='string'&&value.trim()){const p=document.createElement('p');p.textContent=value;node.append(p);}};
+ for(const block of blocks.slice(0,12)){
+  if(!block||!['text','image','file','link','document','product','community'].includes(block.type))continue;
+  const section=document.createElement('section');section.className='neo-campaign-content-block';holder.append(section);
+  if(block.type==='image'||block.type==='file'){
+   const status=document.createElement('p');status.className='sub';status.textContent='Carregando conteúdo…';section.append(status);
+   const isImage=block.type==='image';
+   const load=isImage?Cloud.campaignImageURL:Cloud.campaignOriginalURL;
+   const expected=isImage?/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.jpg$/:/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.(pdf|mp4)$/;
+   if(typeof load==='function'&&expected.test(block.media_path||'')){
+    void load.call(Cloud,block.media_path).then(url=>{
+     if(!alive())return;
+     if(isImage){const img=document.createElement('img');img.src=url;img.alt='Imagem da campanha';img.addEventListener('error',()=>{if(alive())status.textContent='Imagem indisponível.';});status.replaceWith(img);}
+     else if(block.mime==='video/mp4'){const v=document.createElement('video');v.src=url;v.controls=true;v.preload='metadata';v.playsInline=true;status.replaceWith(v);}
+     else if(block.mime==='application/pdf'){const a=document.createElement('a');a.className='secondary';a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=block.name||'Abrir PDF';status.replaceWith(a);}
+     else status.textContent='Arquivo indisponível.';
+    }).catch(()=>{if(alive())status.textContent='Conteúdo indisponível ou sem autorização.';});
+   }else status.textContent='Conteúdo indisponível.';
+  }
+  text(section,block.text);
+  if(block.type==='link'){
+   try{const u=new URL(block.url);if(u.protocol==='https:'&&!u.username&&!u.password&&!/\/storage\/v1\/|[?&](token|signature|apikey|x-amz-[^=]*)=/i.test(u.href)){const a=document.createElement('a');a.className='secondary';a.href=u.href;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Abrir link';section.append(a);}}catch{}
+  }
+  if(['product','document','community'].includes(block.type)&&/^[a-f0-9-]{36}$/.test(block.ref||'')){
+   const button=document.createElement('button');button.type='button';button.className='secondary';button.textContent=block.type==='product'?'Abrir produto':block.type==='document'?'Abrir material na Biblioteca':'Abrir Comunidade';
+   button.addEventListener('click',()=>{if(!alive())return;dialog.close();if(block.type==='product'){window.NeoShop?.openCampaignProduct?.(block.ref,Cloud.user);void go('loja');}else if(block.type==='document')void go('comunidade',true,false,'library',block.ref);else void go('comunidade');});
+   section.append(button);
+  }
+ }
+}
 // A campanha de homologação usa apenas a caixa interna de Teste, separada da fila oficial.
 if(window.NEO_CONFIG?.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co'&&Cloud.campaignTestVisit){
  let testCampaignPending=false;
@@ -2068,9 +2103,10 @@ if(window.NEO_CONFIG?.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co'&&
    if(typeof dialog.showModal!=='function')return;
    dialog.className='neo-campaign-dialog';
    dialog.setAttribute('aria-labelledby','neoTestCampaignTitle');
-   dialog.innerHTML=`<p class="sub">Campanha de homologação</p><h2 id="neoTestCampaignTitle">${esc(item.title)}</h2><p>${esc(item.body)}</p><form method="dialog"><button type="submit" class="secondary" autofocus>Fechar</button></form>`;
+   dialog.innerHTML=`<p class="sub">Campanha de homologação</p><h2 id="neoTestCampaignTitle">${esc(item.title)}</h2><div data-campaign-blocks>${Array.isArray(item.blocks)&&item.blocks.length?'':`<p>${esc(item.body)}</p>`}</div><form method="dialog"><button type="submit" class="secondary" autofocus>Fechar</button></form>`;
    dialog.addEventListener('close',()=>{dialog.remove();if(campaignDialog===dialog)campaignDialog=null;},{once:true});
    document.body.append(dialog);dialog.showModal();campaignDialog=dialog;
+   renderCampaignBlocks(dialog,item.blocks,owner);
    await Cloud.campaignTestVisit('displayed',item.id);
   }catch{}finally{testCampaignPending=false;}
  }
