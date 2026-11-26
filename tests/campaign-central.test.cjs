@@ -66,7 +66,7 @@ test('central atualiza recibo aceito sem reconstruir os controles de agenda',()=
  const editor=fs.readFileSync('dist/admin/campaign-central.js','utf8');
  assert.match(editor,/async function refreshVisibleStatus\(force=false\)/);
  assert.match(editor,/await cloud\.campaignCentral\('get',\{campaign_id:campaignId\}\)/);
- assert.match(editor,/if\(badge\)badge\.textContent=status\(pub\)/);
+ assert.match(editor,/if\(badge\)badge\.textContent=pub\.deleted_at\?'Excluída':status\(pub\)/);
  assert.match(editor,/scheduleStatusPoll\(\)/);
  assert.match(editor,/action==='refresh_status'/);
  assert.match(editor,/document\.visibilityState==='hidden'/);
