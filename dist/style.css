@@ -1120,7 +1120,9 @@ dialog.neo-structured-editor::backdrop{background:#192720}
 .calc-capacity-content svg{margin-block-end:.1rem}
 
 /* Keep the preview grid unchanged while the composer overlays it. */
-.neo-structured-editor.structured-keyboard-open footer{z-index:3;background:var(--campaign-rail);padding-bottom:3px}
+.neo-structured-editor.structured-keyboard-open footer{z-index:3;background:var(--campaign-rail)}
 .neo-structured-editor .structured-community-body{white-space:pre-wrap;overflow-wrap:anywhere;margin:.4rem 0}
 .neo-structured-editor .structured-community-author{display:block;color:var(--ink);font-size:.85rem}
 .neo-structured-editor .structured-community-reference img{max-width:min(100%,480px);max-height:none;object-fit:contain;cursor:default}
+
+.neo-structured-editor .structured-compose textarea{max-height:clamp(3.15rem,calc(var(--structured-frame-height,100dvh) * .34),15rem)}
