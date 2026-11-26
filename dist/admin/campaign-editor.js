@@ -417,11 +417,27 @@
   }
   function communityRows(){
    if(typeof cloud.communityInboxV2!=='function')return Promise.resolve([]);
-   return communityFeed??=cloud.communityInboxV2().then(data=>(data?.posts||[]).filter(row=>row.status==='published'));
+   return communityFeed??=cloud.communityInboxV2().then(async data=>{
+    const posts=(data?.posts||[]).filter(row=>row.status==='published');
+    if(posts.some(row=>row.own&&!row.photo_path&&row.body==='Foto compartilhada')&&typeof cloud.community==='function'){
+     try{const own=await cloud.community('export',{});const byId=new Map((own?.posts||[]).filter(row=>row.photo_path).map(row=>[row.id,row]));
+      return posts.map(row=>row.own&&!row.photo_path&&byId.has(row.id)?{...row,photo_path:byId.get(row.id).photo_path,snapshot:row.snapshot??byId.get(row.id).snapshot}:row);
+     }catch{}
+    }
+    return posts;
+   });
   }
   function referenceCard(block){
    const model=contentPreviews.get(block.ref);
    if(!model)return '';
+   if(block.type==='community')return `<section class="structured-reference structured-community-reference">
+    <strong class="structured-community-author">${e(model.meta||'Comunidade')}</strong>
+    ${model.snapshot&&window.NeoCommunity?.summaryCard?window.NeoCommunity.summaryCard(model.snapshot):''}
+    ${model.image?`<img src="${e(model.image)}" alt="Imagem original da publicação" referrerpolicy="no-referrer">`:model.hasPhoto?'<p class="sub">Imagem da publicação indisponível.</p>':''}
+    ${model.communityFile?`<div class="chat-document">📄 ${e(model.communityFile)}</div>`:''}
+    <p class="structured-community-body">${e(model.excerpt||'')}</p>
+    <a href="/#comunidade" target="_blank" rel="noopener noreferrer">Abrir Comunidade</a>
+   </section>`;
    return `<section class="structured-reference">
     ${model.image?`<img src="${e(model.image)}" alt="" referrerpolicy="no-referrer">`:''}
     <p class="sub">${e(model.meta==='Vídeo'?'Capa estática do vídeo · link para a Biblioteca':model.meta==='PDF'?'Capa do PDF · link para a Biblioteca':model.meta||'')}${model.excerpt?' · '+e(model.excerpt):''}</p>
@@ -477,15 +493,18 @@
    }finally{video.pause();video.removeAttribute('src');video.load();}
   }
   function loadReference(block){
-   if(contentPreviews.has(block.ref))return;
+   if(contentPreviews.has(block.ref)){
+    const existing=contentPreviews.get(block.ref);
+    if(block.type!=='community'||!existing?.imageExpires||Date.now()<existing.imageExpires)return;
+   }
    contentPreviews.set(block.ref,null);
    void (async()=>{
     let model;
     if(block.type==='community'){
      const row=(await communityRows()).find(item=>item.id===block.ref);
      if(!current()||!row)return;
-     model={meta:[row.alias,row.created_at&&new Date(row.created_at).toLocaleDateString('pt-BR')].filter(Boolean).join(' · '),excerpt:(row.body||'').slice(0,220)};
-     if(row.photo_path&&typeof cloud.communityPhotoURL==='function')try{model.image=await cloud.communityPhotoURL(row.photo_path);}catch{}
+     model={meta:[row.alias,row.created_at&&new Date(row.created_at).toLocaleString('pt-BR')].filter(Boolean).join(' · '),excerpt:row.body||'',snapshot:row.snapshot,hasPhoto:Boolean(row.photo_path||row.body==='Foto compartilhada'),communityFile:row.file?.name};
+     if(row.photo_path&&typeof cloud.communityPhotoURL==='function')try{model.image=await cloud.communityPhotoURL(row.photo_path);model.imageExpires=Date.now()+40000;}catch{}
     }else{
      if(typeof cloud.library!=='function')return;
      const row=(await cloud.library('get',{id:block.ref}))?.material;
@@ -909,15 +928,27 @@
    finally{saving=false;if(current())showGate();}
   }
   const viewport=window.visualViewport;
-  const resize=()=>{if(viewport){
-   dialog.style.setProperty('--structured-height',viewport.height+'px');
-   dialog.style.setProperty('--structured-keyboard',Math.max(0,document.documentElement.clientHeight-viewport.height-viewport.offsetTop)+'px');
-  }};
-  viewport?.addEventListener('resize',resize);viewport?.addEventListener('scroll',resize);resize();
+  // Preserve the layout of the preview; translate only the composer.
+  let frameHeight=viewport?.height||window.innerHeight,frameWidth=document.documentElement.clientWidth;
+  const resize=()=>{
+   const visible=viewport?.height||window.innerHeight,width=document.documentElement.clientWidth;
+   const layout=Math.max(document.documentElement.clientHeight,window.innerHeight,visible);
+   if(width!==frameWidth){frameWidth=width;frameHeight=layout;}
+   const focused=dialog.contains(document.activeElement)&&document.activeElement?.matches('textarea,input:not([type=checkbox]):not([type=radio]):not([type=button]),[contenteditable=true]');
+   const full=Math.max(frameHeight,layout);
+   const keyboard=!readOnly&&Math.abs((viewport?.scale||1)-1)<.02&&(full-visible>120)&&(focused||dialog.classList.contains('structured-keyboard-open'));
+   frameHeight=keyboard?full:visible;
+   dialog.classList.toggle('structured-keyboard-open',keyboard);
+   dialog.style.setProperty('--structured-height',Math.round(visible)+'px');
+   dialog.style.setProperty('--structured-frame-height',Math.round(frameHeight)+'px');
+   dialog.style.setProperty('--structured-top',Math.round(keyboard?(viewport?.offsetTop||0):0)+'px');
+   dialog.style.setProperty('--structured-keyboard',Math.round(keyboard?Math.max(0,frameHeight-visible):0)+'px');
+  };
+  viewport?.addEventListener('resize',resize);viewport?.addEventListener('scroll',resize);window.addEventListener('resize',resize);dialog.addEventListener('focusin',resize);resize();
   function finish(){
    if(!active)return;
    if(stopOpen===stop)stopOpen=null;
-   viewport?.removeEventListener('resize',resize);viewport?.removeEventListener('scroll',resize);
+   viewport?.removeEventListener('resize',resize);viewport?.removeEventListener('scroll',resize);window.removeEventListener('resize',resize);dialog.removeEventListener('focusin',resize);
    active=false;cancelCatalog();previewAbort.abort();if(openedReference)window.NeoLibraryFiles?.close();clearTimeout(pending);clearTimeout(noticeTimer);window.removeEventListener('pagehide',saveLocal);
    for(const url of objectUrls)URL.revokeObjectURL(url);
    dialog.remove();onClosed?.();if(trigger?.isConnected)trigger.focus({preventScroll:true});
@@ -943,7 +974,7 @@
     changed();return;
    }
    if(['title','planned_local','audience'].includes(name)){draft[name]=event.target.value;if(name==='title')$('[data-campaign-name]').textContent=draft.title;changed();}
-   if(name==='message'){changed();paintLive(true);}
+   if(name==='message'){changed();paintLive(!dialog.classList.contains('structured-keyboard-open'));}
    if(['weekly_count','push','photo_quality'].includes(name))changed();
   });
   dialog.addEventListener('change',async event=>{
@@ -1004,7 +1035,7 @@
   }
   function showCatalogThumb(box,row,i,token,signal){if(!catalogCurrent(token,signal)||!row.thumb)return;const holder=box.querySelector('[data-catalog-thumb="'+i+'"]');if(!holder)return;
    const img=document.createElement('img');img.alt='';img.loading='lazy';img.decoding='async';img.referrerPolicy='no-referrer';img.width=160;img.height=160;
-   img.onerror=()=>{if(catalogCurrent(token,signal)){row.thumb='';holder.innerHTML=icon(row.kind==='product'?'product':'file');catalogStatus();}};
+   img.onerror=()=>{if(catalogCurrent(token,signal)){row.thumb='';holder.innerHTML=icon(row.kind==='product'?'product':row.kind==='community'?'group':'file');if(row.kind!=='community')catalogStatus();}};
    img.src=row.thumb;holder.replaceChildren(img);
   }
   async function smallCatalogJpeg(src,signal){
@@ -1050,7 +1081,7 @@
    captionTarget=id;if(!keepText){editing=id;message.value='';}
    render();changed();composeAction();closeSheet();
    tell(keepText?'Item adicionado. Seu texto provisório continua em edição.':'Item adicionado. Escreva a legenda e confirme com a seta.');
-   message.focus();
+   message.focus({preventScroll:true});
   }
   async function chooseLibraryShare(row,trigger){
    if(row.kind!=='document'||typeof cloud.library!=='function'){addCatalogReference(row);return;}
@@ -1153,12 +1184,21 @@
     const normalize=value=>String(value||'').normalize('NFD').replace(/\p{M}/gu,'').toLocaleLowerCase('pt-BR');
     const results=action==='community'&&typeof cloud.communityInboxV2==='function'?(await communityRows())
      .filter(row=>normalize([row.body,row.alias].join(' ')).includes(normalize(search)))
-     .slice(0,30).map(row=>({id:row.id,label:[row.alias,row.created_at&&new Date(row.created_at).toLocaleDateString('pt-BR'),row.body?.slice(0,120)].filter(Boolean).join(' · ')||'Publicação'})):
+     .slice(0,30).map(row=>({id:row.id,label:[row.alias,row.created_at&&new Date(row.created_at).toLocaleDateString('pt-BR'),row.body?.slice(0,120)].filter(Boolean).join(' · ')||'Publicação',photoPath:row.photo_path})):
      await endpoint(cloud,'catalog',{kind:action,search});
     if(!valid())return;
     catalogRows=results.map(row=>({...row,kind:action}));
     box.classList.add('structured-catalog-grid');
     box.innerHTML=catalogRows.map((row,i)=>`<button type="button" class="structured-catalog-card" data-editor="reference" data-index="${i}"><span class="structured-catalog-thumb" data-catalog-thumb="${i}">${icon(action==='product'?'product':action==='community'?'group':'file')}</span><strong>${e(row.label)}</strong>${action==='product'?'<strong class="structured-catalog-price">'+e(catalogPrice(row))+'</strong>':''}<small data-catalog-kind="${i}">${action==='product'?'Produto':action==='community'?'Comunidade':'Material da Biblioteca'}</small></button>`).join('')||'Nenhuma referência disponível.';
+    if(action==='community'){
+     if(typeof cloud.communityPhotoURL==='function')await catalogPool(catalogRows,async(row,i)=>{
+      if(!row.photoPath)return;
+      const thumb=await cloud.communityPhotoURL(row.photoPath);
+      if(!valid())return;
+      row.thumb=thumb;showCatalogThumb(box,row,i,token,signal);
+     },valid);
+     return;
+    }
     if(!['product','document'].includes(action))return;
     catalogReady=typeof cloud.campaignThumbnailReady==='function'&&await cloud.campaignThumbnailReady().catch(()=>false);
     if(!valid())return;
@@ -1225,7 +1265,7 @@
    }
    const target=control.dataset.paneOpen;
    if(target){
-    if(target==='compose'){closeSheet(false);message.focus();return;}
+    if(target==='compose'){closeSheet(false);message.focus({preventScroll:true});return;}
     if(['product','document','community'].includes(target)){
      catalogKind=target;field('catalog_search').value='';openPane('catalog',control);void searchCatalog();return;
     }
@@ -1248,11 +1288,11 @@
    }
    if(action==='name_continue'){
     if(!draft.title.trim()){tell('Informe o nome da campanha.');field('title').focus();return;}
-    saveLocal();closeSheet(false);message.focus();return;
+    saveLocal();closeSheet(false);message.focus({preventScroll:true});return;
    }
    if(action==='expand'){
     const expanded=control.getAttribute('aria-expanded')!=='true';
-    control.setAttribute('aria-expanded',String(expanded));dialog.classList.toggle('structured-expanded',expanded);message.rows=expanded?10:2;message.focus();return;
+    control.setAttribute('aria-expanded',String(expanded));dialog.classList.toggle('structured-expanded',expanded);message.rows=expanded?10:2;message.focus({preventScroll:true});return;
    }
    if(action==='hd'){
     const quality=field('photo_quality');
@@ -1342,13 +1382,13 @@
      if(edited)edited.text=text;
      editing=null;message.value='';composeAction();render();changed();
     }else if(!add({type:'text',text}))return;
-    message.value='';paintLive();message.focus();
+    message.value='';paintLive();message.focus({preventScroll:true});
    }
    if(action==='edit'&&block){
     if(captionTypes.includes(block.type)){selectCaption(block);return;}
     if(editing!==block.id&&message.value.trim()){tell('Conclua o texto em edição antes de trocar de bloco.');return;}
     editing=block.id;message.value=block.text||'';
-    composeAction();message.focus();changed();
+    composeAction();message.focus({preventScroll:true});changed();
    }
    if(action==='duplicate'&&block){
     if(draft.blocks.length>=32){tell('Limite de 32 blocos por rascunho.');return;}
