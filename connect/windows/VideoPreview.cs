@@ -90,6 +90,8 @@ sealed partial class Connect {
         string work=null,id=null,fence=null;bool finishing=false;
         var owner=sessionOwner;var device=Value(local,"device");
         try {
+          bool failed=false;
+          try {
             var runtime=Path.Combine(ConnectProfile.InstallFolder,ConnectVersion.Runtime);
             if(!await Task.Run(()=>PreviewToolReady(runtime))||!PreviewSession(owner,device))return;
             var job=await VideoPreviewRpc("claim",new {video_preview_v1=true});
@@ -116,11 +118,13 @@ sealed partial class Connect {
             var result=await VideoPreviewRpc("finish",new {id=id,fence=fence,video_preview_v1=true});
             if(Value(result,"state")=="ready")Record("video_preview_ready");
             else Record("video_preview_confirmation_pending");
-        }catch{
+          }catch{failed=true;}
+          if(failed){
             if(!finishing&&id!=null&&fence!=null&&PreviewSession(owner,device)){
                 try{await VideoPreviewRpc("fail",new {id=id,fence=fence,video_preview_v1=true});}catch{}
             }
             Record("video_preview_unavailable");
+          }
         }finally{
             if(work!=null)try{Directory.Delete(work,true);}catch{}
             videoPreviewBusy=false;
