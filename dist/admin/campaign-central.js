@@ -65,7 +65,7 @@
    }
    return dates;
   }
-  let loadEpoch=0,appRepeatReady=false,appSeries=[];
+  let loadEpoch=0,appRepeatReady=false,appSeries=[],reviewReady=false;
   const legacyStates=new Map();
   let statusTimer=null,statusRefreshing=false;
   const legacyKey='neo-campaign-editor:'+account+':'+channel+':new';
@@ -179,6 +179,7 @@
      <p class="sub">${pub.kinds?.length||0} ${isApp?'bloco(s)':'mensagem(ns)'}${pub.kinds?.length?' · '+escape(pub.kinds.join(', ')):''}</p>
      ${view==='agenda'&&editable&&pub.planned_local&&!locked?`<label class="check"><input type="checkbox" name="selected-publication" value="${escape(pub.id)}" aria-label="Selecionar para agendar"> Agendar</label>`:''}
      <details class="central-action-menu"><summary aria-label="Opções da publicação">⋯</summary><div class="central-action-popover">${button('edit',locked||!editable?'Ver publicação':'Editar publicação',pub.id)}
+     ${!isApp&&reviewReady&&editable&&!locked?button('request_review','Solicitar aprovação de outro admin',pub.id):''}
      ${editable&&!pub.deleted_at?button('duplicate_form','Duplicar / distribuir',pub.id)+((isApp?appRepeatReady:typeof cloud.campaignWeekly==='function')?button('weekly_form',isApp?'Preparar repetição':'Programar repetição',pub.id):''):''}
      ${batch?.states?.includes('waiting')&&editable&&!pub.deleted_at?button('cancel','Cancelar pendências',pub.id):''}
      ${editable&&!pub.deleted_at?button('delete_publication','Excluir publicação',pub.id):''}</div></details>
@@ -209,6 +210,8 @@
    const series=!isApp&&typeof cloud.campaignWeekly==='function'?await weeklyRpc('list').catch(()=>[]):[];
    const repeatReady=isApp&&(await rpc('repeat_capabilities').catch(()=>null))?.enabled===true;
    const repeats=repeatReady?await rpc('repeat_list').catch(()=>[]):[];
+   const review=!isApp?await rpc('review_capabilities').catch(()=>null):null;
+   if(active()&&current===id)reviewReady=review?.enabled===true&&review.other_admins===true;
    if(active()&&current===id){appRepeatReady=repeatReady;appSeries=Array.isArray(repeats)?repeats:[];}
    if(active()&&current===id){detail=result;weekly=series;details();}
   }
@@ -412,6 +415,17 @@
     if(action==='edit'&&pub)await editor(id,control,{readOnly:Boolean(detail.archived_at||pub.deleted_at||pub.legacy_dispatch||pub.batches[0]&&
      (pub.batches[0].cancelled_at==null||pub.batches[0].states?.some(value=>value!=='cancelled')))});
     if(action==='duplicate_form'&&pub)duplicateForm(pub);
+    if(action==='request_review'&&pub&&!isApp&&reviewReady){
+     const source=await rpc('load',{publication_id:pub.id});
+     if(!active()||!source||source.revision!==pub.revision)return;
+     if(!source.draft.blocks?.length||source.draft.blocks.some(b=>!['text','link'].includes(b.type))){show('Nesta versão, a aprovação compartilhada aceita apenas texto e links.');return;}
+     if(!confirm('Solicitar aprovação de outro administrador? O envio ficará bloqueado até a aprovação e continuará usando a conexão e os grupos autorizados pelo responsável original. '+(pub.planned_local?'Data: '+local(pub.planned_local):'Após a aprovação, quando o Connect estiver disponível.')))return;
+     const key='neo-wa-review:'+account+':'+pub.id+':'+pub.revision+':'+(pub.planned_local||'now');
+     const request=getLocal(key)||crypto.randomUUID();setLocal(key,request);
+     const result=await rpc(pub.planned_local?'review_schedule':'review_publish',{publication_id:pub.id,revision:pub.revision,request_id:request,confirmed:true,local_time:pub.planned_local||null});
+     if(!result?.batch_id)throw Error('review_not_confirmed');removeLocal(key);
+     await load(current);show('Publicação na fila de revisão. Aguarde a aprovação independente.');return;
+    }
     if(action==='weekly_form'&&pub)weeklyForm(pub);
     if(action==='app_repeat_edit'&&isApp){
      const item=appSeries.find(row=>row.id===id&&row.state==='drafts'),source=detail.publications.find(row=>row.id===item?.publication_id&&!row.deleted_at);
