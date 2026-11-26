@@ -71,7 +71,7 @@
  }
 
  const paths={
-  back:'M19 12H5m7-7-7 7 7 7',group:'M15 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2m9-12a3 3 0 1 1-6 0 3 3 0 0 1 6 0m5 5a3 3 0 0 1 4 3v4m-5-15a3 3 0 0 1 0 6',
+  search:'M15 15l5 5M16 10a6 6 0 1 1-12 0 6 6 0 0 1 12 0',back:'M19 12H5m7-7-7 7 7 7',group:'M15 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2m9-12a3 3 0 1 1-6 0 3 3 0 0 1 6 0m5 5a3 3 0 0 1 4 3v4m-5-15a3 3 0 0 1 0 6',
   gear:'M3 6h18M3 12h18M3 18h18M7 4v4m10 2v4m-7 2v4',more:'M12 5v1m0 5v1m0 5v1',
   expand:'M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6',up:'M12 19V5m-6 6 6-6 6 6',plus:'M12 5v14M5 12h14',send:'m3 4 18 8-18 8 4-8-4-8Zm4 8h14',
   text:'M5 6h14M12 6v13m-4 0h8',photo:'M4 4h16v16H4zM4 16l5-5 4 4 2-2 5 5m-4-9h.01',
@@ -106,7 +106,7 @@
   if(readOnly&&previewModes){const model=previewModes('web');draft.blocks=model.blocks;previewImages=model.images;}
   if(channel==='app')draft.groups=[];
   const dialog=document.createElement('dialog');
-  dialog.className='neo-structured-editor';
+  dialog.className='neo-structured-editor';dialog.dataset.channel=channel;
   dialog.setAttribute('aria-labelledby','neo-campaign-structured-title');
   const pane=(name,title,body)=>`<section class="structured-pane" data-editor-pane="${name}" aria-label="${title}" hidden><h3>${title}</h3>${body}</section>`;
   const tile=(name,label,target,disabled=false)=>`<button type="button" data-pane-open="${target}" ${disabled?'disabled':''}>${icon(name)}<span>${label}</span></button>`;
@@ -122,12 +122,12 @@
     ${pane('settings','Configurações',`<label>${publication?'Nome da publicação':'Nome da campanha'}<input name="title" maxlength="120" value="${e(draft.title)}"></label><button type="button" class="secondary" data-editor="name_continue">Salvar nome e continuar</button><p class="sub" data-structured-connection role="status">Conexão ainda não verificada.</p>
      <div class="inline-actions">${publication?'':'<button type="button" class="secondary" data-editor="fresh">Novo rascunho</button>'}${channel==='whatsapp'?'<button type="button" class="secondary" data-editor="cross">Criar versão App</button>':''}</div>`)}
     ${channel==='app'?pane('audience','Público App',testApp?'<p>Somente as contas de homologação autorizadas no servidor. Esta campanha não envia push.</p>':'<label>Público App<select name="audience"><option value="all">Todos</option><option value="free">Free</option><option value="premium">Premium</option></select></label><label class="check"><input name="push" type="checkbox"> Solicitar push App para contas com consentimento</label>'):
-    pane('groups','Grupos sincronizados','<div class="inline-actions"><button type="button" class="secondary" data-editor="groups">Atualizar grupos e diagnóstico</button><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button></div><label class="central-search editor-search"><input name="group_search" type="search" aria-label="Pesquisar grupo ou conexão" placeholder="Pesquisar grupo ou conexão"><span class="search-decoration" aria-hidden="true">&#9906;</span></label><p class="sub" data-editor-group-count></p><div data-editor-groups></div>')}
+    pane('groups','Grupos sincronizados','<div class="inline-actions"><button type="button" class="secondary" data-editor="groups">Atualizar grupos e diagnóstico</button><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button></div><label class="central-search editor-search"><input name="group_search" type="search" aria-label="Pesquisar grupo ou conexão" placeholder="Pesquisar grupo ou conexão"><span class="search-decoration" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></span></label><p class="sub" data-editor-group-count></p><div data-editor-groups></div>')}
     ${pane('photo','Foto','<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">No ambiente de Teste, imagens JPEG com legenda podem ser enviadas ao grupo autorizado. Salve a versão antes de publicar.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto</button>')}
     ${pane('file','Documento','<button type="button" class="secondary" data-editor="choose_document">Escolher PDF ou TXT</button>')}
     <input type="file" name="media" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain" hidden>
     ${pane('link','Link','<label>Link HTTPS<input name="link" type="url" maxlength="2000"></label><button type="button" class="secondary" data-editor="link">Adicionar link</button>')}
-    ${pane('catalog','Referências','<div class="central-search editor-search"><input name="catalog_search" type="search" maxlength="100" aria-label="Buscar referências" placeholder="Buscar referências"><button type="button" class="structured-icon" data-editor="catalog_search" aria-label="Buscar referências" title="Buscar referências">&#9906;</button></div><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
+    ${pane('catalog','Referências','<div class="central-search editor-search"><input name="catalog_search" type="search" maxlength="100" aria-label="Buscar referências" placeholder="Buscar referências"><button type="button" class="structured-icon" data-editor="catalog_search" aria-label="Buscar referências" title="Buscar referências"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button></div><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
     ${pane('schedule','Publicação e horário','<label>Horário planejado (São Paulo)<input name="planned_local" type="datetime-local" value="'+e(draft.planned_local)+'"></label><p data-editor-summary class="sub"></p><div class="inline-actions"><button type="button" class="secondary" data-editor="schedule" disabled>Programar</button><button type="button" class="secondary" data-editor="simulate">Ver prévia (sem enviar)</button></div><p role="status" class="sub" data-editor-simulation></p><p class="sub">A prévia não envia mensagens. Para publicar, escolha os grupos e confirme o envio.</p><p class="sub" data-dispatch-gate></p>')}
     ${pane('confirmation','Confirmar campanha','<p data-confirm-question></p><p class="sub" data-confirm-summary></p><p class="structured-confirm-content" data-confirm-content></p><button type="button" class="primary" data-editor="confirm_dispatch">Confirmar</button> <button type="button" class="secondary" data-editor="sheet_close">Voltar à composição</button>')}
     ${channel==='whatsapp'&&!testWA?pane('recurrence','Recorrência','<label>Ocorrências semanais<input name="weekly_count" type="number" min="1" max="6" step="1" value="1"></label>'):''}
@@ -171,7 +171,7 @@
   let sheetTrigger=null,catalogKind='document',captionTarget=state.captionTarget||null,pendingDispatch=null;
   const products=new Map(),contentPreviews=new Map(),previewAbort=new AbortController();let shopCatalog,communityFeed,openedReference=false;
   let testGate={};
-  let gates={},dispatching=false,groups=[],pending,active=true,editing=null,removed=null,saving=false,revision=0,loadToken=0,catalogToken=0,selection=[0,0],catalogRows=[];
+  let gates={},dispatchReady={schedule:false,publish:false},dispatching=false,groups=[],pending,active=true,editing=null,removed=null,saving=false,revision=0,loadToken=0,catalogToken=0,selection=[0,0],catalogRows=[];
   const current=()=>active&&cloud.user?.id===account;
   const mediaKey=id=>account+':'+state.editorId+':'+id;
   let noticeTimer,composing=false,provisional=Number.isInteger(state.provisional)?state.provisional:null;
@@ -453,6 +453,7 @@
      ${block.type==='image'?'<p class="sub" data-editor-media-status="'+e(block.id)+'" hidden></p>':''}
      ${block.type!=='product'&&(block.label||block.type==='file'&&block.name)?`<strong>${e(block.label||'Documento')}</strong>`:''}
      ${block.type==='product'?productCard(block):''}
+     ${block.type==='file'?'<div class="structured-file-preview" data-local-file="'+e(block.id)+'"><p class="sub">Carregando prévia do documento…</p></div>':''}
      ${['document','community'].includes(block.type)?referenceCard(block):''}
      ${['product','document','community','file','link'].includes(block.type)&&block.text?
        '<p class="sub">Legenda adicional:</p>':''}
@@ -475,6 +476,24 @@
      const image=indicator.parentElement.querySelector('[data-editor-image]');
      if(blob&&image){const url=typeof blob==='string'?blob:URL.createObjectURL(blob);if(typeof blob!=='string')objectUrls.add(url);image.src=url;image.hidden=false;}
     }).catch(()=>{if(current()&&version===revision){indicator.hidden=false;indicator.textContent='Imagem indisponível neste dispositivo.';}});
+   }
+   for(const holder of preview.querySelectorAll('[data-local-file]')){
+    const id=holder.dataset.localFile,block=draft.blocks.find(item=>item.id===id);
+    void (async()=>{
+     const file=await storeMedia('readonly',store=>store.get(mediaKey(id)));
+     if(!current()||version!==revision)return;
+     if(!file){holder.textContent='Arquivo original indisponível neste dispositivo.';return;}
+     const url=URL.createObjectURL(file);objectUrls.add(url);
+     const label=document.createElement('p');label.className='sub';label.textContent=(file.type==='application/pdf'?'PDF':'TXT')+' · '+Math.ceil(file.size/1024)+' KB · '+(block.name||'Documento');
+     holder.replaceChildren(label);
+     if(file.type==='application/pdf'&&window.NeoLibraryFiles?.pdfCover){
+      try{const cover=await window.NeoLibraryFiles.pdfCover(url,previewAbort.signal);if(current()&&version===revision&&cover){const img=document.createElement('img');img.src=cover;img.alt='Primeira página do PDF';holder.append(img);}}catch{}
+     }else if(file.type==='text/plain'){
+      const excerpt=await file.slice(0,4096).text();if(current()&&version===revision){const pre=document.createElement('p');pre.className='sub';pre.textContent=excerpt.slice(0,400);holder.append(pre);}
+     }
+     if(!current()||version!==revision)return;
+     const link=document.createElement('a');link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Abrir original neste dispositivo';holder.append(link);
+    })().catch(()=>{if(current()&&version===revision)holder.textContent='Prévia indisponível.';});
    }
    const revert=$('[data-editor=revert]');if(revert)revert.hidden=!removed;
    paintLive();
@@ -540,8 +559,10 @@
    const pinned=!testWA||draft.groups.length===1&&draft.groups[0]===gates.whatsapp_test?.destination;
    const short=!testWA||draft.blocks.map(block=>block.text||'').join('\n\n').trim().length<=160;
    const allow=Boolean((!publication||rich)&&enabled&&clean&&eligible&&pinned&&(rich?richBlocks:textOnly&&short));
-   $('[data-editor=publish]').disabled=!allow||channel==='whatsapp'&&!testWA&&!gates.devices?.some(d=>d.ready);
-   $('[data-editor=schedule]').disabled=!allow||!draft.planned_local||testWA&&!(rich?gates.whatsapp_rich?.ready:gates.whatsapp_test?.schedule_ready);
+   dispatchReady.publish=Boolean(allow&&!(channel==='whatsapp'&&!testWA&&!gates.devices?.some(d=>d.ready)));
+   dispatchReady.schedule=Boolean(allow&&draft.planned_local&&!(testWA&&!(rich?gates.whatsapp_rich?.ready:gates.whatsapp_test?.schedule_ready)));
+   $('[data-editor=publish]').disabled=dispatching||saving;
+   $('[data-editor=schedule]').disabled=dispatching||saving;
    $('[data-editor-summary]').textContent=dispatchSummary(Boolean(draft.planned_local));
    $('[data-dispatch-gate]').textContent=testApp?
     (enabled?'Homologação App · '+testGate.destinations+' conta(s) autorizada(s) · somente no aplicativo, sem push.':'Homologação App indisponível. Use a simulação enquanto a lista e a ativação aguardam aprovação.'):
@@ -622,7 +643,26 @@
    const description=draft.blocks.map(block=>labels[block.type]||block.type).join(', ')||'Sem conteúdo';
    return [destinations,when,`${draft.blocks.length} bloco(s): ${description}`].join(' · ');
   }
-  function requestDispatch(scheduled,trigger){
+  async function requestDispatch(scheduled,trigger){
+   if(saving||dispatching||!current())return;
+   openPane('schedule',trigger);
+   const explain=text=>{$('[data-editor-simulation]').textContent=text;tell(text);};
+   if(!draft.title.trim()){explain('Informe o nome da publicação em Ajustes.');return;}
+   if(scheduled&&!draft.planned_local){explain('Selecione a data e o horário do agendamento.');return;}
+   if(channel==='whatsapp'&&!draft.groups.length){explain('Selecione pelo menos um grupo sincronizado.');return;}
+   if(editing||message.value.trim()){explain('Confirme o texto ou a legenda com a seta antes de continuar.');return;}
+   if(!draft.blocks.length){explain('Adicione conteúdo antes de continuar.');return;}
+   if(draft.blocks.some(b=>b.type==='file')){explain('O envio integral de arquivos ainda não está habilitado neste canal. O arquivo permanece como rascunho.');return;}
+   if(!state.remoteId||state.savedDraft!==JSON.stringify(draft)){
+    explain('Salvando a versão antes da confirmação. Nenhuma mensagem será enviada.');
+    await saveRemote();
+   }
+   if(!current())return;
+   showGate();
+   if(!dispatchReady[scheduled?'schedule':'publish']){
+    explain(state.savedDraft!==JSON.stringify(draft)?'Não foi possível confirmar a versão salva. Confira a conexão e tente novamente.':'A publicação ainda não está liberada: confira os destinos, o tipo de conteúdo e a disponibilidade do canal.');
+    return;
+   }
    pendingDispatch=scheduled;
    $('[data-confirm-question]').textContent=scheduled?'Confirmar o agendamento desta campanha?':'Tem certeza de que deseja publicar esta campanha agora?';
    $('[data-confirm-summary]').textContent=draft.title+' · '+(channel==='app'?'App':'WhatsApp')+' · '+dispatchSummary(scheduled);
@@ -630,7 +670,8 @@
    openPane('confirmation',trigger);
   }
   async function dispatch(scheduled){
-   if(dispatching||!current()||$('[data-editor='+(scheduled?'schedule':'publish')+']').disabled)return;
+   if(dispatching||saving||!current())return;
+   showGate();if(!dispatchReady[scheduled?'schedule':'publish']){tell('A versão ou a autorização mudou. Confira antes de confirmar.');return;}
    const rich=testWA&&richMode();
    if(publication&&!rich){tell('O envio desta publicação exige Connect compatível e destino Teste autorizado.');return;}
     const action=rich?'publish':channel==='app'?'publish_app':'schedule_whatsapp';
@@ -948,7 +989,7 @@
     const simulation=$('[data-editor-simulation]');
     simulation.textContent='Prévia local (sem envio) · '+draft.title+' · '+dispatchSummary(Boolean(draft.planned_local))+'. Nenhuma mensagem foi enviada ou agendada.';
    }
-   if(action==='publish'||action==='schedule')requestDispatch(action==='schedule',control);
+   if(action==='publish'||action==='schedule')void requestDispatch(action==='schedule',control);
    if(action==='confirm_dispatch'&&pendingDispatch!==null){
     const scheduled=pendingDispatch;closeSheet();void dispatch(scheduled);
    }
