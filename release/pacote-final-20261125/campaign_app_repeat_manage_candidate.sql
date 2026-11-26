@@ -7,7 +7,7 @@ create function neo_private.campaign_app_repeat_manage(p_action text,p_data json
 language plpgsql security invoker set search_path='' as $manage$
 declare actor uuid:=auth.uid(); cid uuid:=(p_data->>'campaign_id')::uuid; sid uuid:=(p_data->>'series_id')::uuid;
  req uuid:=(p_data->>'request_id')::uuid; parent neo_private.campaign_app_groups; series neo_private.campaign_app_draft_series;
- occ jsonb; pid uuid; b record; v jsonb; result jsonb; replacement jsonb; now_wall text:=to_char(now() at time zone 'America/Sao_Paulo','YYYY-MM-DD"T"HH24:MI');
+ occ jsonb; pid uuid; batch_row record; v jsonb; result jsonb; replacement jsonb; now_wall text:=to_char(now() at time zone 'America/Sao_Paulo','YYYY-MM-DD"T"HH24:MI');
  closed integer:=0; retained integer:=0; cancelled integer:=0;
 begin
  if actor is null or not coalesce(neo_private.campaign_admin_allowed(),false) then raise exception 'app_series_admin_required' using errcode='42501';end if;
@@ -29,9 +29,9 @@ begin
   -- Never rewrite or cancel a started occurrence, even if it has no receipt yet.
   if occ->>'date'<=now_wall or exists(select 1 from neo_private.campaign_test_batches b where b.editor_id=pid and b.owner_id=actor and b.starts_at<=now()) then retained:=retained+1;continue;end if;
   if not exists(select 1 from neo_private.campaign_app_publications p where p.id=pid and p.campaign_id=cid and p.deleted_at is null) then continue;end if;
-  for b in select id from neo_private.campaign_test_batches where editor_id=pid and owner_id=actor and cancelled_at is null and starts_at>now() loop
-   v:=neo_private.campaign_app_central('cancel',jsonb_build_object('campaign_id',cid,'publication_id',pid,'batch_id',b.id));
-   if exists(select 1 from neo_private.campaign_test_batches x where x.id=b.id and x.cancelled_at is null) then raise exception 'app_series_cancel_unconfirmed';end if;
+  for batch_row in select id from neo_private.campaign_test_batches where editor_id=pid and owner_id=actor and cancelled_at is null and starts_at>now() loop
+   v:=neo_private.campaign_app_central('cancel',jsonb_build_object('campaign_id',cid,'publication_id',pid,'batch_id',batch_row.id));
+   if exists(select 1 from neo_private.campaign_test_batches x where x.id=batch_row.id and x.cancelled_at is null) then raise exception 'app_series_cancel_unconfirmed';end if;
    cancelled:=cancelled+1;
   end loop;
   perform neo_private.campaign_app_central('delete_publication',jsonb_build_object('campaign_id',cid,'publication_id',pid,'confirmed',true));
