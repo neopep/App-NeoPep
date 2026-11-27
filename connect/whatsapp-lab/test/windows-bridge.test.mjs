@@ -141,8 +141,8 @@ test('duas bridges isolam QR, cofre, o mesmo ID de grupo e desconexão',async()=
  assert.ok(test.events.some(e=>e.type==='qr'&&e.value==='QR TESTE'));
  assert.ok(production.events.some(e=>e.type==='qr'&&e.value==='QR PRODUÇÃO'));
  await Promise.all([test.bridge.receive({action:'groups'}),production.bridge.receive({action:'groups'})]);
- assert.deepEqual(test.events.at(-1).value,[{id:'123@g.us',name:'TESTE',members:1}]);
- assert.deepEqual(production.events.at(-1).value,[{id:'123@g.us',name:'PRODUÇÃO',members:1}]);
+ assert.deepEqual(test.events.at(-1).value,[{id:'123@g.us',name:'TESTE',members:1,addressing_mode:'unknown',role:'unknown',posting:'unknown',settings:'unknown'}]);
+ assert.deepEqual(production.events.at(-1).value,[{id:'123@g.us',name:'PRODUÇÃO',members:1,addressing_mode:'unknown',role:'unknown',posting:'unknown',settings:'unknown'}]);
  const previous=production.events.length;
  await test.bridge.receive({action:'disconnect'});
  assert.equal(production.events.length,previous);
