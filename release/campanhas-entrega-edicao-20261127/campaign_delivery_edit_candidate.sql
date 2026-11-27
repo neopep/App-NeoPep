@@ -82,18 +82,7 @@ begin
     server_ack_at=case when p_data->>'status' in ('server_ack','delivery_ack') then coalesce(m.server_ack_at,now()) else m.server_ack_at end,
     delivery_ack_at=case when p_data->>'status'='delivery_ack' then coalesce(m.delivery_ack_at,now()) else m.delivery_ack_at end,
     send_error_at=case when p_data->>'status'='send_error' then coalesce(m.send_error_at,now()) else m.send_error_at end,
-    send_error_code=case when p_data->>'status'='send_error' then case when coalesce(p_data->>'error_code','') ~ '^[0-9]{1,5}
-   where m.owner_id=actor and m.device_id=p_device and m.connection_id=t.connection_id
-    and m.state='accepted' and m.receipt_id=p_data->>'message_id' and m.group_jid=p_data->>'group_jid'
-    and m.sent_at>now()-interval '7 days';
-  return jsonb_build_object('ok',found);
- end if;
- $b$;
- d:=replace(d,a,b||a);
- execute d;
-end;$patch$;
-commit;
- then p_data->>'error_code' else 'unknown' end else m.send_error_code end
+    send_error_code=case when p_data->>'status'='send_error' then case when coalesce(p_data->>'error_code','') ~ '^[0-9]{1,5}$' then p_data->>'error_code' else 'unknown' end else m.send_error_code end
    where m.owner_id=actor and m.device_id=p_device and m.connection_id=t.connection_id
     and m.state='accepted' and m.receipt_id=p_data->>'message_id' and m.group_jid=p_data->>'group_jid'
     and m.sent_at>now()-interval '7 days';
