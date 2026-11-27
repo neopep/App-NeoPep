@@ -6,7 +6,7 @@ export function planUpload(principal,input){
  if(principal?.environment!=='test'||principal.campaignAdmin!==true||!principal.scopes?.includes('campaigns:drafts')||!uuid(principal.ownerId)||!uuid(principal.id))throw Error('FORBIDDEN');
  if(!input||Object.keys(input).some(k=>!['campaignId','publicationId','blockId','requestId','revision','mime','size','name'].includes(k)))fail();
  const {campaignId,publicationId,blockId,requestId,revision,mime,size,name}=input;
- const r=rules[mime];if(!r||![campaignId,publicationId,blockId,requestId].every(uuid)||!Number.isSafeInteger(revision)||revision<1||!Number.isSafeInteger(size)||size<1||size>r.limit||typeof name!=='string'||!name.trim()||name.length>160||/[/\\\u0000-\u001f]/.test(name))fail();
+ const r=rules[mime];if(!r||![campaignId,publicationId,blockId,requestId].every(uuid)||!Number.isSafeInteger(revision)||revision<0||!Number.isSafeInteger(size)||size<1||size>r.limit||typeof name!=='string'||!name.trim()||name.length>160||/[/\\\u0000-\u001f]/.test(name))fail();
  return {environment:'test',ownerId:principal.ownerId,connectionId:principal.id,campaignId,publicationId,blockId,requestId,revision,mime,size,name,bucket:r.bucket,path:principal.ownerId+'/'+requestId+'.'+r.ext,blockType:r.block,limit:r.limit};
 }
 export async function inspectUpload(plan,bytes,declaredMime){
