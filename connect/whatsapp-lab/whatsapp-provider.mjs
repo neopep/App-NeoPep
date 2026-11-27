@@ -38,6 +38,58 @@ export function compareGroupMetadata(listed, fresh, ownIds, changedDuringRead=fa
  else if(!sameMembers)code='membership_refreshed';
  return {...stats,code};
 }
+// Local-only inventory: presence of a record does not prove that its key or session is valid.
+export async function auditGroupCryptoStore({groupJid,metadata,keys,repository,ownPn,ownLid}){
+ const parse=id=>{
+  const match=typeof id==='string'&&/^([0-9]+)(?::([0-9]+))?@(lid|s\.whatsapp\.net|hosted\.lid|hosted)$/.exec(id);
+  return match?{user:match[1],device:match[2]||'0',domain:match[3],bare:match[1]+'@'+match[3]}:null;
+ };
+ const members=Array.isArray(metadata?.participants)?metadata.participants:[];
+ const aliases=new Set(),deviceAddresses=new Set();
+ let cachedMembers=0,uncachedMembers=0;
+ for(const member of members){
+  for(const value of [member?.id,member?.lid,member?.phoneNumber]){
+   const parsed=parse(value);if(parsed)aliases.add(parsed.bare);
+  }
+  const primary=parse(member?.id);
+  const cached=primary&&keys.get('device-list:'+primary.user);
+  if(!Array.isArray(cached)||!cached.length){uncachedMembers++;continue;}
+  cachedMembers++;
+  for(const device of cached){
+   if(typeof device!=='string'||!/^\d{1,3}$/.test(device))continue;
+   deviceAddresses.add(primary.user+':'+device+'@'+primary.domain);
+  }
+ }
+ const raw=keys.get('sender-key-memory:'+groupJid);
+ const mapPresent=raw!==undefined&&raw!==null;
+ const mapValid=!mapPresent||(typeof raw==='object'&&!Array.isArray(raw)&&!ArrayBuffer.isView(raw));
+ const remembered=mapPresent&&mapValid?Object.entries(raw).filter(([,value])=>value===true).map(([id])=>id):[];
+ let lid=0,pn=0,other=0,unmatched=0,unparseable=0;
+ for(const id of remembered){
+  const entry=parse(id);
+  if(!entry){other++;unparseable++;continue;}
+  if(entry.domain==='lid'||entry.domain==='hosted.lid')lid++;else pn++;
+  if(!aliases.has(entry.bare))unmatched++;
+ }
+ let sessionRecords=null;
+ if(typeof repository?.jidToSignalProtocolAddress==='function'){
+  const addresses=new Set();
+  let count=0;
+  for(const jid of deviceAddresses){
+   try{const address=repository.jidToSignalProtocolAddress(jid);if(typeof address==='string'&&address&&!addresses.has(address)){addresses.add(address);if(keys.has('session:'+address))count++;}}catch{}
+  }
+  sessionRecords=count;
+ }
+ const presence=async id=>{
+  if(!parse(id)||typeof repository?.hasSenderKey!=='function')return 'unknown';
+  try{return await repository.hasSenderKey({group:groupJid,meId:id})?'present':'absent';}catch{return 'unknown';}
+ };
+ return {store_status:mapValid?'inspected':'invalid_memory_shape',memory_status:!mapPresent?'absent':mapValid?'present':'invalid',
+  memory_entries:remembered.length,memory_lid:lid,memory_pn:pn,memory_other:other,memory_unmatched:unmatched,memory_unparseable:unparseable,
+  cached_members:cachedMembers,uncached_members:uncachedMembers,cached_devices:deviceAddresses.size,session_records:sessionRecords,
+  own_lid_available:!!parse(ownLid)&&['lid','hosted.lid'].includes(parse(ownLid).domain),
+  own_lid_key:await presence(ownLid),own_pn_key:await presence(ownPn)};
+}
 export async function createBaileysProvider(
  {onQr,onState,onCredentials=()=>{},onReceipt=()=>{},onGroupCheck=()=>{},serialized=null},
  {load=loadModules,schedule=setTimeout,cancel=clearTimeout}={}
@@ -189,7 +241,13 @@ export async function createBaileysProvider(
     const ownIds=[current.user?.id,current.user?.lid,creds.me?.id,creds.me?.lid];
     const result=compareGroupMetadata(listed,fresh,ownIds,task.changed);
     const own=fresh?groupDiagnostics(fresh,ownIds):{role:'unknown',posting:'unknown',settings:'unknown'};
-    return {...result,stage:'complete',role:own.role,posting:own.posting,settings:own.settings,
+    let audit={store_status:'unavailable'};
+    try{
+     audit=await auditGroupCryptoStore({groupJid:jid,metadata:fresh,keys,repository:current.signalRepository,
+      ownPn:creds.me?.id||current.user?.id,ownLid:creds.me?.lid||current.user?.lid});
+    }catch{}
+    if(!connected||current!==socket)return {code:'diagnostic_unavailable',stage:'individual'};
+    return {...result,...audit,stage:'complete',role:own.role,posting:own.posting,settings:own.settings,
      unknown_count:Math.max(0,result.fresh_count-result.lid_count-result.pn_count),crypto_status:'not_verified'};
    }finally{if(pendingDiagnostic===task)pendingDiagnostic=null;}
   },
