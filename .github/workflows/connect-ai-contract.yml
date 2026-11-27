@@ -29,3 +29,13 @@ jobs:
       - run: |
           python3 integrations/campaign-mcp/build-plugin.py --environment production --marketplace-tree /tmp/neopep-production.zip
           unzip -t /tmp/neopep-production.zip
+      - name: Build isolated staging Worker (no deploy)
+        if: github.ref == 'refs/heads/desenvolvimento/connect-ai-especialistas-criativos-20261127'
+        run: bash integrations/campaign-mcp/build-staging-bundle.sh "$RUNNER_TEMP/neopep-connect-ai-teste"
+      - uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/heads/desenvolvimento/connect-ai-especialistas-criativos-20261127'
+        with:
+          name: neopep-connect-ai-teste-${{ github.sha }}
+          path: ${{ runner.temp }}/neopep-connect-ai-teste/
+          if-no-files-found: error
+          retention-days: 7
