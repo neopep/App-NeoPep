@@ -62,3 +62,10 @@ test('leitura nativa exige adaptação explícita, escopo e ambiente do principa
  assert.equal((await invoke(production,'tools/list')).status,403);
  assert.equal(called,1);
 });
+
+test('catálogo não anuncia destinos WhatsApp para canal App isolado',async()=>{
+ const handler=createHandler({authorize:async()=>auth,readCampaign:async()=>({}),readChannels:['app']});
+ const result=(await (await invoke(handler,'tools/list')).json()).result.tools;
+ assert.ok(!result.some(t=>t.name==='list_destinations'));
+ assert.deepEqual(result.find(t=>t.name==='get_campaign').inputSchema.properties.channel.enum,['app']);
+});

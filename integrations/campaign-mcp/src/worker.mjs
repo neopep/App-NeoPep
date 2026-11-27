@@ -36,8 +36,8 @@ export function createHandler({authorize=async()=>null,environment='test',origin
  const allowedOrigins=new Set(origins);
  const nativeReads=typeof readCampaign==='function'?campaignTools.map(tool=>({
   ...tool,inputSchema:{...tool.inputSchema,properties:{...tool.inputSchema.properties,
-   channel:{enum:readChannels.filter(value=>['app','whatsapp'].includes(value))}}}
- })):[];
+   channel:{enum:readChannels.filter(value=>tool.inputSchema.properties.channel.enum.includes(value))}}}
+ })).filter(tool=>tool.inputSchema.properties.channel.enum.length>0):[];
  const available=[...tools,...nativeReads];
  return async request=>{
   const path=new URL(request.url).pathname;
@@ -92,8 +92,8 @@ export function createHandler({authorize=async()=>null,environment='test',origin
   }
   if(!scopeByTool.has(params.name)||Object.keys(args).length)return error(id,-32602,'Ferramenta ou parâmetros inválidos.');
   const value=params.name==='get_capabilities'
-   ?{environment,contract_version:version,enabled_tools:available.map(t=>t.name),restrictions:nativeReads.length?['Somente leitura nos canais habilitados']:['Somente leitura de contexto','Sem operações sobre campanhas nesta versão']}
-   :{brand_version:'preview.1',name:'NeoPep',editorial_rules:['Use informações verificáveis.','Preserve a privacidade e evite alegações médicas não fundamentadas.']};
+   ?{environment,contract_version:version,enabled_tools:available.map(t=>t.name),restrictions:nativeReads.length?['Somente leitura nos canais habilitados: '+readChannels.join(', '),'Não criar, editar, enviar ou agendar publicações por este catálogo.']:['Somente leitura de contexto','Sem operações sobre campanhas nesta versão']}
+   :{brand_version:'2026-11-27.1',name:'NeoPep',editorial_rules:['Use informações verificáveis e somente materiais autorizados pela Central.','Escreva em português claro; diferencie rascunho, agendamento, envio aceito e entrega confirmada.','Não invente preços, grupos, estoque, links, resultados clínicos ou depoimentos.','Preserve privacidade; não use dados, fotos ou informações de saúde de membros.','Não produza publicidade de medicamentos controlados ou experimentais, nem alegações médicas não fundamentadas.','Nunca agende ou publique a partir de uma proposta sem autorização verificável.']};
   return result({content:[{type:'text',text:JSON.stringify(value)}],structuredContent:value});
  }
 }

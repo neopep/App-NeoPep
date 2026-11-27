@@ -22,20 +22,20 @@ test('card fica acima dos canais e o diálogo conserva o formulário existente',
  assert.equal(dialog.hasAttribute('open'),true);
  assert.equal(root.querySelector('input[value=Rascunho]'),input);
  assert.equal(input.value,'Rascunho');
- assert.match(dialog.textContent,/Cloudflare.*Aguardando homologação/s);
- assert.match(dialog.textContent,/Vercel.*Planejado/s);
+ assert.match(dialog.textContent,/Cloudflare.*Servidor MCP de produção conectado/s);
+ assert.match(dialog.textContent,/Vercel.*Interface administrativa/s);
  const select=dialog.querySelector('[data-connect-ai-client]');
  Object.defineProperty(select,'value',{value:'claude'});
  select.dispatchEvent(new window.Event('change'));
  assert.match(dialog.querySelector('[data-connect-ai-guide]').href,/support.claude.com/);
- assert.equal(dialog.querySelectorAll('button[disabled]').length,2);
+ assert.equal(dialog.querySelectorAll('button[disabled]').length,1);
  assert.equal(dialog.querySelector('[data-connect-ai-address]').value,'https://connect-teste.neopep.com.br/mcp');
  const environment=dialog.querySelector('[data-connect-ai-environment]');
  Object.defineProperty(environment,'value',{value:'production'});
  environment.dispatchEvent(new window.Event('change'));
  assert.equal(dialog.querySelector('[data-connect-ai-address]').value,'https://connect.neopep.com.br/mcp');
  assert.ok(dialog.querySelector('[data-connect-ai-surface]'));
- assert.match(read('dist/admin/index.html'),/admin-connect-ai\.js\?v=5.*admin\.js\?v=132/s);
+ assert.match(read('dist/admin/index.html'),/admin-connect-ai\.js\?v=7.*admin\.js\?v=132/s);
 });
 
 test('consentimento exige clique e conexões só são revogadas após confirmação',async()=>{
