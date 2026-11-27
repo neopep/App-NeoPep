@@ -1101,7 +1101,7 @@
     await storeMedia('readwrite',store=>store.put(asset,mediaKey(id)));
     if(!current())return;
     if(draft.blocks.length>=32){void storeMedia('readwrite',store=>store.delete(mediaKey(id))).catch(()=>{});return;}
-    if(videoPick)localMedia.set(id,asset);
+    if(videoPick){localMedia.clear();localMedia.set(id,asset);}
     draft.blocks.push({id,type:image?'image':'file',name:(image?file.name:file.name.replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g,'_')).slice(0,120),layout,text:''});
     if(image||['application/pdf','video/mp4'].includes(file.type)){captionTarget=id;if(layout==='caption'&&!message.value.trim()&&!editing)editing=id;composeAction();}
     closeSheet();render();changed();if(videoPick){tell('Vídeo anexado. Confira a prévia na conversa.');preview.querySelector('[data-block-id="'+CSS.escape(id)+'"]')?.scrollIntoView({block:'nearest'});}

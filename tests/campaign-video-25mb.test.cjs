@@ -32,3 +32,23 @@ test('transporte valida 25 MiB MP4 e mantém PDF em 5 MiB',async()=>{
  assert.equal(validCampaignFile(Buffer.concat([mp4,Buffer.alloc(1)]),'video/mp4','original.mp4'),false);
  assert.equal(validCampaignFile(mp4,'application/pdf','original.pdf'),false);
 });
+
+test('fototeca: MP4 com MIME ausente ou QuickTime é normalizado sem mudar bytes; MOV real é recusado com explicação',async()=>{
+ const code=editor.slice(editor.indexOf(' const originalLimit='),editor.indexOf(' const labels='));
+ const choose=new Function(code+'return selectedVideo')();
+ const bytes=new Uint8Array(24);new DataView(bytes.buffer).setUint32(0,24);bytes.set(Buffer.from('ftypisom'),4);bytes.set(Buffer.from('mp42'),16);
+ for(const mime of ['','video/mp4','video/quicktime','application/octet-stream']){
+  const file=new File([bytes],'IMG_001.MOV',{type:mime});
+  const normalized=await choose(file);
+  assert.equal(normalized.type,'video/mp4');assert.equal(normalized.name,'IMG_001.mp4');assert.deepEqual(new Uint8Array(await normalized.arrayBuffer()),bytes);
+ }
+ const mov=bytes.slice();mov.set(Buffer.from('qt  '),8);
+ await assert.rejects(choose(new File([mov],'IMG_002.MOV',{type:'video/quicktime'})),/MOV/);
+ await assert.rejects(choose({size:26214401,arrayBuffer:()=>{throw Error('must not read')}}),/25 MB/);
+ await assert.rejects(choose(new File(['invalid bytes'],'x.mp4',{type:'video/mp4'})),/incompatível/);
+ assert.match(editor,/data-video-select-status role="status"/);
+ assert.match(editor,/if\(localMedia.has\(id\)\)return localMedia.get\(id\)/);
+ assert.match(editor,/video.addEventListener\('error'/);
+ assert.match(editor,/video.addEventListener\('loadedmetadata'/);
+ assert.match(editor,/details,a,video/);
+});
