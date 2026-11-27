@@ -97,7 +97,7 @@ Escopo `campaigns:read`.
 
 ## list_campaigns
 
-Listar a primeira página de campanhas WhatsApp do titular em Teste.
+Listar campanhas do titular em Teste nos canais habilitados.
 
 Escopo `campaigns:read`.
 
@@ -111,12 +111,30 @@ Escopo `campaigns:read`.
     ],
     "properties": {
       "channel": {
-        "const": "whatsapp"
+        "enum": [
+          "app",
+          "whatsapp"
+        ]
       },
       "limit": {
         "type": "integer",
         "minimum": 1,
         "maximum": 50
+      },
+      "offset": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 10000
+      },
+      "state": {
+        "enum": [
+          "archived",
+          "needs_attention",
+          "scheduled",
+          "in_progress",
+          "draft",
+          "unknown"
+        ]
       }
     }
   },
@@ -136,12 +154,19 @@ Escopo `campaigns:read`.
             },
             "state": {
               "enum": [
-                "active",
-                "archived"
+                "archived",
+                "needs_attention",
+                "scheduled",
+                "in_progress",
+                "draft",
+                "unknown"
               ]
             },
             "channel": {
-              "const": "whatsapp"
+              "enum": [
+                "app",
+                "whatsapp"
+              ]
             }
           },
           "required": [
@@ -152,10 +177,17 @@ Escopo `campaigns:read`.
           ],
           "additionalProperties": false
         }
+      },
+      "next_offset": {
+        "type": [
+          "integer",
+          "null"
+        ]
       }
     },
     "required": [
-      "items"
+      "items",
+      "next_offset"
     ],
     "additionalProperties": false
   }
@@ -164,7 +196,7 @@ Escopo `campaigns:read`.
 
 ## get_campaign
 
-Consultar uma campanha WhatsApp do titular em Teste e o resumo das suas publicações.
+Consultar campanha, publicações, agenda resumida e histórico disponível em Teste.
 
 Escopo `campaigns:read`.
 
@@ -179,16 +211,27 @@ Escopo `campaigns:read`.
     ],
     "properties": {
       "channel": {
-        "const": "whatsapp"
+        "enum": [
+          "app",
+          "whatsapp"
+        ]
       },
       "limit": {
         "type": "integer",
         "minimum": 1,
         "maximum": 50
       },
+      "offset": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 10000
+      },
       "campaign_id": {
         "type": "string",
         "format": "uuid"
+      },
+      "include_recurrences": {
+        "type": "boolean"
       }
     }
   },
@@ -206,12 +249,19 @@ Escopo `campaigns:read`.
           },
           "state": {
             "enum": [
-              "active",
-              "archived"
+              "archived",
+              "needs_attention",
+              "scheduled",
+              "in_progress",
+              "draft",
+              "unknown"
             ]
           },
           "channel": {
-            "const": "whatsapp"
+            "enum": [
+              "app",
+              "whatsapp"
+            ]
           }
         },
         "required": [
@@ -238,12 +288,102 @@ Escopo `campaigns:read`.
                 "integer",
                 "null"
               ]
+            },
+            "schedules": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "due_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "cancelled_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "states": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "due_at",
+                  "cancelled_at",
+                  "states"
+                ],
+                "additionalProperties": false
+              }
             }
           },
           "required": [
             "id",
             "title",
-            "revision"
+            "revision",
+            "schedules"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "next_offset": {
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "history": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "event": {
+              "type": "string"
+            },
+            "recorded_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "event",
+            "recorded_at"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "recurrences": {
+        "type": [
+          "array",
+          "null"
+        ],
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string"
+            },
+            "dates": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "id",
+            "state",
+            "dates"
           ],
           "additionalProperties": false
         }
@@ -251,7 +391,10 @@ Escopo `campaigns:read`.
     },
     "required": [
       "campaign",
-      "publications"
+      "publications",
+      "next_offset",
+      "history",
+      "recurrences"
     ],
     "additionalProperties": false
   }

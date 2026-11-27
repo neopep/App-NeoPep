@@ -7,11 +7,11 @@ Ponto de corte: `docs/PONTO-DE-CORTE-20261126.md`. A publicação anterior de Te
 | Etapa | Estado |
 |---|---|
 | 001 Auditoria | Parcialmente testado. Fonte nativa do Central localizada; parâmetros de leitura e escrita ainda em auditoria. |
-| 002 Catálogo | Contexto disponível no PoC; lista e detalhe WhatsApp testados em Teste simulado. |
+| 002 Catálogo | Contexto disponível no PoC; lista e detalhe App/WhatsApp, agenda, estados e recorrência App testados com fixtures. |
 | 003 Autenticação | SQL candidato de conexões e concessões, PKCE, emissão JWT e troca/rotação testados localmente. Broker de sessão, consentimento HTTP e provisionamento pendentes. |
 | 004 Servidor | PoC testado sob Node. Worker real e clientes MCP ainda não homologados. |
 | 005 Central administrativa | Seções iniciais e estados honestos testados em DOM simulado. Gestão autenticada pendente. |
-| 006 Criação e edição | Planejado |
+| 006 Criação e edição | Preparação do payload nativo de criação com idempotência testada; execução e edição pendentes. |
 | 007 Criativos | Planejado |
 | 008 Operações em massa | Planejado |
 | 009 Destinatários | Planejado |
@@ -107,3 +107,11 @@ Ponto de corte: `docs/PONTO-DE-CORTE-20261126.md`. A publicação anterior de Te
 - 11 testes locais passaram, incluindo duas tentativas concorrentes pelo código no PGlite, troca com PKCE incorreto, verificação de assinatura, rotação, rejeição de reuso e ACL da função interna.
 - Integração pendente: sessão Supabase real com consentimento protegido contra CSRF, autorização HTTP, JWKS público, armazenamento/renovação da sessão NeoPep, credencial de acesso ao banco do emissor e implantação autorizada. A resposta de autorização e o fluxo nos clientes ainda não estão homologados.
 - Nenhuma migração aplicada ou infraestrutura alterada. Próximo: estender leitura nativa e validar separadamente os contratos App do ambiente Teste.
+
+
+## Leitura dos dois canais e preparação de rascunho
+
+- Base remota `c9fb992`. O adaptador projeta lista, detalhe, agenda resumida, histórico e, quando habilitada, recorrência App. Usa filtros e offset nativos, retorna cursor de continuação e distingue arquivo, problema, agenda, andamento, rascunho e estado desconhecido.
+- App e recorrências continuam opt-in no runtime porque o SQL conhecido possui variante oficial de Produção e a sua disponibilidade no Teste precisa ser comprovada. Nenhum acesso remoto foi tentado. Os testes usam fixtures dos contratos candidatos.
+- `src/draft-plan.mjs` prepara apenas os parâmetros nativos de criação para os dois canais, com UUID de idempotência e sem destino ou envio. Nenhuma mutação está anunciada.
+- 13 testes locais aprovados e manual gerado. Próximo: gestão das conexões no painel e validação automatizada do catálogo privado. Sem alterações externas.

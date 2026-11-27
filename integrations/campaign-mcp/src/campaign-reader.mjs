@@ -1,21 +1,39 @@
 const testOrigin='https://qnuluspqfazdppciermw.supabase.co';
 const uuid=value=>typeof value==='string'&&/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(value);
 const label=value=>typeof value==='string'?value.slice(0,200):'';
-const summary=row=>({
- id:row.campaign_id,title:label(row.title),state:row.archived_at?'archived':'active',channel:'whatsapp'
-});
+const states=['archived','needs_attention','scheduled','in_progress','draft','unknown'];
+const sumState=row=>{
+ if(row.archived_at)return 'archived';
+ if(Number(row.problems)>0)return 'needs_attention';
+ if(row.next_at)return 'scheduled';
+ if(Number(row.pending)>0)return 'in_progress';
+ if(Number(row.drafts)>0&&Number(row.drafts)===Number(row.publications))return 'draft';
+ return 'unknown';
+};
+const summary=(row,channel)=>({id:row.campaign_id,title:label(row.title),state:sumState(row),channel});
+const instant=value=>typeof value==='string'&&Number.isFinite(Date.parse(value))?new Date(value).toISOString():null;
+const deliveryStates=new Set(['waiting','leased','started','uncertain','refused','accepted','cancelled','failed']);
+const schedules=row=>(Array.isArray(row.batches)?row.batches:[]).slice(0,20).map(batch=>({
+ due_at:instant(batch.due_at),cancelled_at:instant(batch.cancelled_at),
+ states:[...new Set((Array.isArray(batch.states)?batch.states:[]).filter(value=>deliveryStates.has(value)))]
+}));
 
-export function createCampaignReader({publishableKey,sessionFor,request=fetch}){
+export function createCampaignReader({publishableKey,sessionFor,request=fetch,channels=['whatsapp'],appRecurrences=false}){
  if(!publishableKey||typeof sessionFor!=='function')throw Error('Incomplete campaign reader configuration');
  return async (principal,operation,input={})=>{
   if(principal?.environment!=='test'||principal.campaignAdmin!==true||
    !principal.scopes?.includes('campaigns:read')||!uuid(principal.ownerId))
    throw Error('FORBIDDEN');
-  if(input.channel!=='whatsapp'||!['list_campaigns','get_campaign'].includes(operation))
+  const channel=input.channel;
+  if(!['app','whatsapp'].includes(channel)||!channels.includes(channel)||!['list_campaigns','get_campaign'].includes(operation))
    throw Error('CAPABILITY_UNAVAILABLE');
   const listing=operation==='list_campaigns';
   if(!listing&&!uuid(input.campaign_id))throw Error('INVALID_INPUT');
-  const limit=input.limit??20;
+  const limit=input.limit??20,offset=input.offset??0;
+  if(input.include_recurrences!==undefined&&typeof input.include_recurrences!=='boolean')throw Error('INVALID_INPUT');
+  if(input.include_recurrences&&(listing||channel!=='app'||!appRecurrences))throw Error('CAPABILITY_UNAVAILABLE');
+  if(!Number.isSafeInteger(offset)||offset<0||offset>10000||
+    (input.state!==undefined&&(!listing||!states.includes(input.state))))throw Error('INVALID_INPUT');
   if(!Number.isSafeInteger(limit)||limit<1||limit>50)throw Error('INVALID_INPUT');
 
   const token=await sessionFor(principal.id,principal.ownerId);
@@ -24,19 +42,44 @@ export function createCampaignReader({publishableKey,sessionFor,request=fetch}){
   const options={headers,redirect:'error',signal:AbortSignal.timeout(5000)};
   const identity=await request(testOrigin+'/auth/v1/user',options);
   if(!identity.ok||(await identity.json()).id!==principal.ownerId)throw Error('FORBIDDEN');
-  const result=await request(testOrigin+'/rest/v1/rpc/neo_campaign_central_v1',{
-   ...options,method:'POST',headers:{...headers,'Content-Type':'application/json'},
-   body:JSON.stringify({p_action:listing?'list':'get',p_data:listing?{offset:0}:{campaign_id:input.campaign_id}})
-  });
-  if(result.status===403||result.status===404)throw Error('NOT_FOUND_OR_FORBIDDEN');
-  if(!result.ok)throw Error('UPSTREAM_UNAVAILABLE');
-  const data=await result.json();
+  const prefix=channel==='app'?'app_':'';
+  const rpc=async(action,p_data)=>{
+   const result=await request(testOrigin+'/rest/v1/rpc/neo_campaign_central_v1',{
+    ...options,method:'POST',headers:{...headers,'Content-Type':'application/json'},
+    body:JSON.stringify({p_action:action,p_data})
+   });
+   if(result.status===403||result.status===404)throw Error('NOT_FOUND_OR_FORBIDDEN');
+   if(!result.ok)throw Error('UPSTREAM_UNAVAILABLE');
+   return result.json();
+  };
+  const data=await rpc(prefix+(listing?'list':'get'),listing?{offset}:{campaign_id:input.campaign_id});
   if(listing){
    if(!Array.isArray(data))throw Error('UPSTREAM_UNAVAILABLE');
-   return {items:data.filter(row=>uuid(row?.campaign_id)).slice(0,limit).map(summary)};
+   const items=[];
+   let examined=0;
+   for(const row of data){
+    examined++;
+    if(uuid(row?.campaign_id)&&(!input.state||sumState(row)===input.state))items.push(summary(row,channel));
+    if(items.length>=limit)break;
+   }
+   const next=offset+examined;
+   return {items,next_offset:next<=10000&&(examined<data.length||data.length===50)?next:null};
   }
   if(data?.campaign_id!==input.campaign_id||!Array.isArray(data.publications))throw Error('UPSTREAM_UNAVAILABLE');
-  return {campaign:summary(data),publications:data.publications.filter(row=>uuid(row?.id)).slice(0,limit)
-   .map(row=>({id:row.id,title:label(row.title),revision:Number.isSafeInteger(row.revision)?row.revision:null}))};
+  const publications=data.publications.filter(row=>uuid(row?.id)&&!row.deleted_at);
+  const history=(Array.isArray(data.events)?data.events:[]).slice(0,30)
+   .filter(event=>typeof event?.event==='string').map(event=>({event:label(event.event),recorded_at:instant(event.recorded_at)}));
+  let recurrences=null;
+  if(input.include_recurrences){
+   const series=await rpc('app_repeat_list',{campaign_id:input.campaign_id});
+   if(!Array.isArray(series))throw Error('UPSTREAM_UNAVAILABLE');
+   recurrences=series.filter(row=>uuid(row?.id)).slice(0,20).map(row=>({
+    id:row.id,state:label(row.state),dates:(Array.isArray(row.dates)?row.dates:[])
+     .filter(value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)).slice(0,60)
+   }));
+  }
+  return {campaign:summary(data,channel),publications:publications.slice(offset,offset+limit)
+   .map(row=>({id:row.id,title:label(row.title),revision:Number.isSafeInteger(row.revision)?row.revision:null,schedules:schedules(row)})),
+   next_offset:offset+limit<publications.length&&offset+limit<=10000?offset+limit:null,history,recurrences};
  };
 }

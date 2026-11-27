@@ -14,21 +14,30 @@ export const tools=draft.tools.filter(tool=>Object.hasOwn(outputs,tool.name)).ma
 }));
 export const scopeByTool=new Map(tools.map(tool=>[tool.name,'campaigns:read']));
 
-const campaign=object({id:{type:'string'},title:{type:'string'},state:{enum:['active','archived']},channel:{const:'whatsapp'}});
-const selection={channel:{const:'whatsapp'},limit:{type:'integer',minimum:1,maximum:50}};
+const state={enum:['archived','needs_attention','scheduled','in_progress','draft','unknown']};
+const channel={enum:['app','whatsapp']};
+const nullableString={type:['string','null']};
+const nullableInteger={type:['integer','null']};
+const campaign=object({id:{type:'string'},title:{type:'string'},state,channel});
+const selection={channel,limit:{type:'integer',minimum:1,maximum:50},offset:{type:'integer',minimum:0,maximum:10000}};
+const schedule=object({due_at:nullableString,cancelled_at:nullableString,states:strings});
+const publication=object({id:{type:'string'},title:{type:'string'},revision:nullableInteger,
+ schedules:{type:'array',items:schedule}});
 export const campaignTools=['list_campaigns','get_campaign'].map(name=>{
  const listing=name==='list_campaigns';
  const source=draft.tools.find(tool=>tool.name===name);
  return {
-  name,description:listing?'Listar a primeira página de campanhas WhatsApp do titular em Teste.':
-   'Consultar uma campanha WhatsApp do titular em Teste e o resumo das suas publicações.',
+  name,description:listing?'Listar campanhas do titular em Teste nos canais habilitados.':
+   'Consultar campanha, publicações, agenda resumida e histórico disponível em Teste.',
   annotations:source.annotations,
   inputSchema:{
    type:'object',additionalProperties:false,
    required:listing?['channel']:['channel','campaign_id'],
-   properties:listing?selection:{...selection,campaign_id:{type:'string',format:'uuid'}}
+   properties:listing?{...selection,state}:{...selection,campaign_id:{type:'string',format:'uuid'},include_recurrences:{type:'boolean'}}
   },
-  outputSchema:listing?object({items:{type:'array',items:campaign}}):
-   object({campaign,publications:{type:'array',items:object({id:{type:'string'},title:{type:'string'},revision:{type:['integer','null']}})}})
+  outputSchema:listing?object({items:{type:'array',items:campaign},next_offset:nullableInteger}):
+   object({campaign,publications:{type:'array',items:publication},next_offset:nullableInteger,
+    history:{type:'array',items:object({event:{type:'string'},recorded_at:nullableString})},
+    recurrences:{type:['array','null'],items:object({id:{type:'string'},state:{type:'string'},dates:strings})}})
  };
 });
