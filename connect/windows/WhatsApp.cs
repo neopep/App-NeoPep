@@ -44,6 +44,23 @@ sealed partial class WhatsApp : Form {
     TaskCompletionSource<Tuple<string,string>> automatedSend;
     Guid automatedRequest;
     readonly HashSet<string> sentRequests=new HashSet<string>(StringComparer.Ordinal);
+    // Aggregate delivery evidence only; never store recipient identities.
+    readonly Dictionary<string,Dictionary<string,object>> deliveryReceipts=new Dictionary<string,Dictionary<string,object>>(StringComparer.Ordinal);
+    public Dictionary<string,object>[] CampaignDeliveryReceipts() {
+        var rows=new List<Dictionary<string,object>>();
+        var expired=new List<string>();
+        foreach(var pair in deliveryReceipts){
+            if((DateTime)pair.Value["observed_at"]<DateTime.UtcNow.AddMinutes(-30))expired.Add(pair.Key);
+            else if(rows.Count<8)rows.Add(pair.Value);
+        }
+        foreach(var key in expired)deliveryReceipts.Remove(key);
+        return rows.ToArray();
+    }
+    public void ConfirmCampaignDeliveryReceipt(Dictionary<string,object> row) {
+        var key=TextValue(row,"group_jid")+":"+TextValue(row,"message_id");
+        Dictionary<string,object> latest;
+        if(deliveryReceipts.TryGetValue(key,out latest)&&Object.ReferenceEquals(latest,row))deliveryReceipts.Remove(key);
+    }
     Dictionary<string,object> localVault;
     readonly JavaScriptSerializer json=new JavaScriptSerializer { MaxJsonLength=40*1024*1024 };
     Process process;
@@ -274,14 +291,14 @@ sealed partial class WhatsApp : Form {
         get { return !environment.IsProduction&&!closing&&!forgetting&&ready&&pipe!=null&&process!=null
             &&connectionId!=Guid.Empty&&groupReadAt.HasValue&&DateTime.Now-groupReadAt.Value<TimeSpan.FromHours(24); }
     }
-    public async Task<Tuple<string,string>> DispatchCampaignTextAsync(Guid request,string group,string text) {
+    public async Task<Tuple<string,string>> DispatchCampaignTextAsync(Guid request,string group,string text,bool trackDelivery=false) {
         if(!CampaignSessionReady||pendingSend!=Guid.Empty||automatedSend!=null||!selected.Contains(group)
             ||String.IsNullOrWhiteSpace(text)||text.Length>2000||request==Guid.Empty
             ||canPublish==null||!canPublish())return Tuple.Create("refused",(string)null);
         var completion=new TaskCompletionSource<Tuple<string,string>>(TaskCreationOptions.RunContinuationsAsynchronously);
         automatedSend=completion;automatedRequest=request;sendingText=true;UpdateComposer();
         try {
-            pipe.WriteLine(json.Serialize(new {action="send_text",request_id=request.ToString(),group_jid=group,text=text}));
+            pipe.WriteLine(json.Serialize(new {action="send_text",request_id=request.ToString(),group_jid=group,text=text,track_delivery=trackDelivery}));
             return await Task.WhenAny(completion.Task,Task.Delay(TimeSpan.FromSeconds(25)))==completion.Task
                 ? await completion.Task : Tuple.Create("uncertain",(string)null);
         }catch{return Tuple.Create("uncertain",(string)null);}
@@ -296,7 +313,7 @@ sealed partial class WhatsApp : Form {
         automatedSend=completion;automatedRequest=request;sendingText=true;UpdateComposer();
         try {
             pipe.WriteLine(json.Serialize(new {action="send_image",request_id=request.ToString(),
-                group_jid=group,text=caption,image=Convert.ToBase64String(jpeg)}));
+                group_jid=group,text=caption,image=Convert.ToBase64String(jpeg),track_delivery=true}));
             return await Task.WhenAny(completion.Task,Task.Delay(TimeSpan.FromSeconds(35)))==completion.Task
                 ? await completion.Task : Tuple.Create("uncertain",(string)null);
         }catch{return Tuple.Create("uncertain",(string)null);}
@@ -317,7 +334,7 @@ sealed partial class WhatsApp : Form {
         automatedSend=completion;automatedRequest=request;sendingText=true;UpdateComposer();
         try {
             pipe.WriteLine(json.Serialize(new {action="send_file",request_id=request.ToString(),
-                group_jid=group,text=caption,file=Convert.ToBase64String(bytes),mime=mime,name=name}));
+                group_jid=group,text=caption,file=Convert.ToBase64String(bytes),mime=mime,name=name,track_delivery=true}));
             return await Task.WhenAny(completion.Task,Task.Delay(TimeSpan.FromSeconds(mime!="application/pdf"&&bytes.Length>5*1024*1024?80:40)))==completion.Task
                 ? await completion.Task : Tuple.Create("uncertain",(string)null);
         }catch{return Tuple.Create("uncertain",(string)null);}
@@ -491,6 +508,18 @@ sealed partial class WhatsApp : Form {
                 if(rows!=null)foreach(Dictionary<string,object> item in rows)groupRows.Add(item);
                 selected.IntersectWith(groupRows.ConvertAll(item=>TextValue(item,"id")));
                 groupReadAt=DateTime.Now;RenderGroups();ShowGroupStatus();RefreshComposerGroups();
+            }else if(type=="delivery_receipt"&&ready&&!forgetting){
+                phase="ENTREGA";
+                var row=message["value"] as Dictionary<string,object>;
+                if(row!=null){
+                    var jid=TextValue(row,"group_jid");var id=TextValue(row,"message_id");var status=TextValue(row,"status");
+                    if(System.Text.RegularExpressions.Regex.IsMatch(jid,@"\A[0-9-]{1,64}@g[.]us\z")&&id.Length>0&&id.Length<=160&&(status=="server_ack"||status=="delivery_ack"||status=="send_error")){
+                        var key=jid+":"+id;Dictionary<string,object> previous;
+                        if(deliveryReceipts.TryGetValue(key,out previous)&&(TextValue(previous,"status")=="delivery_ack"||(TextValue(previous,"status")=="send_error"&&status=="server_ack")))return;
+                        if(status=="send_error"){var code=TextValue(row,"error_code");row["error_code"]=System.Text.RegularExpressions.Regex.IsMatch(code,@"\A[0-9]{1,5}\z")?code:"unknown";}
+                        if(deliveryReceipts.Count<256||deliveryReceipts.ContainsKey(key)){row["observed_at"]=DateTime.UtcNow;deliveryReceipts[key]=row;}
+                    }
+                }
             }else if(type=="send_result"){
                 phase="RESULTADO";
                 var result=message["value"] as Dictionary<string,object>;
@@ -526,7 +555,7 @@ sealed partial class WhatsApp : Form {
         }
     }
     void StopBridge(){
-        ++generation;ready=false;forgetting=false;
+        ++generation;ready=false;forgetting=false;deliveryReceipts.Clear();
         if(automatedSend!=null)automatedSend.TrySetResult(Tuple.Create("uncertain",(string)null));
         if(pendingSend!=Guid.Empty){
             AuditSend("uncertain");

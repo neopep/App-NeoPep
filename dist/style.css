@@ -1156,3 +1156,15 @@ dialog.neo-structured-editor::backdrop{background:#192720}
  .shop-label-print header strong{font-size:20px}
  .shop-label-print .shop-label-name{font-size:15px}
 }
+
+/* Preferências iniciais compactas: controle visual menor, área de toque acessível. */
+#privacyPreferences[data-privacy-page="permissoes-iniciais"]{max-width:440px;padding:14px 16px;gap:6px;margin-inline:auto}
+#privacyPreferences[data-privacy-page="permissoes-iniciais"] .privacy-option{min-height:44px;padding:0;font-size:.86rem;gap:8px}
+#privacyPreferences[data-privacy-page="permissoes-iniciais"] .privacy-option input{width:44px;height:44px}
+#privacyPreferences[data-privacy-page="permissoes-iniciais"] .privacy-option input::before{width:34px;height:20px}
+#privacyPreferences[data-privacy-page="permissoes-iniciais"] .privacy-option input::after{width:14px;height:14px;transform:translateX(-7px)}
+#privacyPreferences[data-privacy-page="permissoes-iniciais"] .privacy-option input:checked::after{transform:translateX(7px)}
+#privacyPreferences[data-privacy-page="permissoes-iniciais"] p,#privacyPreferences[data-privacy-page="permissoes-iniciais"] .privacy-more{font-size:.78rem;margin-block:4px}
+#privacyPreferences[data-privacy-page="permissoes-iniciais"] [data-privacy-select-none],#privacyPreferences[data-privacy-page="permissoes-iniciais"] .privacy-policy-link,#privacyPreferences[data-privacy-page="permissoes-iniciais"] [name=skip]{font-size:.78rem;min-height:44px;padding:6px 8px}
+#privacyPreferences[data-privacy-page="permissoes-iniciais"] button.primary{font-size:1rem;min-height:52px;margin-block:4px;font-weight:750}
+.library-campaign-choice{display:grid;gap:4px;margin-block:6px;font-size:.85rem}.library-campaign-choice select{width:100%;font-size:.85rem;min-width:0}
