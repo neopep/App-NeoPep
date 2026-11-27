@@ -4,6 +4,7 @@ import {decodeJwt} from 'jose';
 import {createNeoSession} from './neo-session.mjs';
 import {createDraftWriter} from './draft-writer.mjs';
 import {createPrivateDraftJobExecutor} from './draft-job-broker.mjs';
+import {createPrivateMediaTickets} from './media-ticket-broker.mjs';
 
 const encoder=new TextEncoder(),decoder=new TextDecoder();
 const hex=bytes=>Array.from(new Uint8Array(bytes),n=>n.toString(16).padStart(2,'0')).join('');
@@ -48,8 +49,11 @@ export async function openSessionBroker(env,request=fetch,connect=postgres,profi
  const jobEnabled=profile.name==='test'&&env.NEO_CONNECT_AI_ENABLED==='1'&&env.NEO_CONNECT_AI_DRAFTS==='1'&&env.NEO_CONNECT_AI_DRAFT_JOBS==='1';
  const runDraftJob=jobEnabled?createPrivateDraftJobExecutor({profile,env,sql,verifyDatabase,freshSession:freshDraftSession,
   writeDraft:createDraftWriter({publishableKey:env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY,sessionFor:freshDraftSession,request,profile,enabled:true})}):undefined;
+ const mediaEnabled=profile.name==='test'&&env.NEO_CONNECT_AI_ENABLED==='1'&&env.NEO_CONNECT_AI_DRAFTS==='1'&&env.NEO_CONNECT_AI_MEDIA==='1';
+ const mediaTickets=mediaEnabled?createPrivateMediaTickets({profile,env,sql,verifyDatabase,freshSession:freshDraftSession}):undefined;
  return {
   verifyDatabase,
+  ...(mediaTickets?{mediaTickets}:{}),
   ...(runDraftJob?{runDraftJob,reconcileDraftJob:runDraftJob.reconcile}:{}),
   close:()=>sql.end({timeout:2}),
   async fetch(req){
