@@ -622,6 +622,7 @@ sealed partial class WhatsApp : Form {
             if(type=="protocol_error")throw new FormatException();
             if(type=="vault"){
                 phase="CREDENCIAL";
+                if(message["value"]!=null&&!(message["value"] is string))throw new FormatException();
                 if(message["value"]==null){if(!forgetting)ObserveStatus(ReportStatus("revoked"));WriteVault(null);}
                 else if(!forgetting)WriteVault(value);
             }else if(type=="state"){
