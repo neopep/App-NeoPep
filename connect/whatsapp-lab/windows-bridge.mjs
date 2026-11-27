@@ -128,8 +128,10 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
      }
      if(isFile)fileAttempts.add(requestId);
      sending=true;const revision=generation,provider=current;
+     output('group_send_stage',{group_jid:jid,stage:'attempt_started'});
      try{
       const receipt=isImage?await provider.sendImage(jid,text,image):isFile?await provider.sendFile(jid,text,file,message.mime,message.name):await provider.sendText(jid,text);
+      if(revision===generation)output('group_send_stage',{group_jid:jid,stage:receipt?.messageId&&state==='conectado'?'receipt_generated':'uncertain'});
       output('send_result',{request_id:requestId,status:revision===generation&&state==='conectado'?'accepted':'uncertain',
        message_id:String(receipt?.messageId??'').slice(0,160)});
       if(message.track_delivery===true&&revision===generation&&state==='conectado'&&receipt?.messageId){
@@ -139,6 +141,7 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
        if(early&&Date.now()-early.at<120000)reportReceipt(early.receipt);
       }
      }catch{
+      if(revision===generation)output('group_send_stage',{group_jid:jid,stage:'uncertain'});
       output('send_result',{request_id:requestId,status:'uncertain',reason:'O envio não pôde ser confirmado. Confira no WhatsApp antes de tentar novamente.'});
      }finally{sending=false;}
     }else if(message.action==='disconnect'){
