@@ -180,3 +180,23 @@ dialog[data-campaign-edit] .neo-campaign-editor-head{position:sticky;top:0;z-ind
 [data-theme=light] :is(.neo-wa-dialog,.neo-wa-phone,.neo-wa-chat,.neo-wa-thread){color:var(--ink);background:var(--soft);border-color:var(--border)}
 [data-theme=light] :is(.neo-wa-dialog button,.neo-wa-dialog select){color:var(--ink);background:var(--solid);border-color:var(--border)}
 [data-theme=light] .neo-wa-dialog .primary{color:var(--solid);background:var(--accent)}
+
+.neo-connect-ai-entry {
+ display: grid;
+ grid-template-columns: auto minmax(0, 1fr) auto;
+ align-items: center;
+ gap: .75rem;
+ width: 100%;
+ text-align: start;
+ margin-block-end: 1rem;
+}
+.neo-connect-ai-entry small { display: block; color: var(--muted); }
+.neo-connect-ai-dialog {
+ width: min(32rem, calc(100% - 2rem));
+ max-height: 85dvh;
+ overflow: auto;
+ color: var(--ink);
+ background: var(--bg);
+}
+.neo-connect-ai-dialog dt { font-weight: 650; }
+.neo-connect-ai-dialog dd { margin: 0 0 .5rem; color: var(--muted); }
