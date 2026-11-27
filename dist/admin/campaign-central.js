@@ -35,7 +35,7 @@
   return 'cancelled';
  }
  // WhatsApp acceptance is not a recipient delivery/read receipt.
- const waLabels={delivered:'Entrega confirmada',server_ack:'Recebido pelo WhatsApp',send_error:'Falha informada pelo WhatsApp',accepted:'Entrega não confirmada',scheduled:'Agendada',waiting:'Aguardando envio',in_progress:'Enviando',refused:'Falha no envio',uncertain:'Envio não confirmado',cancelled:'Cancelada',partial:'Envio parcial',draft:'Rascunho',legacy:'Manual legado',unknown:'Estado não registrado'};
+ const waLabels={video_conversion_failed:'Vídeo não enviado: falha na conversão',paused_previous_421:'Envio pausado por rejeição anterior',delivered:'Entrega confirmada',server_ack:'Recebido pelo WhatsApp',send_error:'Falha informada pelo WhatsApp',accepted:'Entrega não confirmada',scheduled:'Agendada',waiting:'Aguardando envio',in_progress:'Enviando',refused:'Falha no envio',uncertain:'Envio não confirmado',cancelled:'Cancelada',partial:'Envio parcial',draft:'Rascunho',legacy:'Manual legado',unknown:'Estado não registrado'};
  const originLabels={publish:'Manual',schedule:'Agendamento único',recurring:'Recorrente'};
  const kindLabels={file:'Arquivo',document:'Material da Biblioteca',product:'Produto da Loja',text:'Texto',image:'Imagem',video:'Vídeo',link:'Link'};
  function waBatchState(batch,now=Date.now()){
@@ -45,6 +45,8 @@
   if(states.includes('uncertain'))return 'uncertain';
   if(states.includes('leased')||states.includes('started'))return 'in_progress';
   if(states.includes('waiting'))return Date.parse(batch.due_at)>now?'scheduled':'waiting';
+  if(Number(batch.video_conversion_count||0)>0&&!states.includes('accepted'))return 'video_conversion_failed';
+  if(Number(batch.blocked_count||0)>0&&!states.includes('accepted'))return 'paused_previous_421';
   if(states.every(s=>s==='accepted')){
    const total=Number(batch.message_count||states.length);
    if(Number(batch.send_error_count||0)>0)return Number(batch.delivery_count||0)>0?'partial':'send_error';
@@ -63,7 +65,7 @@
   const rows=(occurrences||[]).map(o=>{const pub=publications.find(p=>p.id===o.publication_id),batch=pub?.batches?.find(b=>b.id===o.batch_id);
    return {...o,pub,batch,state:waBatchState(batch,now),pending:waNeedsAttention(batch),history:waHistory(batch)};});
   const sent=rows.filter(r=>r.state==='delivered').length,pending=rows.filter(r=>r.pending).length,cancelled=rows.filter(r=>r.state==='cancelled').length;
-  const failed=rows.filter(r=>['refused','uncertain','send_error','partial','unknown'].includes(r.state)).length;
+  const failed=rows.filter(r=>['refused','uncertain','send_error','partial','unknown','paused_previous_421','video_conversion_failed'].includes(r.state)).length;
   const next=rows.filter(r=>waActive(r.batch)).sort((a,b)=>a.local_time.localeCompare(b.local_time))[0];
   return {rows,sent,pending,cancelled,failed,next,total:rows.length};
  }
@@ -78,7 +80,7 @@
  }
  function deliveryLine(batch){
   const count=batch?.message_count||batch?.states?.length||0,delivered=Number(batch?.delivery_count||0),server=Number(batch?.server_ack_count||0);
-  if(!batch)return '';if(!batch.states?.includes('accepted'))return ['refused','uncertain','unknown'].includes(waBatchState(batch))?'<p class="sub">Envio não confirmado. Confira o histórico antes de tentar novamente.</p>':'';
+  if(!batch)return '';if(Number(batch.video_conversion_count||0)>0)return '<p class="sub">'+escape(batch.video_conversion_count+' vídeo(s) não enviado(s). Confira o conversor no NeoPep Connect. Nenhum documento substituto foi enviado.')+'</p>';if(Number(batch.blocked_count||0)>0)return '<p class="sub">'+escape(batch.blocked_count+' envio(s) pausado(s) por rejeição anterior. Não reenviar automaticamente.')+'</p>';if(!batch.states?.includes('accepted'))return ['refused','uncertain','unknown'].includes(waBatchState(batch))?'<p class="sub">Envio não confirmado. Confira o histórico antes de tentar novamente.</p>':'';
   if(batch?.send_error_count)return '<p class="sub">Falha informada pelo WhatsApp'+escape(batch.send_error_codes?.length?' · Código '+batch.send_error_codes.join(', '):'')+'. Não reenviar automaticamente.</p>';
   if(count&&delivered===count)return '<p class="sub">Entrega confirmada a pelo menos um destinatário por mensagem.</p>';
   return '<p class="sub">'+escape(delivered?delivered+' de '+count+' mensagens com entrega confirmada (ao menos um destinatário).':server?'Recebimento pelo servidor WhatsApp confirmado; entrega ao grupo não confirmada.':'Envio solicitado; entrega ao grupo não confirmada.')+'</p>';
@@ -87,12 +89,12 @@
   if(!Array.isArray(batch?.group_results)||!batch.group_results.length)return '';
   const rows=batch.group_results;
   const count=rows.filter(r=>waBatchState({...r,due_at:batch.due_at})==='delivered').length;
-  const failed=rows.filter(r=>['send_error','refused','uncertain','partial'].includes(waBatchState({...r,due_at:batch.due_at}))).length;
+  const failed=rows.filter(r=>['send_error','refused','uncertain','partial','paused_previous_421','video_conversion_failed'].includes(waBatchState({...r,due_at:batch.due_at}))).length;
   const pending=rows.length-count-failed-rows.filter(r=>waBatchState({...r,due_at:batch.due_at})==='cancelled').length;
   return '<div class="central-group-results"><p class="sub central-group-summary"><strong>Resultado por grupo</strong> · '+count+' confirmado(s)'+(failed?' · '+failed+' com falha ou parcial':'')+(pending?' · '+pending+' pendente(s)':'')+'</p>'+rows.map(r=>{
    const state=waBatchState({...r,due_at:batch.due_at});
-   const color=state==='delivered'?'accepted':['send_error','refused','uncertain','partial'].includes(state)?'refused':state==='cancelled'?'cancelled':'waiting';
-   const info=[r.delivery_count?Number(r.delivery_count)+' de '+Number(r.message_count)+' mensagem(ns) com entrega confirmada':'',r.send_error_codes?.length?'Código '+r.send_error_codes.join(', '):'',r.delivered_at?'Entrega: '+date(r.delivered_at):'',r.failed_at?'Falha: '+date(r.failed_at):''].filter(Boolean).join(' · ');
+   const color=state==='delivered'?'accepted':['send_error','refused','uncertain','partial','paused_previous_421','video_conversion_failed'].includes(state)?'refused':state==='cancelled'?'cancelled':'waiting';
+   const info=[r.video_conversion_count?'Confira o conversor no NeoPep Connect':'',r.blocked_count?'Pausa local: rejeição anterior':'',r.delivery_count?Number(r.delivery_count)+' de '+Number(r.message_count)+' mensagem(ns) com entrega confirmada':'',r.send_error_codes?.length?'Código '+r.send_error_codes.join(', '):'',r.delivered_at?'Entrega: '+date(r.delivered_at):'',r.failed_at?'Falha: '+date(r.failed_at):''].filter(Boolean).join(' · ');
    return '<div class="central-group-result"><strong>'+escape(r.name||'Grupo sem nome registrado')+'</strong><span class="campaign-state central-status-'+color+'">'+escape(waLabels[state]||waLabels.unknown)+'</span>'+(info?'<small class="sub">'+escape(info)+'</small>':'')+'</div>';
   }).join('')+'</div>';
  }
@@ -319,7 +321,7 @@
    const recent=!isApp&&view==='agenda'?all.filter(p=>!p.deleted_at&&!grouped.has(p.id)&&!p.edit_pending&&!items.includes(p)&&p.batches.some(b=>b.due_at&&saoPauloDay(new Date(b.due_at))===saoPauloDay(new Date())&&waBatchState(b)==='delivered')):[];
    const cards=(entries,historyCard=false)=>entries.map(pub=>{
     const batch=pub.edit_pending&&view==='agenda'&&!historyCard?null:pub.batches[0],waState=pub.deleted_at?'cancelled':batch?waBatchState(batch):'draft',locked=Boolean(pub.deleted_at)||pub.legacy_dispatch||Boolean(batch&&(batch.cancelled_at==null||batch.states?.some(value=>value!=='cancelled')));
-    return `<article class="monitor-block central-publication" data-central-publication="${escape(pub.id)}" data-day="${escape(batch?.due_at?saoPauloDay(new Date(batch.due_at)):(pub.planned_local||'').slice(0,10))}"><div class="central-date-badge">${dateBadge(batch?pub:{...pub,batches:[]})}</div><div class="central-publication-body"><div class="central-publication-title"><strong>${escape(pub.title)}</strong><span class="campaign-state ${!isApp?'central-status-'+(paused&&waActive(batch)?'paused':(['send_error','refused','uncertain','partial'].includes(waState)?'refused':waState==='delivered'?'accepted':waState==='server_ack'||waState==='accepted'?'waiting':waState)):''}">${pub.deleted_at?'Excluída':paused&&['waiting','scheduled','draft'].includes(state(pub))?'Pausada':status(pub)}</span></div>
+    return `<article class="monitor-block central-publication" data-central-publication="${escape(pub.id)}" data-day="${escape(batch?.due_at?saoPauloDay(new Date(batch.due_at)):(pub.planned_local||'').slice(0,10))}"><div class="central-date-badge">${dateBadge(batch?pub:{...pub,batches:[]})}</div><div class="central-publication-body"><div class="central-publication-title"><strong>${escape(pub.title)}</strong><span class="campaign-state ${!isApp?'central-status-'+(paused&&waActive(batch)?'paused':(['send_error','refused','uncertain','partial','paused_previous_421','video_conversion_failed'].includes(waState)?'refused':waState==='delivered'?'accepted':waState==='server_ack'||waState==='accepted'?'waiting':waState)):''}">${pub.deleted_at?'Excluída':paused&&['waiting','scheduled','draft'].includes(state(pub))?'Pausada':status(pub)}</span></div>
      ${!isApp&&batch?'<div class="central-origin"><span class="campaign-state">'+escape(originLabels[batch.origin]||'Origem não registrada')+'</span></div><p class="sub central-timestamps">Configurado: '+escape(date(batch.configured_at)||'Não registrado')+'<br>Previsto: '+escape(date(batch.due_at)||'Não registrado')+(batch.sent_at?'<br>Solicitação de envio: '+escape(date(batch.sent_at)):'')+'</p>':''}
      <p class="sub">${pub.kinds?.length||0} ${isApp?'bloco(s)':'mensagem(ns)'}${pub.kinds?.length?' · '+escape(pub.kinds.map(k=>kindLabels[k]||k).join(', ')):''}</p>
      ${!isApp?(groupResults(batch)||groupLine(pub,batch)+deliveryLine(batch)):''}
