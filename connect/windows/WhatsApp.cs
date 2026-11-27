@@ -28,6 +28,14 @@ sealed partial class WhatsApp : Form {
     readonly TextBox search=new TextBox();
     readonly Label groupStatus=new Label(),accountStatus=new Label(),groupAccount=new Label();
     readonly Dictionary<string,string> groupLastErrors=new Dictionary<string,string>(StringComparer.Ordinal);
+    readonly Dictionary<string,List<string>> groupDiagnosticHistory=new Dictionary<string,List<string>>(StringComparer.Ordinal);
+    readonly ComboBox diagnosticGroup=new ComboBox();
+    readonly TextBox diagnosticHistory=new TextBox();
+    readonly Label diagnosticProgress=new Label();
+    Button runDiagnostic;
+    TabPage diagnosticPage;
+    string diagnosingGroup="";
+    bool diagnosing;
     string accountLabel="WhatsApp";
     internal string GroupAccountLabel {get{return ready?accountLabel:"WhatsApp";}}
     static string GroupMode(string value){return value=="pn"?"PN":value=="lid"?"LID":"—";}
@@ -118,12 +126,26 @@ sealed partial class WhatsApp : Form {
         sync=new Button{Text="Sincronizar selecionados",AutoSize=true,Enabled=false};
         sync.Click+=async delegate{await SyncSelection();};
         groupTools.Controls.Add(sync);
+        groupTools.Controls.Add(Action("Diagnosticar grupo",OpenGroupDiagnostic));
         Format(groupStatus);groupStatus.Text="Conecte o WhatsApp para consultar grupos.";groupStatus.Dock=DockStyle.Bottom;
         Format(groupAccount);groupAccount.Dock=DockStyle.Bottom;groupAccount.Font=new Font("Segoe UI",9);groupAccount.ForeColor=ConnectTheme.Muted;
         listing.Controls.Add(groups);listing.Controls.Add(groupTools);listing.Controls.Add(groupStatus);listing.Controls.Add(groupAccount);
         var compose=BuildCampaignPage();
         var diagnostics=Page("Diagnóstico");Format(diagnostic);
-        diagnostic.Text="A conexão e o QR Code ficam neste computador. Os diagnósticos mostram apenas estados e erros genéricos.";diagnostics.Controls.Add(diagnostic);
+        diagnosticPage=tabs.TabPages[tabs.TabPages.Count-1];
+        diagnostic.Text="Diagnóstico local, sem publicar mensagens.";diagnostics.Controls.Add(diagnostic);
+        diagnosticGroup.DropDownStyle=ComboBoxStyle.DropDownList;diagnosticGroup.Width=340;
+        diagnosticGroup.AccessibleName="Grupo para diagnóstico";
+        diagnosticGroup.SelectedIndexChanged+=delegate{ShowGroupDiagnostic();};
+        diagnostics.Controls.Add(diagnosticGroup);
+        runDiagnostic=Action("Executar diagnóstico completo",RunGroupDiagnostic);runDiagnostic.Enabled=false;
+        diagnostics.Controls.Add(runDiagnostic);
+        Format(diagnosticProgress);diagnosticProgress.MaximumSize=new Size(680,0);
+        diagnostics.Controls.Add(diagnosticProgress);
+        diagnosticHistory.Multiline=true;diagnosticHistory.ReadOnly=true;diagnosticHistory.ScrollBars=ScrollBars.Vertical;
+        diagnosticHistory.Size=new Size(640,310);diagnosticHistory.AccessibleName="Histórico local do grupo";
+        diagnostics.Controls.Add(diagnosticHistory);
+        diagnostics.Controls.Add(LabelOf("Histórico separado por grupo nesta sessão. Nenhum identificador individual, chave ou mensagem é exibido."));
         var back=Action("Voltar",Close);back.Dock=DockStyle.Bottom;
         Controls.Add(back);
         ConnectTheme.Apply(this,tabs);
@@ -149,6 +171,8 @@ sealed partial class WhatsApp : Form {
     }
     void Notify(string text){
         connection.Text=text;summary.Text=text;diagnostic.Text=text;
+        if(!ready){diagnosing=false;diagnosingGroup="";diagnosticProgress.Text="Conecte o WhatsApp para consultar.";}
+        UpdateDiagnosticControls();
         pair.Enabled=process==null&&!forgetting;
         disconnect.Enabled=!forgetting;
     }
@@ -179,6 +203,63 @@ sealed partial class WhatsApp : Form {
             "\nRegistro local restrito: whatsapp-diagnostico.log (apenas data e código).";
     }
 
+    void UpdateDiagnosticControls(){
+        if(runDiagnostic!=null)runDiagnostic.Enabled=ready&&pipe!=null&&!diagnosing&&!sendingText&&diagnosticGroup.SelectedItem is GroupChoice;
+        diagnosticGroup.Enabled=!diagnosing;
+    }
+    void RefreshDiagnosticGroups(){
+        var old=diagnosticGroup.SelectedItem as GroupChoice;
+        string previous=old==null?"":old.Id;
+        diagnosticGroup.Items.Clear();
+        int index=-1;
+        foreach(var row in groupRows){
+            string id=TextValue(row,"id");
+            if(id==previous)index=diagnosticGroup.Items.Count;
+            diagnosticGroup.Items.Add(new GroupChoice{Id=id,Name=TextValue(row,"name")});
+        }
+        if(diagnosticGroup.Items.Count>0)diagnosticGroup.SelectedIndex=index>=0?index:0;
+        ShowGroupDiagnostic();
+    }
+    void OpenGroupDiagnostic(){
+        if(diagnosticPage==null)return;
+        string id=groups.SelectedItems.Count==1?Convert.ToString(groups.SelectedItems[0].Tag):"";
+        tabs.SelectedTab=diagnosticPage;
+        for(int i=0;i<diagnosticGroup.Items.Count;i++)
+            if(((GroupChoice)diagnosticGroup.Items[i]).Id==id){diagnosticGroup.SelectedIndex=i;break;}
+        ShowGroupDiagnostic();
+    }
+    void ShowGroupDiagnostic(){
+        var choice=diagnosticGroup.SelectedItem as GroupChoice;
+        List<string> history;
+        diagnosticHistory.Text=choice!=null&&groupDiagnosticHistory.TryGetValue(choice.Id,out history)?
+            String.Join(Environment.NewLine+Environment.NewLine,history.ToArray()):"Nenhum diagnóstico registrado para este grupo nesta sessão.";
+        UpdateDiagnosticControls();
+    }
+    void AddGroupDiagnostic(string jid,string description){
+        List<string> history;
+        if(!groupDiagnosticHistory.TryGetValue(jid,out history)){
+            if(groupDiagnosticHistory.Count>=500)return;
+            history=new List<string>();groupDiagnosticHistory[jid]=history;
+        }
+        history.Insert(0,DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss")+" • "+description);
+        if(history.Count>12)history.RemoveAt(history.Count-1);
+        var choice=diagnosticGroup.SelectedItem as GroupChoice;
+        if(choice!=null&&choice.Id==jid)ShowGroupDiagnostic();
+    }
+    void RunGroupDiagnostic(){
+        var choice=diagnosticGroup.SelectedItem as GroupChoice;
+        if(choice==null||!ready||pipe==null||diagnosing||sendingText)return;
+        diagnosing=true;diagnosingGroup=choice.Id;
+        diagnosticProgress.Text="Consultando "+choice.Name+" sem envio de mensagens…";
+        AddGroupDiagnostic(choice.Id,"Consulta manual iniciada (sem envio).");
+        UpdateDiagnosticControls();
+        try{pipe.WriteLine(json.Serialize(new {action="diagnose_group",group_jid=choice.Id}));}
+        catch{diagnosing=false;diagnosingGroup="";diagnosticProgress.Text="Não foi possível iniciar a consulta.";UpdateDiagnosticControls();}
+    }
+    static string DiagnosticCount(Dictionary<string,object> check,string key){
+        int count;
+        return Int32.TryParse(TextValue(check,key),out count)&&count>=0&&count<=100000?count.ToString():"—";
+    }
     DateTime? groupReadAt;
     void RefreshGroups(){
         if(ready&&!syncing){groupReadAt=null;sync.Enabled=false;Send("groups",null);}
@@ -231,10 +312,11 @@ sealed partial class WhatsApp : Form {
         UpdateComposer();
     }
     void UpdateComposer(){
+        UpdateDiagnosticControls();
         if(sendTextButton==null)return;
         UpdatePhone();
         targetGroup.Enabled=ready&&!sendingText&&targetGroup.Items.Count>0;
-        sendTextButton.Enabled=!environment.IsProduction&&ready&&!sendingText&&canPublish!=null&&canPublish()&&groupReadAt.HasValue&&
+        sendTextButton.Enabled=!environment.IsProduction&&ready&&!diagnosing&&!sendingText&&canPublish!=null&&canPublish()&&groupReadAt.HasValue&&
             targetGroup.SelectedItem is GroupChoice&&(campaignImage!=null||!String.IsNullOrWhiteSpace(CampaignText()))&&CampaignText().Length<=2000;
     }
     void SaveDraft(){SaveCampaignDraft();}
@@ -273,7 +355,7 @@ sealed partial class WhatsApp : Form {
         }catch{}
     }
     void PublishManualText(){
-        if(environment.IsProduction||!ready||sendingText||automatedSend!=null||!groupReadAt.HasValue||pendingSend!=Guid.Empty||canPublish==null||!canPublish())return;
+        if(environment.IsProduction||!ready||diagnosing||sendingText||automatedSend!=null||!groupReadAt.HasValue||pendingSend!=Guid.Empty||canPublish==null||!canPublish())return;
         var choice=targetGroup.SelectedItem as GroupChoice;
         string text=CampaignText();
         if(choice==null||!selected.Contains(choice.Id)||(campaignImage==null&&String.IsNullOrEmpty(text))||text.Length>2000)return;
@@ -299,7 +381,7 @@ sealed partial class WhatsApp : Form {
     }
     public Guid CampaignConnection { get { return connectionId; } }
     public bool CampaignSessionReady {
-        get { return !closing&&!forgetting&&ready&&pipe!=null&&process!=null
+        get { return !closing&&!forgetting&&!diagnosing&&ready&&pipe!=null&&process!=null
             &&connectionId!=Guid.Empty&&groupReadAt.HasValue&&DateTime.Now-groupReadAt.Value<TimeSpan.FromHours(24); }
     }
     public async Task<Tuple<string,string>> DispatchCampaignTextAsync(Guid request,string group,string text,bool trackDelivery=false) {
@@ -356,6 +438,7 @@ sealed partial class WhatsApp : Form {
         groupRows.Clear();selected.Clear();groupReadAt=null;RenderGroups();
         groupStatus.Text="Conecte o WhatsApp para consultar grupos.";
         accountStatus.Text="";groupAccount.Text="";accountLabel="WhatsApp";groupLastErrors.Clear();
+        groupDiagnosticHistory.Clear();diagnosing=false;diagnosingGroup="";RefreshDiagnosticGroups();
         RefreshComposerGroups();
     }
     async Task SyncSelection(){
@@ -524,25 +607,28 @@ sealed partial class WhatsApp : Form {
                 var rows=message["value"] as IEnumerable;
                 if(rows!=null)foreach(Dictionary<string,object> item in rows)groupRows.Add(item);
                 selected.IntersectWith(groupRows.ConvertAll(item=>TextValue(item,"id")));
-                groupReadAt=DateTime.Now;RenderGroups();ShowGroupStatus();RefreshComposerGroups();
-            }else if(type=="group_check"&&ready&&!forgetting){
+                groupReadAt=DateTime.Now;RenderGroups();ShowGroupStatus();RefreshComposerGroups();RefreshDiagnosticGroups();
+            }else if((type=="group_check"||type=="group_diagnostic")&&ready&&!forgetting){
                 phase="GRUPO_METADADOS";
                 var check=message["value"] as Dictionary<string,object>;
                 if(check!=null){
                     string jid=TextValue(check,"group_jid"),code=TextValue(check,"code");
-                    string[] allowed={"ok","membership_refreshed","membership_changed_during_read","mode_mismatch","metadata_invalid","metadata_unavailable","permission_unverified"};
+                    string[] allowed={"ok","membership_refreshed","membership_changed_during_read","mode_mismatch","metadata_invalid","metadata_unavailable","permission_unverified","not_participating","diagnostic_unavailable"};
                     if(System.Text.RegularExpressions.Regex.IsMatch(jid,@"\A[0-9-]{1,64}@g[.]us\z")&&Array.IndexOf(allowed,code)>=0){
-                        var group=groupRows.Find(item=>TextValue(item,"id")==jid);
-                        string label=group==null?"Grupo selecionado":TextValue(group,"name");
+                        bool manual=type=="group_diagnostic";
                         string listed=GroupMode(TextValue(check,"listed_mode")),fresh=GroupMode(TextValue(check,"fresh_mode"));
-                        int before,after,lid,pn;
-                        if(!Int32.TryParse(TextValue(check,"listed_count"),out before)||before<0||before>100000)before=0;
-                        if(!Int32.TryParse(TextValue(check,"fresh_count"),out after)||after<0||after>100000)after=0;
-                        if(!Int32.TryParse(TextValue(check,"lid_count"),out lid)||lid<0||lid>100000)lid=0;
-                        if(!Int32.TryParse(TextValue(check,"pn_count"),out pn)||pn<0||pn>100000)pn=0;
-                        string description=code=="ok"?"Metadados consistentes":code=="membership_refreshed"?"Participantes atualizados":code=="mode_mismatch"?"Divergência PN/LID; envio interrompido":code=="permission_unverified"?"Permissão não confirmada; envio interrompido":code=="membership_changed_during_read"?"Grupo mudou durante consulta; envio interrompido":code=="metadata_unavailable"?"Consulta individual indisponível":"Metadados inválidos";
-                        diagnostic.Text=label+" • "+DateTime.Now.ToString("g")+"\n"+description+"\nModo: "+listed+" → "+fresh+" | Membros: "+before+" → "+after+"\nIdentificadores atuais: LID "+lid+" / PN "+pn+"\nNenhum identificador individual é registrado.";
-                        if(code!="ok"&&code!="membership_refreshed"){
+                        string description=code=="ok"?"Metadados consistentes":code=="membership_refreshed"?"Participantes diferentes entre consultas":code=="mode_mismatch"?"Divergência PN/LID":code=="permission_unverified"?"Permissão não confirmada":code=="membership_changed_during_read"?"Grupo mudou durante consulta":code=="metadata_unavailable"?"Metadados indisponíveis":code=="not_participating"?"Grupo não encontrado entre os grupos da conta":code=="diagnostic_unavailable"?"Consulta indisponível":"Metadados inválidos";
+                        string stage=TextValue(check,"stage");
+                        string stageLabel=stage=="list"?"lista geral":stage=="individual"?"consulta individual":stage=="complete"?"comparação concluída":"início";
+                        string details=(manual?"Consulta manual • "+stageLabel:"Validação durante envio")+" • "+description+
+                            "\nModo: "+listed+" → "+fresh+" | Membros: "+DiagnosticCount(check,"listed_count")+" → "+DiagnosticCount(check,"fresh_count")+
+                            "\nIdentificadores atuais: LID "+DiagnosticCount(check,"lid_count")+" / PN "+DiagnosticCount(check,"pn_count");
+                        if(manual)details+=" / Outros "+DiagnosticCount(check,"unknown_count")+
+                            "\nFunção: "+GroupRole(TextValue(check,"role"))+" | Enviar: "+GroupPermission(TextValue(check,"posting"))+" | Configurar: "+GroupPermission(TextValue(check,"settings"))+
+                            "\nCriptografia de entrega: não verificada (consulta sem envio).";
+                        AddGroupDiagnostic(jid,details);
+                        if(manual&&diagnosingGroup==jid){diagnosing=false;diagnosingGroup="";diagnosticProgress.Text="Consulta concluída: "+description+".";UpdateDiagnosticControls();}
+                        if(!manual&&code!="ok"&&code!="membership_refreshed"){
                             if(groupLastErrors.Count<500||groupLastErrors.ContainsKey(jid)){groupLastErrors[jid]=code;RenderGroups();}
                         }
                     }
@@ -557,6 +643,7 @@ sealed partial class WhatsApp : Form {
                         if(deliveryReceipts.TryGetValue(key,out previous)&&(TextValue(previous,"status")=="delivery_ack"||(TextValue(previous,"status")=="send_error"&&status=="server_ack")))return;
                         if(status=="send_error"){var code=TextValue(row,"error_code");row["error_code"]=System.Text.RegularExpressions.Regex.IsMatch(code,@"\A[0-9]{1,5}\z")?code:"unknown";
                             if(groupLastErrors.Count<500||groupLastErrors.ContainsKey(jid)){groupLastErrors[jid]=TextValue(row,"error_code");RenderGroups();}}
+                        AddGroupDiagnostic(jid,status=="send_error"?"Retorno do WhatsApp: rejeição "+TextValue(row,"error_code"):status=="delivery_ack"?"Retorno do WhatsApp: entrega confirmada":"Retorno do WhatsApp: aceite do servidor");
                         if(deliveryReceipts.Count<256||deliveryReceipts.ContainsKey(key)){row["observed_at"]=DateTime.UtcNow;deliveryReceipts[key]=row;}
                     }
                 }
