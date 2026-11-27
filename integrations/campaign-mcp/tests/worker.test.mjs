@@ -105,3 +105,30 @@ test('escrita anunciada somente com escopo novo, ambiente Teste e adaptador ativ
  assert.equal((await (await invoke(prod,'tools/call',params)).json()).error.code,-32602);
  assert.equal(calls,1);
 });
+
+test('guia criativo reflete o catálogo real e mantém legenda restrita a rascunhos autorizados',async()=>{
+ const principal={...auth,scopes:['campaigns:read','campaigns:drafts']};
+ const key=await crypto.subtle.importKey('raw',new Uint8Array(32).fill(2),{name:'HMAC',hash:'SHA-256'},false,['sign','verify']);
+ const guideReceipts=createGuideReceipts(key);
+ const handlers=[
+  createHandler({authorize:async()=>principal,readCampaign:async()=>({}),writeDraft:async()=>({}),guideReceipts}),
+  createHandler({authorize:async()=>auth,readCampaign:async()=>({}),writeDraft:async()=>({}),guideReceipts}),
+  createHandler({environment:'production',authorize:async()=>({...principal,environment:'production'}),readCampaign:async()=>({}),writeDraft:async()=>({}),guideReceipts})
+ ];
+ for(const [i,handler] of handlers.entries()){
+  const tools=(await (await invoke(handler,'tools/list')).json()).result.tools;
+  const guide=(await (await invoke(handler,'tools/call',{name:'get_publication_guide',arguments:{}})).json()).result.structuredContent;
+  const names=new Set(tools.map(t=>t.name));
+  assert.deepEqual(guide.available_tools,[...names]);
+  for(const op of guide.operations)assert.equal(op.available,op.requires.every(name=>names.has(name)),op.name);
+  const caption=guide.operations.find(op=>op.name==='editar_legendas');
+  assert.deepEqual(caption.requires,['get_publication_content','update_publications']);
+  assert.equal(caption.available,i===0);
+  assert.ok(caption.rules.some(rule=>rule.includes('Somente WhatsApp')));
+  assert.equal(guide.operations.find(op=>op.name==='publicar').available,false);
+  assert.equal(guide.operations.find(op=>op.name==='agendar').available,false);
+  const methods=guide.creative_context.methods;
+  assert.equal(new Set(methods.map(m=>m.id)).size,9);
+  for(const method of methods)for(const field of ['id','title','instructions','deliverable'])assert.ok(method[field].trim());
+ }
+});
