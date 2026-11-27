@@ -78,6 +78,19 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
         posting:['admins','all'].includes(row.posting)?row.posting:'unknown',
         settings:['admins','all'].includes(row.settings)?row.settings:'unknown'})));
      }finally{checking=false;}
+    }else if(message.action==='recover_group_distribution'){
+     const jid=message.group_jid;
+     if(typeof jid!=='string'||!/^[0-9-]{1,64}@g\.us$/.test(jid))return;
+     const report=(result={})=>{
+      const codes=['recovered','already_recovered','already_empty','no_mismatch','metadata_or_permission','identity_unverified','not_participating','invalid_memory','verification_failed','unavailable'];
+      const count=v=>Number.isSafeInteger(v)&&v>=0&&v<=100000?v:null;
+      output('group_recovery',{group_jid:jid,code:codes.includes(result.code)?result.code:'unavailable',before:count(result.before),after:count(result.after),unmatched:count(result.unmatched)});
+     };
+     if(message.confirmed!==true||state!=='conectado'||!current||sending||checking||diagnosing||typeof current.recoverGroupDistribution!=='function'){report();return;}
+     diagnosing=true;const revision=generation,provider=current;
+     try{const result=await provider.recoverGroupDistribution(jid);if(revision===generation)report(result);}
+     catch{if(revision===generation)report({code:'verification_failed'});}
+     finally{diagnosing=false;}
     }else if(message.action==='diagnose_group'){
      const jid=message.group_jid;
      if(typeof jid!=='string'||!/^[0-9-]{1,64}@g\.us$/.test(jid))return;
