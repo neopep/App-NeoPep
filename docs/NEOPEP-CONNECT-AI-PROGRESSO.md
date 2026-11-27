@@ -10,7 +10,7 @@ Ponto de corte: `docs/PONTO-DE-CORTE-20261126.md`. A publicação anterior de Te
 | 002 Catálogo | Testado localmente para duas ferramentas de contexto. Três operações de leitura continuam em rascunho. |
 | 003 Autenticação | Interface de verificação por chamada testada com fixtures; OAuth, persistência de conexões e revogação real pendentes. |
 | 004 Servidor | PoC testado sob Node. Worker real e clientes MCP ainda não homologados. |
-| 005 Central administrativa | Planejado. Card independente acima de App/WhatsApp. |
+| 005 Central administrativa | Card e painel inicial em diálogo testados em DOM simulado. Gestão autenticada e rota própria pendentes. |
 | 006 Criação e edição | Planejado |
 | 007 Criativos | Planejado |
 | 008 Operações em massa | Planejado |
@@ -38,3 +38,13 @@ Ponto de corte: `docs/PONTO-DE-CORTE-20261126.md`. A publicação anterior de Te
 - Referências Cloudflare/MCP: a tentativa de leitura direta pelo terminal recebeu HTTP 403. A compatibilidade de runtime, clientes e plano continua pendente.
 - Migrações preparadas ou aplicadas: nenhuma. Configuração externa: nenhuma além dos pushes da branch.
 - Próxima ação: revisar lista e detalhe do RPC em `release/campaign-central/20261125143000_campaign_central.sql`; implementar um contrato escopado que revalide vínculo e administração sem usar service_role. Homologar transporte com cliente oficial antes de adicionar escrita.
+
+## Incremento 005 — Entrada administrativa
+
+- Incremento de transporte confirmado no GitHub em `d51305b`.
+- Arquivos: `dist/admin/admin-connect-ai.js`, `dist/admin/admin.js`, `dist/admin/index.html`, `dist/style.css`, `integrations/campaign-mcp/tests/admin.test.mjs` e workflow de contrato.
+- O card independente fica acima dos seletores App e WhatsApp. A visão inicial abre em diálogo nativo e conserva os campos e a rota da Campanha. Mostra Cloudflare aguardando homologação e executores complementares planejados. Rotas próprias, gestão de conexões, métricas e histórico autenticado ainda pendentes.
+- Leitura do SQL candidato: `list` usa proprietário e limite de 50 com offset. `get` verifica proprietário e agrega publicações e lotes, incluindo metadados de destino. Um adaptador de leitura precisa projetar apenas campos autorizados e impor limites antes de anunciá-lo. O emissor do SQL candidato é específico do Teste. Nenhuma variante de produção foi presumida.
+- Verificações locais: `npm ci` com lockfile, 4 testes do Connect AI, checagem de sintaxe dos scripts administrativos e verificação do catálogo gerado. Ainda falta validar interação no navegador e nos temas reais.
+- Migrações e configuração externa: nenhuma. Sem operações de campanha ou publicação.
+- Próxima ação exata: implementar autorização escopada de Teste em incremento isolado. Validar identidade e revogação por conexão e demonstrar leitura nativa com projeção mínima. Só então ampliar a Central com estado real.

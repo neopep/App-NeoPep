@@ -1186,3 +1186,23 @@ dialog.neo-structured-editor::backdrop{background:#192720}
  .shop-label-print header strong{font-size:20px}
  .shop-label-print .shop-label-name{font-size:15px}
 }
+
+.neo-connect-ai-entry {
+ display: grid;
+ grid-template-columns: auto minmax(0, 1fr) auto;
+ align-items: center;
+ gap: .75rem;
+ width: 100%;
+ text-align: start;
+ margin-block-end: 1rem;
+}
+.neo-connect-ai-entry small { display: block; color: var(--muted); }
+.neo-connect-ai-dialog {
+ width: min(32rem, calc(100% - 2rem));
+ max-height: 85dvh;
+ overflow: auto;
+ color: var(--ink);
+ background: var(--bg);
+}
+.neo-connect-ai-dialog dt { font-weight: 650; }
+.neo-connect-ai-dialog dd { margin: 0 0 .5rem; color: var(--muted); }

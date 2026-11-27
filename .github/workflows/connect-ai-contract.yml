@@ -19,5 +19,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: npm ci
       - run: node integrations/campaign-mcp/src/generate-docs.mjs --check
       - run: node --test integrations/campaign-mcp/tests/*.test.mjs
