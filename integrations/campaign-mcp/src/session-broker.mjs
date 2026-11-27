@@ -50,7 +50,7 @@ export async function openSessionBroker(env,request=fetch,connect=postgres,profi
  const runDraftJob=jobEnabled?createPrivateDraftJobExecutor({profile,env,sql,verifyDatabase,freshSession:freshDraftSession,
   writeDraft:createDraftWriter({publishableKey:env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY,sessionFor:freshDraftSession,request,profile,enabled:true})}):undefined;
  const mediaEnabled=profile.name==='test'&&env.NEO_CONNECT_AI_ENABLED==='1'&&env.NEO_CONNECT_AI_DRAFTS==='1'&&env.NEO_CONNECT_AI_MEDIA==='1';
- const mediaTickets=mediaEnabled?createPrivateMediaTickets({profile,env,sql,verifyDatabase,freshSession:freshDraftSession}):undefined;
+ const mediaTickets=mediaEnabled?createPrivateMediaTickets({profile,env,sql,verifyDatabase,freshSession:freshDraftSession,request}):undefined;
  return {
   verifyDatabase,
   ...(mediaTickets?{mediaTickets}:{}),
