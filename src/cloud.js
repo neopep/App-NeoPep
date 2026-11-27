@@ -37,6 +37,22 @@ const authStorage={
 };
 function chooseRemember(value){if(typeof value!=='boolean')return;const saved=rememberSession===value?null:AUTH_KEYS.map(key=>[key,authStorage.getItem(key)]);rememberSession=value;writeStore(browserStore('localStorage'),REMEMBER_KEY,String(value));if(saved){for(const [key] of saved)authStorage.removeItem(key);for(const [key,item] of saved)if(item!==null)authStorage.setItem(key,item)}}
 const clearAuthStorage=()=>AUTH_KEYS.forEach(key=>authStorage.removeItem(key));
+function validateConnectAIReturn(target, redirect) {
+ const fail=()=>{throw Error('Retorno de autorização inválido.');};
+ const expected=new URL(target.searchParams.get('redirect_uri')),actual=new URL(redirect);
+ const clientId=target.searchParams.get('client_id');
+ const native=clientId==='https://chatgpt.com/oauth/codex/client.json';
+ const local=native&&expected.protocol==='http:'&&['localhost','127.0.0.1'].includes(expected.hostname)&&Boolean(expected.port)&&expected.pathname==='/callback'&&!expected.search;
+ if(expected.username||expected.password||expected.hash||actual.username||actual.password||actual.hash||(!local&&expected.protocol!=='https:'))fail();
+ if(['code','state','iss'].some(key=>expected.searchParams.has(key)))fail();
+ if(actual.searchParams.getAll('code').length!==1||actual.searchParams.getAll('state').length!==1||actual.searchParams.getAll('iss').length>1)fail();
+ const code=actual.searchParams.get('code'),state=actual.searchParams.get('state'),iss=actual.searchParams.get('iss');
+ if(!/^[0-9a-f]{64}$/.test(code||'')||!state||state!==target.searchParams.get('state')||(iss!==null&&iss!==target.origin)||(native&&iss!==target.origin))fail();
+ for(const key of ['code','state','iss'])actual.searchParams.delete(key);
+ expected.search=expected.searchParams.toString();
+ if(actual.href!==expected.href)fail();
+ return redirect;
+}
 const api={configured,connectTestEnabled:connectEnabled,
  get connectAIAvailable(){return Boolean(connectAIHost())},
  async connectAIConnections(action,id=null){
@@ -57,13 +73,8 @@ const api={configured,connectTestEnabled:connectEnabled,
    headers:{Authorization:'Bearer '+session.access_token,'X-Neo-Consent':'approve','X-Neo-Csrf':proof,'X-Neo-Expires':expires}});
   if(!response.ok||version!==identityVersion)throw Error('Não foi possível autorizar. Reinicie pelo cliente.');
   const {redirect}=await response.json();
-  const expected=new URL(target.searchParams.get('redirect_uri')),actual=new URL(redirect);
-  const code=actual.searchParams.get('code'),state=actual.searchParams.get('state');
-  actual.searchParams.delete('code');actual.searchParams.delete('state');
-  expected.search=expected.searchParams.toString();
-  if(version!==identityVersion||actual.href!==expected.href||actual.protocol!=='https:'||!code||state!==target.searchParams.get('state'))
-   throw Error('Retorno de autorização inválido.');
-  return redirect;
+  if(version!==identityVersion)throw Error('A conta mudou.');
+  return validateConnectAIReturn(target,redirect);
  },
  async campaignImageURL(path){
   const result=ok(await need().storage.from('neo-campaign-images').createSignedUrl(path,120));
