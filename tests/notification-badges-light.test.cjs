@@ -4,10 +4,27 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const css=fs.readFileSync('dist/style.css','utf8');
 const marker='/* Rodada 25/11: contadores NUMÉRICOS em azul-marinho no tema claro.';
+function badgePaletteBlocks(source){
+ const blocks=[];
+ let start=source.indexOf(marker);
+ while(start!==-1){
+  const endMarker='/* Cores idênticas no badge com notícia nova; impedir o dourado residual. */';
+  const second=source.indexOf(endMarker,start);
+  assert.ok(second>start,'regra de notícia nova ausente');
+  const nextMarker=source.indexOf(marker,start+marker.length);
+  assert.ok(nextMarker===-1||second<nextMarker,'pacote de paleta incompleto');
+  const end=source.indexOf('}',second);
+  assert.ok(end>second,'regra de notícia nova incompleta');
+  blocks.push(source.slice(start,end+1));
+  start=nextMarker;
+ }
+ assert.ok(blocks.length>0,'pacote de paleta precisa estar registrado');
+ return blocks;
+}
 test('indicadores numéricos do tema claro são padronizados em azul-marinho',()=>{
  const start=css.indexOf(marker);
  assert.notEqual(start,-1,'pacote de paleta precisa estar registrado');
- const tail=css.slice(start);
+ const tail=badgePaletteBlocks(css).join('\n');
  for(const selector of [
   '.community-badge','.community-badge.has-news','.notification-count',
   '.nav-shop-count','.nav-community-count','.admin-signup-badge','.support-thread-meta b',
@@ -23,10 +40,12 @@ test('indicadores numéricos do tema claro são padronizados em azul-marinho',()
 });
 test('a alteração de badges não modifica status nem regras do tema escuro',()=>{
  const start=css.indexOf(marker);
- const added=css.slice(start);
- assert.ok(!added.includes('[data-theme=dark]'));
- for(const forbidden of ['.status-pill','.shop-deal-badge','.library-featured-badge','.agent-inbox-badge']){
-  assert.ok(!added.includes(' '+forbidden+',')&&!added.includes('\n '+forbidden+','));
+ for(const added of badgePaletteBlocks(css)){
+  const selectors=[...added.matchAll(/([^{}]+)\{[^{}]*\}/g)].map(m=>m[1].replace(/\/\*[\s\S]*?\*\//g,'').trim());
+  assert.equal(selectors.length,2,'pacote de paleta deve conter somente as duas regras previstas');
+  assert.ok(selectors.every(x=>x.startsWith('[data-theme=light]')),'escopo exclusivamente claro');
+  assert.ok(!added.includes('[data-theme=dark]'));
+  for(const forbidden of ['.status-pill','.shop-deal-badge','.library-featured-badge','.agent-inbox-badge']) assert.ok(!added.includes(forbidden));
  }
  assert.ok(css.slice(0,start).includes('[data-theme=dark]'));
 });
@@ -38,7 +57,7 @@ test('varredura dos contadores que aparecem na Comunidade, Grupos, Conversas, At
  const alerts=fs.readFileSync('dist/community-alerts.js','utf8');
  const support=fs.readFileSync('dist/support.js','utf8');
  const notification=fs.readFileSync('dist/notification-center.js','utf8');
- const tail=css.slice(css.indexOf(marker));
+ const tail=badgePaletteBlocks(css).join('\n');
  const cases=[
   ['Comunidade na navegação',app,'.nav-community-count','nav-community-count'],
   ['Comunidade no cabeçalho',alerts,'.community-badge','community-badge'],
