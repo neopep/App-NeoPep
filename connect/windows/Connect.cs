@@ -469,6 +469,7 @@ sealed partial class Connect : Form {
         if(lease==null)return;
         var id=Value(lease,"id");var fence=Value(lease,"fence");
         var started=false;
+        var dispatchClock=System.Diagnostics.Stopwatch.StartNew();
         var outcome=Tuple.Create("uncertain",(string)null);
         try {
             var job=await RichCampaign("start",new {id=id,fence=fence,originals_v1=true,originals_25mb=true,originals_mov=true});
@@ -485,7 +486,12 @@ sealed partial class Connect : Form {
                 }else if(kind=="file"){
                     var mime=Value(job,"original_mime");var name=Value(job,"original_name");
                     var bytes=await LoadRichCampaignOriginal(Value(job,"media_bucket"),Value(job,"media_path"),mime);
-                    if(whatsapp==window&&window.CampaignConnection==connection&&window.CampaignSessionReady&&deviceApproved&&SessionReady()&&Value(local,"campaign_worker_enabled")=="1")
+                    if(mime=="video/mp4"||mime=="video/quicktime"){
+                        outcome=Tuple.Create("refused","video_conversion");
+                        try{bytes=await PrepareNativeCampaignVideo(bytes);mime="video/mp4";name="video.mp4";}
+                        catch{Record("campaign_video_conversion_failed");bytes=null;}
+                    }
+                    if(bytes!=null&&dispatchClock.Elapsed.TotalSeconds<85&&whatsapp==window&&window.CampaignConnection==connection&&window.CampaignSessionReady&&deviceApproved&&SessionReady()&&Value(local,"campaign_worker_enabled")=="1")
                         outcome=await window.DispatchCampaignFileAsync(request,Value(job,"group_jid"),Value(job,"text"),bytes,mime,name);
                 }else if(kind=="text"||kind=="link"||kind=="product"||kind=="document"||kind=="community"){
                     outcome=await window.DispatchCampaignTextAsync(request,Value(job,"group_jid"),Value(job,"text"),true);
@@ -494,7 +500,7 @@ sealed partial class Connect : Form {
         }catch(Exception){Record("rich_campaign_uncertain");}
         // C# 5 / .NET Framework: nao usar await no bloco finally.
         if(started)try{await RichCampaign("finish",new {id=id,fence=fence,
-            outcome=outcome.Item1,receipt_id=outcome.Item1=="accepted"?outcome.Item2:null,blocked_reason=outcome.Item1=="refused"&&outcome.Item2=="previous_421"?"previous_421":null});}
+            outcome=outcome.Item1,receipt_id=outcome.Item1=="accepted"?outcome.Item2:null,blocked_reason=outcome.Item1=="refused"&&(outcome.Item2=="previous_421"||outcome.Item2=="video_conversion")?outcome.Item2:null});}
         catch(Exception){Record("rich_campaign_finalization_uncertain");}
     }
     async Task TickCampaignDispatch() {
