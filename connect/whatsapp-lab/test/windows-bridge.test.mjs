@@ -169,9 +169,12 @@ test('IPC preserva bytes PDF e MP4, rejeita nomes, MIME e destinos inválidos, e
  await bridge.receive(request);
  assert.deepEqual(sent[0],{jid:'123@g.us',caption:'Fixture',bytes:pdf,mime:'application/pdf',name:'fixture.pdf'});
  assert.equal(messages.at(-1).value.status,'accepted');
- await bridge.receive({...request,mime:'video/mp4',name:'fixture.mp4',file:mp4.toString('base64')});
+ await bridge.receive({...request,request_id:'22222222-2222-4222-8222-222222222222',mime:'video/mp4',name:'fixture.mp4',file:mp4.toString('base64')});
  assert.deepEqual(sent[1].bytes,mp4);
- await bridge.receive({...request,name:'incerto.pdf'});
+ const uncertain={...request,request_id:'33333333-3333-4333-8333-333333333333',name:'incerto.pdf'};
+ await bridge.receive(uncertain);
+ assert.equal(sent.length,3);assert.equal(messages.at(-1).value.status,'uncertain');
+ await bridge.receive(uncertain);await bridge.receive(request);
  assert.equal(sent.length,3);assert.equal(messages.at(-1).value.status,'uncertain');
  assert.equal(JSON.stringify(messages).includes(request.file),false);
  await bridge.close();
