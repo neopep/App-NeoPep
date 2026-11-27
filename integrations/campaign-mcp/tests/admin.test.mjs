@@ -24,5 +24,5 @@ test('card fica acima dos canais e o diálogo conserva o formulário existente',
  assert.equal(input.value,'Rascunho');
  assert.match(dialog.textContent,/Cloudflare.*Aguardando homologação/s);
  assert.match(dialog.textContent,/Vercel.*Planejado/s);
- assert.match(read('dist/admin/index.html'),/admin-connect-ai\.js\?v=1.*admin\.js\?v=132/s);
+ assert.match(read('dist/admin/index.html'),/admin-connect-ai\.js\?v=2.*admin\.js\?v=132/s);
 });

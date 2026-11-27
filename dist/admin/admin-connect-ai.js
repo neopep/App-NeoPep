@@ -13,6 +13,10 @@ window.NeoAdminConnectAI=(()=>{
   dialog.innerHTML=`<h2 id="neoConnectAITitle">NeoPep Connect AI</h2>
   <p>Integração externa com as campanhas do NeoPep.</p>
   <p role="status">Servidor e conexões aguardam homologação.</p>
+  <details><summary>Conexões</summary><p>A gestão depende da autorização individual do NeoPep.</p></details>
+  <details><summary>Ferramentas</summary><p>A disponibilidade será informada pelo catálogo do servidor conectado.</p></details>
+  <details><summary>Base de conhecimento</summary><p>Consulte o guia de campanhas do NeoPep antes de preparar publicações.</p></details>
+  <details><summary>Histórico</summary><p>Histórico de operações disponível após a conexão ao servidor.</p></details>
   <h3>Processamento</h3>
   <dl><dt>Cloudflare</dt><dd>Aguardando homologação</dd>
   <dt>Vercel</dt><dd>Planejado</dd>

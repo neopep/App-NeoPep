@@ -43,3 +43,22 @@ test('limita bytes lidos e não aceita entradas extras',async()=>{
  const response=await (await invoke(handler,'tools/call',{name:'get_capabilities',arguments:{environment:'production'}})).json();
  assert.equal(response.error.code,-32602);
 });
+
+test('leitura nativa exige adaptação explícita, escopo e ambiente de Teste',async()=>{
+ let called=0;
+ const readCampaign=async(principal,tool,args)=>{
+  called++;
+  assert.equal(principal.environment,'test');
+  assert.equal(tool,'list_campaigns');
+  assert.equal(args.channel,'whatsapp');
+  return {items:[]};
+ };
+ const handler=createHandler({authorize:async()=>auth,readCampaign});
+ assert.equal((await (await invoke(handler,'tools/list')).json()).result.tools.length,4);
+ const params={name:'list_campaigns',arguments:{channel:'whatsapp'}};
+ assert.deepEqual((await (await invoke(handler,'tools/call',params)).json()).result.structuredContent,{items:[]});
+ await invoke(handler,'tools/call',{...params,arguments:{...params.arguments,owner:'other'}});
+ const production=createHandler({environment:'production',authorize:async()=>({...auth,environment:'production'}),readCampaign});
+ assert.equal((await (await invoke(production,'tools/list')).json()).result.tools.length,2);
+ assert.equal(called,1);
+});

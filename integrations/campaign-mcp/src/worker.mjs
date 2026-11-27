@@ -1,4 +1,4 @@
-import {scopeByTool,tools,version} from './catalog.mjs';
+import {campaignTools,scopeByTool,tools,version} from './catalog.mjs';
 
 const protocol='2025-11-25';
 const maximumBytes=16384;
@@ -27,9 +27,11 @@ async function readBody(request){
  }
 }
 
-export function createHandler({authorize=async()=>null,environment='test',origins=[]}={}){
+export function createHandler({authorize=async()=>null,environment='test',origins=[],readCampaign}={}){
  if(!['test','production'].includes(environment))throw Error('Invalid environment');
  const allowedOrigins=new Set(origins);
+ const nativeReads=environment==='test'&&typeof readCampaign==='function'?campaignTools:[];
+ const available=[...tools,...nativeReads];
  return async request=>{
   if(new URL(request.url).pathname!=='/mcp')return json({error:'NOT_FOUND'},404);
   if(request.headers.has('origin')&&!allowedOrigins.has(request.headers.get('origin')))return json({error:'FORBIDDEN'},403);
@@ -58,12 +60,27 @@ export function createHandler({authorize=async()=>null,environment='test',origin
   if(method==='initialize')return result({protocolVersion:protocol,
    capabilities:{tools:{}},serverInfo:{name:'neopep-connect-ai',version}});
   if(method==='ping')return result({});
-  if(method==='tools/list')return result({tools});
+  if(method==='tools/list')return result({tools:available});
   if(method!=='tools/call')return error(id,-32601,'Método indisponível.');
-  if(!isObject(params)||!scopeByTool.has(params.name)||!isObject(params.arguments??{})||Object.keys(params.arguments??{}).length)
-   return error(id,-32602,'Ferramenta ou parâmetros inválidos.');
+  if(!isObject(params)||!isObject(params.arguments??{}))return error(id,-32602,'Parâmetros inválidos.');
+  const args=params.arguments??{};
+  const native=nativeReads.find(tool=>tool.name===params.name);
+  if(native){
+   if(native.inputSchema.required.some(key=>!Object.hasOwn(args,key))||
+    Object.keys(args).some(key=>!Object.hasOwn(native.inputSchema.properties,key)))
+    return error(id,-32602,'Parâmetros inválidos.');
+   try{
+    const data=await readCampaign(principal,native.name,args);
+    return result({content:[{type:'text',text:JSON.stringify(data)}],structuredContent:data});
+   }catch(err){
+    const known=['INVALID_INPUT','FORBIDDEN','AUTH_REQUIRED','NOT_FOUND_OR_FORBIDDEN','CAPABILITY_UNAVAILABLE'];
+    const code=known.includes(err.message)?err.message:'UPSTREAM_UNAVAILABLE';
+    return result({isError:true,content:[{type:'text',text:code}]});
+   }
+  }
+  if(!scopeByTool.has(params.name)||Object.keys(args).length)return error(id,-32602,'Ferramenta ou parâmetros inválidos.');
   const value=params.name==='get_capabilities'
-   ?{environment,contract_version:version,enabled_tools:tools.map(t=>t.name),restrictions:['Somente leitura de contexto','Sem operações sobre campanhas nesta versão']}
+   ?{environment,contract_version:version,enabled_tools:available.map(t=>t.name),restrictions:nativeReads.length?['Somente leitura WhatsApp de Teste']:['Somente leitura de contexto','Sem operações sobre campanhas nesta versão']}
    :{brand_version:'preview.1',name:'NeoPep',editorial_rules:['Use informações verificáveis.','Preserve a privacidade e evite alegações médicas não fundamentadas.']};
   return result({content:[{type:'text',text:JSON.stringify(value)}],structuredContent:value});
  }

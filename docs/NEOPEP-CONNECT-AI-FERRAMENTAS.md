@@ -1,6 +1,8 @@
 # NeoPep Connect AI — ferramentas do protótipo local
 
 Arquivo gerado pelo catálogo. Versão `1.0.0-preview.1`. O acesso depende de autorização a cada requisição.
+As operações de campanha só aparecem em Teste com adaptador explicitamente configurado.
+
 
 ## get_capabilities
 
@@ -87,6 +89,169 @@ Escopo `campaigns:read`.
       "brand_version",
       "name",
       "editorial_rules"
+    ],
+    "additionalProperties": false
+  }
+}
+```
+
+## list_campaigns
+
+Listar a primeira página de campanhas WhatsApp do titular em Teste.
+
+Escopo `campaigns:read`.
+
+```json
+{
+  "input": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "channel"
+    ],
+    "properties": {
+      "channel": {
+        "const": "whatsapp"
+      },
+      "limit": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 50
+      }
+    }
+  },
+  "output": {
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "state": {
+              "enum": [
+                "active",
+                "archived"
+              ]
+            },
+            "channel": {
+              "const": "whatsapp"
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "state",
+            "channel"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "items"
+    ],
+    "additionalProperties": false
+  }
+}
+```
+
+## get_campaign
+
+Consultar uma campanha WhatsApp do titular em Teste e o resumo das suas publicações.
+
+Escopo `campaigns:read`.
+
+```json
+{
+  "input": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "channel",
+      "campaign_id"
+    ],
+    "properties": {
+      "channel": {
+        "const": "whatsapp"
+      },
+      "limit": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 50
+      },
+      "campaign_id": {
+        "type": "string",
+        "format": "uuid"
+      }
+    }
+  },
+  "output": {
+    "type": "object",
+    "properties": {
+      "campaign": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "active",
+              "archived"
+            ]
+          },
+          "channel": {
+            "const": "whatsapp"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "state",
+          "channel"
+        ],
+        "additionalProperties": false
+      },
+      "publications": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "revision": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "revision"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "campaign",
+      "publications"
     ],
     "additionalProperties": false
   }

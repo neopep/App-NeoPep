@@ -85,3 +85,10 @@ Ponto de corte: `docs/PONTO-DE-CORTE-20261126.md`. A publicação anterior de Te
 - Base confirmada no GitHub em `31e82d8`. O catálogo local GitHub em `.agents/plugins/marketplace.json` adota a estrutura oficial. O gerador agora separa manifestos, URLs e nomes de Teste e Produção, e materializa a árvore local quando solicitado.
 - Ambos os ZIPs foram gerados e passaram em `unzip -t`. As URLs são candidatas. A documentação oficial confirma o mecanismo local de Desktop e Codex. Compatibilidade real da conta Plus em Desktop, Web e iPhone continua pendente de endpoint HTTPS autorizado e teste em cada cliente.
 - Instalação, atualização, remoção e nova autorização estão no README do pacote. Submissão pública fora da entrega. Nenhum provisionamento, migração real ou publicação.
+
+## Leitura MCP de Teste e ampliação do painel
+
+- Catálogo privado confirmado no GitHub em `fe031c3`. O Worker pode anunciar lista e detalhe WhatsApp somente quando um adaptador explícito é fornecido em Teste, após a autorização de administrador e escopo. A entrada padrão segue fechada e Produção não anuncia essas operações.
+- Arquivos: `src/worker.mjs`, `src/catalog.mjs`, manual gerado, teste do Worker e `dist/admin/admin-connect-ai.js`. A central apresenta seções de conexões, ferramentas, conhecimento, histórico e processamento, ainda sem dados operacionais.
+- Validação local: dez testes aprovados, documentação gerada conferida. A sessão real, o canal App, filtros, paginação, agenda, recorrência, histórico real, renovação OAuth e escrita continuam pendentes.
+- Próxima ação: implementar consumo transacional do código e rotação de refresh, com integração à sessão NeoPep e testes de reuso, antes de operar contra o Supabase Teste. Depois auditar o contrato App e ampliar os filtros. Nenhuma operação remota realizada.
