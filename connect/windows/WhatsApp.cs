@@ -33,7 +33,7 @@ sealed partial class WhatsApp : Form {
     readonly ComboBox diagnosticGroup=new ComboBox();
     readonly TextBox diagnosticHistory=new TextBox();
     readonly Label diagnosticProgress=new Label();
-    Button runDiagnostic,recoverDistribution;
+    Button runDiagnostic,recoverDistribution,revalidateAvailability;
     readonly HashSet<string> recoveryEligible=new HashSet<string>(StringComparer.Ordinal);
     TabPage diagnosticPage;
     string diagnosingGroup="";
@@ -145,6 +145,8 @@ sealed partial class WhatsApp : Form {
         diagnostics.Controls.Add(runDiagnostic);
         recoverDistribution=Action("Recuperar distribuição deste grupo",RunGroupRecovery);recoverDistribution.Enabled=false;
         diagnostics.Controls.Add(recoverDistribution);
+        revalidateAvailability=Action("Revalidar disponibilidade do grupo",RunGroupRevalidation);
+        revalidateAvailability.Enabled=false;diagnostics.Controls.Add(revalidateAvailability);
         automaticMaintenance.Text="Manutenção automática antes de publicar";
         automaticMaintenance.AutoSize=true;automaticMaintenance.Checked=!File.Exists(maintenancePath);
         automaticMaintenance.CheckedChanged+=delegate{
@@ -227,6 +229,7 @@ sealed partial class WhatsApp : Form {
         if(runDiagnostic!=null)runDiagnostic.Enabled=ready&&pipe!=null&&!diagnosing&&!sendingText&&diagnosticGroup.SelectedItem is GroupChoice;
         var choice=diagnosticGroup.SelectedItem as GroupChoice;
         if(recoverDistribution!=null)recoverDistribution.Enabled=ready&&pipe!=null&&!diagnosing&&!sendingText&&choice!=null&&recoveryEligible.Contains(choice.Id);
+        if(revalidateAvailability!=null)revalidateAvailability.Enabled=ready&&pipe!=null&&!diagnosing&&!sendingText&&automatedSend==null&&choice!=null;
         diagnosticGroup.Enabled=!diagnosing;
     }
     void RefreshDiagnosticGroups(){
@@ -277,6 +280,17 @@ sealed partial class WhatsApp : Form {
         UpdateComposer();
         try{pipe.WriteLine(json.Serialize(new {action="diagnose_group",group_jid=choice.Id}));}
         catch{diagnosing=false;diagnosingGroup="";diagnosticProgress.Text="Não foi possível iniciar a consulta.";UpdateComposer();}
+    }
+    void RunGroupRevalidation(){
+        var choice=diagnosticGroup.SelectedItem as GroupChoice;
+        if(choice==null||!ready||pipe==null||diagnosing||sendingText||automatedSend!=null)return;
+        if(MessageBox.Show("Confirma que verificou o grupo '"+choice.Name+"' no WhatsApp oficial, que a restrição foi legitimamente removida e que o campo de envio voltou a ficar disponível?"+Environment.NewLine+
+            "Não prossiga se houver restrição ativa. Esta consulta não envia mensagens, não reenvia campanhas e não garante aceite futuro pelo WhatsApp.","Revalidar disponibilidade",MessageBoxButtons.YesNo,MessageBoxIcon.Warning,MessageBoxDefaultButton.Button2)!=DialogResult.Yes)return;
+        if(!ready||pipe==null||diagnosing||sendingText||automatedSend!=null)return;
+        diagnosing=true;diagnosingGroup=choice.Id;diagnosticProgress.Text="Revalidando disponibilidade local…";
+        AddGroupDiagnostic(choice.Id,"Revalidação solicitada após confirmação do WhatsApp oficial (sem envio).");UpdateComposer();
+        try{pipe.WriteLine(json.Serialize(new {action="revalidate_group_availability",group_jid=choice.Id,official_confirmed=true}));}
+        catch{diagnosing=false;diagnosingGroup="";diagnosticProgress.Text="Não foi possível confirmar a revalidação.";UpdateComposer();}
     }
     void RunGroupRecovery(){
         var choice=diagnosticGroup.SelectedItem as GroupChoice;
@@ -699,6 +713,16 @@ sealed partial class WhatsApp : Form {
                         diagnosing=false;diagnosingGroup="";diagnosticProgress.Text=description;UpdateComposer();
                     }
                 }
+            }else if(type=="group_revalidation"&&ready&&!forgetting){
+                var row=message["value"] as Dictionary<string,object>;
+                if(row!=null){
+                    string jid=TextValue(row,"group_jid"),code=TextValue(row,"code");
+                    if(diagnosingGroup==jid&&System.Text.RegularExpressions.Regex.IsMatch(jid,@"\A[0-9-]{1,64}@g[.]us\z")){
+                        string description=code=="local_pause_cleared"?"Pausa local removida após confirmação oficial e metadados consistentes.":code=="checked_no_pause"?"Metadados consistentes; nenhuma pausa local nesta sessão.":code=="rejected_again"?"Nova rejeição após revalidação. Mantenha a pausa e consulte o WhatsApp oficial.":code=="metadata_or_permission"?"Metadados ou permissões não confirmados; pausa preservada.":code=="not_participating"?"Grupo não encontrado; pausa preservada.":"Revalidação indisponível; pausa preservada.";
+                        AddGroupDiagnostic(jid,description+" Nenhum envio realizado. Aceite remoto ainda não verificado.");
+                        diagnosing=false;diagnosingGroup="";diagnosticProgress.Text=description;UpdateComposer();
+                    }
+                }
             }else if(type=="group_maintenance"&&ready&&!forgetting){
                 var row=message["value"] as Dictionary<string,object>;
                 if(row!=null){
@@ -716,6 +740,7 @@ sealed partial class WhatsApp : Form {
                     if(System.Text.RegularExpressions.Regex.IsMatch(jid,@"\A[0-9-]{1,64}@g[.]us\z")){
                         if(stage=="attempt_started")AddGroupDiagnostic(jid,"Envio: tentativa iniciada.");
                         else if(stage=="receipt_generated")AddGroupDiagnostic(jid,"Envio: identificador gerado; aguardando confirmação do WhatsApp.");
+                        else if(stage=="paused_previous_421")AddGroupDiagnostic(jid,"Envio não transmitido: pausado por rejeição anterior.");
                         else if(stage=="uncertain")AddGroupDiagnostic(jid,"Envio: resultado incerto. Não repetir automaticamente.");
                     }
                 }
@@ -741,12 +766,12 @@ sealed partial class WhatsApp : Form {
                     var receipt=TextValue(result,"message_id");
                     var accepted=outcome=="accepted"&&!String.IsNullOrWhiteSpace(receipt);
                     automatedSend.TrySetResult(Tuple.Create(accepted?"accepted":outcome=="rejected"?"refused":"uncertain",
-                        accepted?receipt:null));
+                        accepted?receipt:outcome=="rejected"&&TextValue(result,"reason_code")=="previous_421"?"previous_421":null));
                 }
                 if(result!=null&&pendingSend!=Guid.Empty&&TextValue(result,"request_id")==pendingSend.ToString()){
                     var status=TextValue(result,"status");
                     if(status=="accepted"){
-                        sendStatus.Text="Mensagem aceita pelo WhatsApp. Confirme entrega e leitura no telefone.";
+                        sendStatus.Text="Identificador local gerado. Aguarde confirmação do WhatsApp.";
                         messageText.Clear();
                     }else if(status=="rejected"){
                         sendStatus.Text="Envio recusado: "+TextValue(result,"reason");
