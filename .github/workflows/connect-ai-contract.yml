@@ -25,3 +25,6 @@ jobs:
       - run: |
           python3 integrations/campaign-mcp/build-plugin.py /tmp/neopep-plugin.zip
           unzip -t /tmp/neopep-plugin.zip
+      - run: |
+          python3 integrations/campaign-mcp/build-plugin.py --environment production --marketplace-tree /tmp/neopep-production.zip
+          unzip -t /tmp/neopep-production.zip
