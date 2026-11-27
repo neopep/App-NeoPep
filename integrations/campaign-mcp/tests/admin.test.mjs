@@ -70,8 +70,10 @@ test('consentimento exige clique e conexões só são revogadas após confirmaç
 test('base administrativa exibe guia, nove métodos e vinte referências sem anunciar escrita',()=>{
  const {window}=parseHTML('<html><body><section><div class="neo-campaign-toolbar"></div></section></body></html>');
  const root=window.document.querySelector('section');
+ window.location={href:'https://teste.app.neopep.com.br/admin/',origin:'https://teste.app.neopep.com.br'};
+ window.NeoCloud=null;
  vm.runInNewContext(read('dist/admin/connect-ai-knowledge.js'),{window});
- vm.runInNewContext(read('dist/admin/admin-connect-ai.js'),{window,document:window.document});
+ vm.runInNewContext(read('dist/admin/admin-connect-ai.js'),{window,document:window.document,URL,URLSearchParams});
  window.NeoAdminConnectAI.mount(root);
  const panel=root.querySelector('[data-connect-ai-knowledge]');
  assert.match(panel.textContent,/2026-11-27.4/);
