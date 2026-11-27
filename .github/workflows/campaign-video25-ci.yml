@@ -1,11 +1,15 @@
 name: Campaign video 25 MB — independent CI
 on:
   push:
-    branches: [desenvolvimento/videos-mov-20261127]
+    branches: [desenvolvimento/campanhas-entrega-edicao-20261127]
   pull_request:
     branches: [desenvolvimento/campanhas-legendas-producao-20261127]
     paths:
       - 'dist/admin/campaign-editor.js'
+      - 'dist/admin/campaign-central.js'
+      - 'dist/app.js'
+      - 'tests/campaign-delivery-edit.test.cjs'
+      - 'release/campanhas-entrega-edicao-20261127/**'
       - 'dist/community.js'
       - 'src/cloud.js'
       - 'connect/windows/**'
@@ -29,6 +33,6 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run check
-      - run: node --test tests/campaign-video-25mb.test.cjs tests/campaign-original-binary-upload.test.cjs tests/library-share-modes.test.cjs tests/library-campaign-share-policy.test.cjs connect/windows/rich-campaign-contract.test.cjs
+      - run: node --test tests/campaign-delivery-edit.test.cjs tests/campaign-video-25mb.test.cjs tests/campaign-original-binary-upload.test.cjs tests/library-share-modes.test.cjs tests/library-campaign-share-policy.test.cjs connect/windows/rich-campaign-contract.test.cjs
       - run: npm ci --prefix connect/whatsapp-lab --ignore-scripts
       - run: npm test --prefix connect/whatsapp-lab

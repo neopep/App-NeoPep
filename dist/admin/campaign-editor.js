@@ -4,6 +4,8 @@
  const states={eligible:'Elegível',stale:'Desatualizado',disconnected:'Desconectado',unavailable:'Indisponível'};
  const videoOriginal=mime=>['video/mp4','video/quicktime'].includes(mime);
  const originalLimit=mime=>videoOriginal(mime)?25*1024*1024:5*1024*1024;
+ const stableDraft=value=>JSON.stringify(value,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
+ const sameDraft=(saved,draft)=>{try{return stableDraft(typeof saved==='string'?JSON.parse(saved):saved)===stableDraft(draft);}catch{return false;}};
  const originalExt=mime=>mime==='application/pdf'?'.pdf':mime==='video/quicktime'?'.mov':'.mp4';
  // iOS Photos can label an MP4 as QuickTime, or return a real MOV. Inspect
  // the container before normalizing the MIME; preserve QuickTime as MOV.
@@ -297,9 +299,9 @@
    if(recovered&&current())await storeMedia('readwrite',store=>store.put(recovered,mediaKey(id)));
    return current()?recovered:null;
   }
-  const draftIsClean=()=>Boolean(state.remoteId&&state.savedDraft===JSON.stringify(draft)&&
+  const draftIsClean=()=>Boolean(state.remoteId&&sameDraft(state.savedDraft,draft)&&
    (editing?draft.blocks.some(b=>b.id===editing&&String(b.text||'').trim()===message.value.trim()):!message.value.trim()));
-  let lastLocalWrite=null;
+  let lastLocalWrite=local?JSON.stringify(local):null;
   function clearConfirmedLocal(){
    const alias='neo-campaign-editor:'+account+':'+channel+':'+state.editorId;
    for(const k of new Set([key,alias]))if(lastLocalWrite&&localStorage.getItem(k)===lastLocalWrite)localStorage.removeItem(k);
@@ -439,7 +441,7 @@
    if(!current())return false;
    state.compose=message.value;state.provisional=provisional;state.editing=editing;state.captionTarget=captionTarget;state.photoQuality=field('photo_quality')?.value;state.weeklyCount=field('weekly_count')?.value;state.push=field('push')?.checked===true;
    try{
-    if(publication&&state.dispatchConfirmed&&draftIsClean()){
+    if(publication&&draftIsClean()){
      clearConfirmedLocal();return true;
     }
     const saved=JSON.stringify(state);
@@ -734,7 +736,7 @@
   function showGate(){
    if(readOnly)return;
    paintIssues();
-   const clean=state.remoteId&&state.savedDraft===JSON.stringify(draft)&&!message.value.trim()&&!editing;
+   const clean=state.remoteId&&sameDraft(state.savedDraft,draft)&&!message.value.trim()&&!editing;
    const rich=richMode();
    const enabled=publication&&channel==='whatsapp'?gates.whatsapp_rich?.ready===true:testApp?testGate.enabled&&testGate.destinations>0&&testGate.destinations<=30&&Boolean(testGate.audience_key):
     testWA?(rich?gates.whatsapp_rich?.ready===true:gates.whatsapp_test?.ready===true):channel==='app'?gates.app_enabled:gates.whatsapp_enabled;
@@ -858,14 +860,14 @@
    if(!draft.blocks.length){explain('Adicione conteúdo antes de continuar.');return;}
    if(testApp&&draft.app_settings?.popup_enabled===false){explain('Em Teste, somente o pop-up está disponível. Marque a exibição interna para homologar.');return;}
    if(draft.blocks.some(b=>b.type==='file')&&!libraryOriginalReady()){explain('Envio de arquivo original desativado no servidor. O rascunho foi preservado; use Capa + link quando disponível.');return;}
-   if(!state.remoteId||state.savedDraft!==JSON.stringify(draft)){
+   if(!state.remoteId||!sameDraft(state.savedDraft,draft)){
     explain('Salvando a versão antes da confirmação. Nenhuma mensagem será enviada.');
     await saveRemote();
    }
    if(!current())return;
    showGate();
    if(!dispatchReady[scheduled?'schedule':'publish']){
-    explain(state.savedDraft!==JSON.stringify(draft)?lastSaveError||'Não foi possível confirmar a versão salva. Confira a conexão e tente novamente.':'A publicação ainda não está liberada: confira os destinos, o tipo de conteúdo e a disponibilidade do canal.');
+    explain(!sameDraft(state.savedDraft,draft)?lastSaveError||'Não foi possível confirmar a versão salva. Confira a conexão e tente novamente.':'A publicação ainda não está liberada: confira os destinos, o tipo de conteúdo e a disponibilidade do canal.');
     return;
    }
    pendingDispatch=scheduled;
