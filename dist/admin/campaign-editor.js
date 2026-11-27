@@ -697,7 +697,7 @@
    if(channel==='whatsapp'&&(!draft.groups.length||!draft.groups.every(id=>groups.some(g=>g.id===id&&g.state==='eligible'))))add('groups','Selecione grupos autorizados','groups');
    if(scheduled&&!draft.planned_local)add('time','Defina data e horário','schedule');
    if(editing||message.value.trim())add('text','Confirme o texto ou legenda','compose');
-   if(draft.blocks.some(b=>b.album_id))add('album','Álbum disponível para prévia local. Registro e despacho indisponíveis.','photo','blocked');
+   if(draft.blocks.some(b=>b.album_id))add('album','Agendamento e despacho de álbuns indisponíveis.','photo','blocked');
    if(!draft.blocks.length)add('content','Adicione conteúdo','menu');
    if(channel==='whatsapp'&&draft.blocks.length>6)add('limit','Limite de 6 blocos por grupo','menu');
    if(draft.blocks.some(b=>b.type==='file')&&!libraryOriginalReady())add('file','Envio de arquivos bloqueado neste canal','file_help','blocked');
@@ -769,6 +769,11 @@
      try{gates.whatsapp_rich=await cloud.campaignRich('diagnostics');}
      catch{gates.whatsapp_rich={ready:false};}
      if(!current())return;
+    }
+    if(channel==='whatsapp'){
+     const result=await endpoint(cloud,'album_draft_capabilities').catch(()=>null);
+     if(!current())return;
+     gates.album_drafts=result;
     }
     if(channel==='whatsapp'&&gates.devices?.length){
      connection.textContent=gates.devices.map(d=>`${d.label} · ${d.ready?'Sessão recente':'Offline ou não verificada'}
@@ -881,8 +886,8 @@
   }
   // Use the remotely advertised executor limit; absent/old capability stays at 1 MiB.
   const dispatchImageLimit=()=>channel==='whatsapp'&&gates.whatsapp_rich?.max_image_bytes===5242880?5242880:1048576;
-  async function jpegForDispatch(blob){
-   const limit=dispatchImageLimit();
+  async function jpegForDispatch(blob,ceiling){
+   const limit=ceiling===1048576?ceiling:dispatchImageLimit();
    const url=URL.createObjectURL(blob),img=new Image();
    try{
     await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('Imagem ilegível. Selecione um JPEG.'));img.src=url;});
@@ -918,7 +923,7 @@
      localImage=await referenceCoverBlob(reference,previewAbort.signal,window.NEO_CONFIG?.supabaseUrl);
     }else localImage=await readDraftMedia(block.id);
     if(!localImage)throw Error('Imagem não encontrada neste dispositivo. Anexe novamente.');
-    const jpeg=await jpegForDispatch(localImage);
+    const jpeg=await jpegForDispatch(localImage,block.album_id?gates.album_drafts?.max_image_bytes:undefined);
     const path=account+'/'+block.id+'.jpg';
     // O SDK oficial e regenerado a partir de src/cloud.js. Aceitar tambem o
     // uploader legado enquanto abas PWA com um bundle antigo estiverem abertas.
@@ -954,7 +959,7 @@
    if(saving||dispatching||!current())return;
    if(publication&&state.dispatchConfirmed){tell('Esta publicação já foi registrada. Volte à Central para editar e republicar.');return;}
    lastSaveError='';
-   if(draft.blocks.some(b=>b.album_id)){tell('Álbum preservado no rascunho local. A integração com o servidor ainda não está disponível.');return;}
+   if(draft.blocks.some(b=>b.album_id)&&gates.album_drafts?.album_drafts!==true){tell('Álbum preservado no rascunho local. A integração com o servidor ainda não está disponível.');return;}
    const editingBlock=editing&&draft.blocks.find(block=>block.id===editing);
    if(editingBlock&&['image','product','document','community','link','file'].includes(editingBlock.type)){
     const caption=message.value.trim();
@@ -966,7 +971,7 @@
    if(editing||message.value.trim()){tell('Conclua o bloco de texto em edição antes de registrar a versão.');return;}
    if(!draft.title.trim()){tell('Informe o título do rascunho.');return;}
    if(advancedApp&&draft.app_settings){const a=draft.app_settings;if((!a.popup_enabled&&!a.push_requested)||(a.audience!=='all'&&!a.targets.length)||!a.weekdays.length||!a.opens_at||a.opens_at>=a.closes_at||!Number.isInteger(a.frequency_hours)||a.frequency_hours<1||a.frequency_hours>8760||!Number.isInteger(a.max_views)||a.max_views<1||a.max_views>100||!Number.isInteger(a.priority)||a.priority<0||a.priority>100){tell('Confira público, dias, horário, canais e limites de exibição.');return;}}
-   if((testWA||testApp||channel==='app'&&gates.app_rich_popup===true)&&draft.blocks.some(b=>['image','document'].includes(b.type)&&!b.media_path)){
+   if((testWA||testApp||channel==='app'&&gates.app_rich_popup===true||gates.album_drafts?.album_drafts===true&&draft.blocks.some(b=>b.album_id))&&draft.blocks.some(b=>['image','document'].includes(b.type)&&!b.media_path)){
     saveLocal();saving=true;tell('Preparando mídia privada para homologação…');
     try{await uploadRichImages();}catch(error){if(current()){saveLocal();tell(/^(Load failed|Failed to fetch|NetworkError)$/i.test(error.message||'')?'Falha ao preparar ou enviar a capa. Seu rascunho foi mantido. Tente novamente.':error.message||'Não foi possível preparar a imagem. Seu rascunho foi mantido.');}saving=false;return;}
     saving=false;

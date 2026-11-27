@@ -1,6 +1,6 @@
 // Candidate: deliberately not registered in the active MCP catalog.
 import {testProfile} from './environments.mjs';
-import {prepareDraftCreation,prepareDraftAddition,prepareDraftTextEdit,prepareMediaCaptionEdit} from './draft-plan.mjs';
+import {prepareDraftCreation,prepareDraftAddition,prepareDraftTextEdit,prepareMediaCaptionEdit,prepareAlbumDraftEdit} from './draft-plan.mjs';
 const uuid=v=>typeof v==='string'&&/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(v);
 const actions=new Set(['create','app_create','get','app_get','load','app_load','save','app_save']);
 const known=new Set(['INVALID_DRAFT','FORBIDDEN','AUTH_REQUIRED','NOT_FOUND_OR_FORBIDDEN','REVISION_CONFLICT','DRAFT_LOCKED','REQUEST_CONFLICT','UPSTREAM_UNAVAILABLE']);
@@ -43,12 +43,15 @@ export function createDraftWriter({publishableKey,sessionFor,request=fetch,profi
   }
   const ids=new Set(),requests=new Set();
   const prepared=input.items.map(item=>{
-   shape(item,operation==='add_publications'?['publicationId','requestId','title','blocks','plannedLocal']:['publicationId','requestId','revision','edits','mediaCaption']);
+   shape(item,operation==='add_publications'?['publicationId','requestId','title','blocks','plannedLocal']:['publicationId','requestId','revision','edits','mediaCaption','albumEdit']);
    if(!uuid(item.publicationId)||!uuid(item.requestId)||ids.has(item.publicationId)||requests.has(item.requestId))throw Error('INVALID_DRAFT');
    ids.add(item.publicationId);requests.add(item.requestId);
    if(operation==='add_publications')return {item,op:prepareDraftAddition({channel,campaignId,...item})};
    if(!Number.isSafeInteger(item.revision)||item.revision<1)throw Error('INVALID_DRAFT');
-   if(Object.hasOwn(item,'mediaCaption')){
+   if(Object.hasOwn(item,'albumEdit')){
+    if(channel!=='whatsapp'||Object.hasOwn(item,'edits')||Object.hasOwn(item,'mediaCaption'))throw Error('INVALID_DRAFT');
+    shape(item.albumEdit,['albumId','items']);
+   }else if(Object.hasOwn(item,'mediaCaption')){
     if(channel!=='whatsapp'||Object.hasOwn(item,'edits'))throw Error('INVALID_DRAFT');
     shape(item.mediaCaption,['blockId','mode','text','separateBlockId']);
    }else if(!Array.isArray(item.edits)||!item.edits.length||item.edits.length>6)throw Error('INVALID_DRAFT');
@@ -67,7 +70,9 @@ export function createDraftWriter({publishableKey,sessionFor,request=fetch,profi
      const loaded=await rpc(prefix+'load',{campaign_id:campaignId,publication_id:item.publicationId});
      if(loaded?.revision!==item.revision||loaded.channel!==channel||loaded.editor_id!==(current.editor_id??current.id))throw Error('REVISION_CONFLICT');
      const currentDraft={channel,campaignId,publicationId:item.publicationId,revision:loaded.revision,status:'draft',draft:loaded.draft};
-     op=item.mediaCaption
+     op=item.albumEdit
+      ?prepareAlbumDraftEdit({channel,campaignId,...item,current:currentDraft})
+      :item.mediaCaption
       ?prepareMediaCaptionEdit({channel,campaignId,...item,...item.mediaCaption,current:currentDraft})
       :prepareDraftTextEdit({channel,campaignId,...item,current:currentDraft});
     }

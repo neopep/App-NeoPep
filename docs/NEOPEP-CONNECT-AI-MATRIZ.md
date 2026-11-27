@@ -24,7 +24,7 @@ Base remota conferida em `4276b86`. “Candidato” indica código de desenvolvi
 | 18 | Auditoria e monitoramento | Audit mínimo em 008 | Painel e métricas reais pendentes | Definir retenção, agregação por ambiente, permissões e fonte de custo. |
 | 19 | Documentação automática | Geradores de manual e conhecimento integrados ao CI | Evidência local e CI anterior | Atualizar catálogo e versões junto dos contratos. |
 | 20 | Regressão e releases | Suítes locais e CI Windows anterior | Sem deploy neste ciclo | Validar binário assinado, navegadores e rollback antes da promoção. |
-| 21 | Álbum WhatsApp | Transporte nativo candidato desligado. Seletor nativo oferece mensagens individuais ou grade de álbum em rascunho local | Álbum agrupado pendente nos dois ambientes | Contrato compartilhado, validação nativa, recibo persistente, executor e apresentação real |
+| 21 | Álbum WhatsApp | 011 candidata com validação, versão nativa e bloqueio nas duas filas. Rodada de quatro imagens e MCP testada localmente | Migração, Windows e apresentação real pendentes | Adaptar fila e recibos, homologar executor e preservar o bloqueio legado |
 | 22 | Biblioteca de criativos | Referências privadas existentes; seleção e deduplicação de criativos reutilizáveis pendentes | Pendente | Definir vínculo e retenção antes de permitir exclusão de arquivos |
 | 23 | Calendário editorial | Fluxos nativos de agenda; visualização consolidada pendente | Pendente | Reutilizar fontes nativas e distinguir horário proposto de agendamento |
 | 24 | Revisão consolidada | Prévia individual existente | Aprovação editorial em lote pendente | Vincular aprovações a revisões e manter confirmação de envio independente |

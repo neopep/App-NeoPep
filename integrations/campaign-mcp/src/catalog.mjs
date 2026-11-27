@@ -3,7 +3,7 @@ import draft from '../contracts/tools.v1.draft.json' with {type:'json'};
 
 const environment={type:'string',enum:['test','production']};
 const strings={type:'array',items:{type:'string'}};
-const object=properties=>({type:'object',properties,required:Object.keys(properties),additionalProperties:false});
+const object=(properties,required=Object.keys(properties))=>({type:'object',properties,required,additionalProperties:false});
 export const version='1.0.0-preview.4';
 const outputs={
  get_publication_guide:publicationGuideSchema,
@@ -49,7 +49,7 @@ const assetKind={enum:['product','document','community']};
 campaignTools.push(
  {name:'get_publication_content',description:'Ler conteúdo editorial e revisão da publicação do titular. Retorna texto, rótulos e tipos, não caminhos de mídia ou URLs privadas. Depende do gate de exclusão nativo.',annotations:readAnnotation,
  inputSchema:{type:'object',additionalProperties:false,required:['channel','campaign_id','publication_id'],properties:{channel,campaign_id:{type:'string',format:'uuid'},publication_id:{type:'string',format:'uuid'}}},
- outputSchema:object({campaign_id:{type:'string'},publication_id:{type:'string'},channel,revision:{type:'integer'},title:{type:'string'},planned_local:nullableString,timezone:nullableString,editable_draft:{type:'boolean'},blocks:{type:'array',items:object({id:{type:'string'},type:{enum:['text','image','file','link','product','document','community']},text:nullableString,label:nullableString,name:nullableString,has_attachment:{type:'boolean'},has_link:{type:'boolean'}})}})},
+ outputSchema:object({campaign_id:{type:'string'},publication_id:{type:'string'},channel,revision:{type:'integer'},title:{type:'string'},planned_local:nullableString,timezone:nullableString,editable_draft:{type:'boolean'},blocks:{type:'array',items:object({id:{type:'string'},type:{enum:['text','image','file','link','product','document','community']},text:nullableString,label:nullableString,name:nullableString,album_id:{type:'string',format:'uuid'},has_attachment:{type:'boolean'},has_link:{type:'boolean'}},['id','type','text','label','name','has_attachment','has_link'])}})},
  {name:'list_authorized_assets',description:'Consultar catálogo autorizado do editor (Loja, Biblioteca e Comunidade), até 30 referências. Não retorna fotos, conteúdo dos membros, preço, credenciais ou arquivos privados. Nenhuma vinculação é realizada.',annotations:readAnnotation,
  inputSchema:{type:'object',additionalProperties:false,required:['channel','kind'],properties:{channel,kind:assetKind,search:{type:'string',maxLength:100}}},
  outputSchema:object({items:{type:'array',items:object({id:{type:'string'},label:{type:'string'},kind:assetKind})},limit:{const:30}})},

@@ -136,7 +136,7 @@ export function createCampaignReader({publishableKey,sessionFor,request=fetch,pr
    return {campaign_id:input.campaign_id,publication_id:pub.id,channel,revision:value.revision,title:label(draft.title),
     planned_local:field(draft.planned_local,32),timezone:field(draft.timezone,64),
     editable_draft:!data.archived_at&&!pub.legacy_dispatch&&Array.isArray(pub.batches)&&pub.batches.length===0,
-    blocks:draft.blocks.slice(0,32).filter(b=>uuid(b?.id)&&kinds.has(b.type)).map(b=>({id:b.id,type:b.type,text:field(b.text,4000),label:field(b.label,200),name:field(b.name,200),has_attachment:typeof b.media_path==='string'&&!!b.media_path,has_link:typeof b.url==='string'&&!!b.url}))};
+    blocks:draft.blocks.slice(0,32).filter(b=>uuid(b?.id)&&kinds.has(b.type)).map(b=>({id:b.id,type:b.type,text:field(b.text,4000),label:field(b.label,200),name:field(b.name,200),...(channel==='whatsapp'&&b.type==='image'&&uuid(b.album_id)?{album_id:b.album_id}:{}),has_attachment:typeof b.media_path==='string'&&!!b.media_path,has_link:typeof b.url==='string'&&!!b.url}))};
   }
   const history=(Array.isArray(data.events)?data.events:[]).slice(0,30)
    .filter(event=>typeof event?.event==='string').map(event=>({event:label(event.event),recorded_at:instant(event.recorded_at)}));

@@ -74,8 +74,31 @@ export function prepareMediaCaptionEdit({channel,campaignId,publicationId,reques
  if(mode==='none'&&text.trim())throw Error('INVALID_DRAFT');
  if(mode==='separate'){
   if(!text.trim()||typeof separateBlockId!=='string'||!uuid.test(separateBlockId)||draft.blocks.some(b=>b.id===separateBlockId)||draft.blocks.length>=32)throw Error('INVALID_DRAFT');
-  draft.blocks.splice(i+1,0,{id:separateBlockId,type:'text',text});
+  let after=i+1;
+  while(block.album_id&&draft.blocks[after]?.album_id===block.album_id)after++;
+  draft.blocks.splice(after,0,{id:separateBlockId,type:'text',text});
  }
  block.text=mode==='caption'?text:'';block.layout=mode==='caption'&&text.trim()?'caption':'separate';
+ return {p_action:'save',p_data:{campaign_id:campaignId,publication_id:publicationId,request_id:requestId,revision,draft}};
+}
+
+export function prepareAlbumDraftEdit({channel,campaignId,publicationId,requestId,revision,current,albumEdit}){
+ const {albumId,items}=albumEdit||{};
+ if(channel!=='whatsapp'||![campaignId,publicationId,requestId,albumId].every(v=>typeof v==='string'&&uuid.test(v))||
+  current?.channel!==channel||current.campaignId!==campaignId||current.publicationId!==publicationId||
+  current.revision!==revision||current.status!=='draft'||!Array.isArray(current.draft?.blocks)||
+  !Array.isArray(items)||items.length<2||items.length>4)throw Error('INVALID_DRAFT');
+ const draft=structuredClone(current.draft);
+ const group=draft.blocks.filter(b=>b.album_id===albumId);
+ const first=draft.blocks.findIndex(b=>b.album_id===albumId);
+ if(group.length!==items.length||group.some((b,i)=>b.type!=='image'||draft.blocks[first+i]!==b))throw Error('INVALID_DRAFT');
+ const byId=new Map(group.map(b=>[b.id,b]));
+ const ordered=items.map(item=>{
+  if(!item||Object.keys(item).some(key=>key!=='id'&&key!=='text')||typeof item.text!=='string'||item.text.length>1000||!byId.has(item.id))throw Error('INVALID_DRAFT');
+  const block=byId.get(item.id);
+  byId.delete(item.id);
+  return {...block,text:item.text,layout:item.text.trim()?'caption':'separate'};
+ });
+ draft.blocks.splice(first,group.length,...ordered);
  return {p_action:'save',p_data:{campaign_id:campaignId,publication_id:publicationId,request_id:requestId,revision,draft}};
 }

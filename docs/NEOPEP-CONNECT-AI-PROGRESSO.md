@@ -237,3 +237,13 @@ Base remota confirmada em `1c86ead`. O seletor WhatsApp oferece mensagens indivi
 
 O marcador local ainda não é um contrato de publicação. O editor bloqueia registro remoto, agendamento e despacho enquanto o rascunho contém agrupamento. A fila, a validação SQL, o executor `album_v1`, os recibos persistentes e as ferramentas MCP continuam pendentes; o bridge permanece desligado. Nenhuma migração, publicação ou envio real realizado.
 - `eb842b0` enviado ao GitHub. Build, check e geradores passaram. Suítes: 571/571 web, 36/36 MCP e 26/26 Windows/bridge/provider. Inclui teste focal de agrupamento e limite total. Não houve validação visual em dispositivo físico.
+
+## Álbum em versões nativas de rascunho
+
+Base `29a9bac` conferida. A candidata 011 mantém os blocos de imagem, IDs e `album_id` na tabela de versões existente. A revisão nativa conserva a ordem na matriz JSON. A validação confere JPEG privado e pertencente ao titular, caminho vinculado ao ID de imagem, 2–4 imagens consecutivas e distintas e limites de legenda e tamanho. O limite remoto conservador é 1 MiB por imagem até existir negociação homologada no servidor. O editor consulta a capacidade de persistência antes de permitir o upload e o registro. Preserva a prévia local se o servidor ainda estiver na versão anterior.
+
+Os dois bancos têm o mesmo hash de corpo da RPC de edição, a lista de campos esperada e as duas tabelas de lotes com a coluna de revisão. Consultas remotas foram só de metadados. O patch candidato exige o hash e marcadores exatos, preserva a autorização nativa e instala bloqueio de inserção nas duas filas se a revisão contiver álbum. Nenhuma migração remota aplicada; nenhum recurso foi ativado.
+
+Leitura MCP preserva a ordem e o `album_id` sem expor caminhos. A edição `albumEdit` aceita uma permutação completa dos IDs existentes e legendas, com a autorização e o controle de revisão já existentes. Uma legenda convertida em texto separado fica depois do grupo. Guia e base gerada atualizados para 2026-11-27.7.
+
+O ensaio PGlite usa RPC e objetos de Storage fictícios. Ele cobre quatro imagens, duas revisões manuais, consulta e revisão via adaptadores MCP, titularidade, contiguidade e recusa das filas, além de publicação individual legada. Ainda faltam criação MCP com mídia autorizada, lote, suporte ao álbum na fila, recibos duráveis, Windows, agendamento simulado e falha parcial através dessas camadas. Sem homologação ou deploy.

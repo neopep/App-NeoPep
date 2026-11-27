@@ -11,7 +11,8 @@ const guideField={type:'string',const:guideVersion,description:'Versão retornad
 const revision={type:'integer',minimum:1};
 const caption=obj({blockId:id,mode:{enum:['caption','separate','none']},text:{type:'string',maxLength:2000},separateBlockId:id},['blockId','mode']);
 const revisionItem={publicationId:id,requestId:id,revision};
-const updateItem={oneOf:[obj({...revisionItem,edits:item({id,text})}),obj({...revisionItem,mediaCaption:caption})]};
+const albumEdit=obj({albumId:id,items:{type:'array',minItems:2,maxItems:4,items:obj({id,text:{type:'string',maxLength:1000}})}});
+const updateItem={oneOf:[obj({...revisionItem,edits:item({id,text})}),obj({...revisionItem,mediaCaption:caption}),obj({...revisionItem,albumEdit})]};
 const annotations={readOnlyHint:false,destructiveHint:false,idempotentHint:false,openWorldHint:false};
 export const draftTools=[
  {name:'create_campaign_draft',description:'Cria campanha em rascunho exclusivamente no Teste. Não envia nem agenda. Reutilize requestId em tentativas.',inputSchema:obj({channel,title,requestId:id,guideVersion:guideField,guideReceipt:receiptField}),outputSchema:obj({campaignId:id,channel,status:{const:'draft_created_or_reused'}}),annotations},

@@ -113,7 +113,7 @@ Escopo `campaigns:read`.
     "type": "object",
     "properties": {
       "guide_version": {
-        "const": "2026-11-27.6"
+        "const": "2026-11-27.7"
       },
       "guide_receipt": {
         "type": [
@@ -907,6 +907,10 @@ Escopo `campaigns:read`.
                 "null"
               ]
             },
+            "album_id": {
+              "type": "string",
+              "format": "uuid"
+            },
             "has_attachment": {
               "type": "boolean"
             },
@@ -1109,7 +1113,7 @@ Escopo `campaigns:read + campaigns:drafts`.
       },
       "guideVersion": {
         "type": "string",
-        "const": "2026-11-27.6",
+        "const": "2026-11-27.7",
         "description": "Versão retornada por get_publication_guide; consulte antes de escrever."
       },
       "guideReceipt": {
@@ -1177,7 +1181,7 @@ Escopo `campaigns:read + campaigns:drafts`.
       },
       "guideVersion": {
         "type": "string",
-        "const": "2026-11-27.6",
+        "const": "2026-11-27.7",
         "description": "Versão retornada por get_publication_guide; consulte antes de escrever."
       },
       "guideReceipt": {
@@ -1329,7 +1333,7 @@ Escopo `campaigns:read + campaigns:drafts`.
       },
       "guideVersion": {
         "type": "string",
-        "const": "2026-11-27.6",
+        "const": "2026-11-27.7",
         "description": "Versão retornada por get_publication_guide; consulte antes de escrever."
       },
       "guideReceipt": {
@@ -1441,6 +1445,67 @@ Escopo `campaigns:read + campaigns:drafts`.
                 "requestId",
                 "revision",
                 "mediaCaption"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "publicationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "requestId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "albumEdit": {
+                  "type": "object",
+                  "properties": {
+                    "albumId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "items": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 4,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "text": {
+                            "type": "string",
+                            "maxLength": 1000
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "text"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "albumId",
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "publicationId",
+                "requestId",
+                "revision",
+                "albumEdit"
               ],
               "additionalProperties": false
             }
