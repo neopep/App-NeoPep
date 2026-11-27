@@ -525,6 +525,28 @@ sealed partial class WhatsApp : Form {
                 if(rows!=null)foreach(Dictionary<string,object> item in rows)groupRows.Add(item);
                 selected.IntersectWith(groupRows.ConvertAll(item=>TextValue(item,"id")));
                 groupReadAt=DateTime.Now;RenderGroups();ShowGroupStatus();RefreshComposerGroups();
+            }else if(type=="group_check"&&ready&&!forgetting){
+                phase="GRUPO_METADADOS";
+                var check=message["value"] as Dictionary<string,object>;
+                if(check!=null){
+                    string jid=TextValue(check,"group_jid"),code=TextValue(check,"code");
+                    string[] allowed={"ok","membership_refreshed","membership_changed_during_read","mode_mismatch","metadata_invalid","metadata_unavailable","permission_unverified"};
+                    if(System.Text.RegularExpressions.Regex.IsMatch(jid,@"\A[0-9-]{1,64}@g[.]us\z")&&Array.IndexOf(allowed,code)>=0){
+                        var group=groupRows.Find(item=>TextValue(item,"id")==jid);
+                        string label=group==null?"Grupo selecionado":TextValue(group,"name");
+                        string listed=GroupMode(TextValue(check,"listed_mode")),fresh=GroupMode(TextValue(check,"fresh_mode"));
+                        int before,after,lid,pn;
+                        if(!Int32.TryParse(TextValue(check,"listed_count"),out before)||before<0||before>100000)before=0;
+                        if(!Int32.TryParse(TextValue(check,"fresh_count"),out after)||after<0||after>100000)after=0;
+                        if(!Int32.TryParse(TextValue(check,"lid_count"),out lid)||lid<0||lid>100000)lid=0;
+                        if(!Int32.TryParse(TextValue(check,"pn_count"),out pn)||pn<0||pn>100000)pn=0;
+                        string description=code=="ok"?"Metadados consistentes":code=="membership_refreshed"?"Participantes atualizados":code=="mode_mismatch"?"Divergência PN/LID; envio interrompido":code=="permission_unverified"?"Permissão não confirmada; envio interrompido":code=="membership_changed_during_read"?"Grupo mudou durante consulta; envio interrompido":code=="metadata_unavailable"?"Consulta individual indisponível":"Metadados inválidos";
+                        diagnostic.Text=label+" • "+DateTime.Now.ToString("g")+"\n"+description+"\nModo: "+listed+" → "+fresh+" | Membros: "+before+" → "+after+"\nIdentificadores atuais: LID "+lid+" / PN "+pn+"\nNenhum identificador individual é registrado.";
+                        if(code!="ok"&&code!="membership_refreshed"){
+                            if(groupLastErrors.Count<500||groupLastErrors.ContainsKey(jid)){groupLastErrors[jid]=code;RenderGroups();}
+                        }
+                    }
+                }
             }else if(type=="delivery_receipt"&&ready&&!forgetting){
                 phase="ENTREGA";
                 var row=message["value"] as Dictionary<string,object>;
