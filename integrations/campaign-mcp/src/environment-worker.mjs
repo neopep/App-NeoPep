@@ -6,6 +6,8 @@ import {createNeoSession} from './neo-session.mjs';
 import {createConnectionAuthorizer} from './authorization.mjs';
 import {openSessionBroker} from './session-broker.mjs';
 import {createCampaignReader} from './campaign-reader.mjs';
+import {createDraftWriter} from './draft-writer.mjs';
+import {READ_SCOPE,DRAFT_SCOPE} from './scopes.mjs';
 
 function configuredClients(text){
  const parsed=JSON.parse(text);
@@ -23,6 +25,7 @@ function configuredClients(text){
 export async function environmentHandler(profile,env,request=fetch){
  if(env.NEO_CONNECT_AI_ENABLED!=='1')return createHandler({environment:profile.name});
  const {issuerOrigin,resource,approvalOrigin}=profile;
+ const enableDrafts=profile.name==='test'&&env.NEO_CONNECT_AI_DRAFTS==='1';
  const broker=env.NEO_CONNECT_AI_BROKER;
  if(!broker?.fetch||!env.NEO_CONNECT_AI_CSRF_KEY||!env.NEO_CONNECT_AI_SIGNING_JWK||!env.NEO_CONNECT_AI_PUBLIC_JWK||
     !env.NEO_CONNECT_AI_KEY_ID||!env.NEO_CONNECT_AI_CLIENTS||!env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY)throw Error('CONNECT_AI_CONFIGURATION');
@@ -54,24 +57,27 @@ export async function environmentHandler(profile,env,request=fetch){
   return token;
  }
  const oauth=createIssuer({issuer:issuerOrigin,resource,key,keyId:env.NEO_CONNECT_AI_KEY_ID,publicJwk,clients,
-  confirmNeoPepSession:async session=>session,
+  enableDrafts,confirmNeoPepSession:async session=>session,
   store:{registerCode:data=>call('grant/register',data),rotate:data=>call('grant/rotate',data)}});
- const consent=createConsentHandler({issuer:oauth,clients,approvalOrigin,csrfKey,sessionFor:async(token,{clientId,proof})=>{
+ const consent=createConsentHandler({issuer:oauth,clients,approvalOrigin,csrfKey,sessionFor:async(token,{clientId,proof,scope=READ_SCOPE})=>{
   let claim;
   try{claim=await call('consent/claim',{proof});}catch{console.warn('NEO_OAUTH: claim_backend_failed');throw Error('CONSENT_CLAIM_FAILED');}
   if(claim!==true){console.warn('NEO_OAUTH: claim_rejected');return null;}
   console.log('NEO_OAUTH: claim_ok');
-  const {ownerId,data}=await verify(token,'register',{clientId,label:'NeoPep Connect AI'});
+  const wantsDrafts=scope===READ_SCOPE+' '+DRAFT_SCOPE;
+  if(wantsDrafts&&!enableDrafts)return null;
+  const {ownerId,data}=await verify(token,wantsDrafts?'register_drafts':'register',{clientId,label:wantsDrafts?'NeoPep Connect AI – Rascunhos Teste':'NeoPep Connect AI'});
   if(!data?.id){console.warn('NEO_OAUTH: connection_id_missing');return null;}
   if(await call('session/bind',{id:data.id,ownerId,token})!==true){console.warn('NEO_OAUTH: bind_rejected');return null;}
   console.log('NEO_OAUTH: bind_ok');
-  return {connectionId:data.id,campaignAdmin:true};
+  return {connectionId:data.id,campaignAdmin:true,scopes:data.scopes??[READ_SCOPE]};
  }});
  const authorize=createConnectionAuthorizer({key:verifyKey,issuer:issuerOrigin,resource,environment:profile.name,
   findConnection:id=>call('connection/read',{id}),
   isCampaignAdmin:async(ownerId,environment,id)=>Boolean(await activeSession(id,ownerId))});
  const readChannels=env.NEO_CONNECT_AI_READ_APP==='1'?['whatsapp','app']:['whatsapp'];
- return createHandler({environment:profile.name,oauth,consent,authorize,readChannels,readCampaign:createCampaignReader({
+ const writeDraft=enableDrafts?createDraftWriter({publishableKey:env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY,sessionFor:activeSession,request,profile,enabled:true}):undefined;
+ return createHandler({environment:profile.name,oauth,consent,authorize,readChannels,writeDraft,readCampaign:createCampaignReader({
   publishableKey:env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY,sessionFor:activeSession,request,profile,channels:readChannels,appRecurrences:readChannels.includes('app')
  })});
 }

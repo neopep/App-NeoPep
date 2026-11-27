@@ -1,3 +1,4 @@
+import {READ_SCOPE,DRAFT_SCOPE,allowedScope} from './scopes.mjs';
 import {neoCimdClientAllowed} from './cimd-client.mjs';
 const noStore={'Cache-Control':'no-store','Referrer-Policy':'no-referrer'};
 const allowedKeys=['response_type','client_id','redirect_uri','code_challenge','code_challenge_method','resource','scope','state'];
@@ -7,6 +8,7 @@ const base64url=bytes=>btoa(String.fromCharCode(...new Uint8Array(bytes))).repla
 
 export function createConsentHandler({issuer,clients,approvalOrigin,csrfKey,sessionFor}){
  const resource=issuer.protectedResource.resource;
+ const drafts=new URL(resource).origin==='https://connect-teste.neopep.com.br'&&issuer.metadata?.scopes_supported?.includes(DRAFT_SCOPE);
  if(new URL(approvalOrigin).origin!==approvalOrigin||new URL(approvalOrigin).protocol!=='https:'||
   typeof sessionFor!=='function'||!csrfKey)throw Error('Invalid consent configuration');
  async function challenge(params,expires){
@@ -18,9 +20,10 @@ export function createConsentHandler({issuer,clients,approvalOrigin,csrfKey,sess
   const p=Object.fromEntries(allowedKeys.map(key=>[key,params.get(key)]));
   if(p.response_type!=='code'||!p.redirect_uri||!await neoCimdClientAllowed(clients,p.client_id,p.redirect_uri)||
    p.code_challenge_method!=='S256'||!/^[A-Za-z0-9_-]{43}$/.test(p.code_challenge||'')||
-   p.resource!==resource||p.scope!=='campaigns:read'||!p.state||p.state.length>512)return null;
+   p.resource!==resource||!allowedScope(p.scope,drafts)||!p.state||p.state.length>512)return null;
   const redirect=new URL(p.redirect_uri);
   if(redirect.hash||redirect.username||redirect.password)return null;
+  p.scope=allowedScope(p.scope,drafts);
   return p;
  }
  return async request=>{
@@ -42,7 +45,7 @@ export function createConsentHandler({issuer,clients,approvalOrigin,csrfKey,sess
   const cors={...noStore,'Access-Control-Allow-Origin':approvalOrigin,Vary:'Origin'};
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...cors,
    'Access-Control-Allow-Methods':'POST','Access-Control-Allow-Headers':'Authorization,X-Neo-Consent,X-Neo-Csrf,X-Neo-Expires'}});
-  if(request.method!=='POST'||request.headers.get('x-neo-consent')!=='approve')return fail(403);
+  if(request.method!=='POST'||request.headers.get('x-neo-consent')!==(p.scope.includes(DRAFT_SCOPE)?'approve_drafts':'approve'))return fail(403);
   const expires=Number(request.headers.get('x-neo-expires'));
   const proof=request.headers.get('x-neo-csrf')||'';
   if(!Number.isSafeInteger(expires)||expires<=Date.now()||expires>Date.now()+120000||
@@ -53,7 +56,7 @@ export function createConsentHandler({issuer,clients,approvalOrigin,csrfKey,sess
   const bearer=/^Bearer ([A-Za-z0-9_.-]{1,8192})$/.exec(request.headers.get('authorization')||'')?.[1];
   if(!bearer)return fail(401);
   try{
-   const session=await sessionFor(bearer,{clientId:p.client_id,proof});
+   const session=await sessionFor(bearer,{clientId:p.client_id,proof,scope:p.scope});
    if(!session)return fail(403);
    const code=await issuer.issueCode({session,clientId:p.client_id,redirectUri:p.redirect_uri,challenge:p.code_challenge,
     method:p.code_challenge_method,requestedResource:p.resource,requestedScope:p.scope,consent:true});

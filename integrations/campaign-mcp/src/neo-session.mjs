@@ -5,7 +5,7 @@ export function createNeoSession({publishableKey,request=fetch,profile=testProfi
  if(!publishableKey)throw Error('NEOPEP_CONFIGURATION_REQUIRED');
  return async (token,action,{id=null,clientId=null,label=null}={})=>{
   if(typeof token!=='string'||token.length>8192||!tokenPattern.test(token)||
-     !['list','register','inspect','revoke'].includes(action))throw Error('NEOPEP_SESSION_REQUIRED');
+     !['list','register','register_drafts','inspect','revoke'].includes(action)||(action==='register_drafts'&&profile.name!=='test'))throw Error('NEOPEP_SESSION_REQUIRED');
   const headers={apikey:publishableKey,Authorization:'Bearer '+token};
   const options={headers,redirect:'manual',signal:AbortSignal.timeout(5000)};
   let identity;

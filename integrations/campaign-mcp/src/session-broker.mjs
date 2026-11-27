@@ -20,8 +20,9 @@ export async function openSessionBroker(env,request=fetch,connect=postgres,profi
  const verify=createNeoSession({publishableKey:env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY,request,profile});
  const aad=(id,ownerId)=>encoder.encode(JSON.stringify([id,ownerId]));
  async function getConnection(id){
-  const [row]=await sql`select id,owner_id,client_id, expires_at,revoked_at
-   from neo_private.connect_ai_connections where id=${id}`;
+  const [row]=profile.name==='test'&&env.NEO_CONNECT_AI_DRAFTS==='1'
+   ?await sql`select id,owner_id,client_id,expires_at,revoked_at,scopes from neo_private.connect_ai_connections where id=${id}`
+   :await sql`select id,owner_id,client_id,expires_at,revoked_at from neo_private.connect_ai_connections where id=${id}`;
   return row;
  }
  async function readSession(id,ownerId){
@@ -61,7 +62,7 @@ export async function openSessionBroker(env,request=fetch,connect=postgres,profi
    }else if(p==='/connection/read'){
     const row=await getConnection(d.id);
     if(liveConnection(row))result={id:row.id,ownerId:row.owner_id,clientId:row.client_id,expiresAt:Date.parse(row.expires_at),
-     environment:profile.name,resource:profile.resource,scopes:['campaigns:read']};
+     environment:profile.name,resource:profile.resource,scopes:row.scopes??['campaigns:read']};
    }else if(p==='/grant/register'){
     await sql`insert into neo_private.connect_ai_oauth_grants (digest,connection_id,kind,redirect_uri,challenge,expires_at)
      values (${d.digest},${d.connectionId},'code',${d.redirectUri},${d.challenge},${new Date(d.expiresAt)})`;
@@ -76,7 +77,7 @@ export async function openSessionBroker(env,request=fetch,connect=postgres,profi
     if(checked.ownerId!==row.owner_id||!checked.data||checked.data.revoked_at)return Response.json(null);
     const [query]=await sql`select neo_private.connect_ai_rotate_grant(
      ${d.digest},${d.kind},${d.clientId},${d.redirectUri},${d.challenge},${d.nextDigest}) as rotated`;
-    result=query.rotated;
+    result=query.rotated?{...query.rotated,scopes:row.scopes??['campaigns:read']}:null;
    }else return new Response(null,{status:404});
    return Response.json(result);
   }

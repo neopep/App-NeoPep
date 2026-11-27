@@ -1,3 +1,4 @@
+import {READ_SCOPE, DRAFT_SCOPE, allowedScope, connectionScope} from './scopes.mjs';
 import {SignJWT} from 'jose';
 import {challengeS256} from './pkce.mjs';
 import {neoCimdClientAllowed} from './cimd-client.mjs';
@@ -6,32 +7,35 @@ const encode=value=>new TextEncoder().encode(value);
 const hex=bytes=>Array.from(new Uint8Array(bytes),byte=>byte.toString(16).padStart(2,'0')).join('');
 const digest=async value=>hex(await crypto.subtle.digest('SHA-256',encode(value)));
 const secret=()=>hex(crypto.getRandomValues(new Uint8Array(32)));
-const scope='campaigns:read';
+
 const isSecret=value=>typeof value==='string'&&/^[0-9a-f]{64}$/.test(value);
 const ok=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store','Pragma':'no-cache'}});
 const invalid=()=>Error('INVALID_GRANT');
 
-export function createIssuer({issuer,resource,key,keyId,publicJwk,clients,store,confirmNeoPepSession}){
+export function createIssuer({issuer,resource,key,keyId,publicJwk,clients,store,confirmNeoPepSession,enableDrafts=false}){
  if(new URL(issuer).protocol!=='https:'||new URL(resource).protocol!=='https:'||!key||!keyId||
   !(clients instanceof Map)||!store||typeof confirmNeoPepSession!=='function')throw Error('Invalid issuer configuration');
+ const drafts=enableDrafts===true&&new URL(issuer).origin==='https://connect-teste.neopep.com.br';
+ const scopesSupported=drafts?[READ_SCOPE,DRAFT_SCOPE]:[READ_SCOPE];
  const metadata={issuer,authorization_endpoint:issuer+'/oauth/authorize',token_endpoint:issuer+'/oauth/token',
   jwks_uri:issuer+'/.well-known/jwks.json',response_types_supported:['code'],
   grant_types_supported:['authorization_code','refresh_token'],code_challenge_methods_supported:['S256'],
-  token_endpoint_auth_methods_supported:['none'],client_id_metadata_document_supported:true,authorization_response_iss_parameter_supported:true,scopes_supported:[scope]};
+  token_endpoint_auth_methods_supported:['none'],client_id_metadata_document_supported:true,authorization_response_iss_parameter_supported:true,scopes_supported:scopesSupported};
  const jwks=publicJwk?.kty==='EC'&&publicJwk.crv==='P-256'&&
   [publicJwk.x,publicJwk.y].every(value=>typeof value==='string'&&/^[A-Za-z0-9_-]{43}$/.test(value))
   ?{keys:[{kty:'EC',crv:'P-256',x:publicJwk.x,y:publicJwk.y,alg:'ES256',use:'sig',kid:keyId}]}:null;
  if(!jwks)delete metadata.jwks_uri;
- const protectedResource={resource,authorization_servers:[issuer],scopes_supported:[scope]};
+ const protectedResource={resource,authorization_servers:[issuer],scopes_supported:scopesSupported};
  const allowClient=(clientId,redirectUri)=>neoCimdClientAllowed(clients,clientId,redirectUri);
  return {
   metadata,protectedResource,jwks,
   // Call only behind the host's explicit consent and CSRF-protected session flow.
   async issueCode({session,clientId,redirectUri,challenge,method,requestedResource,requestedScope,consent}){
-   if(consent!==true||!await allowClient(clientId,redirectUri)||requestedResource!==resource||requestedScope!==scope||
+   if(consent!==true||!await allowClient(clientId,redirectUri)||requestedResource!==resource||!allowedScope(requestedScope,drafts)||
      method!=='S256'||typeof challenge!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(challenge))throw invalid();
    const identity=await confirmNeoPepSession(session,{clientId,resource});
    if(!identity?.connectionId||identity.campaignAdmin!==true)throw invalid();
+   if(connectionScope(identity.scopes??[READ_SCOPE],drafts)!==allowedScope(requestedScope,drafts))throw invalid();
    const code=secret();
    await store.registerCode({digest:await digest(code),connectionId:identity.connectionId,clientId,
     redirectUri,challenge,expiresAt:Date.now()+120000});
@@ -51,6 +55,8 @@ export function createIssuer({issuer,resource,key,keyId,publicJwk,clients,store,
    const grant=await store.rotate({digest:await digest(previous),kind:codeGrant?'code':'refresh',
     clientId,redirectUri,challenge,nextDigest:await digest(next)});
    if(!grant?.id||!grant.ownerId)throw invalid();
+   const scope=connectionScope(grant.scopes??[READ_SCOPE],drafts);
+   if(!scope||(fields.scope!==undefined&&allowedScope(fields.scope,drafts)!==scope))throw invalid();
    const token=await new SignJWT({connection_id:grant.id,client_id:clientId,scope})
     .setProtectedHeader({alg:'ES256',kid:keyId,typ:'at+jwt'}).setIssuer(issuer).setAudience(resource)
     .setSubject(grant.ownerId).setIssuedAt().setExpirationTime('5m').sign(key);
