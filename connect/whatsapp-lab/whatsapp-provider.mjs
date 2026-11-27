@@ -401,7 +401,8 @@ export async function createBaileysProvider(
   },
   async sendFile(groupJid,caption,bytes,mime,name){
    if(typeof caption!=='string'||caption.length>1000||!validCampaignFile(bytes,mime,name))throw Error('Arquivo ou legenda inválido.');
-   const payload=mime==='application/pdf'||mime==='video/quicktime'||bytes.length>16*1024*1024?{document:bytes,mimetype:mime,fileName:name,caption:caption.trim()}:{video:bytes,mimetype:mime,caption:caption.trim()};
+   if(mime!=='application/pdf'&&(mime!=='video/mp4'||bytes.length>16*1024*1024))return {blocked:'video_conversion'};
+   const payload=mime==='application/pdf'?{document:bytes,mimetype:mime,fileName:name,caption:caption.trim()}:{video:bytes,mimetype:'video/mp4',caption:caption.trim()};
    return sendToParticipatingGroup(groupJid,payload);
   },
   async forget(){
