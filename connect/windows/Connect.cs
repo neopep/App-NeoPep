@@ -444,7 +444,7 @@ sealed partial class Connect : Form {
             client.Headers["apikey"]=profile.PublishableKey;
             var data=await client.DownloadDataTaskAsync(profile.Endpoint(
                 "/storage/v1/object/authenticated/"+bucket+"/"+path));
-            if(data==null||data.Length<4||data.Length>1048576||data[0]!=0xff||data[1]!=0xd8||data[2]!=0xff)
+            if(data==null||data.Length<4||data.Length>5*1024*1024||data[0]!=0xff||data[1]!=0xd8||data[2]!=0xff)
                 throw new InvalidOperationException();
             return data;
         }

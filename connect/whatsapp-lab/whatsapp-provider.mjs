@@ -3,6 +3,7 @@ const loadModules=()=>Promise.all([import('@whiskeysockets/baileys'),import('pin
 
 // Conservative transport limit: base64 and JSON fit the 16 MiB Windows IPC envelope.
 export const CAMPAIGN_FILE_MAX=5*1024*1024;
+export const CAMPAIGN_IMAGE_MAX=5*1024*1024;
 export function validCampaignFile(bytes,mime,name){
  if(!Buffer.isBuffer(bytes)||bytes.length<8||bytes.length>CAMPAIGN_FILE_MAX||typeof name!=='string'||!name.trim()||name.length>160||/[\\/:*?"<>|\x00-\x1f\x7f]/.test(name))return false;
  if(mime==='application/pdf')return /\.pdf$/i.test(name)&&bytes.subarray(0,5).toString('ascii')==='%PDF-'&&bytes.subarray(Math.max(0,bytes.length-1024)).includes(Buffer.from('%%EOF'));
@@ -104,7 +105,7 @@ export async function createBaileysProvider(
    return sendToParticipatingGroup(groupJid,{text:text.trim()});
   },
   async sendImage(groupJid,caption,image){
-   if(typeof caption!=='string'||caption.length>2000||!Buffer.isBuffer(image)||image.length<4||image.length>1024*1024)
+   if(typeof caption!=='string'||caption.length>2000||!Buffer.isBuffer(image)||image.length<4||image.length>CAMPAIGN_IMAGE_MAX)
     throw Error('Imagem ou legenda inválida.');
    return sendToParticipatingGroup(groupJid,{image,caption:caption.trim(),mimetype:'image/jpeg'});
   },

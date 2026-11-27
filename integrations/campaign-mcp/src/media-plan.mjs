@@ -1,6 +1,6 @@
 // Candidate upload validation. Never retrieves arbitrary URLs or uploads by itself.
 const uuid=v=>typeof v==='string'&&/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(v);
-const rules=Object.freeze({'image/jpeg':{bucket:'neo-campaign-images',ext:'jpg',limit:1048576,block:'image'},'application/pdf':{bucket:'neo-campaign-originals',ext:'pdf',limit:5242880,block:'file'},'video/mp4':{bucket:'neo-campaign-originals',ext:'mp4',limit:5242880,block:'file'}});
+const rules=Object.freeze({'image/jpeg':{bucket:'neo-campaign-images',ext:'jpg',limit:5242880,block:'image'},'application/pdf':{bucket:'neo-campaign-originals',ext:'pdf',limit:5242880,block:'file'},'video/mp4':{bucket:'neo-campaign-originals',ext:'mp4',limit:5242880,block:'file'}});
 const fail=()=>{throw Error('INVALID_MEDIA');};
 export function planUpload(principal,input){
  if(principal?.environment!=='test'||principal.campaignAdmin!==true||!principal.scopes?.includes('campaigns:drafts')||!uuid(principal.ownerId)||!uuid(principal.id))throw Error('FORBIDDEN');

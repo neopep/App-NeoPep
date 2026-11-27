@@ -289,7 +289,7 @@ sealed partial class WhatsApp : Form {
     }
     public async Task<Tuple<string,string>> DispatchCampaignImageAsync(Guid request,string group,string caption,byte[] jpeg) {
         if(!CampaignSessionReady||pendingSend!=Guid.Empty||automatedSend!=null||!selected.Contains(group)
-            ||caption==null||caption.Length>2000||jpeg==null||jpeg.Length<4||jpeg.Length>1048576
+            ||caption==null||caption.Length>2000||jpeg==null||jpeg.Length<4||jpeg.Length>5*1024*1024
             ||jpeg[0]!=0xff||jpeg[1]!=0xd8||jpeg[2]!=0xff||request==Guid.Empty
             ||canPublish==null||!canPublish())return Tuple.Create("refused",(string)null);
         var completion=new TaskCompletionSource<Tuple<string,string>>(TaskCreationOptions.RunContinuationsAsynchronously);

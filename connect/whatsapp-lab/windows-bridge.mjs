@@ -1,7 +1,7 @@
 // Protocolo privado por pipes herdados. Nenhuma porta HTTP é aberta.
 import {createInterface} from 'node:readline';
 import {fileURLToPath} from 'node:url';
-import {createBaileysProvider,validCampaignFile,CAMPAIGN_FILE_MAX} from './whatsapp-provider.mjs';
+import {createBaileysProvider,validCampaignFile,CAMPAIGN_FILE_MAX,CAMPAIGN_IMAGE_MAX} from './whatsapp-provider.mjs';
 
 export function createBridge({emit,providerFactory=createBaileysProvider,renderQr}){
  let current,generation=0,qrVersion=0,state='desconectado',checking=false,sending=false,closed=false;
@@ -61,9 +61,9 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
      const isFile=message.action==='send_file';
      const base64=message.image;
      let image;
-     if(isImage&&typeof base64==='string'&&base64.length<=1398104&&base64.length%4===0&&/^[A-Za-z0-9+/]+={0,2}$/.test(base64)){
+     if(isImage&&typeof base64==='string'&&base64.length<=Math.ceil(CAMPAIGN_IMAGE_MAX/3)*4&&base64.length%4===0&&/^[A-Za-z0-9+/]+={0,2}$/.test(base64)){
       const bytes=Buffer.from(base64,'base64');
-      if(bytes.length>=4&&bytes.length<=1024*1024&&bytes[0]===255&&bytes[1]===216&&bytes.at(-2)===255&&bytes.at(-1)===217)image=bytes;
+      if(bytes.length>=4&&bytes.length<=CAMPAIGN_IMAGE_MAX&&bytes.toString('base64')===base64&&bytes[0]===255&&bytes[1]===216&&bytes.at(-2)===255&&bytes.at(-1)===217)image=bytes;
      }
      let file;
      if(isFile&&typeof message.file==='string'&&message.file.length<=Math.ceil(CAMPAIGN_FILE_MAX/3)*4&&message.file.length%4===0&&/^[A-Za-z0-9+/]+={0,2}$/.test(message.file)){

@@ -17,13 +17,13 @@ test('worker oficial e Teste exigem opt-in local e gate remoto',()=>{
   assert.match(connect,/TickRichCampaign\(window,connection\)/);
   assert.match(connect,/neo_campaign_rich_device_v1/);
 });
-test('worker baixa midia autenticada, JPEG de ate 1 MB e originais sob gate',()=>{
+test('worker baixa midia autenticada, JPEG de ate 5 MB e originais sob gate',()=>{
   assert.match(connect,/neo-campaign-images/);
   assert.match(connect,/neo-shop-products/);
   assert.match(connect,/storage\/v1\/object\/authenticated/);
-  assert.match(connect,/data\.Length>1048576/);
+  assert.match(connect,/data\.Length>5\*1024\*1024/);
   assert.match(whatsapp,/DispatchCampaignImageAsync/);
-  assert.match(whatsapp,/jpeg\.Length>1048576/);
+  assert.match(whatsapp,/jpeg\.Length>5\*1024\*1024/);
   assert.match(whatsapp,/action="send_image"/);
 });
 test('outbox e segura, sequencial e sem repeticao automatica',()=>{

@@ -179,3 +179,20 @@ test('IPC preserva bytes PDF e MP4, rejeita nomes, MIME e destinos inválidos, e
  assert.equal(JSON.stringify(messages).includes(request.file),false);
  await bridge.close();
 });
+
+test('IPC aceita JPEG de 5 MiB com legenda formatada e rejeita 5 MiB + 1 byte',async()=>{
+ const sent=[],messages=[];
+ const bridge=createBridge({emit:message=>messages.push(message),providerFactory:async hooks=>({
+  start(){hooks.onState('conectado');},close(){},
+  async sendImage(jid,caption,image){sent.push({jid,caption,length:image.length});return {messageId:'fixture'};}
+ })});
+ await bridge.receive({action:'connect'});
+ const jpeg=size=>{const b=Buffer.alloc(size);b[0]=255;b[1]=216;b[2]=255;b[b.length-2]=255;b[b.length-1]=217;return b.toString('base64');};
+ const request={action:'send_image',request_id:'11111111-1111-4111-8111-111111111111',group_jid:'123@g.us',text:'*Negrito* e _itálico_'};
+ await bridge.receive({...request,image:jpeg(5*1024*1024)});
+ assert.deepEqual(sent,[{jid:'123@g.us',caption:request.text,length:5*1024*1024}]);
+ assert.equal(messages.at(-1).value.status,'accepted');
+ await bridge.receive({...request,request_id:'22222222-2222-4222-8222-222222222222',image:jpeg(5*1024*1024+1)});
+ assert.equal(messages.at(-1).value.status,'rejected');assert.equal(sent.length,1);
+ await bridge.close();
+});
