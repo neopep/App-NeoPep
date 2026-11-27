@@ -35,3 +35,11 @@ test('cofres isolados; envio manual oficial bloqueado, mas heartbeat seguro perm
  assert.match(source,/get \{ return !closing&&!forgetting&&ready/);
 });
 
+
+test('stdout externo não é interpretado como credencial e não encerra a sessão',()=>{
+ const receive=source.split('void Receive(string line){')[1].split('void StopBridge(){')[0];
+ assert.match(source,/BridgeProtocolPrefix="NEO-WA\/1 "/);
+ assert.match(receive,/if\(!line\.StartsWith\(BridgeProtocolPrefix,StringComparison\.Ordinal\)\)\{[\s\S]*?RecordSafeDiagnostic\("IPC_RUIDO",new FormatException\(\)\);\}[\s\S]*?return;/);
+ assert.match(receive,/json\.Deserialize<Dictionary<string,object>>\(line\.Substring\(BridgeProtocolPrefix\.Length\)\)/);
+ assert.match(receive,/if\(message\["value"\]!=null&&\!\(message\["value"\] is string\)\)throw new FormatException\(\);/);
+});
