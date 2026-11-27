@@ -1,6 +1,6 @@
 // Generated from the canonical guide. No session data or runtime capabilities.
 window.NeoConnectAIKnowledge={
-  "version": "2026-11-27.8",
+  "version": "2026-11-27.9",
   "kind": "candidate_reference_only",
   "workflow": [
     "Antes de qualquer tarefa editorial, consulte get_capabilities, get_publication_guide e get_brand_context. Não use regras memorizadas de uma sessão antiga.",
@@ -289,10 +289,15 @@ window.NeoConnectAIKnowledge={
       "name": "lotes",
       "requires": [
         "create_draft_job",
-        "get_draft_job"
+        "append_draft_job_items",
+        "seal_draft_job",
+        "get_draft_job_assembly",
+        "get_draft_job",
+        "run_draft_job_chunk",
+        "control_draft_job"
       ],
       "rules": [
-        "Preservar IDs por item; conciliar resultado incerto antes de retry."
+        "Monte 1 a 60 rascunhos em partes de até seis; requisição MCP até 16 KiB. Consulte progresso de montagem e sele somente quando completo. Execute cada bloco explicitamente, sem agendar ou enviar. Preserve IDs e nunca repita resultado incerto automaticamente."
       ]
     },
     {

@@ -1,6 +1,6 @@
 import {creativeVersion,creativeMethods,creativePolicy} from './creative-context.mjs';
 // Canonical operational instructions. The live tool list is the authority on access.
-export const guideVersion='2026-11-27.8';
+export const guideVersion='2026-11-27.9';
 const strings={type:'array',items:{type:'string'}};
 const obj=properties=>({type:'object',properties,required:Object.keys(properties),additionalProperties:false});
 export const publicationGuideSchema=obj({
@@ -23,7 +23,7 @@ const rules=[
  ['agendar',['prepare_schedule','confirm_schedule'],['Prévia de revisão, destinos e horários; confirmação vinculada à proposta.']],
  ['publicar',['prepare_publish','confirm_publish'],['Confirmação verificável antes do envio; sugestão de conteúdo não autoriza disparo.']],
  ['recorrencia',['preview_recurrence','apply_recurrence'],['Mostrar datas exatas no fuso de Brasília.']],
- ['lotes',['create_draft_job','get_draft_job'],['Preservar IDs por item; conciliar resultado incerto antes de retry.']],
+ ['lotes',['create_draft_job','append_draft_job_items','seal_draft_job','get_draft_job_assembly','get_draft_job','run_draft_job_chunk','control_draft_job'],['Monte 1 a 60 rascunhos em partes de até seis; requisição MCP até 16 KiB. Consulte progresso de montagem e sele somente quando completo. Execute cada bloco explicitamente, sem agendar ou enviar. Preserve IDs e nunca repita resultado incerto automaticamente.']],
  ['duplicar',['duplicate_publications','copy_campaign_channel'],['Cópia cria rascunho; revisar destinos.']],
  ['gerenciar',['pause_campaign','cancel_schedule','archive_campaign'],['Respeitar histórico, estado e confirmação da ação.']]
 ];

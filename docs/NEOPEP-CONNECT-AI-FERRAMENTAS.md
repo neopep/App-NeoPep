@@ -1,6 +1,6 @@
 # NeoPep Connect AI — catálogo candidato de ferramentas
 
-Arquivo gerado pelo catálogo. Versão `1.0.0-preview.4`. O acesso depende de autorização a cada requisição.
+Arquivo gerado pelo catálogo. Versão `1.0.0-preview.5`. O acesso depende de autorização a cada requisição.
 O guia inclui métodos criativos próprios; referências externas não são executadas nem copiadas. Antes de preparar campanhas, consulte get_capabilities, get_publication_guide e get_brand_context. A escrita candidata exige guideVersion atual e guideReceipt assinado, válido por 10 minutos e vinculado à conexão. Comprova consulta técnica, não compreensão pelo modelo. O catálogo descreve o código candidato, não a implantação ativa. O acesso depende do ambiente e das capacidades publicadas. As ferramentas de escrita são candidatas exclusivas de Teste e exigem consentimento campaigns:drafts; não estão implantadas.
 
 
@@ -29,7 +29,7 @@ Escopo `campaigns:read`.
         ]
       },
       "contract_version": {
-        "const": "1.0.0-preview.4"
+        "const": "1.0.0-preview.5"
       },
       "enabled_tools": {
         "type": "array",
@@ -113,7 +113,7 @@ Escopo `campaigns:read`.
     "type": "object",
     "properties": {
       "guide_version": {
-        "const": "2026-11-27.8"
+        "const": "2026-11-27.9"
       },
       "guide_receipt": {
         "type": [
@@ -1113,7 +1113,7 @@ Escopo `campaigns:read + campaigns:drafts`.
       },
       "guideVersion": {
         "type": "string",
-        "const": "2026-11-27.8",
+        "const": "2026-11-27.9",
         "description": "Versão retornada por get_publication_guide; consulte antes de escrever."
       },
       "guideReceipt": {
@@ -1181,7 +1181,7 @@ Escopo `campaigns:read + campaigns:drafts`.
       },
       "guideVersion": {
         "type": "string",
-        "const": "2026-11-27.8",
+        "const": "2026-11-27.9",
         "description": "Versão retornada por get_publication_guide; consulte antes de escrever."
       },
       "guideReceipt": {
@@ -1360,7 +1360,7 @@ Escopo `campaigns:read + campaigns:drafts`.
       },
       "guideVersion": {
         "type": "string",
-        "const": "2026-11-27.8",
+        "const": "2026-11-27.9",
         "description": "Versão retornada por get_publication_guide; consulte antes de escrever."
       },
       "guideReceipt": {
@@ -1598,6 +1598,675 @@ Escopo `campaigns:read + campaigns:drafts`.
       "results"
     ],
     "additionalProperties": false
+  }
+}
+```
+
+## create_draft_job
+
+Inicia montagem de 1 a 60 rascunhos; não grava publicações até selar e executar. Preserve jobId.
+
+Escopo `campaigns:read + campaigns:drafts`.
+
+```json
+{
+  "input": {
+    "type": "object",
+    "properties": {
+      "jobId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "channel": {
+        "enum": [
+          "app",
+          "whatsapp"
+        ]
+      },
+      "campaignId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "expected": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 60
+      },
+      "guideVersion": {
+        "const": "2026-11-27.9"
+      },
+      "guideReceipt": {
+        "type": "string",
+        "maxLength": 78
+      }
+    },
+    "required": [
+      "jobId",
+      "channel",
+      "campaignId",
+      "expected",
+      "guideVersion",
+      "guideReceipt"
+    ],
+    "additionalProperties": false
+  },
+  "output": {
+    "type": "object",
+    "properties": {
+      "jobId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "state": {
+        "enum": [
+          "assembling",
+          "sealed",
+          "abandoned"
+        ]
+      },
+      "received": {
+        "type": "integer"
+      },
+      "expected": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "jobId",
+      "state",
+      "received",
+      "expected"
+    ],
+    "additionalProperties": false
+  }
+}
+```
+
+## append_draft_job_items
+
+Acrescenta até seis itens por chamada na posição offset (zero-based). Limite total da requisição 16 KiB; reduza o bloco se necessário. Repetição idêntica é segura.
+
+Escopo `campaigns:read + campaigns:drafts`.
+
+```json
+{
+  "input": {
+    "type": "object",
+    "properties": {
+      "jobId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "channel": {
+        "enum": [
+          "app",
+          "whatsapp"
+        ]
+      },
+      "campaignId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "offset": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 59
+      },
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 6,
+        "items": {
+          "type": "object",
+          "properties": {
+            "publicationId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "requestId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "blocks": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 6,
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2000
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "text"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "albumId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "text": {
+                        "type": "string",
+                        "maxLength": 1000
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "albumId",
+                      "text"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "plannedLocal": {
+              "type": "string",
+              "maxLength": 16
+            }
+          },
+          "required": [
+            "publicationId",
+            "requestId",
+            "title",
+            "blocks"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "guideVersion": {
+        "const": "2026-11-27.9"
+      },
+      "guideReceipt": {
+        "type": "string",
+        "maxLength": 78
+      }
+    },
+    "required": [
+      "jobId",
+      "channel",
+      "campaignId",
+      "offset",
+      "items",
+      "guideVersion",
+      "guideReceipt"
+    ],
+    "additionalProperties": false
+  },
+  "output": {
+    "type": "object",
+    "properties": {
+      "jobId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "state": {
+        "enum": [
+          "assembling",
+          "sealed",
+          "abandoned"
+        ]
+      },
+      "received": {
+        "type": "integer"
+      },
+      "expected": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "jobId",
+      "state",
+      "received",
+      "expected"
+    ],
+    "additionalProperties": false
+  }
+}
+```
+
+## seal_draft_job
+
+Confirma lote completo e congela conteúdo. Não envia nem agenda.
+
+Escopo `campaigns:read + campaigns:drafts`.
+
+```json
+{
+  "input": {
+    "type": "object",
+    "properties": {
+      "jobId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "guideVersion": {
+        "const": "2026-11-27.9"
+      },
+      "guideReceipt": {
+        "type": "string",
+        "maxLength": 78
+      }
+    },
+    "required": [
+      "jobId",
+      "guideVersion",
+      "guideReceipt"
+    ],
+    "additionalProperties": false
+  },
+  "output": {
+    "type": "object",
+    "properties": {
+      "jobId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "state": {
+        "enum": [
+          "assembling",
+          "sealed",
+          "abandoned"
+        ]
+      },
+      "received": {
+        "type": "integer"
+      },
+      "expected": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "jobId",
+      "state",
+      "received",
+      "expected"
+    ],
+    "additionalProperties": false
+  }
+}
+```
+
+## get_draft_job_assembly
+
+Consulta progresso da montagem antes de selar.
+
+Escopo `campaigns:read + campaigns:drafts`.
+
+```json
+{
+  "input": {
+    "type": "object",
+    "properties": {
+      "jobId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "guideVersion": {
+        "const": "2026-11-27.9"
+      },
+      "guideReceipt": {
+        "type": "string",
+        "maxLength": 78
+      }
+    },
+    "required": [
+      "jobId",
+      "guideVersion",
+      "guideReceipt"
+    ],
+    "additionalProperties": false
+  },
+  "output": {
+    "type": "object",
+    "properties": {
+      "jobId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "state": {
+        "enum": [
+          "assembling",
+          "sealed",
+          "abandoned"
+        ]
+      },
+      "received": {
+        "type": "integer"
+      },
+      "expected": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "jobId",
+      "state",
+      "received",
+      "expected"
+    ],
+    "additionalProperties": false
+  }
+}
+```
+
+## get_draft_job
+
+Consulta estados do lote selado; leases expiradas passam a incertas.
+
+Escopo `campaigns:read + campaigns:drafts`.
+
+```json
+{
+  "input": {
+    "type": "object",
+    "properties": {
+      "jobId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "guideVersion": {
+        "const": "2026-11-27.9"
+      },
+      "guideReceipt": {
+        "type": "string",
+        "maxLength": 78
+      }
+    },
+    "required": [
+      "jobId",
+      "guideVersion",
+      "guideReceipt"
+    ],
+    "additionalProperties": false
+  },
+  "output": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "state": {
+        "enum": [
+          "active",
+          "paused",
+          "cancelled"
+        ]
+      },
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "ordinal": {
+              "type": "integer"
+            },
+            "publicationId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "state": {
+              "type": "string"
+            },
+            "attempts": {
+              "type": "integer"
+            },
+            "revision": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "ordinal",
+            "publicationId",
+            "state",
+            "attempts",
+            "revision"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "id",
+      "state",
+      "items"
+    ],
+    "additionalProperties": false
+  }
+}
+```
+
+## run_draft_job_chunk
+
+Grava até seis rascunhos do lote selado; chamada explícita por bloco, nunca envio. Não repetir itens incertos.
+
+Escopo `campaigns:read + campaigns:drafts`.
+
+```json
+{
+  "input": {
+    "type": "object",
+    "properties": {
+      "jobId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "guideVersion": {
+        "const": "2026-11-27.9"
+      },
+      "guideReceipt": {
+        "type": "string",
+        "maxLength": 78
+      }
+    },
+    "required": [
+      "jobId",
+      "guideVersion",
+      "guideReceipt"
+    ],
+    "additionalProperties": false
+  },
+  "output": {
+    "type": "object",
+    "properties": {
+      "jobId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "results": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "publicationId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "state": {
+              "enum": [
+                "saved",
+                "uncertain"
+              ]
+            },
+            "recorded": {
+              "type": "boolean"
+            },
+            "revision": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "publicationId",
+            "state",
+            "recorded"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "jobId",
+      "results"
+    ],
+    "additionalProperties": false
+  }
+}
+```
+
+## control_draft_job
+
+Pausa, retoma ou cancela lote selado; abandon descarta apenas montagem não selada. Não exclui rascunhos salvos.
+
+Escopo `campaigns:read + campaigns:drafts`.
+
+```json
+{
+  "input": {
+    "type": "object",
+    "properties": {
+      "jobId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "action": {
+        "enum": [
+          "pause",
+          "resume",
+          "cancel",
+          "abandon"
+        ]
+      },
+      "guideVersion": {
+        "const": "2026-11-27.9"
+      },
+      "guideReceipt": {
+        "type": "string",
+        "maxLength": 78
+      }
+    },
+    "required": [
+      "jobId",
+      "action",
+      "guideVersion",
+      "guideReceipt"
+    ],
+    "additionalProperties": false
+  },
+  "output": {
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "enum": [
+              "active",
+              "paused",
+              "cancelled"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ordinal": {
+                  "type": "integer"
+                },
+                "publicationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "attempts": {
+                  "type": "integer"
+                },
+                "revision": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "ordinal",
+                "publicationId",
+                "state",
+                "attempts",
+                "revision"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "enum": [
+              "assembling",
+              "sealed",
+              "abandoned"
+            ]
+          },
+          "received": {
+            "type": "integer"
+          },
+          "expected": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "jobId",
+          "state",
+          "received",
+          "expected"
+        ],
+        "additionalProperties": false
+      }
+    ]
   }
 }
 ```

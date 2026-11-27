@@ -1,3 +1,5 @@
+import {createDraftJobService} from './draft-job-service.mjs';
+import {createDraftJobBrokerClient} from './draft-job-broker.mjs';
 import {createGuideReceipts} from './guide-receipts.mjs';
 import {importJWK} from 'jose';
 import {createHandler} from './worker.mjs';
@@ -83,7 +85,12 @@ export async function environmentHandler(profile,env,request=fetch){
   if(await call('environment/drafts',{})!==true)throw Error('FORBIDDEN');
   return nativeWriter(...args);
  }:undefined;
- return createHandler({environment:profile.name,oauth,consent,authorize,readChannels,writeDraft,guideReceipts:enableDrafts?createGuideReceipts(csrfKey):undefined,readCampaign:createCampaignReader({
+ const runJob=enableDrafts&&env.NEO_CONNECT_AI_JOBS==='1'?createDraftJobService({broker:createDraftJobBrokerClient(call),writeDraft,authorizeCurrent:async p=>{
+  if(p.expiresAt<=Date.now()||await call('environment/drafts',{})!==true)return false;
+  const c=await call('connection/read',{id:p.id});
+  return c?.ownerId===p.ownerId&&c.scopes?.includes('campaigns:drafts')===true&&Boolean(await activeSession(p.id,p.ownerId));
+ }}):undefined;
+ return createHandler({environment:profile.name,oauth,consent,authorize,readChannels,writeDraft,runJob,guideReceipts:enableDrafts?createGuideReceipts(csrfKey):undefined,readCampaign:createCampaignReader({
   publishableKey:env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY,sessionFor:activeSession,request,profile,channels:readChannels,appRecurrences:readChannels.includes('app')
  })});
 }

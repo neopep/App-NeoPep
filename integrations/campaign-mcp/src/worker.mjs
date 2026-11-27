@@ -1,3 +1,4 @@
+import {jobTools} from './job-catalog.mjs';
 import {getPublicationGuide,guideVersion} from './publication-guide.mjs';
 import {draftTools} from './draft-catalog.mjs';
 import {handleTokenRequest,makeDiscoveryHandler} from './oauth-issuer.mjs';
@@ -30,7 +31,7 @@ async function readBody(request){
  }
 }
 
-export function createHandler({authorize=async()=>null,environment='test',origins=[],readCampaign,writeDraft,guideReceipts,oauth,consent,readChannels=['whatsapp']}={}){
+export function createHandler({authorize=async()=>null,environment='test',origins=[],readCampaign,writeDraft,runJob,guideReceipts,oauth,consent,readChannels=['whatsapp']}={}){
  if(!['test','production'].includes(environment))throw Error('Invalid environment');
  const discovery=oauth?makeDiscoveryHandler(oauth):null;
  const metadataUrl=oauth?new URL('/.well-known/oauth-protected-resource/mcp',oauth.protectedResource.resource).href:null;
@@ -40,7 +41,7 @@ export function createHandler({authorize=async()=>null,environment='test',origin
   ...tool,inputSchema:{...tool.inputSchema,properties:{...tool.inputSchema.properties,
    channel:{enum:readChannels.filter(value=>tool.inputSchema.properties.channel.enum.includes(value))}}}
  })).filter(tool=>tool.inputSchema.properties.channel.enum.length>0):[];
- const nativeWrites=environment==='test'&&typeof writeDraft==='function'&&guideReceipts?.issue&&guideReceipts?.verify?draftTools:[];
+ const nativeWrites=environment==='test'&&typeof writeDraft==='function'&&guideReceipts?.issue&&guideReceipts?.verify?[...draftTools,...(typeof runJob==='function'?jobTools:[])]:[];
  return async request=>{
   const path=new URL(request.url).pathname;
   if(path==='/oauth/authorize'&&consent)return consent(request);
@@ -83,18 +84,18 @@ export function createHandler({authorize=async()=>null,environment='test',origin
   const draft=writes.find(tool=>tool.name===params.name);
   if(draft){
    if(args.guideVersion!==guideVersion||!await guideReceipts.verify(principal,args.guideReceipt).catch(()=>false))return result({isError:true,content:[{type:'text',text:'GUIDE_REFRESH_REQUIRED: consulte get_publication_guide e use guide_version e guide_receipt como guideVersion e guideReceipt.'}]});
-   if(draft.inputSchema.required.some(k=>!Object.hasOwn(args,k))||Object.keys(args).some(k=>!Object.hasOwn(draft.inputSchema.properties,k))||!['app','whatsapp'].includes(args.channel)|| (args.items!==undefined&&(!Array.isArray(args.items)||args.items.length>6)))
+   if(draft.inputSchema.required.some(k=>!Object.hasOwn(args,k))||Object.keys(args).some(k=>!Object.hasOwn(draft.inputSchema.properties,k))||(Object.hasOwn(draft.inputSchema.properties,'channel')&&!['app','whatsapp'].includes(args.channel))|| (args.items!==undefined&&(!Array.isArray(args.items)||args.items.length>6)))
     return error(id,-32602,'Parâmetros inválidos.');
    try{
     const {guideVersion:acknowledgedVersion,guideReceipt:retrievalProof,...payload}=args;
-    const data=await writeDraft(principal,draft.name,payload);
+    const data=await (jobTools.includes(draft)?runJob:writeDraft)(principal,draft.name,payload);
     return result({content:[{type:'text',text:JSON.stringify(data)}],structuredContent:data});
    }catch(err){
-    const known=['INVALID_DRAFT','FORBIDDEN','AUTH_REQUIRED','NOT_FOUND_OR_FORBIDDEN','REVISION_CONFLICT','DRAFT_LOCKED','REQUEST_CONFLICT'];
+    const known=['INVALID_DRAFT','FORBIDDEN','AUTH_REQUIRED','NOT_FOUND_OR_FORBIDDEN','REVISION_CONFLICT','DRAFT_LOCKED','REQUEST_CONFLICT','INVALID_JOB'];
     return result({isError:true,content:[{type:'text',text:known.includes(err.message)?err.message:'UPSTREAM_UNAVAILABLE'}]});
    }
   }
-  if(draftTools.some(t=>t.name===params.name))return error(id,-32602,'Ferramenta ou parâmetros inválidos.');
+  if([...draftTools,...jobTools].some(t=>t.name===params.name))return error(id,-32602,'Ferramenta ou parâmetros inválidos.');
   const native=nativeReads.find(tool=>tool.name===params.name);
   if(native){
    if(!native.inputSchema.properties.channel.enum.includes(args.channel)||native.inputSchema.required.some(key=>!Object.hasOwn(args,key))||

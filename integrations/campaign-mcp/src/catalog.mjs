@@ -4,7 +4,7 @@ import draft from '../contracts/tools.v1.draft.json' with {type:'json'};
 const environment={type:'string',enum:['test','production']};
 const strings={type:'array',items:{type:'string'}};
 const object=(properties,required=Object.keys(properties))=>({type:'object',properties,required,additionalProperties:false});
-export const version='1.0.0-preview.4';
+export const version='1.0.0-preview.5';
 const outputs={
  get_publication_guide:publicationGuideSchema,
  get_capabilities:object({environment,contract_version:{const:version},enabled_tools:strings,restrictions:strings}),

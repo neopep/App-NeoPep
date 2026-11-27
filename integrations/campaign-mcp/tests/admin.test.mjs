@@ -76,7 +76,7 @@ test('base administrativa exibe guia, nove métodos e vinte referências sem anu
  vm.runInNewContext(read('dist/admin/admin-connect-ai.js'),{window,document:window.document,URL,URLSearchParams});
  window.NeoAdminConnectAI.mount(root);
  const panel=root.querySelector('[data-connect-ai-knowledge]');
- assert.match(panel.textContent,/2026-11-27.8/);
+ assert.match(panel.textContent,/2026-11-27.9/);
  assert.match(panel.textContent,/Especialistas criativos \(9\)/);
  assert.match(panel.textContent,/Referências externas \(20\)/);
  assert.match(panel.textContent,/somente leitura/);

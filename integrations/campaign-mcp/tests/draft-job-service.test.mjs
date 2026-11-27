@@ -1,0 +1,26 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {createDraftJobService} from '../src/draft-job-service.mjs';
+import {createHandler} from '../src/worker.mjs';
+const id=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
+const p={id:id(1),ownerId:id(2),environment:'test',campaignAdmin:true,scopes:['campaigns:read','campaigns:drafts'],expiresAt:Date.now()+60000};
+test('job catalog requires explicit Teste scope and guide; stages parts and uses runner',async()=>{
+ const calls=[];let allowed=true;
+ const broker={assemble:async(p,j,a,d)=>{calls.push({a,d});return {jobId:j,state:'assembling',received:0,expected:60};},claim:async()=>[],control:async()=>({id:id(3),state:'active',items:[]})};
+ const service=createDraftJobService({broker,writeDraft:async()=>{},authorizeCurrent:async()=>allowed});
+ const handler=createHandler({authorize:async()=>p,writeDraft:async()=>{},runJob:service,guideReceipts:{issue:async()=>'proof',verify:async(p,v)=>v==='proof'}});
+ const invoke=async(name,args)=> (await handler(new Request('https://example.invalid/mcp',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer fixture'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name,arguments:args}})}))).json();
+ const guide=(await invoke('get_publication_guide',{})).result.structuredContent;
+ assert.ok(guide.operations.find(x=>x.name==='lotes').available);
+ const args={jobId:id(3),channel:'app',campaignId:id(4),expected:60,guideVersion:guide.guide_version,guideReceipt:'proof'};
+ assert.ok((await invoke('create_draft_job',{...args,guideReceipt:'wrong'})).result.isError);
+ await invoke('create_draft_job',args);
+ const {expected,...part}=args;
+ await invoke('append_draft_job_items',{...part,offset:0,items:[{publicationId:id(5),requestId:id(6),title:'Fixture',blocks:[{id:id(7),text:'Texto'}]}]});
+ assert.deepEqual(calls.map(x=>x.a),['begin','append']);
+ assert.deepEqual((await invoke('run_draft_job_chunk',{jobId:id(3),guideVersion:guide.guide_version,guideReceipt:'proof'})).result.structuredContent.results,[]);
+ allowed=false;assert.ok((await invoke('seal_draft_job',{jobId:id(3),guideVersion:guide.guide_version,guideReceipt:'proof'})).result.isError);
+ const noJobs=createHandler({authorize:async()=>p,writeDraft:async()=>{},guideReceipts:{issue:async()=>'proof',verify:async()=>true}});
+ const list=await (await noJobs(new Request('https://example.invalid/mcp',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer fixture'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/list'})}))).json();
+ assert.ok(!list.result.tools.some(t=>t.name==='create_draft_job'));
+});
