@@ -26,6 +26,6 @@ export function createConnectionAuthorizer({key,issuer,resource,environment,find
   return {id:claims.connection_id,ownerId:claims.sub,environment,
    expiresAt:Math.min(connection.expiresAt,claims.exp*1000),
    scopes:claims.scope.split(' ').filter(scope=>connection.scopes.includes(scope)),
-   campaignAdmin:await isCampaignAdmin(claims.sub,environment)};
+   campaignAdmin:await isCampaignAdmin(claims.sub,environment,claims.connection_id)};
  };
 }

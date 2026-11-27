@@ -28,7 +28,7 @@ async function readBody(request){
  }
 }
 
-export function createHandler({authorize=async()=>null,environment='test',origins=[],readCampaign,oauth,readChannels=['whatsapp']}={}){
+export function createHandler({authorize=async()=>null,environment='test',origins=[],readCampaign,oauth,consent,readChannels=['whatsapp']}={}){
  if(!['test','production'].includes(environment))throw Error('Invalid environment');
  const discovery=oauth?makeDiscoveryHandler(oauth):null;
  const metadataUrl=oauth?new URL('/.well-known/oauth-protected-resource/mcp',oauth.protectedResource.resource).href:null;
@@ -41,6 +41,7 @@ export function createHandler({authorize=async()=>null,environment='test',origin
  const available=[...tools,...nativeReads];
  return async request=>{
   const path=new URL(request.url).pathname;
+  if(path==='/oauth/authorize'&&consent)return consent(request);
   const publicMetadata=discovery?.(request);
   if(publicMetadata)return publicMetadata;
   if(oauth&&path==='/oauth/token')return handleTokenRequest(oauth,request);
