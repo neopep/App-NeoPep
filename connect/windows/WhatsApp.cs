@@ -256,6 +256,7 @@ sealed partial class WhatsApp : Form {
         try{pipe.WriteLine(json.Serialize(new {action="diagnose_group",group_jid=choice.Id}));}
         catch{diagnosing=false;diagnosingGroup="";diagnosticProgress.Text="Não foi possível iniciar a consulta.";UpdateComposer();}
     }
+    static string CryptoPresence(string value){return value=="present"?"presente":value=="absent"?"ausente":"não verificada";}
     static string DiagnosticCount(Dictionary<string,object> check,string key){
         int count;
         return Int32.TryParse(TextValue(check,key),out count)&&count>=0&&count<=100000?count.ToString():"—";
@@ -626,6 +627,19 @@ sealed partial class WhatsApp : Form {
                         if(manual)details+=" / Outros "+DiagnosticCount(check,"unknown_count")+
                             "\nFunção: "+GroupRole(TextValue(check,"role"))+" | Enviar: "+GroupPermission(TextValue(check,"posting"))+" | Configurar: "+GroupPermission(TextValue(check,"settings"))+
                             "\nCriptografia de entrega: não verificada (consulta sem envio).";
+                        if(manual&&TextValue(check,"store_status")!="unavailable"){
+                            string mem=TextValue(check,"memory_status");
+                            details+="\n\nESTADO CRIPTOGRÁFICO LOCAL (somente leitura)"+
+                                "\nRegistro de distribuição: "+(mem=="present"?"presente":mem=="absent"?"ausente":mem=="invalid"?"formato inesperado":"não verificado")+
+                                "\nDispositivos registrados: "+DiagnosticCount(check,"memory_entries")+" | LID "+DiagnosticCount(check,"memory_lid")+" / PN "+DiagnosticCount(check,"memory_pn")+" / Outros "+DiagnosticCount(check,"memory_other")+
+                                "\nSem correspondência nas identidades atuais: "+DiagnosticCount(check,"memory_unmatched")+" | Não interpretáveis: "+DiagnosticCount(check,"memory_unparseable")+
+                                "\nParticipantes com lista local de dispositivos: "+DiagnosticCount(check,"cached_members")+" | Sem lista: "+DiagnosticCount(check,"uncached_members")+
+                                "\nDispositivos na lista local: "+DiagnosticCount(check,"cached_devices")+" | Registros de sessão por endereço exato: "+DiagnosticCount(check,"session_records")+
+                                "\nLID próprio disponível: "+(TextValue(check,"own_lid_available")=="True"?"sim":TextValue(check,"own_lid_available")=="False"?"não":"não verificado")+
+                                "\nChave própria registrada — LID: "+CryptoPresence(TextValue(check,"own_lid_key"))+" | PN: "+CryptoPresence(TextValue(check,"own_pn_key"))+
+                                "\nRegistros locais não comprovam validade das chaves nem entrega.";
+                        }else if(manual)details+="\nInventário criptográfico local indisponível.";
+                        details=details.Replace("\n","\r\n");
                         AddGroupDiagnostic(jid,details);
                         if(manual&&diagnosingGroup==jid){diagnosing=false;diagnosingGroup="";diagnosticProgress.Text="Consulta concluída: "+description+".";UpdateComposer();}
                         if(!manual&&code!="ok"&&code!="membership_refreshed"){
