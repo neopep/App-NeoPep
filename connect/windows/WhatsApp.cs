@@ -469,7 +469,8 @@ sealed partial class WhatsApp : Form {
             ||caption==null||caption.Length>1000||bytes==null||bytes.Length<8||bytes.Length>(mime=="application/pdf"?5:25)*1024*1024
             ||request==Guid.Empty||String.IsNullOrWhiteSpace(name)||name.Length>160
             ||name.IndexOfAny(System.IO.Path.GetInvalidFileNameChars())>=0
-            ||(mime!="application/pdf"&&mime!="video/mp4"&&mime!="video/quicktime")
+            ||(mime!="application/pdf"&&mime!="video/mp4")
+            ||(mime=="video/mp4"&&bytes.Length>16*1024*1024)
             ||(mime=="application/pdf"&&!name.EndsWith(".pdf",StringComparison.OrdinalIgnoreCase))
             ||(mime=="video/mp4"&&!name.EndsWith(".mp4",StringComparison.OrdinalIgnoreCase))
             ||(mime=="video/quicktime"&&!name.EndsWith(".mov",StringComparison.OrdinalIgnoreCase))
@@ -766,7 +767,7 @@ sealed partial class WhatsApp : Form {
                     var receipt=TextValue(result,"message_id");
                     var accepted=outcome=="accepted"&&!String.IsNullOrWhiteSpace(receipt);
                     automatedSend.TrySetResult(Tuple.Create(accepted?"accepted":outcome=="rejected"?"refused":"uncertain",
-                        accepted?receipt:outcome=="rejected"&&TextValue(result,"reason_code")=="previous_421"?"previous_421":null));
+                        accepted?receipt:outcome=="rejected"&&(TextValue(result,"reason_code")=="previous_421"||TextValue(result,"reason_code")=="video_conversion")?TextValue(result,"reason_code"):null));
                 }
                 if(result!=null&&pendingSend!=Guid.Empty&&TextValue(result,"request_id")==pendingSend.ToString()){
                     var status=TextValue(result,"status");
