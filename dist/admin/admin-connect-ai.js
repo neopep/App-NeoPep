@@ -45,6 +45,62 @@ window.NeoAdminConnectAI=(()=>{
   });
   render();
  }
+ function mountConnections(dialog,cloud){
+  if(!cloud?.connectAIAvailable)return;
+  const details=dialog.querySelector('[data-connect-ai-connections]');
+  const list=details.querySelector('ul'),status=details.querySelector('p');
+  let busy=false;
+  async function refresh(id){
+   if(busy)return;
+   busy=true;
+   list.replaceChildren();
+   status.textContent='Consultando conexões…';
+   try{
+    if(id&&!await cloud.connectAIConnections('revoke',id))throw Error();
+    const rows=await cloud.connectAIConnections('list');
+    for(const row of rows){
+     const item=document.createElement('li');
+     const state=row.revoked_at?'Revogada':Date.parse(row.expires_at)<=Date.now()?'Expirada':'Ativa';
+     item.textContent=row.client_id+' · '+state+' ';
+     if(state==='Ativa'){
+      const button=document.createElement('button');
+      button.type='button';
+      button.className='secondary';
+      button.textContent='Revogar';
+      button.addEventListener('click',()=>{if(window.confirm('Revogar esta conexão?'))void refresh(row.id);});
+      item.append(button);
+     }
+     list.append(item);
+    }
+    status.textContent=id?'Conexão revogada.':rows.length?'Suas conexões':'Nenhuma conexão registrada.';
+   }catch{status.textContent='Não foi possível consultar ou atualizar suas conexões.';}
+   finally{busy=false;}
+  }
+  details.addEventListener('toggle',()=>{if(details.open)void refresh();});
+ }
+ function mountConsent(dialog,cloud){
+  if(!cloud?.connectAIAvailable)return;
+  const current=new URL(window.location.href);
+  const query=current.searchParams.get('connectAiRequest');
+  if(!query)return;
+  const proof=current.searchParams.get('connectAiCsrf'),expires=current.searchParams.get('connectAiExpires');
+  const params=new URLSearchParams(query);
+  const panel=dialog.querySelector('[data-connect-ai-consent]');
+  const status=panel.querySelector('[role=status]'),approve=panel.querySelector('button');
+  panel.hidden=false;
+  panel.querySelector('[data-consent-client]').textContent=params.get('client_id')||'Cliente externo';
+  approve.addEventListener('click',async()=>{
+   approve.disabled=true;
+   try{window.location.assign(await cloud.approveConnectAI(query,proof,expires));}
+   catch{status.textContent='A autorização falhou ou expirou. Reinicie pelo cliente.';}
+  });
+  dialog.addEventListener('close',()=>{
+   for(const key of ['connectAiRequest','connectAiCsrf','connectAiExpires'])current.searchParams.delete(key);
+   window.history.replaceState(window.history.state,'',current.href);
+   panel.hidden=true;
+  },{once:true});
+  dialog.showModal();
+ }
  function mount(root){
   const toolbar=root.querySelector('.neo-campaign-toolbar');
   if(!toolbar||root.querySelector('[data-connect-ai-open]'))return;
@@ -56,7 +112,12 @@ window.NeoAdminConnectAI=(()=>{
   dialog.innerHTML=`<h2 id="neoConnectAITitle">NeoPep Connect AI</h2>
   <p>Integração externa com as campanhas do NeoPep.</p>
   <p role="status">Servidor e conexões aguardam homologação.</p>
-  <details><summary>Conexões</summary><p>A gestão depende da autorização individual do NeoPep.</p></details>
+  <section data-connect-ai-consent hidden aria-label="Autorizar integração">
+   <h3>Autorizar integração</h3><p data-consent-client></p>
+   <p>Permitir que este cliente consulte campanhas no NeoPep Teste com a sua conta?</p>
+   <button type="button" class="primary">Autorizar leitura</button><p role="status"></p>
+  </section>
+  <details data-connect-ai-connections><summary>Conexões</summary><p role="status">A gestão depende da autorização individual do NeoPep.</p><ul></ul></details>
   <details><summary>Ferramentas</summary><p>A disponibilidade será informada pelo catálogo do servidor conectado.</p></details>
   <details><summary>Base de conhecimento</summary><p>Consulte o guia de campanhas do NeoPep antes de preparar publicações.</p></details>
   <details><summary>Histórico</summary><p>Histórico de operações disponível após a conexão ao servidor.</p></details>
@@ -80,6 +141,8 @@ window.NeoAdminConnectAI=(()=>{
   <form method="dialog"><button type="submit" class="secondary" autofocus>Voltar a Campanhas</button></form>`;
   toolbar.after(dialog);
   mountInstaller(dialog);
+  mountConnections(dialog,window.NeoCloud);
+  mountConsent(dialog,window.NeoCloud);
   trigger.addEventListener('click',()=>{if(!dialog.open)dialog.showModal();});
   dialog.addEventListener('close',()=>{if(trigger.isConnected)trigger.focus({preventScroll:true});});
  }

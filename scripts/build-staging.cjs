@@ -53,8 +53,9 @@ async function prepare() {
       .replace('name="apple-mobile-web-app-title" content="NeoPep"', 'name="apple-mobile-web-app-title" content="NeoPep Teste"')
       .replaceAll('cpslafpzjtbpmoxxysaa.supabase.co', 'qnuluspqfazdppciermw.supabase.co')
       .replaceAll('https://*.supabase.co', staging)
-      .replaceAll('wss://*.supabase.co', staging.replace('https:', 'wss:'));
-    fs.writeFileSync(path, html);
+      .replaceAll('wss://*.supabase.co', staging.replace('https:', 'wss:'))
+      .replace("connect-src 'self' "+staging+';', "connect-src 'self' "+staging+' https://connect-teste.neopep.com.br;');
+    fs.writeFileSync(path, path === 'dist/admin/index.html' ? html.replace('<head>', '<head><meta name="referrer" content="no-referrer">') : html);
   }
   const style = 'dist/style.css';
   const marker = '/* Identificação exclusiva da homologação */';

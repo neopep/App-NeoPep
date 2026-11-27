@@ -11,16 +11,21 @@ test('rascunho usa ações e idempotência nativas sem destino ou envio',()=>{
  assert.throws(()=>prepareDraftCreation({channel:'app',title:'',requestId}),/INVALID_DRAFT/);
 });
 
-test('edição candidata exige revisão e IDs estáveis e não herda agenda ou destino',()=>{
+test('edição altera apenas o texto selecionado e rejeita revisões e estados incompatíveis',()=>{
  const id='11111111-1111-4111-8111-111111111111';
- const draft={channel:'app',title:'Texto',requestId:id,campaignId:id,publicationId:id,revision:3,
-  blocks:[{id,type:'text',text:'Conteúdo'}],planned_local:'2027-12-01T09:00',confirmed:true};
- const args=prepareDraftTextEdit(draft);
- assert.equal(args.p_action,'app_save');
- assert.equal(args.p_data.revision,3);
- assert.equal(args.p_data.draft.planned_local,'');
- assert.deepEqual(args.p_data.draft.groups,[]);
- assert.ok(!Object.hasOwn(args.p_data,'confirmed'));
- assert.throws(()=>prepareDraftTextEdit({...draft,revision:-1}),/INVALID_DRAFT/);
- assert.throws(()=>prepareDraftTextEdit({...draft,blocks:[{id,type:'image',url:'https://invalid.example'}]}),/INVALID_DRAFT/);
+ const imageId='22222222-2222-4222-8222-222222222222';
+ const draft={title:'Título',groups:['grupo'],timezone:'America/Sao_Paulo',planned_local:'2027-12-01T09:00',
+  audience:'members',app_settings:{priority:3},blocks:[{id,type:'text',text:'Original',meta:{language:'pt'}},
+   {id:imageId,type:'image',path:'private/asset.jpg',caption:'Legenda'}]};
+ const args={channel:'app',requestId:id,campaignId:id,publicationId:id,revision:3,edits:[{id,text:'Novo'}],
+  current:{channel:'app',campaignId:id,publicationId:id,revision:3,status:'draft',draft}};
+ const result=prepareDraftTextEdit(args);
+ assert.equal(result.p_action,'app_save');
+ assert.equal(result.p_data.revision,3);
+ assert.deepEqual(result.p_data.draft,{...draft,blocks:[{...draft.blocks[0],text:'Novo'},draft.blocks[1]]});
+ assert.equal(draft.blocks[0].text,'Original');
+ assert.throws(()=>prepareDraftTextEdit({...args,revision:2}),/INVALID_DRAFT/);
+ assert.throws(()=>prepareDraftTextEdit({...args,current:{...args.current,status:'scheduled'}}),/INVALID_DRAFT/);
+ assert.throws(()=>prepareDraftTextEdit({...args,edits:[{id:imageId,text:'Outro'}]}),/INVALID_DRAFT/);
+ assert.throws(()=>prepareDraftTextEdit({...args,edits:[...args.edits,...args.edits]}),/INVALID_DRAFT/);
 });

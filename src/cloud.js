@@ -30,6 +30,33 @@ const authStorage={
 function chooseRemember(value){if(typeof value!=='boolean')return;const saved=rememberSession===value?null:AUTH_KEYS.map(key=>[key,authStorage.getItem(key)]);rememberSession=value;writeStore(browserStore('localStorage'),REMEMBER_KEY,String(value));if(saved){for(const [key] of saved)authStorage.removeItem(key);for(const [key,item] of saved)if(item!==null)authStorage.setItem(key,item)}}
 const clearAuthStorage=()=>AUTH_KEYS.forEach(key=>authStorage.removeItem(key));
 const api={configured,connectTestEnabled:connectEnabled,
+ get connectAIAvailable(){return config.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co'&&location.origin==='https://teste.app.neopep.com.br'},
+ async connectAIConnections(action,id=null){
+  if(!api.connectAIAvailable||!['list','revoke'].includes(action))throw Error('Operação indisponível.');
+  const version=identityVersion;
+  const result=ok(await need().rpc('neo_connect_ai_connections',{p_action:action,p_id:id}));
+  if(version!==identityVersion)throw Error('A conta mudou.');
+  return result;
+ },
+ async approveConnectAI(query,proof,expires){
+  if(!api.connectAIAvailable)throw Error('Operação indisponível.');
+  const version=identityVersion,account=user?.id;
+  const {session}=ok(await need().auth.getSession());
+  if(version!==identityVersion||session?.user?.id!==account||!session?.access_token)throw Error('Entre novamente no NeoPep.');
+  const target=new URL('https://connect-teste.neopep.com.br/oauth/authorize');
+  target.search=query;
+  const response=await fetch(target,{method:'POST',redirect:'error',credentials:'omit',referrerPolicy:'no-referrer',
+   headers:{Authorization:'Bearer '+session.access_token,'X-Neo-Consent':'approve','X-Neo-Csrf':proof,'X-Neo-Expires':expires}});
+  if(!response.ok||version!==identityVersion)throw Error('Não foi possível autorizar. Reinicie pelo cliente.');
+  const {redirect}=await response.json();
+  const expected=new URL(target.searchParams.get('redirect_uri')),actual=new URL(redirect);
+  const code=actual.searchParams.get('code'),state=actual.searchParams.get('state');
+  actual.searchParams.delete('code');actual.searchParams.delete('state');
+  expected.search=expected.searchParams.toString();
+  if(version!==identityVersion||actual.href!==expected.href||actual.protocol!=='https:'||!code||state!==target.searchParams.get('state'))
+   throw Error('Retorno de autorização inválido.');
+  return redirect;
+ },
  async campaignImageURL(path){
   const result=ok(await need().storage.from('neo-campaign-images').createSignedUrl(path,120));
   return result.signedUrl;
