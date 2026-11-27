@@ -121,6 +121,10 @@ sealed partial class Connect : Form {
         prepare.Click+=delegate{OpenWhatsApp(false,true);};
         publishPage.Controls.Add(new Label{Text="Organize a mensagem, confira a prévia e revise o destino.",AutoSize=true});
         publishPage.Controls.Add(prepare);
+        videoToolsInstall=Button("Verificar / preparar conversor de vídeos");
+        videoToolsStatus=new Label{AutoSize=true,MaximumSize=new Size(420,0),Text="Para publicar vídeos nativos, prepare o conversor local uma única vez. MOV e MP4 nunca serão enviados como documento."};
+        videoToolsInstall.Click+=async delegate{await PrepareVideoTools();};
+        publishPage.Controls.Add(videoToolsInstall);publishPage.Controls.Add(videoToolsStatus);
         var loginFeedback=new Label{AutoSize=true,MaximumSize=new Size(420,0)};
         login.Click+=async delegate {
             if(busy)return;
@@ -465,14 +469,14 @@ sealed partial class Connect : Form {
     async Task TickRichCampaign(WhatsApp window,Guid connection) {
         // Em ambos os perfis, a fila rica exige opt-in local, JWT do ambiente e gate/allowlist do servidor.
         if(Value(local,"campaign_worker_enabled")!="1"||!deviceApproved||!SessionReady()||!window.CampaignSessionReady)return;
-        var lease=await RichCampaign("claim",new {originals_v1=true,originals_25mb=true,originals_mov=true});
+        var lease=await RichCampaign("claim",new {originals_v1=true,originals_25mb=true,originals_mov=true,native_video_v1=true});
         if(lease==null)return;
         var id=Value(lease,"id");var fence=Value(lease,"fence");
         var started=false;
         var dispatchClock=System.Diagnostics.Stopwatch.StartNew();
         var outcome=Tuple.Create("uncertain",(string)null);
         try {
-            var job=await RichCampaign("start",new {id=id,fence=fence,originals_v1=true,originals_25mb=true,originals_mov=true});
+            var job=await RichCampaign("start",new {id=id,fence=fence,originals_v1=true,originals_25mb=true,originals_mov=true,native_video_v1=true});
             if(job==null)return;
             started=true;
             Guid request;
@@ -488,7 +492,7 @@ sealed partial class Connect : Form {
                     var bytes=await LoadRichCampaignOriginal(Value(job,"media_bucket"),Value(job,"media_path"),mime);
                     if(mime=="video/mp4"||mime=="video/quicktime"){
                         outcome=Tuple.Create("refused","video_conversion");
-                        try{bytes=await PrepareNativeCampaignVideo(bytes);mime="video/mp4";name="video.mp4";}
+                        try{bytes=await PrepareNativeCampaignVideo(bytes);mime="video/mp4";name="video.mp4";outcome=Tuple.Create("refused",(string)null);}
                         catch{Record("campaign_video_conversion_failed");bytes=null;}
                     }
                     if(bytes!=null&&dispatchClock.Elapsed.TotalSeconds<85&&whatsapp==window&&window.CampaignConnection==connection&&window.CampaignSessionReady&&deviceApproved&&SessionReady()&&Value(local,"campaign_worker_enabled")=="1")
