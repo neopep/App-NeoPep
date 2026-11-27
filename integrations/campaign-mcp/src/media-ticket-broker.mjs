@@ -32,6 +32,13 @@ export function createPrivateMediaTickets({profile,env,sql,verifyDatabase,freshS
    return project(await call(p,plan.requestId,'issue',data,data));
   },
   async inspect(p,ticket){await authorize(p);if(!uuid(ticket))throw Error('INVALID_MEDIA');return project(await call(p,ticket,'inspect',{}));},
+  async reconcileAttachment(p,ticket){
+   await authorize(p);if(!uuid(ticket))throw Error('INVALID_MEDIA');
+   const [row]=await sql`select neo_private.connect_ai_media_attachment_receipt(${p.id}::uuid,${p.ownerId}::uuid,${ticket}::uuid) as value`;
+   const v=row?.value;
+   if(v?.ticketId!==ticket||!uuid(v.publicationId)||!['attached_historically','unconfirmed'].includes(v.state)||(v.state==='attached_historically'&&(!Number.isSafeInteger(v.revision)||v.revision<2)))throw Error('INVALID_TICKET_RECEIPT');
+   return {ticketId:ticket,publicationId:v.publicationId,state:v.state,...(v.state==='attached_historically'?{revision:v.revision}:{})};
+  },
   async uploadAndAttach(p,ticket,bytes){
    await authorize(p);
    if(typeof validateBytes!=='function')throw Error('MEDIA_VALIDATOR_UNAVAILABLE');
