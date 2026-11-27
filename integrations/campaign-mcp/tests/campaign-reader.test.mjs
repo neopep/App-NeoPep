@@ -15,7 +15,7 @@ test('leitura consulta apenas RPC nativo fixo e remove destinatários e recibos 
  }});
  const args={channel:'whatsapp',campaign_id:id};
  assert.deepEqual(await read(principal,'get_campaign',args),{
-  campaign:{id,title:'Campanha',state:'unknown',channel:'whatsapp'},publications:[{id,title:'Publicação',revision:2,schedules:[{due_at:null,cancelled_at:null,states:[]}]}],next_offset:null,history:[],recurrences:null
+  campaign:{id,title:'Campanha',state:'active',channel:'whatsapp',next_at:null,archived_at:null,paused_at:null},publications:[{id,title:'Publicação',revision:2,schedules:[{due_at:null,cancelled_at:null,states:[],configured_at:null,sent_at:null,origin:null,delivery_status:'unknown',message_count:null,receipt_count:null,group_count:null,group_names:[]}]}],next_offset:null,history:[],recurrences:null
  });
  assert.equal(JSON.parse(calls[1][1].body).p_action,'get');
  await assert.rejects(read({...principal,environment:'production'},'get_campaign',args),/FORBIDDEN/);
@@ -48,6 +48,37 @@ test('canal App usa offset, filtra estado e projeta recorrências só quando aut
  assert.equal(next_offset,7);
  assert.deepEqual(requests[0],{p_action:'app_list',p_data:{offset:5}});
  const detail=await read(principal,'get_campaign',{channel:'app',campaign_id:id,include_recurrences:true});
- assert.deepEqual(detail.recurrences,[{id,state:'drafts',dates:['2027-01-01']}]);
+ assert.deepEqual(detail.recurrences,[{id,state:'drafts',configured_at:null,timezone:null,dates:['2027-01-01']}]);
  assert.deepEqual(requests.slice(1).map(entry=>entry.p_action),['app_get','app_repeat_list']);
+});
+
+test('WhatsApp: agenda, pausas, recibos e recorrências sem expor identificadores brutos',async()=>{
+ const id='11111111-1111-4111-8111-111111111111';
+ const principal={id,ownerId:id,environment:'test',campaignAdmin:true,scopes:['campaigns:read']};
+ const requests=[];
+ const due=new Date(Date.now()+86400000).toISOString();
+ const sent='2026-11-26T21:17:00.000Z';
+ const read=createCampaignReader({publishableKey:'fixture',sessionFor:async()=> 'session',request:async(url,options)=>{
+  if(url.endsWith('/user'))return Response.json({id});
+  const q=JSON.parse(options.body);requests.push([url,q.p_action]);
+  if(url.endsWith('neo_campaign_weekly_v1'))return Response.json([{id,state:'active',dates:['2027-01-01T10:30','invalid'],configured_at:sent,rule:{private:'secret'}}]);
+  if(q.p_action==='list')return Response.json([{campaign_id:id,title:'Ativa',publications:2,drafts:0},{campaign_id:id,title:'Pausada',paused_at:sent,publications:2}]);
+  return Response.json({campaign_id:id,title:'Campanha',publications:[{id,title:'Material',revision:1,batches:[
+   {states:['accepted'],message_count:2,receipt_count:2,group_count:1,group_names:['Grupo A'],configured_at:sent,sent_at:sent,origin:'publish',receipt_id:'secret',group_jid:'secret'},
+   {states:['waiting'],due_at:due,configured_at:sent,origin:'recurring',message_count:1,receipt_count:0}
+  ]}]});
+ }});
+ const list=await read(principal,'list_campaigns',{channel:'whatsapp'});
+ assert.deepEqual(list.items.map(x=>x.state),['active','paused']);
+ const detail=await read(principal,'get_campaign',{channel:'whatsapp',campaign_id:id,include_recurrences:true});
+ assert.equal(detail.campaign.state,'scheduled');assert.equal(detail.campaign.next_at,due);
+ assert.equal(detail.publications[0].schedules[0].delivery_status,'accepted_with_receipt');
+ assert.equal(detail.publications[0].schedules[1].delivery_status,'scheduled');
+ assert.deepEqual(detail.publications[0].schedules[0].group_names,['Grupo A']);
+ assert.equal(detail.recurrences[0].timezone,'America/Sao_Paulo');
+ assert.deepEqual(detail.recurrences[0].dates,['2027-01-01T10:30']);
+ assert(!JSON.stringify(detail).includes('secret'));
+ assert(requests.at(-1)[0].endsWith('neo_campaign_weekly_v1'));
+ assert.equal(requests.at(-1)[1],'list');
+ await assert.rejects(read({...principal,campaignAdmin:false},'get_campaign',{channel:'whatsapp',campaign_id:id}),/FORBIDDEN/);
 });

@@ -14,21 +14,21 @@ export const tools=draft.tools.filter(tool=>Object.hasOwn(outputs,tool.name)).ma
 }));
 export const scopeByTool=new Map(tools.map(tool=>[tool.name,'campaigns:read']));
 
-const state={enum:['archived','needs_attention','scheduled','in_progress','draft','unknown']};
+const state={enum:['archived','paused','needs_attention','scheduled','in_progress','draft','active','unknown']};
 const channel={enum:['app','whatsapp']};
 const nullableString={type:['string','null']};
 const nullableInteger={type:['integer','null']};
-const campaign=object({id:{type:'string'},title:{type:'string'},state,channel});
+const campaign=object({id:{type:'string'},title:{type:'string'},state,channel,next_at:nullableString,archived_at:nullableString,paused_at:nullableString});
 const selection={channel,limit:{type:'integer',minimum:1,maximum:50},offset:{type:'integer',minimum:0,maximum:10000}};
-const schedule=object({due_at:nullableString,cancelled_at:nullableString,states:strings});
+const schedule=object({due_at:nullableString,cancelled_at:nullableString,states:strings,configured_at:nullableString,sent_at:nullableString,origin:nullableString,delivery_status:{enum:['unknown','cancelled','queued','scheduled','in_progress','needs_attention','partially_accepted','accepted','accepted_with_receipt']},message_count:nullableInteger,receipt_count:nullableInteger,group_count:nullableInteger,group_names:strings});
 const publication=object({id:{type:'string'},title:{type:'string'},revision:nullableInteger,
  schedules:{type:'array',items:schedule}});
 export const campaignTools=['list_campaigns','get_campaign'].map(name=>{
  const listing=name==='list_campaigns';
  const source=draft.tools.find(tool=>tool.name===name);
  return {
-  name,description:listing?'Listar campanhas do titular em Teste nos canais habilitados.':
-   'Consultar campanha, publicações, agenda resumida e histórico disponível em Teste.',
+  name,description:listing?'Listar campanhas do titular no ambiente conectado, incluindo estado e próximo horário disponível.':
+   'Consultar campanha, publicações, grupos conhecidos, datas de configuração e envio e histórico. Use include_recurrences=true para consultar recorrências. accepted_with_receipt indica aceite com recibo do executor, não comprova entrega ou leitura no WhatsApp.',
   annotations:source.annotations,
   inputSchema:{
    type:'object',additionalProperties:false,
@@ -38,6 +38,6 @@ export const campaignTools=['list_campaigns','get_campaign'].map(name=>{
   outputSchema:listing?object({items:{type:'array',items:campaign},next_offset:nullableInteger}):
    object({campaign,publications:{type:'array',items:publication},next_offset:nullableInteger,
     history:{type:'array',items:object({event:{type:'string'},recorded_at:nullableString})},
-    recurrences:{type:['array','null'],items:object({id:{type:'string'},state:{type:'string'},dates:strings})}})
+    recurrences:{type:['array','null'],items:object({id:{type:'string'},state:{type:'string'},configured_at:nullableString,timezone:nullableString,dates:strings})}})
  };
 });
