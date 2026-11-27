@@ -46,14 +46,26 @@ for(const profile of [testProfile,productionProfile])test('consentimento e leitu
  const handle=async(request)=>(await environmentHandler(profile,env,upstream))(request);
  const verifier='a'.repeat(43),url=new URL('/oauth/authorize',issuer);
  url.search=new URLSearchParams({response_type:'code',client_id:'client',redirect_uri:redirect,
-  code_challenge:await challengeS256(verifier),code_challenge_method:'S256',resource,scope:'campaigns:read',state:'state-test'});
+  code_challenge:await challengeS256(verifier),code_challenge_method:'S256',resource,scope:'campaigns:read',state:'state-test',ui_locales:'pt-BR'});
+ for(const [key,value] of [['client_id','unknown'],['redirect_uri','https://wrong.invalid/callback'],['resource','https://wrong.invalid/mcp'],['scope','campaigns:write'],['code_challenge_method','plain'],['code_challenge','short'],['state','']]){
+  const invalid=new URL(url);invalid.searchParams.set(key,value);
+  assert.equal((await handle(new Request(invalid))).status,400,key);
+ }
+ const duplicate=new URL(url);duplicate.searchParams.append('client_id','client');
+ assert.equal((await handle(new Request(duplicate))).status,400);
+ const extension=new URL(url);extension.searchParams.set('future_extension','ignored');
+ assert.equal((await handle(new Request(extension))).status,303);
  const attach=await handle(new Request(url));
  assert.equal(attach.status,303);
  const ask=new URL(attach.headers.get('location'));
  assert.equal(ask.origin,approval);
+ const approvedParams=new URLSearchParams(ask.searchParams.get('connectAiRequest'));
+ assert.equal(approvedParams.has('ui_locales'),false);
+ assert.equal(approvedParams.get('state'),'state-test');
+ const consentUrl=new URL(url);consentUrl.search=approvedParams.toString();
  const headers={Origin:approval,Authorization:'Bearer '+token,'X-Neo-Consent':'approve',
   'X-Neo-Csrf':ask.searchParams.get('connectAiCsrf'),'X-Neo-Expires':ask.searchParams.get('connectAiExpires')};
- const post=(extra={})=>handle(new Request(url,{method:'POST',headers:{...headers,...extra}}));
+ const post=(extra={})=>handle(new Request(consentUrl,{method:'POST',headers:{...headers,...extra}}));
  assert.equal((await post({Origin:'https://wrong.invalid'})).status,403);
  assert.equal((await post({'X-Neo-Csrf':'A'.repeat(43)})).status,403);
  const issued=await (await post()).json();
