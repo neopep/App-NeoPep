@@ -21,17 +21,18 @@ window.NeoAdminConnectAI=(()=>{
   const pack=dialog.querySelector('[data-connect-ai-package]');
   function render(){
    const client=clients[select.value]||clients.chatgpt;
-   const isMobileOrWeb=surface.value==='web'||surface.value==='iphone';
+   const cloudWeb=environment.value==='production'&&select.value==='chatgpt'&&surface.value==='web';
+   const mobile=surface.value==='iphone';
+   const cloudPanel=dialog.querySelector('[data-connect-ai-cloud]');
+   cloudPanel.hidden=!cloudWeb;
    const supported=environment.value==='production'&&surface.value==='desktop'&&['codex','chatgpt'].includes(select.value);
    pack.hidden=!supported;
-   instructions.textContent=supported?'Baixe o ZIP 1.0.5, importe como novo plugin na página Plugins do ChatGPT, abra no aplicativo desktop e autorize a leitura no NeoPep. Se estiver substituindo uma instalação antiga que não reconhece o MCP, desinstale o plugin anterior antes de importar.':select.value==='chatgpt'&&isMobileOrWeb
-    ?'ChatGPT Sites pode ser avaliado como alternativa privada. Verifique a disponibilidade nesta conta e dispositivo.'
-    :client.help;
+   instructions.textContent=supported?'Baixe o ZIP 1.0.5, importe como novo plugin na página Plugins do ChatGPT, abra no aplicativo desktop e autorize a leitura no NeoPep. Se estiver substituindo uma instalação antiga que não reconhece o MCP, desinstale o plugin anterior antes de importar.':cloudWeb?'A integração Nuvem requer registro privado do servidor MCP pelo ChatGPT Web em uma conta elegível. Não importe o ZIP Desktop para esta modalidade.':mobile&&['chatgpt','codex'].includes(select.value)?'O ZIP Desktop não executa MCP no iPhone. O registro de MCP personalizado é feito pela Web em uma conta elegível; o uso móvel ainda não foi homologado.':client.help;
    address.value=environment.value==='production'?'https://connect.neopep.com.br/mcp':'https://connect-teste.neopep.com.br/mcp';
    copyStatus.textContent='';
-   official.href=client.url;
+   official.href=cloudWeb||mobile&&['chatgpt','codex'].includes(select.value)?'https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt':client.url;
    state.textContent=(environment.value==='production'?'Produção':'Teste')+
-    (supported?' · ZIP 1.0.5 homologado no Codex desktop (27/11/2026).':' · esta combinação ainda não foi homologada.');
+    (supported?' · Desktop: ZIP 1.0.5 homologado no Codex Windows.':cloudWeb?' · Nuvem: registro privado pendente.':mobile?' · execução móvel não homologada.':' · esta combinação ainda não foi homologada.');
   }
   select.addEventListener('change',render);
   environment.addEventListener('change',render);
@@ -114,7 +115,8 @@ window.NeoAdminConnectAI=(()=>{
   dialog.setAttribute('aria-labelledby','neoConnectAITitle');
   dialog.innerHTML=`<h2 id="neoConnectAITitle">NeoPep Connect AI</h2>
   <p>Integração externa com as campanhas do NeoPep.</p>
-  <p role="status">Produção: conexão e consulta de campanhas homologadas no Codex desktop. Somente leitura.</p>
+  <p role="status">Produção: Desktop homologado no Codex Windows; Nuvem aguarda registro privado. Somente leitura.</p>
+  <section aria-label="Modalidades de integração"><h3>NeoPep Connect AI – Desktop</h3><p>Codex Windows · ZIP 1.0.5 homologado em duas contas.</p><h3>NeoPep Connect AI – Nuvem</h3><p>ChatGPT Web · conexão privada em conta elegível, ainda não registrada. iPhone: compatibilidade não homologada.</p></section>
   <section data-connect-ai-consent hidden aria-label="Autorizar integração">
    <h3>Autorizar integração</h3><p data-consent-client></p>
    <p>Permitir que este cliente consulte campanhas no NeoPep ${window.location?.origin==='https://app.neopep.com.br'?'Produção':'Teste'} com a sua conta?</p>
@@ -135,6 +137,7 @@ window.NeoAdminConnectAI=(()=>{
    <button type="button" class="secondary" data-connect-ai-copy>Copiar endereço MCP</button>
    <p role="status" data-connect-ai-copy-status></p>
    <section data-connect-ai-package hidden><h3>Plugin homologado · 1.0.5</h3><p>Produção · somente leitura · sem chaves ou senhas no ZIP.</p><a class="secondary" href="../assets/NeoPep_Connect_AI_Producao_1.0.5.zip" download="NeoPep_Connect_AI_Producao_1.0.5.zip">Baixar plugin ZIP 1.0.5</a><p><small>SHA-256: 30eb394710a4c13fcc8add7d719e1e8957cbfb13af3f5b768126e122ef9216fb</small></p></section>
+   <section data-connect-ai-cloud hidden><h3>Configurar Nuvem (registro privado)</h3><p>Nome sugerido: NeoPep Connect AI – Nuvem. Autenticação: OAuth, CIMD quando disponível. Escopo: campaigns:read.</p><p>Abra Plugins pelo navegador, escolha Adicionar servidor MCP personalizado, informe o endereço acima e autorize sua conta administrativa NeoPep. A opção depende do plano e das permissões do workspace.</p><a class="secondary" href="https://chatgpt.com/plugins" target="_blank" rel="noopener noreferrer">Abrir Plugins do ChatGPT</a><p>Não compartilhe tokens ou senhas. Após o registro, teste em uma nova conversa. Não confunda registro com homologação móvel.</p></section>
    <button type="button" class="secondary" disabled>Verificar conexão</button>
   </details>
   <h3>Processamento</h3>
