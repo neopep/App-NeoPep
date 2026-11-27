@@ -252,9 +252,9 @@ sealed partial class WhatsApp : Form {
         diagnosing=true;diagnosingGroup=choice.Id;
         diagnosticProgress.Text="Consultando "+choice.Name+" sem envio de mensagens…";
         AddGroupDiagnostic(choice.Id,"Consulta manual iniciada (sem envio).");
-        UpdateDiagnosticControls();
+        UpdateComposer();
         try{pipe.WriteLine(json.Serialize(new {action="diagnose_group",group_jid=choice.Id}));}
-        catch{diagnosing=false;diagnosingGroup="";diagnosticProgress.Text="Não foi possível iniciar a consulta.";UpdateDiagnosticControls();}
+        catch{diagnosing=false;diagnosingGroup="";diagnosticProgress.Text="Não foi possível iniciar a consulta.";UpdateComposer();}
     }
     static string DiagnosticCount(Dictionary<string,object> check,string key){
         int count;
@@ -627,10 +627,21 @@ sealed partial class WhatsApp : Form {
                             "\nFunção: "+GroupRole(TextValue(check,"role"))+" | Enviar: "+GroupPermission(TextValue(check,"posting"))+" | Configurar: "+GroupPermission(TextValue(check,"settings"))+
                             "\nCriptografia de entrega: não verificada (consulta sem envio).";
                         AddGroupDiagnostic(jid,details);
-                        if(manual&&diagnosingGroup==jid){diagnosing=false;diagnosingGroup="";diagnosticProgress.Text="Consulta concluída: "+description+".";UpdateDiagnosticControls();}
+                        if(manual&&diagnosingGroup==jid){diagnosing=false;diagnosingGroup="";diagnosticProgress.Text="Consulta concluída: "+description+".";UpdateComposer();}
                         if(!manual&&code!="ok"&&code!="membership_refreshed"){
                             if(groupLastErrors.Count<500||groupLastErrors.ContainsKey(jid)){groupLastErrors[jid]=code;RenderGroups();}
                         }
+                    }
+                }
+            }else if(type=="group_send_stage"&&ready&&!forgetting){
+                phase="GRUPO_ENVIO";
+                var stageRow=message["value"] as Dictionary<string,object>;
+                if(stageRow!=null){
+                    string jid=TextValue(stageRow,"group_jid"),stage=TextValue(stageRow,"stage");
+                    if(System.Text.RegularExpressions.Regex.IsMatch(jid,@"\A[0-9-]{1,64}@g[.]us\z")){
+                        if(stage=="attempt_started")AddGroupDiagnostic(jid,"Envio: tentativa iniciada.");
+                        else if(stage=="receipt_generated")AddGroupDiagnostic(jid,"Envio: identificador gerado; aguardando confirmação do WhatsApp.");
+                        else if(stage=="uncertain")AddGroupDiagnostic(jid,"Envio: resultado incerto. Não repetir automaticamente.");
                     }
                 }
             }else if(type=="delivery_receipt"&&ready&&!forgetting){
