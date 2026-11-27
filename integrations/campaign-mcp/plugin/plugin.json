@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "neopep-connect-ai",
+  "version": "0.1.0",
+  "description": "Consulta de capacidades e contexto de marca do NeoPep.",
+  "repository": "https://github.com/neopep/App-NeoPep",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "NeoPep Connect AI",
+        "developerName": "NeoPep",
+        "shortDescription": "Integração com as campanhas NeoPep",
+        "capabilities": ["Read"],
+        "logo": "./assets/logo.png",
+        "composerIcon": "./assets/icon.png"
+      }
+    }
+  }
+}

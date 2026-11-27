@@ -22,3 +22,6 @@ jobs:
       - run: npm ci --prefix integrations/campaign-mcp
       - run: node integrations/campaign-mcp/src/generate-docs.mjs --check
       - run: node --test integrations/campaign-mcp/tests/*.test.mjs
+      - run: |
+          python3 integrations/campaign-mcp/build-plugin.py /tmp/neopep-plugin.zip
+          unzip -t /tmp/neopep-plugin.zip
