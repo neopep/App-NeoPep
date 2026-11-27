@@ -88,6 +88,15 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
         posting:['admins','all'].includes(row.posting)?row.posting:'unknown',
         settings:['admins','all'].includes(row.settings)?row.settings:'unknown'})));
      }finally{checking=false;}
+    }else if(message.action==='revalidate_group_availability'){
+     const jid=message.group_jid;
+     if(typeof jid!=='string'||!/^[0-9-]{1,64}@g\.us$/.test(jid))return;
+     const report=(result={})=>output('group_revalidation',{group_jid:jid,code:['local_pause_cleared','checked_no_pause','rejected_again','metadata_or_permission','not_participating','unavailable'].includes(result.code)?result.code:'unavailable'});
+     if(message.official_confirmed!==true||state!=='conectado'||!current||sending||checking||diagnosing||typeof current.revalidateGroupAvailability!=='function'){report();return;}
+     diagnosing=true;const revision=generation,provider=current;
+     try{const result=await provider.revalidateGroupAvailability(jid,true);if(revision===generation)report(result);}
+     catch{if(revision===generation)report();}
+     finally{diagnosing=false;}
     }else if(message.action==='recover_group_distribution'){
      const jid=message.group_jid;
      if(typeof jid!=='string'||!/^[0-9-]{1,64}@g\.us$/.test(jid))return;
@@ -162,6 +171,10 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
      output('group_send_stage',{group_jid:jid,stage:'attempt_started'});
      try{
       const receipt=isImage?await provider.sendImage(jid,text,image):isFile?await provider.sendFile(jid,text,file,message.mime,message.name):await provider.sendText(jid,text);
+      if(receipt?.blocked==='previous_421'){
+       if(revision===generation)output('group_send_stage',{group_jid:jid,stage:'paused_previous_421'});
+       output('send_result',{request_id:requestId,status:'rejected',reason_code:'previous_421',reason:'Envio pausado por rejeição anterior do WhatsApp. Nenhuma mensagem transmitida.'});return;
+      }
       if(revision===generation)output('group_send_stage',{group_jid:jid,stage:receipt?.messageId&&state==='conectado'?'receipt_generated':'uncertain'});
       output('send_result',{request_id:requestId,status:revision===generation&&state==='conectado'?'accepted':'uncertain',
        message_id:String(receipt?.messageId??'').slice(0,160)});
