@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {createBridge} from '../windows-bridge.mjs';
+import {createBridge,isolateProtocolOutput,PROTOCOL_PREFIX,PROTOCOL_MAX} from '../windows-bridge.mjs';
 
 test('IPC guarda sessão local, invalida QR antigo e limita grupos aos metadados',async()=>{
  const messages=[];
@@ -186,4 +186,20 @@ test('diagnostico PN/LID não exporta participantes e não confunde domínios',a
  const own=['5511999999999:3@s.whatsapp.net','12345@lid'];
  assert.deepEqual(groupDiagnostics({addressingMode:'pn',announce:true,restrict:false,participants:[{id:'999@lid',admin:'admin'},{id:'12345@lid',phoneNumber:'5511999999999@s.whatsapp.net',admin:'superadmin'}]},own),{addressing_mode:'pn',role:'superadmin',posting:'admins',settings:'all'});
  assert.deepEqual(groupDiagnostics({addressingMode:'lid',announce:false,participants:[{id:'12345@s.whatsapp.net',admin:'admin'}]},own),{addressing_mode:'lid',role:'unknown',posting:'all',settings:'unknown'});
+});
+
+test('protocol frames are isolated from third-party stdout, without retaining raw diagnostic content',async()=>{
+ const writes=[];const stdout={write(chunk){writes.push(chunk);return true;}};
+ const emit=isolateProtocolOutput(stdout);
+ stdout.write('unframed dependency diagnostic\n');
+ const credential='fixture\nwith newline';
+ emit({type:'vault',value:credential});
+ stdout.write('another line\n');
+ emit({type:'state',value:'conectado'});
+ assert.equal(writes.length,2);
+ assert.ok(writes.every(v=>v.startsWith(PROTOCOL_PREFIX)&&v.split('\n').length===2));
+ assert.deepEqual(JSON.parse(writes[0].slice(PROTOCOL_PREFIX.length)),{type:'vault',value:credential});
+ assert.deepEqual(JSON.parse(writes[1].slice(PROTOCOL_PREFIX.length)),{type:'state',value:'conectado'});
+ emit({type:'vault',value:'x'.repeat(PROTOCOL_MAX)});
+ assert.deepEqual(JSON.parse(writes[2].slice(PROTOCOL_PREFIX.length)),{type:'protocol_error',value:'envelope_too_large'});
 });
