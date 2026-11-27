@@ -48,3 +48,9 @@ Consultar [gate de clientes](NEOPEP-CONNECT-AI-GATE-PLUS-E-CLIENTES.md) e [insta
 | Operações em massa | Preparar revisão por campanha e revisão do rascunho, com lista de itens elegíveis e recusados. Cada aplicação precisa de chave idempotente por item, revalidação da versão e resultado individual. Preservar criativos e destinatários em alterações de texto. |
 | Agenda | Reusar a interpretação do horário local e a confirmação da revisão do RPC nativo. Separar simulação de ocorrências da ação que cria lotes. Validar fuso, hora inválida, revisão desatualizada e repetição. |
 | Diagnóstico | Usar `initialize`, `ping` e uma leitura de fixture autenticada. Medir disponibilidade, duração e classe de erro separadamente para OAuth, Hyperdrive, RPC e MCP. Agregar métricas sem usuário, destinatários, caminhos de criativos, sessões ou conteúdo. |
+
+## Base publicada e ordem de promoção
+
+Produção é promovida e verificada primeiro. O Teste continua no mesmo ciclo após a verificação oficial e a autorização específica. Os projetos, bancos, callbacks e segredos são separados.
+
+A reconciliação do frontend sobre o commit publicado `fe8ecb2fff8b9fb97eff8b0eb529db84a1f3b430` está em `release/connect-ai/frontend-teste-fe8ecb2.patch`. Antes de autorizar publicação, confirmar se essa ainda é a base ativa. Em checkout descartável dessa revisão, executar `git apply --check --binary CAMINHO_DO_PATCH`, aplicar o patch e rodar `npm run build`, `npm run check` e verificações focadas. O bundle `dist/cloud.js` deve ser reconstruído a partir do fonte reconciliado. O patch mantém os fluxos de Teste e aplica a CSP do MCP exclusivamente ao painel. O Worker e os SQL candidatos vêm da branch Connect AI.

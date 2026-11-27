@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
 import {exportJWK,generateKeyPair,jwtVerify,SignJWT} from 'jose';
+import {productionProfile} from '../src/environments.mjs';
 import {openSessionBroker} from '../src/session-broker.mjs';
 import {createIssuer} from '../src/oauth-issuer.mjs';
 import {challengeS256} from '../src/pkce.mjs';
@@ -30,13 +31,17 @@ test('OAuth usa transação SQL para troca única, rotação e revogação por r
   await db.query("insert into neo_private.connect_ai_sessions values($1,'iv','encrypted',now()+interval '1 minute')",[connectionId]);
   await assert.rejects(db.query('update neo_private.connect_ai_connections set revoked_at=now()'),{code:'42501'});
   await db.query('delete from neo_private.connect_ai_sessions');
-  const broker=await openSessionBroker({
-   NEO_CONNECT_AI_DB:{connectionString:'fixture'},NEO_CONNECT_AI_SESSION_KEY:'11'.repeat(32),
-   NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY:'fixture'
-  },async()=>{throw Error('Unexpected external request');},()=>async(parts,...args)=>{
+  const env={NEO_CONNECT_AI_DB:{connectionString:'fixture'},NEO_CONNECT_AI_SESSION_KEY:'11'.repeat(32),
+   NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY:'fixture'};
+  const upstream=async()=>{throw Error('Unexpected external request');};
+  const connect=()=>async(parts,...args)=>{
    const query=parts.reduce((sql,part,index)=>sql+(index?'$'+index:'')+part,'');
    return (await db.query(query,args)).rows;
-  });
+  };
+  const broker=await openSessionBroker(env,upstream,connect);
+  await broker.verifyDatabase();
+  const mismatched=await openSessionBroker(env,upstream,connect,productionProfile);
+  await assert.rejects(mismatched.verifyDatabase(),/BROKER_ENVIRONMENT_MISMATCH/);
   const invoke=async(path,body)=>(await broker.fetch(new Request('https://broker.invalid'+path,{
    method:'POST',body:JSON.stringify(body)
   }))).json();

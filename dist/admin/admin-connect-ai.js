@@ -124,7 +124,7 @@ window.NeoAdminConnectAI=(()=>{
   <details><summary>Instalar integração</summary>
    <label>Cliente<select data-connect-ai-client>${Object.entries(clients).map(([id,client])=>`<option value="${id}">${client.label}</option>`).join('')}</select></label>
    <label>Dispositivo ou superfície<select data-connect-ai-surface><option value="desktop">Desktop</option><option value="web">Web</option><option value="iphone">iPhone</option></select></label>
-   <label>Ambiente<select data-connect-ai-environment><option value="test">Teste</option><option value="production">Produção</option></select></label>
+   <label>Ambiente<select data-connect-ai-environment><option value="test">Teste</option><option value="production"${window.location?.origin==='https://app.neopep.com.br'?' selected':''}>Produção</option></select></label>
    <p data-connect-ai-instructions></p><p role="status" data-connect-ai-install-state></p>
    <a class="text-btn" data-connect-ai-guide target="_blank" rel="noopener noreferrer">Abrir instruções oficiais</a>
    <a class="text-btn" href="../assets/connect-ai-mcp-icon.png" download="neopep-connect-ai.png">Baixar ícone PNG do servidor</a>

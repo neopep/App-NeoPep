@@ -30,3 +30,21 @@ export function prepareDraftTextEdit({channel,campaignId,publicationId,requestId
   campaign_id:campaignId,publication_id:publicationId,request_id:requestId,revision,draft
  }};
 }
+
+// Plans each edit independently for review. The returned operations are never dispatched here.
+export function reviewDraftTextBatch(items){
+ if(!Array.isArray(items)||!items.length||items.length>20)throw Error('INVALID_BATCH');
+ const publications=new Set(),requests=new Set();
+ return items.map((item,index)=>{
+  try{
+   const operation=prepareDraftTextEdit(item);
+   const {publication_id,request_id}=operation.p_data;
+   if(publications.has(publication_id)||requests.has(request_id))throw Error('DUPLICATE_DRAFT');
+   publications.add(publication_id);
+   requests.add(request_id);
+   return {index,eligible:true,operation};
+  }catch(error){
+   return {index,eligible:false,reason:error.message==='DUPLICATE_DRAFT'?'DUPLICATE_DRAFT':'INVALID_DRAFT'};
+  }
+ });
+}

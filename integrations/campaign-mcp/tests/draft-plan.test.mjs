@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {prepareDraftCreation,prepareDraftTextEdit} from '../src/draft-plan.mjs';
+import {prepareDraftCreation,prepareDraftTextEdit,reviewDraftTextBatch} from '../src/draft-plan.mjs';
 test('rascunho usa ações e idempotência nativas sem destino ou envio',()=>{
  const requestId='11111111-1111-4111-8111-111111111111';
  for(const [channel,action] of [['app','app_create'],['whatsapp','create']]){
@@ -22,6 +22,13 @@ test('edição altera apenas o texto selecionado e rejeita revisões e estados i
  const result=prepareDraftTextEdit(args);
  assert.equal(result.p_action,'app_save');
  assert.equal(result.p_data.revision,3);
+ const batch=reviewDraftTextBatch([args,args,{...args,revision:2}]);
+ assert.deepEqual(batch,[
+  {index:0,eligible:true,operation:result},
+  {index:1,eligible:false,reason:'DUPLICATE_DRAFT'},
+  {index:2,eligible:false,reason:'INVALID_DRAFT'}
+ ]);
+ assert.throws(()=>reviewDraftTextBatch(Array(21).fill(args)),/INVALID_BATCH/);
  assert.deepEqual(result.p_data.draft,{...draft,blocks:[{...draft.blocks[0],text:'Novo'},draft.blocks[1]]});
  assert.equal(draft.blocks[0].text,'Original');
  assert.throws(()=>prepareDraftTextEdit({...args,revision:2}),/INVALID_DRAFT/);

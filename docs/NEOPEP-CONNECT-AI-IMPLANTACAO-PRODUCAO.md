@@ -16,3 +16,20 @@ Escopo estritamente leitura, começar com contexto e lista/detalhe WhatsApp de c
 
 ## Retomada
 Manter mesma branch, reconciliar HEAD, atualizar relatório e fazer commits/push pequenos. Preparar adaptação comum e testes para ambos os ambientes no mesmo ciclo; publicar Produção primeiro e confirmar saúde, depois Teste, cada qual em seu projeto e base correta. Se Produção falhar, não promover automaticamente Teste; registrar bloqueio e preservar código preparado. O último prompt de mudança de prioridade ainda não foi enviado ao Codex; retomar código a partir de 7d784946 e reconciliar os commits de documentação posteriores. Este registro não afirma que a adaptação, migrações, deploy ou instalação já ocorreram.
+
+## Candidata de implantação
+
+A entrada `integrations/campaign-mcp/wrangler.production.jsonc` fixa a configuração oficial e inicia com `NEO_CONNECT_AI_ENABLED=0` e `NEO_CONNECT_AI_READ_APP=0`. O frontend de Produção parte de `a315404`. O frontend de Teste tem reconciliação própria sobre `fe8ecb2`. Conferir a ponta e o deployment ativos de cada ambiente novamente antes de autorizar qualquer promoção.
+
+1. Obter autorização específica para Produção. Confirmar plano Cloudflare, limites e ausência de custo novo. Registrar versions ativas de Worker/frontend, snapshot recuperável no Supabase e resultado de restauração em ambiente isolado.
+2. No projeto `cpslafpzjtbpmoxxysaa`, aplicar em ordem `001-connections.production.candidate.sql`, `002-oauth-grants.candidate.sql`, `003-session-broker.candidate.sql` após revisão e preflight de ACL. Usar login dedicado com o papel `neo_connect_ai_broker` e conferir permissões efetivas. O primeiro acesso do Worker confere o identificador de projeto da migração. Manter Hyperdrive, cache desativado, DNS/TLS e segredos exclusivos de Produção. Os nomes dos secrets e variáveis estão no [roteiro de Teste](NEOPEP-CONNECT-AI-IMPLANTACAO-TESTE.md).
+3. Preparar o Worker oficial desativado e validar recusa. Revisar e publicar o delta de frontend sobre a base oficial. Confirmar login, navegação e CSP do painel antes de habilitar o Worker. Registrar o ID OAuth e o callback HTTPS exato de uma conta elegível, obtidos por configuração suportada pelo cliente.
+4. Habilitar o Worker oficial apenas para leitura de WhatsApp. Com um administrador autorizado, conferir consentimento explícito, lista/detalhe de campanha, revogação individual e recusa para conta comum, host divergente e sessão expirada. Conferir funcionamento do frontend oficial e ausência de transações em Loja, IA de atendimento e Windows.
+5. Após confirmar a saúde de Produção e receber autorização para Teste, executar o mesmo ensaio com a base e os recursos de Teste. Se Produção falhar, interromper a promoção e preservar as duas candidatas.
+6. Reversão: desativar a flag e verificar recusa no domínio oficial, revogar conexões do ensaio e restaurar o frontend anterior verificado. Se necessário, desvincular o Hyperdrive e desativar o login dedicado. Preservar tabelas e trilha para revisão. Nunca usar credenciais de Teste para recuperar Produção.
+
+## ChatGPT Windows
+
+Em Plugins, adicionar servidor MCP personalizado por URL, escolher OAuth, usar o nome NeoPep Connect AI e a descrição “Consulta autorizada de campanhas NeoPep”. Usar apenas o endereço do ambiente em avaliação. Baixar o PNG de 96 × 96 e 2.140 bytes em **Instalar integração**. Registrar os valores exatos do cliente OAuth antes do primeiro consentimento. Se o cliente exigir DCR, CIMD ou callback de loopback, registrar o bloqueio de compatibilidade. Seguir com marketplace privado ou ZIP apenas após comprovar compatibilidade. Verificar Web e iPhone separadamente.
+
+Referências técnicas: [Hyperdrive e cache](https://developers.cloudflare.com/hyperdrive/get-started/), [backup e restauração Supabase](https://supabase.com/docs/guides/platform/backups) e [autenticação MCP no ChatGPT](https://developers.openai.com/plugins/build/auth).

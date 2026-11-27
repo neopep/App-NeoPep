@@ -1,0 +1,308 @@
+diff --git a/dist/admin/admin-connect-ai.js b/dist/admin/admin-connect-ai.js
+new file mode 100644
+index 0000000..3c4700c
+--- /dev/null
++++ b/dist/admin/admin-connect-ai.js
+@@ -0,0 +1,151 @@
++window.NeoAdminConnectAI=(()=>{
++ const markup=`<button type="button" class="secondary neo-connect-ai-entry" data-connect-ai-open aria-haspopup="dialog">
++ <span aria-hidden="true">✦</span><span><strong>NeoPep Connect AI</strong><small>Integrações, automação e gerenciamento inteligente.</small></span><span aria-hidden="true">›</span>
++ </button>`;
++ const clients={
++  chatgpt:{label:'ChatGPT',help:'No ChatGPT Windows, adicione um servidor MCP personalizado por URL HTTPS e selecione OAuth. Use o ícone PNG abaixo. Valide Web e iPhone separadamente.',url:'https://developers.openai.com/plugins/build/plugins'},
++  claude:{label:'Claude',help:'Em uma conta elegível, use um conector MCP remoto personalizado e autorize a conta NeoPep.',url:'https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp'},
++  gemini:{label:'Gemini',help:'Verifique plano, idioma e região antes de usar um aplicativo conectado personalizado.',url:'https://support.google.com/gemini/answer/17209137'},
++  codex:{label:'Codex',help:'Use o marketplace local ou a configuração MCP do cliente. A conexão precisa de autorização própria.',url:'https://developers.openai.com/codex/mcp'}
++ };
++ function mountInstaller(dialog){
++  const select=dialog.querySelector('[data-connect-ai-client]');
++  const environment=dialog.querySelector('[data-connect-ai-environment]');
++  const surface=dialog.querySelector('[data-connect-ai-surface]');
++  const address=dialog.querySelector('[data-connect-ai-address]');
++  const copy=dialog.querySelector('[data-connect-ai-copy]');
++  const copyStatus=dialog.querySelector('[data-connect-ai-copy-status]');
++  const instructions=dialog.querySelector('[data-connect-ai-instructions]');
++  const official=dialog.querySelector('[data-connect-ai-guide]');
++  const state=dialog.querySelector('[data-connect-ai-install-state]');
++  function render(){
++   const client=clients[select.value]||clients.chatgpt;
++   const isMobileOrWeb=surface.value==='web'||surface.value==='iphone';
++   instructions.textContent=select.value==='chatgpt'&&isMobileOrWeb
++    ?'ChatGPT Sites pode ser avaliado como alternativa privada. Verifique a disponibilidade nesta conta e dispositivo.'
++    :client.help;
++   address.value=environment.value==='production'?'https://connect.neopep.com.br/mcp':'https://connect-teste.neopep.com.br/mcp';
++   copyStatus.textContent='';
++   official.href=client.url;
++   state.textContent=(environment.value==='production'?'Produção':'Teste')+
++    ' · instalação e verificação pendentes de homologação.';
++  }
++  select.addEventListener('change',render);
++  environment.addEventListener('change',render);
++  surface.addEventListener('change',render);
++  copy.addEventListener('click',async()=>{
++   try{
++    await navigator.clipboard.writeText(address.value);
++    copyStatus.textContent='Endereço candidato copiado.';
++   }catch{
++    address.focus();
++    address.select();
++    copyStatus.textContent='Copie o endereço selecionado manualmente.';
++   }
++  });
++  render();
++ }
++ function mountConnections(dialog,cloud){
++  if(!cloud?.connectAIAvailable)return;
++  const details=dialog.querySelector('[data-connect-ai-connections]');
++  const list=details.querySelector('ul'),status=details.querySelector('p');
++  let busy=false;
++  async function refresh(id){
++   if(busy)return;
++   busy=true;
++   list.replaceChildren();
++   status.textContent='Consultando conexões…';
++   try{
++    if(id&&!await cloud.connectAIConnections('revoke',id))throw Error();
++    const rows=await cloud.connectAIConnections('list');
++    for(const row of rows){
++     const item=document.createElement('li');
++     const state=row.revoked_at?'Revogada':Date.parse(row.expires_at)<=Date.now()?'Expirada':'Ativa';
++     item.textContent=row.client_id+' · '+state+' ';
++     if(state==='Ativa'){
++      const button=document.createElement('button');
++      button.type='button';
++      button.className='secondary';
++      button.textContent='Revogar';
++      button.addEventListener('click',()=>{if(window.confirm('Revogar esta conexão?'))void refresh(row.id);});
++      item.append(button);
++     }
++     list.append(item);
++    }
++    status.textContent=id?'Conexão revogada.':rows.length?'Suas conexões':'Nenhuma conexão registrada.';
++   }catch{status.textContent='Não foi possível consultar ou atualizar suas conexões.';}
++   finally{busy=false;}
++  }
++  details.addEventListener('toggle',()=>{if(details.open)void refresh();});
++ }
++ function mountConsent(dialog,cloud){
++  if(!cloud?.connectAIAvailable)return;
++  const current=new URL(window.location.href);
++  const query=current.searchParams.get('connectAiRequest');
++  if(!query)return;
++  const proof=current.searchParams.get('connectAiCsrf'),expires=current.searchParams.get('connectAiExpires');
++  const params=new URLSearchParams(query);
++  const panel=dialog.querySelector('[data-connect-ai-consent]');
++  const status=panel.querySelector('[role=status]'),approve=panel.querySelector('button');
++  panel.hidden=false;
++  panel.querySelector('[data-consent-client]').textContent=params.get('client_id')||'Cliente externo';
++  approve.addEventListener('click',async()=>{
++   approve.disabled=true;
++   try{window.location.assign(await cloud.approveConnectAI(query,proof,expires));}
++   catch{status.textContent='A autorização falhou ou expirou. Reinicie pelo cliente.';}
++  });
++  dialog.addEventListener('close',()=>{
++   for(const key of ['connectAiRequest','connectAiCsrf','connectAiExpires'])current.searchParams.delete(key);
++   window.history.replaceState(window.history.state,'',current.href);
++   panel.hidden=true;
++  },{once:true});
++  dialog.showModal();
++ }
++ function mount(root){
++  const toolbar=root.querySelector('.neo-campaign-toolbar');
++  if(!toolbar||root.querySelector('[data-connect-ai-open]'))return;
++  toolbar.insertAdjacentHTML('beforebegin',markup);
++  const trigger=root.querySelector('[data-connect-ai-open]');
++  const dialog=document.createElement('dialog');
++  dialog.className='card neo-connect-ai-dialog';
++  dialog.setAttribute('aria-labelledby','neoConnectAITitle');
++  dialog.innerHTML=`<h2 id="neoConnectAITitle">NeoPep Connect AI</h2>
++  <p>Integração externa com as campanhas do NeoPep.</p>
++  <p role="status">Servidor e conexões aguardam homologação.</p>
++  <section data-connect-ai-consent hidden aria-label="Autorizar integração">
++   <h3>Autorizar integração</h3><p data-consent-client></p>
++   <p>Permitir que este cliente consulte campanhas no NeoPep ${window.location?.origin==='https://app.neopep.com.br'?'Produção':'Teste'} com a sua conta?</p>
++   <button type="button" class="primary">Autorizar leitura</button><p role="status"></p>
++  </section>
++  <details data-connect-ai-connections><summary>Conexões</summary><p role="status">A gestão depende da autorização individual do NeoPep.</p><ul></ul></details>
++  <details><summary>Ferramentas</summary><p>A disponibilidade será informada pelo catálogo do servidor conectado.</p></details>
++  <details><summary>Base de conhecimento</summary><p>Consulte o guia de campanhas do NeoPep antes de preparar publicações.</p></details>
++  <details><summary>Histórico</summary><p>Histórico de operações disponível após a conexão ao servidor.</p></details>
++  <details><summary>Instalar integração</summary>
++   <label>Cliente<select data-connect-ai-client>${Object.entries(clients).map(([id,client])=>`<option value="${id}">${client.label}</option>`).join('')}</select></label>
++   <label>Dispositivo ou superfície<select data-connect-ai-surface><option value="desktop">Desktop</option><option value="web">Web</option><option value="iphone">iPhone</option></select></label>
++   <label>Ambiente<select data-connect-ai-environment><option value="test">Teste</option><option value="production"${window.location?.origin==='https://app.neopep.com.br'?' selected':''}>Produção</option></select></label>
++   <p data-connect-ai-instructions></p><p role="status" data-connect-ai-install-state></p>
++   <a class="text-btn" data-connect-ai-guide target="_blank" rel="noopener noreferrer">Abrir instruções oficiais</a>
++   <a class="text-btn" href="../assets/connect-ai-mcp-icon.png" download="neopep-connect-ai.png">Baixar ícone PNG do servidor</a>
++   <label>Endereço MCP candidato<input data-connect-ai-address readonly></label>
++   <button type="button" class="secondary" data-connect-ai-copy>Copiar endereço MCP</button>
++   <p role="status" data-connect-ai-copy-status></p>
++   <p>Versão instalada indisponível. Para atualizar o catálogo local, confira a revisão autorizada, regenere o pacote e reinicie o cliente.</p>
++   <button type="button" class="secondary" disabled>Baixar pacote homologado</button>
++   <button type="button" class="secondary" disabled>Verificar conexão</button>
++  </details>
++  <h3>Processamento</h3>
++  <dl><dt>Cloudflare</dt><dd>Aguardando homologação</dd>
++  <dt>Vercel</dt><dd>Planejado</dd>
++  <dt>NeoPep Connect Windows</dt><dd>Planejado como executor complementar</dd></dl>
++  <form method="dialog"><button type="submit" class="secondary" autofocus>Voltar a Campanhas</button></form>`;
++  toolbar.after(dialog);
++  mountInstaller(dialog);
++  mountConnections(dialog,window.NeoCloud);
++  mountConsent(dialog,window.NeoCloud);
++  trigger.addEventListener('click',()=>{if(!dialog.open)dialog.showModal();});
++  dialog.addEventListener('close',()=>{if(trigger.isConnected)trigger.focus({preventScroll:true});});
++ }
++ return {mount};
++})();
+diff --git a/dist/admin/admin.js b/dist/admin/admin.js
+index e927323..dccfeb5 100644
+--- a/dist/admin/admin.js
++++ b/dist/admin/admin.js
+@@ -1031,6 +1031,7 @@ async function mountCampaigns(root){
+  let recipientPicker;
+  let offset=0,rows=[],editing=null,busy=false,loadingPage=false,done=false,area='app',observer,whatsapp;
+  root.innerHTML='<section class="card"><div class="neo-campaign-toolbar"><nav class="neo-campaign-switch" aria-label="Canal de campanha"><button type="button" class="primary" data-campaign-action="app" aria-pressed="true">App</button><button type="button" class="secondary" data-campaign-action="whatsapp" aria-pressed="false">WhatsApp</button></nav><div class="neo-campaign-toolbar-actions"><button type="button" class="secondary campaign-manual" aria-label="Ajuda para campanhas" title="Como criar uma campanha" data-campaign-action="manual"><span aria-hidden="true">?</span></button><button type="button" class="primary neo-campaign-new" data-campaign-action="new" aria-label="Criar nova campanha" title="Criar nova campanha"><span aria-hidden="true">+</span><span class="neo-campaign-new-label"> Nova</span></button></div></div><nav class="neo-campaign-crumbs" aria-label="Localização" data-campaign-breadcrumb></nav><nav class="neo-campaign-sections" aria-label="Seção" data-campaign-sections></nav><div class="neo-campaign-actionbar" data-campaign-actionbar></div><button type="button" class="secondary" data-campaign-action="back" hidden>← Voltar à lista</button><p role="status" data-campaign-status></p><details class="space" hidden><summary>Vincular plano a uma conta</summary><form data-campaign-plan class="space"><label>ID da conta<input name="account" required pattern="[a-fA-F0-9-]{36}"></label><label>Código do plano (vazio para desvincular)<input name="plan" pattern="[a-z0-9_-]{1,40}" maxlength="40"></label><button class="secondary" type="submit">Salvar vínculo</button></form></details><dialog data-campaign-edit hidden></dialog><div data-campaign-wa hidden></div><div data-campaign-filters class="neo-campaign-filters"><label class="central-search"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input type="search" aria-label="Pesquisar campanhas" placeholder="Pesquisar campanhas"></label><label>Status<select><option value="">Todos</option><option value="draft">Rascunho</option><option value="active">Ativa</option><option value="scheduled">Agendada</option><option value="paused">Pausada</option><option value="archived">Arquivada</option><option value="expired">Encerrada</option></select></label><label>Canal da campanha<select><option value="">Todos neste canal</option><option value="shared">App e WhatsApp</option><option value="single">Só neste canal</option></select></label></div><div data-campaign-list></div><div data-campaign-results hidden></div><div data-campaign-more aria-live="polite"></div></section>';
++ window.NeoAdminConnectAI?.mount(root);
+  const find=selector=>root.querySelector(selector);
+  const status=find('[data-campaign-status]'),editor=find('[data-campaign-edit]'),list=find('[data-campaign-list]');
+  const structured=document.createElement('details');
+diff --git a/dist/admin/index.html b/dist/admin/index.html
+index f24730b..da6464d 100644
+--- a/dist/admin/index.html
++++ b/dist/admin/index.html
+@@ -1 +1 @@
+-<!doctype html><html lang="pt-BR" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://qnuluspqfazdppciermw.supabase.co; img-src 'self' data: blob: https://qnuluspqfazdppciermw.supabase.co; media-src 'self' blob: https://qnuluspqfazdppciermw.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'"><title>Administração — NeoPep</title><link rel="icon" href="../assets/favicon-32.png" type="image/png"><script src="../appearance.js"></script><link rel="stylesheet" href="../style.css?v=campanhas-central-19"><link rel="stylesheet" href="connect-ui.css?v=20261123"></head><body><div class="ambient" aria-hidden="true"></div><div id="app"><header class="app-header"><a class="brand" href="../"><img src="../assets/logo-neopep.png" width="36" height="36" alt="">NeoPep</a><a class="secondary admin-back-app" href="../">← Voltar ao aplicativo</a></header><main><div class="page-head"><div><h1 id="adminTitle">Visão da plataforma</h1><p class="sub" id="adminSubtitle">Indicadores e cadastros. Autorização verificada no servidor.</p></div><button class="secondary" id="adminRefresh">Atualizar</button></div><nav class="admin-tabs" id="adminTabs" aria-label="Administração" hidden><button class="primary" data-admin-tab="overview" aria-pressed="true">Visão geral</button><button class="secondary" data-admin-tab="signups" aria-pressed="false">Cadastros</button><button class="secondary" data-admin-tab="audience" aria-pressed="false">Estatísticas de público</button><button class="secondary" data-admin-tab="engagement" aria-pressed="false">Engajamento</button><button class="secondary" data-admin-tab="operations" aria-pressed="false">Inteligência operacional</button><button class="secondary" data-admin-tab="health" aria-pressed="false">Saúde do sistema</button><button class="secondary" data-admin-tab="settings" aria-pressed="false">Configurações</button></nav><p id="adminStatus" role="status">Verificando acesso…</p><div id="adminContent"></div></main><footer><a href="../">Voltar ao aplicativo</a><span>Sem dados individuais de saúde</span></footer></div><script src="../config.js"></script><script src="../core.js"></script><script src="../cloud.js?v=20261126binary65"></script><script src="../gestures.js"></script><script src="../shop-core.js"></script><script src="agent.js"></script><script src="../pdf-reader.js"></script><script src="../media-links.js"></script><script src="../library-video.js"></script><script src="../library-files.js?v=campanhas-central-1"></script><script src="admin-pdf.js?v=3"></script><script src="whatsapp-navigation.js?v=1"></script><script src="admin-connect.js?v=5"></script><script src="admin-whatsapp.js?v=25"></script><script src="campaign-editor.js?v=campanhas-central-19"></script><script src="campaign-central.js?v=campanhas-central-18"></script><script src="admin.js?v=131"></script></body></html>
++<!doctype html><html lang="pt-BR" data-theme="dark"><head><meta name="referrer" content="no-referrer"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://qnuluspqfazdppciermw.supabase.co https://connect-teste.neopep.com.br; img-src 'self' data: blob: https://qnuluspqfazdppciermw.supabase.co; media-src 'self' blob: https://qnuluspqfazdppciermw.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'"><title>Administração — NeoPep</title><link rel="icon" href="../assets/favicon-32.png" type="image/png"><script src="../appearance.js"></script><link rel="stylesheet" href="../style.css?v=connect-ai-1"><link rel="stylesheet" href="connect-ui.css?v=20261123"></head><body><div class="ambient" aria-hidden="true"></div><div id="app"><header class="app-header"><a class="brand" href="../"><img src="../assets/logo-neopep.png" width="36" height="36" alt="">NeoPep</a><a class="secondary admin-back-app" href="../">← Voltar ao aplicativo</a></header><main><div class="page-head"><div><h1 id="adminTitle">Visão da plataforma</h1><p class="sub" id="adminSubtitle">Indicadores e cadastros. Autorização verificada no servidor.</p></div><button class="secondary" id="adminRefresh">Atualizar</button></div><nav class="admin-tabs" id="adminTabs" aria-label="Administração" hidden><button class="primary" data-admin-tab="overview" aria-pressed="true">Visão geral</button><button class="secondary" data-admin-tab="signups" aria-pressed="false">Cadastros</button><button class="secondary" data-admin-tab="audience" aria-pressed="false">Estatísticas de público</button><button class="secondary" data-admin-tab="engagement" aria-pressed="false">Engajamento</button><button class="secondary" data-admin-tab="operations" aria-pressed="false">Inteligência operacional</button><button class="secondary" data-admin-tab="health" aria-pressed="false">Saúde do sistema</button><button class="secondary" data-admin-tab="settings" aria-pressed="false">Configurações</button></nav><p id="adminStatus" role="status">Verificando acesso…</p><div id="adminContent"></div></main><footer><a href="../">Voltar ao aplicativo</a><span>Sem dados individuais de saúde</span></footer></div><script src="../config.js"></script><script src="../core.js"></script><script src="../cloud.js?v=connect-ai-5"></script><script src="../gestures.js"></script><script src="../shop-core.js"></script><script src="agent.js"></script><script src="../pdf-reader.js"></script><script src="../media-links.js"></script><script src="../library-video.js"></script><script src="../library-files.js?v=campanhas-central-1"></script><script src="admin-pdf.js?v=3"></script><script src="whatsapp-navigation.js?v=1"></script><script src="admin-connect.js?v=5"></script><script src="admin-whatsapp.js?v=25"></script><script src="campaign-editor.js?v=campanhas-central-19"></script><script src="campaign-central.js?v=campanhas-central-18"></script><script src="admin-connect-ai.js?v=5"></script><script src="admin.js?v=connect-ai-1"></script></body></html>
+diff --git a/dist/assets/connect-ai-mcp-icon.png b/dist/assets/connect-ai-mcp-icon.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..5145f8d2b19db715131fbed79753d414485d73f4
+GIT binary patch
+literal 2140
+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
+S_lVE{0000<MNUMnLSTX%><@YX
+
+literal 0
+HcmV?d00001
+
+diff --git a/dist/style.css b/dist/style.css
+index ab416c6..312a2d3 100644
+--- a/dist/style.css
++++ b/dist/style.css
+@@ -1156,3 +1156,23 @@ dialog.neo-structured-editor::backdrop{background:#192720}
+  .shop-label-print header strong{font-size:20px}
+  .shop-label-print .shop-label-name{font-size:15px}
+ }
++
++.neo-connect-ai-entry {
++ display: grid;
++ grid-template-columns: auto minmax(0, 1fr) auto;
++ align-items: center;
++ gap: .75rem;
++ width: 100%;
++ text-align: start;
++ margin-block-end: 1rem;
++}
++.neo-connect-ai-entry small { display: block; color: var(--muted); }
++.neo-connect-ai-dialog {
++ width: min(32rem, calc(100% - 2rem));
++ max-height: 85dvh;
++ overflow: auto;
++ color: var(--ink);
++ background: var(--bg);
++}
++.neo-connect-ai-dialog dt { font-weight: 650; }
++.neo-connect-ai-dialog dd { margin: 0 0 .5rem; color: var(--muted); }
+diff --git a/scripts/build-staging.cjs b/scripts/build-staging.cjs
+index a5649bb..ee93a32 100644
+--- a/scripts/build-staging.cjs
++++ b/scripts/build-staging.cjs
+@@ -62,7 +62,9 @@ async function prepare() {
+       .replace('name="apple-mobile-web-app-title" content="NeoPep"', 'name="apple-mobile-web-app-title" content="NeoPep Teste"')
+       .replaceAll('https://*.supabase.co', staging)
+       .replaceAll('wss://*.supabase.co', staging.replace('https:', 'wss:'));
+-    fs.writeFileSync(path, html);
++    const output = path === 'dist/admin/index.html'
++      ? html.replace('https://connect.neopep.com.br;', 'https://connect-teste.neopep.com.br;') : html;
++    fs.writeFileSync(path, output);
+   }
+   const style = 'dist/style.css';
+   const marker = '/* Identificação exclusiva da homologação */';
+diff --git a/src/cloud.js b/src/cloud.js
+index 3c99614..1d88787 100644
+--- a/src/cloud.js
++++ b/src/cloud.js
+@@ -26,6 +26,33 @@ const authStorage={
+ function chooseRemember(value){if(typeof value!=='boolean')return;const saved=rememberSession===value?null:AUTH_KEYS.map(key=>[key,authStorage.getItem(key)]);rememberSession=value;writeStore(browserStore('localStorage'),REMEMBER_KEY,String(value));if(saved){for(const [key] of saved)authStorage.removeItem(key);for(const [key,item] of saved)if(item!==null)authStorage.setItem(key,item)}}
+ const clearAuthStorage=()=>AUTH_KEYS.forEach(key=>authStorage.removeItem(key));
+ const api={configured,
++ get connectAIAvailable(){return Boolean(connectAIHost())},
++ async connectAIConnections(action,id=null){
++  if(!api.connectAIAvailable||!['list','revoke'].includes(action))throw Error('Operação indisponível.');
++  const version=identityVersion;
++  const result=ok(await need().rpc('neo_connect_ai_connections',{p_action:action,p_id:id}));
++  if(version!==identityVersion)throw Error('A conta mudou.');
++  return result;
++ },
++ async approveConnectAI(query,proof,expires){
++  if(!api.connectAIAvailable)throw Error('Operação indisponível.');
++  const version=identityVersion,account=user?.id;
++  const {session}=ok(await need().auth.getSession());
++  if(version!==identityVersion||session?.user?.id!==account||!session?.access_token)throw Error('Entre novamente no NeoPep.');
++  const target=new URL('/oauth/authorize',connectAIHost());
++  target.search=query;
++  const response=await fetch(target,{method:'POST',redirect:'error',credentials:'omit',referrerPolicy:'no-referrer',
++   headers:{Authorization:'Bearer '+session.access_token,'X-Neo-Consent':'approve','X-Neo-Csrf':proof,'X-Neo-Expires':expires}});
++  if(!response.ok||version!==identityVersion)throw Error('Não foi possível autorizar. Reinicie pelo cliente.');
++  const {redirect}=await response.json();
++  const expected=new URL(target.searchParams.get('redirect_uri')),actual=new URL(redirect);
++  const code=actual.searchParams.get('code'),state=actual.searchParams.get('state');
++  actual.searchParams.delete('code');actual.searchParams.delete('state');
++  expected.search=expected.searchParams.toString();
++  if(version!==identityVersion||actual.href!==expected.href||actual.protocol!=='https:'||!code||state!==target.searchParams.get('state'))
++   throw Error('Retorno de autorização inválido.');
++  return redirect;
++ },
+  async campaignImageURL(path){
+   const result=ok(await need().storage.from('neo-campaign-images').createSignedUrl(path,120));
+   return result.signedUrl;
