@@ -35,7 +35,7 @@
   return 'cancelled';
  }
  // WhatsApp acceptance is not a recipient delivery/read receipt.
- const waLabels={accepted:'Envio solicitado',scheduled:'Agendada',waiting:'Aguardando envio',in_progress:'Enviando',refused:'Falha no envio',uncertain:'Envio não confirmado',cancelled:'Cancelada',partial:'Envio parcial',draft:'Rascunho',legacy:'Manual legado',unknown:'Estado não registrado'};
+ const waLabels={delivered:'Entrega confirmada',server_ack:'Recebido pelo WhatsApp',send_error:'Falha informada pelo WhatsApp',accepted:'Entrega não confirmada',scheduled:'Agendada',waiting:'Aguardando envio',in_progress:'Enviando',refused:'Falha no envio',uncertain:'Envio não confirmado',cancelled:'Cancelada',partial:'Envio parcial',draft:'Rascunho',legacy:'Manual legado',unknown:'Estado não registrado'};
  const originLabels={publish:'Manual',schedule:'Agendamento único',recurring:'Recorrente'};
  const kindLabels={file:'Arquivo',document:'Material da Biblioteca',product:'Produto da Loja',text:'Texto',image:'Imagem',video:'Vídeo',link:'Link'};
  function waBatchState(batch,now=Date.now()){
@@ -45,19 +45,26 @@
   if(states.includes('uncertain'))return 'uncertain';
   if(states.includes('leased')||states.includes('started'))return 'in_progress';
   if(states.includes('waiting'))return Date.parse(batch.due_at)>now?'scheduled':'waiting';
-  if(states.every(s=>s==='accepted'))return 'accepted';
+  if(states.every(s=>s==='accepted')){
+   const total=Number(batch.message_count||states.length);
+   if(Number(batch.send_error_count||0)>0)return 'send_error';
+   if(total>0&&Number(batch.delivery_count||0)===total)return 'delivered';
+   if(total>0&&Number(batch.server_ack_count||0)===total)return 'server_ack';
+   return 'accepted';
+  }
   if(states.includes('accepted'))return 'partial';
   if(states.includes('refused'))return 'refused';
   return 'cancelled';
  }
  function waActive(batch){return (batch?.states||[]).some(s=>['waiting','leased','started'].includes(s));}
+ function waNeedsAttention(batch){const state=waBatchState(batch);return state!=='delivered'&&state!=='cancelled';}
  function waHistory(batch){return !waActive(batch)||(batch?.states||[]).includes('uncertain');}
  function seriesProgress(occurrences,publications,now=Date.now()){
   const rows=(occurrences||[]).map(o=>{const pub=publications.find(p=>p.id===o.publication_id),batch=pub?.batches?.find(b=>b.id===o.batch_id);
-   return {...o,pub,batch,state:waBatchState(batch,now),pending:waActive(batch),history:waHistory(batch)};});
-  const sent=rows.filter(r=>r.state==='accepted').length,pending=rows.filter(r=>r.pending).length,cancelled=rows.filter(r=>r.state==='cancelled').length;
-  const failed=rows.filter(r=>!r.pending&&!['accepted','cancelled'].includes(r.state)).length;
-  const next=rows.filter(r=>r.pending).sort((a,b)=>a.local_time.localeCompare(b.local_time))[0];
+   return {...o,pub,batch,state:waBatchState(batch,now),pending:waNeedsAttention(batch),history:waHistory(batch)};});
+  const sent=rows.filter(r=>r.state==='delivered').length,pending=rows.filter(r=>r.pending).length,cancelled=rows.filter(r=>r.state==='cancelled').length;
+  const failed=rows.filter(r=>['refused','uncertain','send_error','partial','unknown'].includes(r.state)).length;
+  const next=rows.filter(r=>waActive(r.batch)).sort((a,b)=>a.local_time.localeCompare(b.local_time))[0];
   return {rows,sent,pending,cancelled,failed,next,total:rows.length};
  }
  function stableDraft(value){return JSON.stringify(value,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);}
@@ -71,7 +78,7 @@
  }
  function deliveryLine(batch){
   const count=batch?.message_count||batch?.states?.length||0,delivered=Number(batch?.delivery_count||0),server=Number(batch?.server_ack_count||0);
-  if(!batch?.states?.includes('accepted'))return '';
+  if(!batch)return '';if(!batch.states?.includes('accepted'))return ['refused','uncertain','unknown'].includes(waBatchState(batch))?'<p class="sub">Envio não confirmado. Confira o histórico antes de tentar novamente.</p>':'';
   if(batch?.send_error_count)return '<p class="sub">Falha informada pelo WhatsApp'+escape(batch.send_error_codes?.length?' · Código '+batch.send_error_codes.join(', '):'')+'. Não reenviar automaticamente.</p>';
   if(count&&delivered===count)return '<p class="sub">Entrega confirmada a pelo menos um destinatário por mensagem.</p>';
   return '<p class="sub">'+escape(delivered?delivered+' de '+count+' mensagens com entrega confirmada (ao menos um destinatário).':server?'Recebimento pelo servidor WhatsApp confirmado; entrega ao grupo não confirmada.':'Envio solicitado; entrega ao grupo não confirmada.')+'</p>';
@@ -173,7 +180,7 @@
    }
   }
   function show(message){if(active())root.querySelector('[data-central-status]').textContent=message;}
-  function status(pub){if(!isApp&&pub.edit_pending&&view==='agenda')return 'Rascunho · reagendar';const b=pub.batches?.[0];if(!isApp&&b&&waBatchState(b)==='accepted'){const n=b.message_count||b.states.length;if(b.send_error_count)return 'Falha informada pelo WhatsApp';if(n&&b.delivery_count===n)return 'Entrega confirmada';if(b.server_ack_count===n)return 'Recebido pelo WhatsApp';}return isApp?labels[state(pub)]:waLabels[b?waBatchState(b):pub.legacy_dispatch?'legacy':'draft'];}
+  function status(pub){if(!isApp&&pub.edit_pending&&view==='agenda')return 'Rascunho · reagendar';const b=pub.batches?.[0];return isApp?labels[state(pub)]:waLabels[b?waBatchState(b):pub.legacy_dispatch?'legacy':'draft'];}
   function stopStatusPoll(){if(statusTimer!==null){clearTimeout(statusTimer);statusTimer=null;}}
   async function refreshVisibleStatus(force=false){
    if(statusRefreshing||!active()||screen!=='detail'||!current||(!force&&busy)||root.hidden||document.visibilityState==='hidden')return;
@@ -287,15 +294,15 @@
     const p=all.find(p=>p.id===o.publication_id);return p?.batches?.length===1&&p.batches[0].id===o.batch_id&&!p.deleted_at;
    }).map(o=>o.publication_id)):[]);
    const items=isApp?(view==='history'?all:all.filter(pub=>!pub.deleted_at)):all.filter(pub=>!grouped.has(pub.id)&&
-    (view==='history'?pub.deleted_at||pub.legacy_dispatch||pub.batches.some(waHistory):!pub.deleted_at&&!pub.legacy_dispatch&&(!pub.batches.length||pub.edit_pending||pub.batches.some(waActive))));
+    (view==='history'?pub.deleted_at||pub.legacy_dispatch||pub.batches.some(waHistory):!pub.deleted_at&&!pub.legacy_dispatch&&(!pub.batches.length||pub.edit_pending||waNeedsAttention(pub.batches[0]))));
    const ordered=[...items].sort((a,b)=>(a.batches[0]?.due_at||a.planned_local||'').localeCompare(b.batches[0]?.due_at||b.planned_local||''));
    const undated=ordered.filter(pub=>!pub.planned_local&&(!pub.batches.length||pub.edit_pending));
    const dated=ordered.filter(pub=>!undated.includes(pub));
-   const recent=!isApp&&view==='agenda'?all.filter(p=>!p.deleted_at&&!grouped.has(p.id)&&!p.edit_pending&&!items.includes(p)&&p.batches.some(b=>b.due_at&&saoPauloDay(new Date(b.due_at))===saoPauloDay(new Date())&&b.states?.some(s=>['accepted','uncertain','refused'].includes(s)))):[];
+   const recent=!isApp&&view==='agenda'?all.filter(p=>!p.deleted_at&&!grouped.has(p.id)&&!p.edit_pending&&!items.includes(p)&&p.batches.some(b=>b.due_at&&saoPauloDay(new Date(b.due_at))===saoPauloDay(new Date())&&waBatchState(b)==='delivered')):[];
    const cards=(entries,historyCard=false)=>entries.map(pub=>{
     const batch=pub.edit_pending&&view==='agenda'&&!historyCard?null:pub.batches[0],waState=pub.deleted_at?'cancelled':batch?waBatchState(batch):'draft',locked=Boolean(pub.deleted_at)||pub.legacy_dispatch||Boolean(batch&&(batch.cancelled_at==null||batch.states?.some(value=>value!=='cancelled')));
-    return `<article class="monitor-block central-publication" data-central-publication="${escape(pub.id)}" data-day="${escape(batch?.due_at?saoPauloDay(new Date(batch.due_at)):(pub.planned_local||'').slice(0,10))}"><div class="central-date-badge">${dateBadge(batch?pub:{...pub,batches:[]})}</div><div class="central-publication-body"><div class="central-publication-title"><strong>${escape(pub.title)}</strong><span class="campaign-state ${!isApp?'central-status-'+(paused&&waActive(batch)?'paused':waState):''}">${pub.deleted_at?'Excluída':paused&&['waiting','scheduled','draft'].includes(state(pub))?'Pausada':status(pub)}</span></div>
-     ${!isApp&&batch?'<div class="central-origin"><span class="campaign-state">'+escape(originLabels[batch.origin]||'Origem não registrada')+'</span></div><p class="sub central-timestamps">Configurado: '+escape(date(batch.configured_at)||'Não registrado')+'<br>Previsto: '+escape(date(batch.due_at)||'Não registrado')+(batch.sent_at?'<br>Último aceite WhatsApp: '+escape(date(batch.sent_at)):'')+'</p>':''}
+    return `<article class="monitor-block central-publication" data-central-publication="${escape(pub.id)}" data-day="${escape(batch?.due_at?saoPauloDay(new Date(batch.due_at)):(pub.planned_local||'').slice(0,10))}"><div class="central-date-badge">${dateBadge(batch?pub:{...pub,batches:[]})}</div><div class="central-publication-body"><div class="central-publication-title"><strong>${escape(pub.title)}</strong><span class="campaign-state ${!isApp?'central-status-'+(paused&&waActive(batch)?'paused':(['send_error','refused','uncertain','partial'].includes(waState)?'refused':waState==='delivered'?'accepted':waState==='server_ack'||waState==='accepted'?'waiting':waState)):''}">${pub.deleted_at?'Excluída':paused&&['waiting','scheduled','draft'].includes(state(pub))?'Pausada':status(pub)}</span></div>
+     ${!isApp&&batch?'<div class="central-origin"><span class="campaign-state">'+escape(originLabels[batch.origin]||'Origem não registrada')+'</span></div><p class="sub central-timestamps">Configurado: '+escape(date(batch.configured_at)||'Não registrado')+'<br>Previsto: '+escape(date(batch.due_at)||'Não registrado')+(batch.sent_at?'<br>Solicitação de envio: '+escape(date(batch.sent_at)):'')+'</p>':''}
      <p class="sub">${pub.kinds?.length||0} ${isApp?'bloco(s)':'mensagem(ns)'}${pub.kinds?.length?' · '+escape(pub.kinds.map(k=>kindLabels[k]||k).join(', ')):''}</p>
      ${!isApp?groupLine(pub,batch)+deliveryLine(batch):''}
      ${localRows.some(r=>r.id===pub.id)?'<p class="sub">Alterações locais não salvas</p><div class="inline-actions">'+button('resume','Recuperar alterações',pub.id)+button('discard','Descartar alterações locais',pub.id)+'</div>':''}
@@ -306,21 +313,21 @@
      ${editable&&!pub.deleted_at?button('duplicate_form','Duplicar / distribuir',pub.id)+((isApp?appRepeatReady:!paused&&typeof cloud.campaignWeekly==='function')?button('weekly_form',isApp?'Preparar repetição':'Programar repetição',pub.id):''):''}
      ${batch?.states?.includes('waiting')&&editable&&!pub.deleted_at?button('cancel','Cancelar pendências',pub.id):''}
      ${editable&&!pub.deleted_at?button('delete_publication','Excluir publicação',pub.id):''}</div></details>
-     ${view==='history'||historyCard?`<div data-central-history="${escape(pub.id)}">${button('attempts','Ver tentativas e recibos',pub.id)}</div>`:''}</div></article>`;
+     ${view==='history'||historyCard||(!isApp&&batch&&waNeedsAttention(batch)&&!waActive(batch))?`<div data-central-history="${escape(pub.id)}">${button('attempts','Ver tentativas e recibos',pub.id)}</div>`:''}</div></article>`;
    }).join('');
    const seriesCards=()=>weekly.filter(item=>Array.isArray(item.occurrences)&&item.occurrences.length).map(item=>{
     const p=seriesProgress(item.occurrences,all);
     if(view==='agenda'&&!p.pending||view==='history'&&!p.rows.some(r=>r.history))return '';
     const title=all.find(pub=>pub.id===item.publication_id)?.title||'Publicação recorrente';
     const frequency=item.rule?.frequency==='daily'?'Diariamente':item.rule?.frequency==='weekly'?'Semanalmente':'Datas programadas';
-    const summary=p.pending?(paused?'Pausada':'Em andamento'):p.failed?'Com falha ou pendência':p.cancelled===p.total?'Cancelada':p.cancelled?'Concluída com cancelamentos':'Concluída';
+    const summary=p.failed?'Com falha ou pendência':p.pending?(paused?'Pausada':'Aguardando confirmação'):p.failed?'Com falha ou pendência':p.cancelled===p.total?'Cancelada':p.cancelled?'Concluída com cancelamentos':'Concluída';
     return `<article class="monitor-block central-series-card" data-central-series="${escape(item.id)}" data-day="${escape((p.rows.filter(r=>r.pending).map(r=>r.local_time).sort().at(-1)||p.rows.at(-1)?.local_time||'').slice(0,10))}">
      <div class="between"><strong>${escape(title)}</strong><span class="campaign-state central-status-${p.pending?(paused?'paused':'scheduled'):p.failed?'refused':p.sent===p.total?'accepted':'cancelled'}">${summary}</span></div>
      <div class="central-origin"><span class="campaign-state">Recorrente</span></div>
      <p class="sub">${frequency} · Configurado: ${escape(date(item.configured_at)||'Não registrado')}${p.next?' · Próxima: '+escape(local(p.next.local_time)):''}</p>
      ${groupLine({draft_group_names:[...new Set(p.rows.flatMap(r=>r.batch?.group_names||[]))],draft_group_count:Math.max(0,...p.rows.map(r=>r.batch?.group_count||0))},null)}
-     <div class="central-series-progress"><span>Enviadas: ${p.sent} de ${p.total}</span><progress max="${p.total}" value="${p.sent}" aria-label="Progresso de envios"></progress><span>${p.pending} pendente(s) · ${p.failed} com falha ou incerta(s) · ${p.cancelled} cancelada(s)</span></div>
-     <details data-series-calendar="${escape(item.id)}"><summary>Ver calendário de envios</summary><div class="central-series-dates">${p.rows.map(r=>`<div class="central-series-occurrence"><div class="between"><strong>${escape(local(r.local_time))}</strong><span class="campaign-state central-status-${r.state}">${paused&&r.pending?'Pausada':waLabels[r.state]}</span></div>${r.batch?.sent_at?'<p class="sub">Último aceite: '+escape(date(r.batch.sent_at))+'</p>':''}${r.pub?button('edit','Ver publicação',r.pub.id)+((view==='history'||r.history)?'<div data-central-history="'+escape(r.pub.id)+'">'+button('attempts','Ver tentativas e recibos',r.pub.id)+'</div>':''):''}</div>`).join('')}</div></details>
+     <div class="central-series-progress"><span>Entregas confirmadas: ${p.sent} de ${p.total}</span><progress max="${p.total}" value="${p.sent}" aria-label="Progresso de envios"></progress><span>${p.pending} pendente(s) · ${p.failed} com falha ou incerta(s) · ${p.cancelled} cancelada(s)</span></div>
+     <details data-series-calendar="${escape(item.id)}"><summary>Ver calendário de envios</summary><div class="central-series-dates">${p.rows.map(r=>`<div class="central-series-occurrence"><div class="between"><strong>${escape(local(r.local_time))}</strong><span class="campaign-state central-status-${r.state}">${paused&&r.pending?'Pausada':waLabels[r.state]}</span></div>${r.batch?.sent_at?'<p class="sub">Solicitação de envio: '+escape(date(r.batch.sent_at))+'</p>':''}${deliveryLine(r.batch)}${r.pub?button('edit','Ver publicação',r.pub.id)+((view==='history'||r.history)?'<div data-central-history="'+escape(r.pub.id)+'">'+button('attempts','Ver tentativas e recibos',r.pub.id)+'</div>':''):''}</div>`).join('')}</div></details>
      <div class="inline-actions">${view==='agenda'&&editable&&item.state!=='cancelled'?(!paused?button('weekly_edit','Editar datas',item.id):'')+(item.state==='scheduled'?button('weekly_pause','Pausar',item.id):'')+button('weekly_cancel','Cancelar repetição',item.id):''}</div></article>`;
    }).join('');
    redraw(`${button('back','‹ Campanhas')}<section class="central-campaign-heading"><h2>${escape(detail.title)}</h2><div class="central-campaign-icons">${switchCampaign(detail)}${editable?iconAction('rename','Renomear')+iconAction('archive','Arquivar'):''}${iconAction('delete','Excluir campanha')}${editable&&onCross?button('copy_channel',isApp?'Copiar para WhatsApp':'Copiar para App'):''}</div></section>
