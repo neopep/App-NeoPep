@@ -194,3 +194,5 @@ Pedido do proprietário: imagem até 5 MB, legenda opcional em imagem/vídeo/doc
 
 ## Manual universal e consulta prévia obrigatória (candidato)
 Fonte única em publication-guide.mjs, ferramenta get_publication_guide, instruções no initialize, versão obrigatória nas ferramentas candidatas de escrita. O servidor rejeita versão antiga/ausente antes de chamar adaptador. Isso não comprova leitura semântica nem autorização de envio; validações e consentimento continuam independentes. ChatGPT/Codex, Claude e Gemini usam o mesmo contrato; nenhum novo cliente OAuth habilitado, ZIP Desktop e produção ativos preservados. Atualizar guia e catálogo em toda mudança relevante do editor. Próximo gate: testar host real Claude e Gemini quando elegível, antes de ativar escrita.
+
+Comprovante temporário assinado implementado: a consulta retorna guide_receipt às conexões de escrita de Teste. O handler rejeita comprovante ausente, vencido ou pertencente a outra conexão. Sem mecanismo configurado, as ferramentas de escrita não aparecem. Não prova compreensão do modelo; prova recuperação do manual. Não implantado.

@@ -7,3 +7,6 @@ Fonte: integrations/campaign-mcp/src/publication-guide.mjs e catálogo MCP. A co
 - Cada host pode transferir arquivos de forma diferente. Usar mesma semântica de mídia, sem presumir acesso a arquivos recém-gerados.
 ## Implantação
 Candidato, não publicado. Produção somente leitura. Teste exige infraestrutura própria e consentimento granular. Não modificar ZIP homologado nem liberar envio. Nenhum custo novo.
+
+## Comprovante de consulta
+Além da versão, a escrita exige comprovante HMAC de consulta ao guia, válido por 10 minutos, ligado à conexão, proprietário, ambiente e versão. Sem comprovante válido, GUIDE_REFRESH_REQUIRED. Não substitui OAuth, autorização, validação nem confirmação de publicação. A leitura continua disponível sem comprovante. A chave existente de consentimento é usada com separação de domínio criptográfica.

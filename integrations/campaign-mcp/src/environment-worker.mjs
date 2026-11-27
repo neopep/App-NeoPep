@@ -1,3 +1,4 @@
+import {createGuideReceipts} from './guide-receipts.mjs';
 import {importJWK} from 'jose';
 import {createHandler} from './worker.mjs';
 import {createIssuer} from './oauth-issuer.mjs';
@@ -77,7 +78,7 @@ export async function environmentHandler(profile,env,request=fetch){
   isCampaignAdmin:async(ownerId,environment,id)=>Boolean(await activeSession(id,ownerId))});
  const readChannels=env.NEO_CONNECT_AI_READ_APP==='1'?['whatsapp','app']:['whatsapp'];
  const writeDraft=enableDrafts?createDraftWriter({publishableKey:env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY,sessionFor:activeSession,request,profile,enabled:true}):undefined;
- return createHandler({environment:profile.name,oauth,consent,authorize,readChannels,writeDraft,readCampaign:createCampaignReader({
+ return createHandler({environment:profile.name,oauth,consent,authorize,readChannels,writeDraft,guideReceipts:enableDrafts?createGuideReceipts(csrfKey):undefined,readCampaign:createCampaignReader({
   publishableKey:env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY,sessionFor:activeSession,request,profile,channels:readChannels,appRecurrences:readChannels.includes('app')
  })});
 }

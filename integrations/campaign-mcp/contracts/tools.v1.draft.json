@@ -59,7 +59,7 @@
         "required": [],
         "additionalProperties": false
       },
-      "output_contract": "guide_version, environment, available_tools, workflow, native_editor, examples, operations, guardrails"
+      "output_contract": "guide_version, guide_receipt, environment, available_tools, workflow, native_editor, examples, operations, guardrails"
     },
     {
       "name": "list_campaigns",

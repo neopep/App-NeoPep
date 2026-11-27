@@ -1,8 +1,9 @@
+import {createGuideReceipts} from '../src/guide-receipts.mjs';
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import worker,{createHandler} from '../src/worker.mjs';
 
-const auth={environment:'test',expiresAt:Date.now()+60000,campaignAdmin:true,scopes:['campaigns:read']};
+const auth={id:'11111111-1111-4111-8111-111111111111',ownerId:'22222222-2222-4222-8222-222222222222',environment:'test',expiresAt:Date.now()+60000,campaignAdmin:true,scopes:['campaigns:read']};
 const invoke=(handler,method,params,token='fixture',extra={})=>handler(new Request('https://example.invalid/mcp',{
  method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token,...extra},
  body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})
@@ -73,7 +74,10 @@ test('catálogo não anuncia destinos WhatsApp para canal App isolado',async()=>
 test('escrita anunciada somente com escopo novo, ambiente Teste e adaptador ativo',async()=>{
  let calls=0;const writeDraft=async()=>{calls++;return {status:'draft_created_or_reused'};};
  let principal=auth;
- const handler=createHandler({authorize:async()=>principal,writeDraft});
+ const key=await crypto.subtle.importKey('raw',new Uint8Array(32).fill(1),{name:'HMAC',hash:'SHA-256'},false,['sign','verify']);
+ let clock=Date.now();
+ const guideReceipts=createGuideReceipts(key,{now:()=>clock});
+ const handler=createHandler({authorize:async()=>principal,writeDraft,guideReceipts});
  const params={name:'create_campaign_draft',arguments:{channel:'app',title:'Fixture',requestId:'11111111-1111-4111-8111-111111111111'}};
  assert.ok(!(await (await invoke(handler,'tools/list')).json()).result.tools.some(t=>t.name===params.name));
  assert.equal((await (await invoke(handler,'tools/call',params)).json()).error.code,-32602);
@@ -84,8 +88,15 @@ test('escrita anunciada somente com escopo novo, ambiente Teste e adaptador ativ
  assert.equal(guide.operations.find(o=>o.name==='agendar').available,false);
  assert.equal(guide.examples[2].blocks[1].type,'text');
  params.arguments.guideVersion=guide.guide_version;
+ assert.match((await (await invoke(handler,'tools/call',params)).json()).result.content[0].text,/GUIDE_REFRESH_REQUIRED/);
+ params.arguments.guideReceipt=guide.guide_receipt;
+ const previous=principal;principal={...principal,id:'33333333-3333-4333-8333-333333333333'};
+ assert.match((await (await invoke(handler,'tools/call',params)).json()).result.content[0].text,/GUIDE_REFRESH_REQUIRED/);
+ principal=previous;
  assert.ok((await (await invoke(handler,'tools/list')).json()).result.tools.some(t=>t.name===params.name));
  assert.equal((await (await invoke(handler,'tools/call',params)).json()).result.structuredContent.status,'draft_created_or_reused');
+ clock+=11*60*1000;
+ assert.match((await (await invoke(handler,'tools/call',params)).json()).result.content[0].text,/GUIDE_REFRESH_REQUIRED/);
  const prod=createHandler({environment:'production',authorize:async()=>({...principal,environment:'production'}),writeDraft});
  assert.ok(!(await (await invoke(prod,'tools/list')).json()).result.tools.some(t=>t.name===params.name));
  assert.equal((await (await invoke(prod,'tools/call',params)).json()).error.code,-32602);

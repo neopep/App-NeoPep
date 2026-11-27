@@ -3,7 +3,7 @@ export const guideVersion='2026-11-27.2';
 const strings={type:'array',items:{type:'string'}};
 const obj=properties=>({type:'object',properties,required:Object.keys(properties),additionalProperties:false});
 export const publicationGuideSchema=obj({
- guide_version:{const:guideVersion},environment:{enum:['test','production']},available_tools:strings,workflow:strings,
+ guide_version:{const:guideVersion},guide_receipt:{type:['string','null'],description:'Comprovante temporário da consulta, exigido para escrita; não autoriza envio.'},environment:{enum:['test','production']},available_tools:strings,workflow:strings,
  native_editor:obj({timezone:{const:'America/Sao_Paulo'},block_types:strings,whatsapp_blocks:{const:6},draft_blocks:{const:32},text_limit:{const:2000},caption_limit:{const:1000},link_caption_limit:{const:160},conservative_image_limit_bytes:{const:1048576},image_target_bytes:{const:5242880},original_file_limit_bytes:{const:5242880},group_limit:{const:30},caption_modes:strings,formatting:strings,app_controls:strings}),
  examples:{type:'array',items:obj({name:{type:'string'},blocks:{type:'array',items:obj({type:{enum:['image','file','text']},text:{type:'string'},layout:{enum:['caption','separate','not_applicable']}})}})},
  operations:{type:'array',items:obj({name:{type:'string'},requires:strings,available:{type:'boolean'},rules:strings})},guardrails:strings
@@ -25,14 +25,14 @@ const rules=[
  ['duplicar',['duplicate_publications','copy_campaign_channel'],['Cópia cria rascunho; revisar destinos.']],
  ['gerenciar',['pause_campaign','cancel_schedule','archive_campaign'],['Respeitar histórico, estado e confirmação da ação.']]
 ];
-export function getPublicationGuide(environment,enabledTools){
+export function getPublicationGuide(environment,enabledTools,receipt=null){
  const available=new Set(enabledTools);
- return {guide_version:guideVersion,environment,available_tools:[...available],
+ return {guide_version:guideVersion,guide_receipt:receipt,environment,available_tools:[...available],
  workflow:[
  'Antes de qualquer tarefa editorial, consulte get_capabilities, get_publication_guide e get_brand_context. Não use regras memorizadas de uma sessão antiga.',
  'Interprete canal, campanha nova ou existente, quantidade, tema, criativos, modo de legenda, público e horários. Sem pedido de envio, prepare rascunho ou proposta.',
  'Consulte a Central, referências e destinatários autorizados quando disponíveis. Não invente informações.',
- 'Monte blocos na ordem do envio; preserve formatação; verifique limites reais. Nas ferramentas de escrita informe guideVersion retornado pelo guia atual.',
+ 'Monte blocos na ordem do envio; preserve formatação; verifique limites reais. Nas ferramentas de escrita informe guideVersion e guideReceipt retornados pelo guia atual; renove a consulta quando expirar.',
  'Execute somente ferramentas anunciadas. Sem escrita disponível, entregue proposta no chat e informe que não foi salva.',
  'Confira resultados individuais e estados; só declare salvo, agendado ou enviado com evidência do servidor.'
  ],

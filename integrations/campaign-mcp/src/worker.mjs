@@ -30,7 +30,7 @@ async function readBody(request){
  }
 }
 
-export function createHandler({authorize=async()=>null,environment='test',origins=[],readCampaign,writeDraft,oauth,consent,readChannels=['whatsapp']}={}){
+export function createHandler({authorize=async()=>null,environment='test',origins=[],readCampaign,writeDraft,guideReceipts,oauth,consent,readChannels=['whatsapp']}={}){
  if(!['test','production'].includes(environment))throw Error('Invalid environment');
  const discovery=oauth?makeDiscoveryHandler(oauth):null;
  const metadataUrl=oauth?new URL('/.well-known/oauth-protected-resource/mcp',oauth.protectedResource.resource).href:null;
@@ -40,7 +40,7 @@ export function createHandler({authorize=async()=>null,environment='test',origin
   ...tool,inputSchema:{...tool.inputSchema,properties:{...tool.inputSchema.properties,
    channel:{enum:readChannels.filter(value=>tool.inputSchema.properties.channel.enum.includes(value))}}}
  })).filter(tool=>tool.inputSchema.properties.channel.enum.length>0):[];
- const nativeWrites=environment==='test'&&typeof writeDraft==='function'?draftTools:[];
+ const nativeWrites=environment==='test'&&typeof writeDraft==='function'&&guideReceipts?.issue&&guideReceipts?.verify?draftTools:[];
  return async request=>{
   const path=new URL(request.url).pathname;
   if(path==='/oauth/authorize'&&consent)return consent(request);
@@ -82,11 +82,11 @@ export function createHandler({authorize=async()=>null,environment='test',origin
   const args=params.arguments??{};
   const draft=writes.find(tool=>tool.name===params.name);
   if(draft){
-   if(args.guideVersion!==guideVersion)return result({isError:true,content:[{type:'text',text:'GUIDE_REFRESH_REQUIRED: consulte get_publication_guide e use guide_version como guideVersion.'}]});
+   if(args.guideVersion!==guideVersion||!await guideReceipts.verify(principal,args.guideReceipt).catch(()=>false))return result({isError:true,content:[{type:'text',text:'GUIDE_REFRESH_REQUIRED: consulte get_publication_guide e use guide_version e guide_receipt como guideVersion e guideReceipt.'}]});
    if(draft.inputSchema.required.some(k=>!Object.hasOwn(args,k))||Object.keys(args).some(k=>!Object.hasOwn(draft.inputSchema.properties,k))||!['app','whatsapp'].includes(args.channel)|| (args.items!==undefined&&(!Array.isArray(args.items)||args.items.length>6)))
     return error(id,-32602,'Parâmetros inválidos.');
    try{
-    const {guideVersion:acknowledgedVersion,...payload}=args;
+    const {guideVersion:acknowledgedVersion,guideReceipt:retrievalProof,...payload}=args;
     const data=await writeDraft(principal,draft.name,payload);
     return result({content:[{type:'text',text:JSON.stringify(data)}],structuredContent:data});
    }catch(err){
@@ -110,7 +110,7 @@ export function createHandler({authorize=async()=>null,environment='test',origin
    }
   }
   if(!scopeByTool.has(params.name)||Object.keys(args).length)return error(id,-32602,'Ferramenta ou parâmetros inválidos.');
-  const value=params.name==='get_publication_guide'?getPublicationGuide(environment,available.map(t=>t.name)):params.name==='get_capabilities'
+  const value=params.name==='get_publication_guide'?getPublicationGuide(environment,available.map(t=>t.name),writes.length?await guideReceipts.issue(principal):null):params.name==='get_capabilities'
    ?{environment,contract_version:version,enabled_tools:available.map(t=>t.name),restrictions:writes.length?['Teste: leitura e criação/edição de rascunhos textuais.','Sem envio, agendamento, destinos ou exclusão.']:nativeReads.length?['Somente leitura nos canais habilitados: '+readChannels.join(', '),'Não criar, editar, enviar ou agendar publicações por este catálogo.']:['Somente leitura de contexto','Sem operações sobre campanhas nesta versão']}
    :{brand_version:'2026-11-27.1',name:'NeoPep',editorial_rules:['Use informações verificáveis e somente materiais autorizados pela Central.','Escreva em português claro; diferencie rascunho, agendamento, envio aceito e entrega confirmada.','Não invente preços, grupos, estoque, links, resultados clínicos ou depoimentos.','Preserve privacidade; não use dados, fotos ou informações de saúde de membros.','Não produza publicidade de medicamentos controlados ou experimentais, nem alegações médicas não fundamentadas.','Nunca agende ou publique a partir de uma proposta sem autorização verificável.']};
   return result({content:[{type:'text',text:JSON.stringify(value)}],structuredContent:value});
