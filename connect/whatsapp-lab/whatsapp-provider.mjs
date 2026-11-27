@@ -1,10 +1,10 @@
 // Adaptador experimental, restrito a pareamento e metadados de grupos.
 const loadModules=()=>Promise.all([import('@whiskeysockets/baileys'),import('pino')]);
 
-// Conservative transport limit: base64 and JSON fit the 16 MiB Windows IPC envelope.
-export const CAMPAIGN_FILE_MAX=5*1024*1024;
+// 25 MiB MP4, 5 MiB PDF; base64 and JSON fit the 40 MiB Windows IPC envelope.
+export const CAMPAIGN_FILE_MAX=25*1024*1024;
 export function validCampaignFile(bytes,mime,name){
- if(!Buffer.isBuffer(bytes)||bytes.length<8||bytes.length>CAMPAIGN_FILE_MAX||typeof name!=='string'||!name.trim()||name.length>160||/[\\/:*?"<>|\x00-\x1f\x7f]/.test(name))return false;
+ if(!Buffer.isBuffer(bytes)||bytes.length<8||bytes.length>(mime==='video/mp4'?CAMPAIGN_FILE_MAX:5*1024*1024)||typeof name!=='string'||!name.trim()||name.length>160||/[\\/:*?"<>|\x00-\x1f\x7f]/.test(name))return false;
  if(mime==='application/pdf')return /\.pdf$/i.test(name)&&bytes.subarray(0,5).toString('ascii')==='%PDF-'&&bytes.subarray(Math.max(0,bytes.length-1024)).includes(Buffer.from('%%EOF'));
  if(mime==='video/mp4')return /\.mp4$/i.test(name)&&bytes.length>=16&&bytes.subarray(4,8).toString('ascii')==='ftyp'&&bytes.readUInt32BE(0)>=8&&bytes.readUInt32BE(0)<=bytes.length;
  return false;
@@ -110,7 +110,7 @@ export async function createBaileysProvider(
   },
   async sendFile(groupJid,caption,bytes,mime,name){
    if(typeof caption!=='string'||caption.length>1000||!validCampaignFile(bytes,mime,name))throw Error('Arquivo ou legenda inválido.');
-   const payload=mime==='application/pdf'?{document:bytes,mimetype:mime,fileName:name,caption:caption.trim()}:{video:bytes,mimetype:mime,caption:caption.trim()};
+   const payload=mime==='application/pdf'||bytes.length>16*1024*1024?{document:bytes,mimetype:mime,fileName:name,caption:caption.trim()}:{video:bytes,mimetype:mime,caption:caption.trim()};
    return sendToParticipatingGroup(groupJid,payload);
   },
   async forget(){
