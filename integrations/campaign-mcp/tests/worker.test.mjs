@@ -87,6 +87,9 @@ test('escrita anunciada somente com escopo novo, ambiente Teste e adaptador ativ
  assert.equal(guide.operations.find(o=>o.name==='criar_rascunhos').available,true);
  assert.equal(guide.operations.find(o=>o.name==='agendar').available,false);
  assert.equal(guide.examples[2].blocks[1].type,'text');
+ assert.equal(guide.creative_context.methods.length,9);
+ assert.ok(guide.creative_context.methods.some(m=>m.id==='visual'));
+ assert.ok(guide.creative_context.policy.some(p=>p.includes('GPT externo')));
  params.arguments.guideVersion=guide.guide_version;
  assert.match((await (await invoke(handler,'tools/call',params)).json()).result.content[0].text,/GUIDE_REFRESH_REQUIRED/);
  params.arguments.guideReceipt=guide.guide_receipt;
