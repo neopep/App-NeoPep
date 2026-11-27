@@ -1,23 +1,25 @@
 -- Candidate: isolated Teste, after 001–003 and 007. No dispatcher or storage writes.
+begin;
 do $guard$ begin
  if not exists(select 1 from neo_private.connect_ai_environment where project_ref='qnuluspqfazdppciermw') then raise exception 'wrong_environment';end if;
 end $guard$;
 create table neo_private.connect_ai_draft_jobs(
  id uuid primary key, connection_id uuid not null references neo_private.connect_ai_connections(id) on delete cascade,
  channel text not null check(channel in ('app','whatsapp')), campaign_id uuid not null,
+ state text not null default 'active' check(state in ('active','paused','cancelled')),
  created_at timestamptz not null default now()
 );
 create table neo_private.connect_ai_draft_job_items(
  job_id uuid not null references neo_private.connect_ai_draft_jobs(id) on delete cascade,
  ordinal integer not null check(ordinal between 0 and 59), publication_id uuid not null, request_id uuid not null,
- state text not null default 'pending' check(state in ('pending','leased','saved','conflict','blocked','uncertain','retryable')),
+ state text not null default 'pending' check(state in ('pending','leased','saved','conflict','blocked','uncertain','retryable','cancelled')),
  attempts integer not null default 0 check(attempts>=0), revision integer, lease_id uuid, leased_until timestamptz,
  primary key(job_id,ordinal),unique(job_id,publication_id),unique(job_id,request_id)
 );
 create table neo_private.connect_ai_audit_events(
  id bigint generated always as identity primary key,
  connection_id uuid not null references neo_private.connect_ai_connections(id) on delete cascade,
- action text not null check(action in ('job_created','chunk_claimed','item_result','draft_create','draft_add','draft_edit')),
+ action text not null check(action in ('job_created','chunk_claimed','item_result','draft_create','draft_add','draft_edit','job_pause','job_resume','job_cancel')),
  outcome text not null check(outcome in ('accepted','saved','conflict','blocked','uncertain','retryable')),
  request_id uuid, recorded_at timestamptz not null default now()
 );
@@ -56,11 +58,14 @@ begin
 end $$;
 create function neo_private.connect_ai_job_claim(p_connection uuid,p_owner uuid,p_job uuid)
 returns jsonb language plpgsql security definer set search_path=pg_catalog as $$
-declare lease uuid:=gen_random_uuid(); result jsonb;
+declare lease uuid:=gen_random_uuid(); result jsonb; job_state text;
 begin
- if not neo_private.connect_ai_job_check(p_connection,p_owner) or not exists(select 1 from neo_private.connect_ai_draft_jobs where id=p_job and connection_id=p_connection) then raise exception 'forbidden' using errcode='42501';end if;
+ if not neo_private.connect_ai_job_check(p_connection,p_owner) then raise exception 'forbidden' using errcode='42501';end if;
+ select state into job_state from neo_private.connect_ai_draft_jobs where id=p_job and connection_id=p_connection for update;
+ if not found then raise exception 'forbidden' using errcode='42501';end if;
  -- A timed-out lease is uncertain, NOT automatically retried.
  update neo_private.connect_ai_draft_job_items set state='uncertain',lease_id=null,leased_until=null where job_id=p_job and state='leased' and leased_until<=clock_timestamp();
+ if job_state<>'active' or exists(select 1 from neo_private.connect_ai_draft_job_items where job_id=p_job and state='leased') then return '[]'::jsonb;end if;
  with chosen as (select ordinal from neo_private.connect_ai_draft_job_items where job_id=p_job and state in ('pending','retryable') order by ordinal limit 6 for update skip locked),
  updated as (update neo_private.connect_ai_draft_job_items i set state='leased',attempts=attempts+1,lease_id=lease,leased_until=clock_timestamp()+interval '2 minutes' from chosen c where i.job_id=p_job and i.ordinal=c.ordinal returning i.ordinal,i.publication_id,i.request_id)
  select coalesce(jsonb_agg(jsonb_build_object('ordinal',ordinal,'publicationId',publication_id,'requestId',request_id,'leaseId',lease) order by ordinal),'[]'::jsonb) into result from updated;
@@ -69,14 +74,49 @@ begin
 end $$;
 create function neo_private.connect_ai_job_result(p_connection uuid,p_owner uuid,p_job uuid,p_request uuid,p_lease uuid,p_outcome text,p_revision integer default null)
 returns boolean language plpgsql security definer set search_path=pg_catalog as $$
+declare job_state text;
 begin
- if not neo_private.connect_ai_job_check(p_connection,p_owner) or not exists(select 1 from neo_private.connect_ai_draft_jobs where id=p_job and connection_id=p_connection) then raise exception 'forbidden' using errcode='42501';end if;
- if p_outcome not in ('saved','conflict','blocked','uncertain','retryable') or (p_outcome='saved' and coalesce(p_revision,0)<1) then raise exception 'invalid_result' using errcode='22023';end if;
+ if not neo_private.connect_ai_job_check(p_connection,p_owner) then raise exception 'forbidden' using errcode='42501';end if;
+ select state into job_state from neo_private.connect_ai_draft_jobs where id=p_job and connection_id=p_connection for update;
+ if not found then raise exception 'forbidden' using errcode='42501';end if;
+ if p_outcome is null or p_outcome not in ('saved','conflict','blocked','uncertain','retryable') or (p_outcome='saved' and coalesce(p_revision,0)<1) then raise exception 'invalid_result' using errcode='22023';end if;
+ if job_state='cancelled' and p_outcome='retryable' then p_outcome:='blocked';end if;
  update neo_private.connect_ai_draft_job_items set state=p_outcome,revision=case when p_outcome='saved' then p_revision else null end,lease_id=null,leased_until=null
  where job_id=p_job and request_id=p_request and state='leased' and lease_id=p_lease and leased_until>clock_timestamp();
  if not found then return false;end if;
  insert into neo_private.connect_ai_audit_events(connection_id,action,outcome,request_id) values(p_connection,'item_result',p_outcome,p_request);
  return true;
 end $$;
+-- Broker-only controls. Stop future claims; an in-flight save may still finish.
+create function neo_private.connect_ai_job_control(p_connection uuid,p_owner uuid,p_job uuid,p_action text)
+returns jsonb language plpgsql security definer set search_path=pg_catalog as $$
+declare job_state text; next_state text;
+begin
+ if not neo_private.connect_ai_job_check(p_connection,p_owner) then raise exception 'forbidden' using errcode='42501';end if;
+ select state into job_state from neo_private.connect_ai_draft_jobs where id=p_job and connection_id=p_connection for update;
+ if not found then raise exception 'forbidden' using errcode='42501';end if;
+ next_state:=case p_action when 'pause' then 'paused' when 'resume' then 'active' when 'cancel' then 'cancelled' end;
+ if p_action is distinct from 'status' and next_state is null then raise exception 'invalid_action' using errcode='22023';end if;
+ if job_state='cancelled' and next_state in ('active','paused') then raise exception 'job_cancelled' using errcode='55000';end if;
+ update neo_private.connect_ai_draft_job_items set state='uncertain',lease_id=null,leased_until=null
+ where job_id=p_job and state='leased' and leased_until<=clock_timestamp();
+ if next_state is not null and next_state<>job_state then
+  update neo_private.connect_ai_draft_jobs set state=next_state where id=p_job;
+  job_state:=next_state;
+  insert into neo_private.connect_ai_audit_events(connection_id,action,outcome,request_id)
+   values(p_connection,'job_'||p_action,'accepted',p_job);
+ end if;
+ if job_state='cancelled' then
+  update neo_private.connect_ai_draft_job_items set state='cancelled'
+   where job_id=p_job and state in ('pending','retryable');
+ end if;
+ return jsonb_build_object('id',p_job,'state',job_state,'items',(
+  select jsonb_agg(jsonb_build_object('ordinal',ordinal,'publicationId',publication_id,'state',state,
+   'attempts',attempts,'revision',revision) order by ordinal)
+  from neo_private.connect_ai_draft_job_items where job_id=p_job));
+end $$;
+revoke all on function neo_private.connect_ai_job_control(uuid,uuid,uuid,text) from public,anon,authenticated;
+grant execute on function neo_private.connect_ai_job_control(uuid,uuid,uuid,text) to neo_connect_ai_broker;
 revoke all on function neo_private.connect_ai_job_check(uuid,uuid),neo_private.connect_ai_job_create(uuid,uuid,uuid,text,uuid,jsonb),neo_private.connect_ai_job_claim(uuid,uuid,uuid),neo_private.connect_ai_job_result(uuid,uuid,uuid,uuid,uuid,text,integer) from public,anon,authenticated;
 grant execute on function neo_private.connect_ai_job_create(uuid,uuid,uuid,text,uuid,jsonb),neo_private.connect_ai_job_claim(uuid,uuid,uuid),neo_private.connect_ai_job_result(uuid,uuid,uuid,uuid,uuid,text,integer) to neo_connect_ai_broker;
+commit;
