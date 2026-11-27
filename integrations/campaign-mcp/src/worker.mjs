@@ -1,3 +1,4 @@
+import {draftTools} from './draft-catalog.mjs';
 import {handleTokenRequest,makeDiscoveryHandler} from './oauth-issuer.mjs';
 import {campaignTools,scopeByTool,tools,version} from './catalog.mjs';
 
@@ -28,7 +29,7 @@ async function readBody(request){
  }
 }
 
-export function createHandler({authorize=async()=>null,environment='test',origins=[],readCampaign,oauth,consent,readChannels=['whatsapp']}={}){
+export function createHandler({authorize=async()=>null,environment='test',origins=[],readCampaign,writeDraft,oauth,consent,readChannels=['whatsapp']}={}){
  if(!['test','production'].includes(environment))throw Error('Invalid environment');
  const discovery=oauth?makeDiscoveryHandler(oauth):null;
  const metadataUrl=oauth?new URL('/.well-known/oauth-protected-resource/mcp',oauth.protectedResource.resource).href:null;
@@ -38,7 +39,7 @@ export function createHandler({authorize=async()=>null,environment='test',origin
   ...tool,inputSchema:{...tool.inputSchema,properties:{...tool.inputSchema.properties,
    channel:{enum:readChannels.filter(value=>tool.inputSchema.properties.channel.enum.includes(value))}}}
  })).filter(tool=>tool.inputSchema.properties.channel.enum.length>0):[];
- const available=[...tools,...nativeReads];
+ const nativeWrites=environment==='test'&&typeof writeDraft==='function'?draftTools:[];
  return async request=>{
   const path=new URL(request.url).pathname;
   if(path==='/oauth/authorize'&&consent)return consent(request);
@@ -56,6 +57,8 @@ export function createHandler({authorize=async()=>null,environment='test',origin
    return new Response(null,{status:401,headers:{...headers,'WWW-Authenticate':authHeader}});
   if(principal.environment!==environment||principal.campaignAdmin!==true||!principal.scopes?.includes('campaigns:read'))
    return json({error:'FORBIDDEN'},403);
+  const writes=principal.scopes.includes('campaigns:drafts')?nativeWrites:[];
+  const available=[...tools,...nativeReads,...writes];
   const requestVersion=request.headers.get('mcp-protocol-version');
   if(requestVersion&&requestVersion!==protocol)return json({error:'PROTOCOL_UNSUPPORTED'},400);
   if(!/^application\/json(?:;|$)/i.test(request.headers.get('content-type')||''))return json({error:'UNSUPPORTED_MEDIA'},415);
@@ -76,6 +79,19 @@ export function createHandler({authorize=async()=>null,environment='test',origin
   if(method!=='tools/call')return error(id,-32601,'Método indisponível.');
   if(!isObject(params)||!isObject(params.arguments??{}))return error(id,-32602,'Parâmetros inválidos.');
   const args=params.arguments??{};
+  const draft=writes.find(tool=>tool.name===params.name);
+  if(draft){
+   if(draft.inputSchema.required.some(k=>!Object.hasOwn(args,k))||Object.keys(args).some(k=>!Object.hasOwn(draft.inputSchema.properties,k))||!['app','whatsapp'].includes(args.channel)|| (args.items!==undefined&&(!Array.isArray(args.items)||args.items.length>6)))
+    return error(id,-32602,'Parâmetros inválidos.');
+   try{
+    const data=await writeDraft(principal,draft.name,args);
+    return result({content:[{type:'text',text:JSON.stringify(data)}],structuredContent:data});
+   }catch(err){
+    const known=['INVALID_DRAFT','FORBIDDEN','AUTH_REQUIRED','NOT_FOUND_OR_FORBIDDEN','REVISION_CONFLICT','DRAFT_LOCKED','REQUEST_CONFLICT'];
+    return result({isError:true,content:[{type:'text',text:known.includes(err.message)?err.message:'UPSTREAM_UNAVAILABLE'}]});
+   }
+  }
+  if(draftTools.some(t=>t.name===params.name))return error(id,-32602,'Ferramenta ou parâmetros inválidos.');
   const native=nativeReads.find(tool=>tool.name===params.name);
   if(native){
    if(!native.inputSchema.properties.channel.enum.includes(args.channel)||native.inputSchema.required.some(key=>!Object.hasOwn(args,key))||
@@ -92,7 +108,7 @@ export function createHandler({authorize=async()=>null,environment='test',origin
   }
   if(!scopeByTool.has(params.name)||Object.keys(args).length)return error(id,-32602,'Ferramenta ou parâmetros inválidos.');
   const value=params.name==='get_capabilities'
-   ?{environment,contract_version:version,enabled_tools:available.map(t=>t.name),restrictions:nativeReads.length?['Somente leitura nos canais habilitados: '+readChannels.join(', '),'Não criar, editar, enviar ou agendar publicações por este catálogo.']:['Somente leitura de contexto','Sem operações sobre campanhas nesta versão']}
+   ?{environment,contract_version:version,enabled_tools:available.map(t=>t.name),restrictions:writes.length?['Teste: leitura e criação/edição de rascunhos textuais.','Sem envio, agendamento, destinos ou exclusão.']:nativeReads.length?['Somente leitura nos canais habilitados: '+readChannels.join(', '),'Não criar, editar, enviar ou agendar publicações por este catálogo.']:['Somente leitura de contexto','Sem operações sobre campanhas nesta versão']}
    :{brand_version:'2026-11-27.1',name:'NeoPep',editorial_rules:['Use informações verificáveis e somente materiais autorizados pela Central.','Escreva em português claro; diferencie rascunho, agendamento, envio aceito e entrega confirmada.','Não invente preços, grupos, estoque, links, resultados clínicos ou depoimentos.','Preserve privacidade; não use dados, fotos ou informações de saúde de membros.','Não produza publicidade de medicamentos controlados ou experimentais, nem alegações médicas não fundamentadas.','Nunca agende ou publique a partir de uma proposta sem autorização verificável.']};
   return result({content:[{type:'text',text:JSON.stringify(value)}],structuredContent:value});
  }

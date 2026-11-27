@@ -62,15 +62,17 @@ const api={configured,connectTestEnabled:connectEnabled,
   if(version!==identityVersion)throw Error('A conta mudou.');
   return result;
  },
- async approveConnectAI(query,proof,expires){
+ async approveConnectAI(query,proof,expires,permission='approve'){
   if(!api.connectAIAvailable)throw Error('Operação indisponível.');
   const version=identityVersion,account=user?.id;
   const {session}=ok(await need().auth.getSession());
   if(version!==identityVersion||session?.user?.id!==account||!session?.access_token)throw Error('Entre novamente no NeoPep.');
   const target=new URL('/oauth/authorize',connectAIHost());
   target.search=query;
+  const wantsDrafts=target.searchParams.get('scope')==='campaigns:read campaigns:drafts';
+  if(permission!==(wantsDrafts?'approve_drafts':'approve')||(wantsDrafts&&target.origin!=='https://connect-teste.neopep.com.br'))throw Error('Permissão não autorizada.');
   const response=await fetch(target,{method:'POST',redirect:'error',credentials:'omit',referrerPolicy:'no-referrer',
-   headers:{Authorization:'Bearer '+session.access_token,'X-Neo-Consent':'approve','X-Neo-Csrf':proof,'X-Neo-Expires':expires}});
+   headers:{Authorization:'Bearer '+session.access_token,'X-Neo-Consent':permission,'X-Neo-Csrf':proof,'X-Neo-Expires':expires}});
   if(!response.ok||version!==identityVersion)throw Error('Não foi possível autorizar. Reinicie pelo cliente.');
   const {redirect}=await response.json();
   if(version!==identityVersion)throw Error('A conta mudou.');

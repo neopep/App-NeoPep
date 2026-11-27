@@ -24,7 +24,7 @@ test('edição preserva mídia/destinos e rejeita revisão antiga',async()=>{
  const write=createDraftWriter({enabled:true,publishableKey:'fixture',sessionFor:async()=> 'session',request:async(url,opts)=>{
   if(url.endsWith('/user'))return Response.json({id});const q=JSON.parse(opts.body);calls.push(q);
   if(q.p_action==='create')return Response.json({campaign_id:id});
-  if(q.p_action==='get')return Response.json({campaign_id:id,title:'Material',publications:[{id:pub,editor_id:pub,revision,batches:[]}]});
+  if(q.p_action==='get')return Response.json({campaign_id:id,title:'Material',deleted_at:null,publications:[{id:pub,editor_id:pub,revision,batches:[]}]});
   if(q.p_action==='load')return Response.json({editor_id:pub,channel:'whatsapp',revision,draft});
   if(q.p_action==='save'){revision=q.p_data.revision+1;draft=q.p_data.draft;return Response.json({revision});}
   throw Error('unexpected RPC');

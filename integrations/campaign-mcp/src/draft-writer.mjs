@@ -13,7 +13,7 @@ export function createDraftWriter({publishableKey,sessionFor,request=fetch,profi
   if(!['create_campaign_draft','add_publications','update_publications'].includes(operation)||!['app','whatsapp'].includes(input.channel))throw Error('INVALID_DRAFT');
   const {channel,campaignId}=input;
   shape(input,operation==='create_campaign_draft'?['channel','title','requestId']:['channel','campaignId','items']);
-  if(operation!=='create_campaign_draft'&&(!uuid(campaignId)||!Array.isArray(input.items)||!input.items.length||input.items.length>20))throw Error('INVALID_DRAFT');
+  if(operation!=='create_campaign_draft'&&(!uuid(campaignId)||!Array.isArray(input.items)||!input.items.length||input.items.length>6))throw Error('INVALID_DRAFT');
   const token=await sessionFor(principal.id,principal.ownerId);
   if(!token)throw Error('AUTH_REQUIRED');
   const headers={apikey:publishableKey,Authorization:'Bearer '+token};
@@ -38,7 +38,7 @@ export function createDraftWriter({publishableKey,sessionFor,request=fetch,profi
    const op=prepareDraftCreation(input),created=await rpc(op.p_action,op.p_data);
    if(!uuid(created?.campaign_id))throw Error('UPSTREAM_UNAVAILABLE');
    const detail=await rpc(prefix+'get',{campaign_id:created.campaign_id});
-   if(detail?.campaign_id!==created.campaign_id||detail.title!==op.p_data.title)throw Error('REQUEST_CONFLICT');
+   if(detail?.campaign_id!==created.campaign_id||!Object.hasOwn(detail,'deleted_at')||detail.deleted_at||detail.title!==op.p_data.title)throw Error('REQUEST_CONFLICT');
    return {campaignId:created.campaign_id,channel,status:'draft_created_or_reused'};
   }
   const ids=new Set(),requests=new Set();
@@ -51,7 +51,7 @@ export function createDraftWriter({publishableKey,sessionFor,request=fetch,profi
    return {item};
   });
   const detail=await rpc(prefix+'get',{campaign_id:campaignId});
-  if(detail?.campaign_id!==campaignId||!Array.isArray(detail.publications)||detail.archived_at||detail.deleted_at)throw Error('DRAFT_LOCKED');
+  if(detail?.campaign_id!==campaignId||!Array.isArray(detail.publications)||detail.archived_at||!Object.hasOwn(detail,'deleted_at')||detail.deleted_at)throw Error('DRAFT_LOCKED');
   const results=[];
   for(const {item,op:preparedOp} of prepared){
    try{

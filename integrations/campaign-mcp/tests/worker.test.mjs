@@ -69,3 +69,19 @@ test('catálogo não anuncia destinos WhatsApp para canal App isolado',async()=>
  assert.ok(!result.some(t=>t.name==='list_destinations'));
  assert.deepEqual(result.find(t=>t.name==='get_campaign').inputSchema.properties.channel.enum,['app']);
 });
+
+test('escrita anunciada somente com escopo novo, ambiente Teste e adaptador ativo',async()=>{
+ let calls=0;const writeDraft=async()=>{calls++;return {status:'draft_created_or_reused'};};
+ let principal=auth;
+ const handler=createHandler({authorize:async()=>principal,writeDraft});
+ const params={name:'create_campaign_draft',arguments:{channel:'app',title:'Fixture',requestId:'11111111-1111-4111-8111-111111111111'}};
+ assert.ok(!(await (await invoke(handler,'tools/list')).json()).result.tools.some(t=>t.name===params.name));
+ assert.equal((await (await invoke(handler,'tools/call',params)).json()).error.code,-32602);
+ principal={...auth,scopes:['campaigns:read','campaigns:drafts']};
+ assert.ok((await (await invoke(handler,'tools/list')).json()).result.tools.some(t=>t.name===params.name));
+ assert.equal((await (await invoke(handler,'tools/call',params)).json()).result.structuredContent.status,'draft_created_or_reused');
+ const prod=createHandler({environment:'production',authorize:async()=>({...principal,environment:'production'}),writeDraft});
+ assert.ok(!(await (await invoke(prod,'tools/list')).json()).result.tools.some(t=>t.name===params.name));
+ assert.equal((await (await invoke(prod,'tools/call',params)).json()).error.code,-32602);
+ assert.equal(calls,1);
+});

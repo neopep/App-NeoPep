@@ -93,9 +93,15 @@ window.NeoAdminConnectAI=(()=>{
   const status=panel.querySelector('[role=status]'),approve=panel.querySelector('button');
   panel.hidden=false;
   panel.querySelector('[data-consent-client]').textContent=params.get('client_id')||'Cliente externo';
+  const wantsDrafts=params.get('scope')==='campaigns:read campaigns:drafts';
+  if(wantsDrafts){
+   if(window.location.origin!=='https://teste.app.neopep.com.br'){approve.disabled=true;status.textContent='Permissão de rascunhos restrita ao Teste.';return;}
+   panel.querySelector('[data-consent-description]').textContent='Permitir leitura, criação e edição de rascunhos no ambiente Teste? Não autoriza envio, agendamento ou exclusão.';
+   approve.textContent='Autorizar leitura e rascunhos de Teste';
+  }
   approve.addEventListener('click',async()=>{
    approve.disabled=true;
-   try{window.location.assign(await cloud.approveConnectAI(query,proof,expires));}
+   try{window.location.assign(wantsDrafts?await cloud.approveConnectAI(query,proof,expires,'approve_drafts'):await cloud.approveConnectAI(query,proof,expires));}
    catch{status.textContent='A autorização falhou ou expirou. Reinicie pelo cliente.';}
   });
   dialog.addEventListener('close',()=>{
@@ -119,7 +125,7 @@ window.NeoAdminConnectAI=(()=>{
   <section aria-label="Modalidades de integração"><h3>NeoPep Connect AI – Desktop</h3><p>Codex Windows · ZIP 1.0.5 homologado em duas contas.</p><h3>NeoPep Connect AI – Nuvem</h3><p>ChatGPT Web · conexão privada em conta elegível, ainda não registrada. iPhone: compatibilidade não homologada.</p></section>
   <section data-connect-ai-consent hidden aria-label="Autorizar integração">
    <h3>Autorizar integração</h3><p data-consent-client></p>
-   <p>Permitir que este cliente consulte campanhas no NeoPep ${window.location?.origin==='https://app.neopep.com.br'?'Produção':'Teste'} com a sua conta?</p>
+   <p data-consent-description>Permitir que este cliente consulte campanhas no NeoPep ${window.location?.origin==='https://app.neopep.com.br'?'Produção':'Teste'} com a sua conta?</p>
    <button type="button" class="primary">Autorizar leitura</button><p role="status"></p>
   </section>
   <details data-connect-ai-connections><summary>Conexões</summary><p role="status">A gestão depende da autorização individual do NeoPep.</p><ul></ul></details>
