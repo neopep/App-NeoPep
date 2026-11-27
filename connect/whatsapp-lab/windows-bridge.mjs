@@ -1,6 +1,7 @@
 // Protocolo privado por pipes herdados. Nenhuma porta HTTP é aberta.
 import {createInterface} from 'node:readline';
 import {fileURLToPath} from 'node:url';
+import {Writable} from 'node:stream';
 import {createBaileysProvider,validCampaignFile,CAMPAIGN_FILE_MAX} from './whatsapp-provider.mjs';
 
 export function createBridge({emit,providerFactory=createBaileysProvider,renderQr}){
@@ -205,8 +206,24 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
  };
 }
 
+// Only application-owned frames reach the inherited protocol pipe.
+export const PROTOCOL_PREFIX='NEO-WA/1 ';
+export const PROTOCOL_MAX=40*1024*1024;
+export function isolateProtocolOutput(stdout){
+ const protocolWrite=stdout.write.bind(stdout);
+ const discard=new Writable({write(_chunk,_encoding,done){done();}});
+ // The dependency may use console.log or stdout.write despite a silent logger.
+ // Do not retain, forward or inspect this output (it may contain sensitive data).
+ stdout.write=discard.write.bind(discard);
+ return message=>{
+  let payload=JSON.stringify(message);
+  if(payload.length>PROTOCOL_MAX)payload=JSON.stringify({type:'protocol_error',value:'envelope_too_large'});
+  return protocolWrite(PROTOCOL_PREFIX+payload+'\n');
+ };
+}
 if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){
- const bridge=createBridge({emit:message=>process.stdout.write(JSON.stringify(message)+'\n')});
+ const emit=isolateProtocolOutput(process.stdout);
+ const bridge=createBridge({emit});
  const lines=createInterface({input:process.stdin,terminal:false});
  const stop=async()=>{try{await bridge.close()}finally{process.exit(0)}};
  lines.on('close',()=>{void stop()});
