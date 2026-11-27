@@ -23,7 +23,7 @@ test('rich WhatsApp API exists in the source of truth AND in the esbuild artifac
 test('upload always stays on the authenticated actor in the TESTE JPEG bucket',()=>{
  assert.match(source,/path\.split\('\/'\)\[0\]!==owner/);
  assert.match(source,/jpeg\.type!=='image\/jpeg'/);
- assert.match(source,/jpeg\.size>1048576/);
+ assert.match(source,/jpeg\.size>5242880/);
  assert.match(source,/upsert:false/);
  assert.match(editor,/block\.media_path=stored/);
  assert.match(editor,/typeof cloud\.campaignMediaUpload==='function'/);
@@ -32,6 +32,27 @@ test('upload always stays on the authenticated actor in the TESTE JPEG bucket',(
 
 test('iPhone PWA and admin load the current cache-busted SDK',()=>{
  assert.match(app,/cloud\.js\?v=20261126biblioteca61/);
- assert.match(admin,/cloud\.js\?v=connect-ai-5/);
- assert.match(admin,/campaign-editor\.js\?v=campanhas-central-19/);
+ assert.match(admin,/cloud\.js\?v=connect-ai-6/);
+ assert.match(admin,/campaign-editor\.js\?v=campanhas-central-21/);
+});
+
+test('JPEG apto preserva bytes e resolução, e executor antigo usa limite de 1 MiB',async()=>{
+ const vm=require('node:vm');
+ const start=editor.indexOf('  const dispatchImageLimit=');
+ const end=editor.indexOf('  }finally{URL.revokeObjectURL(url);}',start);
+ const optimize=editor.slice(start,end)+'  }finally{URL.revokeObjectURL(url);}\n  }\njpegForDispatch';
+ for(const limit of [1048576,5242880]){
+  let conversions=0;
+  const fn=vm.runInNewContext(optimize,{
+   channel:'whatsapp',gates:{whatsapp_rich:{max_image_bytes:limit}},Uint8Array,
+   Image:class {naturalWidth=4200;naturalHeight=3200;set src(value){this.onload();}},
+   URL:{createObjectURL:()=> 'fixture',revokeObjectURL(){}},
+   document:{createElement:()=>({getContext:()=>({fillRect(){},drawImage(){}}),
+    toBlob(callback){conversions++;callback(new Blob(['1234'],{type:'image/jpeg'}));}})}
+  });
+  const file=new Blob([Uint8Array.of(255,216,255),new Uint8Array(5242880-3)],{type:'image/jpeg'});
+  const result=await fn(file);
+  if(limit===5242880){assert.equal(result,file);assert.equal(conversions,0);}
+  else{assert.notEqual(result,file);assert.equal(conversions,1);}
+ }
 });

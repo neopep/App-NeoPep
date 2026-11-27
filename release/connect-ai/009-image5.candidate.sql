@@ -1,6 +1,7 @@
 -- CANDIDATA, NÃO ATIVAR antes de compilar/assinar/homologar o executor 0.2.16.
 -- Testar separadamente em Teste e Produção. Não alterar filas nem enviar mensagens.
 -- Flag image5_enabled permanece FALSE inclusive após instalar esta migração.
+begin;
 alter table neo_private.campaign_wa_rich_control add column image5_enabled boolean not null default false;
 create function neo_private.campaign_image_limit(p_owner uuid,p_connection uuid)
 returns integer language sql stable set search_path=pg_catalog as $$
@@ -49,6 +50,7 @@ begin
   execute replace(f,$a$'0.2.15')$a$,$a$'0.2.15','0.2.16')$a$);
  end loop;
 end $patch$;
+commit;
 -- App popup still uses its independent 1 MiB gate. Update and test that path separately.
 -- Release: only set image5_enabled=true after approved signed executor and boundary tests.
 -- Rollback: set image5_enabled=false; large queued images stay blocked; do not resend or delete them.

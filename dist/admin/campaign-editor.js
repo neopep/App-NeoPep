@@ -879,6 +879,10 @@
    try{
     await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('Imagem ilegível. Selecione um JPEG.'));img.src=url;});
     if(!img.naturalWidth||!img.naturalHeight||img.naturalWidth*img.naturalHeight>100000000)throw Error('Resolução da imagem acima do limite local.');
+    if(blob.type==='image/jpeg'&&blob.size>=4&&blob.size<=limit){
+     const header=new Uint8Array(await blob.slice(0,3).arrayBuffer());
+     if(header[0]===255&&header[1]===216&&header[2]===255)return blob;
+    }
     for(const edge of (limit===5242880?[4096,3200,2560,1920,1280,960]:[1280,960,720,480])){
      const scale=Math.min(1,edge/Math.max(img.naturalWidth,img.naturalHeight));
      const canvas=document.createElement('canvas');

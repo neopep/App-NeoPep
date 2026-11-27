@@ -33,4 +33,9 @@ test('edição preserva mídia/destinos e rejeita revisão antiga',async()=>{
  const input={channel:'whatsapp',campaignId:id,items:[{publicationId:pub,requestId:req,revision:1,edits:[{id:block,text:'Novo'}]}]};
  assert.equal((await write(principal,'update_publications',input)).results[0].revision,2);assert.equal(draft.blocks[0].text,'Novo');assert.equal(draft.blocks[1].media_path,'private/asset.jpg');assert.deepEqual(draft.groups,['destino-preservado']);
  assert.equal((await write(principal,'update_publications',input)).results[0].error,'REVISION_CONFLICT');await assert.rejects(write(principal,'publish',{channel:'whatsapp'}),/INVALID_DRAFT/);assert.equal(calls.filter(q=>q.p_action==='save').length,1);
+ const caption={channel:'whatsapp',campaignId:id,items:[{publicationId:pub,requestId:id,revision:2,mediaCaption:{blockId:req,mode:'separate',text:'*Bold* _itálico_ ~riscado~\n📷 https://example.invalid',separateBlockId:pub}}]};
+ assert.equal((await write(principal,'update_publications',caption)).results[0].revision,3);
+ assert.equal(draft.blocks[1].media_path,'private/asset.jpg');
+ assert.equal(draft.blocks[1].text,'');
+ assert.deepEqual(draft.blocks[2],{id:pub,type:'text',text:caption.items[0].mediaCaption.text});
 });

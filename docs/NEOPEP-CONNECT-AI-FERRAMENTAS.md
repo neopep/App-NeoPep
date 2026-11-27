@@ -1260,7 +1260,7 @@ Escopo `campaigns:read + campaigns:drafts`.
 
 ## update_publications
 
-Edita texto de publicações ainda em rascunho. Exige revisão atual e ID de bloco; preserva outros campos. Conflitos exigem nova leitura.
+Edita texto ou, no WhatsApp, mantém legenda, remove legenda ou cria mensagem de texto separada em rascunho. Exige revisão atual e ID de bloco; preserva outros campos. Conflitos exigem nova leitura.
 
 Escopo `campaigns:read + campaigns:drafts`.
 
@@ -1294,52 +1294,109 @@ Escopo `campaigns:read + campaigns:drafts`.
         "minItems": 1,
         "maxItems": 6,
         "items": {
-          "type": "object",
-          "properties": {
-            "publicationId": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "requestId": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "revision": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "edits": {
-              "type": "array",
-              "minItems": 1,
-              "maxItems": 6,
-              "items": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "text": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 2000
-                  }
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "publicationId": {
+                  "type": "string",
+                  "format": "uuid"
                 },
-                "required": [
-                  "id",
-                  "text"
-                ],
-                "additionalProperties": false
-              }
+                "requestId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "edits": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 6,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2000
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "text"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "publicationId",
+                "requestId",
+                "revision",
+                "edits"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "publicationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "requestId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "mediaCaption": {
+                  "type": "object",
+                  "properties": {
+                    "blockId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "mode": {
+                      "enum": [
+                        "caption",
+                        "separate",
+                        "none"
+                      ]
+                    },
+                    "text": {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "separateBlockId": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "blockId",
+                    "mode"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "publicationId",
+                "requestId",
+                "revision",
+                "mediaCaption"
+              ],
+              "additionalProperties": false
             }
-          },
-          "required": [
-            "publicationId",
-            "requestId",
-            "revision",
-            "edits"
-          ],
-          "additionalProperties": false
+          ]
         }
       }
     },
