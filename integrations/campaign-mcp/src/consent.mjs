@@ -12,7 +12,8 @@ export function createConsentHandler({issuer,clients,approvalOrigin,csrfKey,sess
   return base64url(await crypto.subtle.sign('HMAC',csrfKey,utf8.encode(JSON.stringify([params,expires]))));
  }
  function fields(params){
-  if([...params.keys()].some(key=>!allowedKeys.includes(key)||params.getAll(key).length!==1))return null;
+  // RFC 6749 §3.1: ignore unrecognized extensions (e.g. ui_locales), reject duplicates.
+  if([...params.keys()].some(key=>params.getAll(key).length!==1))return null;
   const p=Object.fromEntries(allowedKeys.map(key=>[key,params.get(key)]));
   if(p.response_type!=='code'||!clients.get(p.client_id)?.includes(p.redirect_uri)||
    p.code_challenge_method!=='S256'||!/^[A-Za-z0-9_-]{43}$/.test(p.code_challenge||'')||
@@ -31,7 +32,7 @@ export function createConsentHandler({issuer,clients,approvalOrigin,csrfKey,sess
    const expires=Date.now()+120000;
    const target=new URL('/admin/',approvalOrigin);
    target.searchParams.set('admin','campaigns');
-   target.searchParams.set('connectAiRequest',url.searchParams.toString());
+   target.searchParams.set('connectAiRequest',new URLSearchParams(p).toString());
    target.searchParams.set('connectAiExpires',String(expires));
    target.searchParams.set('connectAiCsrf',await challenge(p,expires));
    return new Response(null,{status:303,headers:{...noStore,Location:target.href}});
