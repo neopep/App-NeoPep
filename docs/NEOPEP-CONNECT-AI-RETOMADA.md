@@ -35,3 +35,6 @@ Discovery HTTP 200, JWKS HTTP 200 e MCP sem token HTTP 401 confirmados. Próximo
 ## Validação HTTP inicial concluída — 27/11/2026
 - Capturas do operador: discovery HTTP 200 às 14:46:27 UTC; JWKS HTTP 200 às 14:47:14 UTC com chave pública EC P-256 ES256, kid exclusivo Teste, sem componente privado; POST /mcp sem token HTTP 401 às 14:47:41 UTC, WWW-Authenticate Bearer apontando resource_metadata exclusivo Teste. Três gates HTTP iniciais aprovados.
 - Próximo gate único: autenticar Codex Desktop existente no endpoint https://connect-teste.neopep.com.br/mcp, confirmar consentimento no app Teste e executar leitura real. Não reinstalar plugin nem repetir deploy ou testes HTTP já aprovados. READ_APP e DRAFTS continuam zero; não enviar/publicar/agendar. Ainda não comprovados emissão de token, sessão autenticada ou leitura real.
+
+## Homologação Desktop bloqueada
+- Operador apresentou resposta Codex sem ferramentas MCP Teste expostas na sessão. Consulta Supabase Teste confirmou zero sessões MCP não expiradas. Não comprova causa específica. Próximo passo: conferir configuração local do servidor, URL e estado de autenticação no Desktop; não repetir infraestrutura. Escrita permanece bloqueada.
