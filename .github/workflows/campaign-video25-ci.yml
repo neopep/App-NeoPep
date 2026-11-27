@@ -1,7 +1,7 @@
 name: Campaign video 25 MB — independent CI
 on:
   push:
-    branches: [desenvolvimento/videos-campanhas-25mb-teste-20261127]
+    branches: [desenvolvimento/videos-mov-teste-20261127]
   pull_request:
     branches: [desenvolvimento/loja-ofertas-etiquetas-teste-20261126]
     paths:

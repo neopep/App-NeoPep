@@ -2130,12 +2130,12 @@ function renderCampaignBlocks(dialog,blocks,owner,onClicked){
    const status=document.createElement('p');status.className='sub';status.textContent='Carregando conteúdo…';section.append(status);
    const isImage=block.type==='image';
    const load=isImage?Cloud.campaignImageURL:Cloud.campaignOriginalURL;
-   const expected=isImage?/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.jpg$/:/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.(pdf|mp4)$/;
+   const expected=isImage?/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.jpg$/:/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.(pdf|mp4|mov)$/;
    if(typeof load==='function'&&expected.test(block.media_path||'')){
     void load.call(Cloud,block.media_path).then(url=>{
      if(!alive())return;
      if(isImage){const img=document.createElement('img');img.src=url;img.alt='Imagem da campanha';img.addEventListener('error',()=>{if(alive()){status.textContent='Imagem indisponível.';img.replaceWith(status);}},{once:true});status.replaceWith(img);}
-     else if(block.mime==='video/mp4'){const v=document.createElement('video');v.src=url;v.controls=true;v.preload='metadata';v.playsInline=true;status.replaceWith(v);}
+     else if(['video/mp4','video/quicktime'].includes(block.mime)){const v=document.createElement('video');v.src=url;v.controls=true;v.preload='metadata';v.playsInline=true;status.replaceWith(v);}
      else if(block.mime==='application/pdf'){const a=document.createElement('a');a.className='secondary';a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=block.name||'Abrir PDF';a.addEventListener('click',()=>{if(alive())onClicked?.();});status.replaceWith(a);}
      else status.textContent='Arquivo indisponível.';
     }).catch(()=>{if(alive())status.textContent='Conteúdo indisponível ou sem autorização.';});

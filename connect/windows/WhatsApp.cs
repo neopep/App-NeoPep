@@ -305,19 +305,20 @@ sealed partial class WhatsApp : Form {
     // Candidate transport; no production or unapproved destination can reach this method.
     public async Task<Tuple<string,string>> DispatchCampaignFileAsync(Guid request,string group,string caption,byte[] bytes,string mime,string name) {
         if(!CampaignSessionReady||pendingSend!=Guid.Empty||automatedSend!=null||!selected.Contains(group)
-            ||caption==null||caption.Length>1000||bytes==null||bytes.Length<8||bytes.Length>(mime=="video/mp4"?25:5)*1024*1024
+            ||caption==null||caption.Length>1000||bytes==null||bytes.Length<8||bytes.Length>(mime=="application/pdf"?5:25)*1024*1024
             ||request==Guid.Empty||String.IsNullOrWhiteSpace(name)||name.Length>160
             ||name.IndexOfAny(System.IO.Path.GetInvalidFileNameChars())>=0
-            ||(mime!="application/pdf"&&mime!="video/mp4")
+            ||(mime!="application/pdf"&&mime!="video/mp4"&&mime!="video/quicktime")
             ||(mime=="application/pdf"&&!name.EndsWith(".pdf",StringComparison.OrdinalIgnoreCase))
             ||(mime=="video/mp4"&&!name.EndsWith(".mp4",StringComparison.OrdinalIgnoreCase))
+            ||(mime=="video/quicktime"&&!name.EndsWith(".mov",StringComparison.OrdinalIgnoreCase))
             ||canPublish==null||!canPublish())return Tuple.Create("refused",(string)null);
         var completion=new TaskCompletionSource<Tuple<string,string>>(TaskCreationOptions.RunContinuationsAsynchronously);
         automatedSend=completion;automatedRequest=request;sendingText=true;UpdateComposer();
         try {
             pipe.WriteLine(json.Serialize(new {action="send_file",request_id=request.ToString(),
                 group_jid=group,text=caption,file=Convert.ToBase64String(bytes),mime=mime,name=name}));
-            return await Task.WhenAny(completion.Task,Task.Delay(TimeSpan.FromSeconds(mime=="video/mp4"&&bytes.Length>5*1024*1024?80:40)))==completion.Task
+            return await Task.WhenAny(completion.Task,Task.Delay(TimeSpan.FromSeconds(mime!="application/pdf"&&bytes.Length>5*1024*1024?80:40)))==completion.Task
                 ? await completion.Task : Tuple.Create("uncertain",(string)null);
         }catch{return Tuple.Create("uncertain",(string)null);}
         finally{automatedSend=null;automatedRequest=Guid.Empty;sendingText=false;UpdateComposer();}

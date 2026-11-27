@@ -46,6 +46,8 @@ test('editor so libera multi-blocos via gate rico e confirmacao',()=>{
 });
 
 test('worker permite MP4 de 25 MiB com capacidade negociada',()=>{
- assert.match(connect,/data\.Length>\(mime=="video\/mp4"\?25:5\)\*1024\*1024/);
+ assert.match(connect,/data\.Length>\(mime=="application\/pdf"\?5:25\)\*1024\*1024/);
  assert.match(connect,/originals_25mb=true/);
 });
+
+test('MOV exige capacidade própria',()=>assert.match(connect,/originals_mov=true/));

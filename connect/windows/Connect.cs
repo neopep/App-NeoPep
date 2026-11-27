@@ -448,27 +448,27 @@ sealed partial class Connect : Form {
     }
     async Task<byte[]> LoadRichCampaignOriginal(string bucket,string path,string mime) {
         if(profile.IsProduction||bucket!="neo-campaign-originals"||path==null
-           ||!System.Text.RegularExpressions.Regex.IsMatch(path,@"\A[a-f0-9-]{36}/[a-f0-9-]{36}[.](pdf|mp4)\z",System.Text.RegularExpressions.RegexOptions.CultureInvariant)
-           ||(mime!="application/pdf"&&mime!="video/mp4")||(mime=="application/pdf")!=path.EndsWith(".pdf",StringComparison.Ordinal))
+           ||!System.Text.RegularExpressions.Regex.IsMatch(path,@"\A[a-f0-9-]{36}/[a-f0-9-]{36}[.](pdf|mp4|mov)\z",System.Text.RegularExpressions.RegexOptions.CultureInvariant)
+           ||(mime!="application/pdf"&&mime!="video/mp4"&&mime!="video/quicktime")||!path.EndsWith(mime=="application/pdf"?".pdf":mime=="video/quicktime"?".mov":".mp4",StringComparison.Ordinal))
             throw new InvalidOperationException();
         using(var client=new UpdateBrokerClient()){
             client.Headers["Authorization"]="Bearer "+access;
             client.Headers["apikey"]=profile.PublishableKey;
             var data=await client.DownloadDataTaskAsync(profile.Endpoint("/storage/v1/object/authenticated/"+bucket+"/"+path));
-            if(data==null||data.Length<8||data.Length>(mime=="video/mp4"?25:5)*1024*1024)throw new InvalidOperationException();
+            if(data==null||data.Length<8||data.Length>(mime=="application/pdf"?5:25)*1024*1024)throw new InvalidOperationException();
             return data;
         }
     }
     async Task TickRichCampaign(WhatsApp window,Guid connection) {
         // Somente a versao nova conhece a fila rica. O servidor exige allowlist e gate de Teste.
         if(profile.IsProduction||!window.CampaignSessionReady)return;
-        var lease=await RichCampaign("claim",new {originals_v1=true,originals_25mb=true});
+        var lease=await RichCampaign("claim",new {originals_v1=true,originals_25mb=true,originals_mov=true});
         if(lease==null)return;
         var id=Value(lease,"id");var fence=Value(lease,"fence");
         var started=false;
         var outcome=Tuple.Create("uncertain",(string)null);
         try {
-            var job=await RichCampaign("start",new {id=id,fence=fence,originals_v1=true,originals_25mb=true});
+            var job=await RichCampaign("start",new {id=id,fence=fence,originals_v1=true,originals_25mb=true,originals_mov=true});
             if(job==null)return;
             started=true;
             Guid request;
