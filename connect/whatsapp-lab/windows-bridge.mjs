@@ -62,7 +62,11 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
      try{
       const rows=await current.listGroups();
       if(revision===generation&&state==='conectado')output('groups',rows.filter(row=>/^[0-9-]+@g\.us$/.test(row?.id))
-       .map(row=>({id:row.id,name:String(row.name||'Sem nome').slice(0,120),members:Number.isSafeInteger(row.members)&&row.members>=0?row.members:null})));
+       .map(row=>({id:row.id,name:String(row.name||'Sem nome').slice(0,120),members:Number.isSafeInteger(row.members)&&row.members>=0?row.members:null,
+        addressing_mode:['pn','lid'].includes(row.addressing_mode)?row.addressing_mode:'unknown',
+        role:['admin','superadmin','member'].includes(row.role)?row.role:'unknown',
+        posting:['admins','all'].includes(row.posting)?row.posting:'unknown',
+        settings:['admins','all'].includes(row.settings)?row.settings:'unknown'})));
      }finally{checking=false;}
     }else if((message.action==='send_text'||message.action==='send_image'||message.action==='send_file')){
      const requestId=typeof message.request_id==='string'&&/^[a-f0-9-]{36}$/i.test(message.request_id)?message.request_id:null;
