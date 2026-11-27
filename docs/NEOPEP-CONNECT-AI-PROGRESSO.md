@@ -1,16 +1,16 @@
 # NeoPep Connect AI — progresso
 
 Branch de referência: `desenvolvimento/campanhas-plugin-ia-20261126`.
-Base deste incremento: `522a0ab`. O commit do incremento é o que introduz esta entrada.
+Base deste lote: `83ba99f`. Os incrementos anteriores estão registrados abaixo.
 Ponto de corte: `docs/PONTO-DE-CORTE-20261126.md`. A publicação anterior de Teste pertence a outro ciclo.
 
 | Etapa | Estado |
 |---|---|
 | 001 Auditoria | Parcialmente testado. Fonte nativa do Central localizada; parâmetros de leitura e escrita ainda em auditoria. |
-| 002 Catálogo | Testado localmente para duas ferramentas de contexto. Três operações de leitura continuam em rascunho. |
-| 003 Autenticação | Interface de verificação por chamada testada com fixtures; OAuth, persistência de conexões e revogação real pendentes. |
+| 002 Catálogo | Contexto disponível no PoC; lista e detalhe WhatsApp testados em Teste simulado. |
+| 003 Autenticação | SQL candidato de conexões e concessões, PKCE, emissão JWT e troca/rotação testados localmente. Broker de sessão, consentimento HTTP e provisionamento pendentes. |
 | 004 Servidor | PoC testado sob Node. Worker real e clientes MCP ainda não homologados. |
-| 005 Central administrativa | Card e painel inicial em diálogo testados em DOM simulado. Gestão autenticada e rota própria pendentes. |
+| 005 Central administrativa | Seções iniciais e estados honestos testados em DOM simulado. Gestão autenticada pendente. |
 | 006 Criação e edição | Planejado |
 | 007 Criativos | Planejado |
 | 008 Operações em massa | Planejado |
@@ -19,7 +19,7 @@ Ponto de corte: `docs/PONTO-DE-CORTE-20261126.md`. A publicação anterior de Te
 | 011 Gerenciamento | Planejado |
 | 012 Documentação e CI | Geração determinística e workflow preparado. Ainda falta vincular mudanças semânticas nos contratos nativos à revisão obrigatória. |
 | 013 Segurança e monitoração | Planejado |
-| 014 Homologação e instalação | Planejado |
+| 014 Homologação e instalação | Catálogo privado e ZIPs de Teste/Produção preparados. Instalação real pendente por cliente, plano e dispositivo. |
 
 ## Incremento inicial
 
@@ -98,3 +98,12 @@ Ponto de corte: `docs/PONTO-DE-CORTE-20261126.md`. A publicação anterior de Te
 - Preservado o commit remoto `e755827`, que define ChatGPT, Claude e Gemini como alvos obrigatórios e Codex como cliente adicional. A integração local foi reaplicada sobre ele sem force push.
 - A matriz em `docs/NEOPEP-CONNECT-AI-COMPATIBILIDADE-CLIENTES.md` distingue instalação, OAuth, superfícies, plano e região. Todos compartilham transporte, catálogo e contratos por ambiente. Assertivas de disponibilidade real permanecem pendentes.
 - Próxima ação: finalizar a transação do emissor OAuth em Teste, ligar o registro persistente e testar duas conexões independentes. Em paralelo, validar os contratos nativos do canal App e estender a leitura sem bloquear pelo resultado de um cliente.
+
+
+## Emissão e troca OAuth
+
+- Base remota confirmada em `83ba99f`. Arquivos: `src/oauth-issuer.mjs`, `src/worker.mjs`, `tests/oauth-issuer.test.mjs`, `release/connect-ai/002-oauth-grants.candidate.sql`.
+- O PoC registra apenas hashes, serializa a troca por conexão, emite access token ES256 de cinco minutos e roda o refresh. Reuso de refresh válido invalida a conexão. Descoberta e endpoint de token são ligados apenas com configuração injetada. A entrada padrão continua fechada.
+- 11 testes locais passaram, incluindo duas tentativas concorrentes pelo código no PGlite, troca com PKCE incorreto, verificação de assinatura, rotação, rejeição de reuso e ACL da função interna.
+- Integração pendente: sessão Supabase real com consentimento protegido contra CSRF, autorização HTTP, JWKS público, armazenamento/renovação da sessão NeoPep, credencial de acesso ao banco do emissor e implantação autorizada. A resposta de autorização e o fluxo nos clientes ainda não estão homologados.
+- Nenhuma migração aplicada ou infraestrutura alterada. Próximo: estender leitura nativa e validar separadamente os contratos App do ambiente Teste.

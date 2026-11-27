@@ -1,3 +1,4 @@
+import {handleTokenRequest,makeDiscoveryHandler} from './oauth-issuer.mjs';
 import {campaignTools,scopeByTool,tools,version} from './catalog.mjs';
 
 const protocol='2025-11-25';
@@ -27,21 +28,28 @@ async function readBody(request){
  }
 }
 
-export function createHandler({authorize=async()=>null,environment='test',origins=[],readCampaign}={}){
+export function createHandler({authorize=async()=>null,environment='test',origins=[],readCampaign,oauth}={}){
  if(!['test','production'].includes(environment))throw Error('Invalid environment');
+ const discovery=oauth?makeDiscoveryHandler(oauth):null;
+ const metadataUrl=oauth?new URL('/.well-known/oauth-protected-resource/mcp',oauth.protectedResource.resource).href:null;
+ const authHeader=metadataUrl?'Bearer resource_metadata="'+metadataUrl+'"':'Bearer';
  const allowedOrigins=new Set(origins);
  const nativeReads=environment==='test'&&typeof readCampaign==='function'?campaignTools:[];
  const available=[...tools,...nativeReads];
  return async request=>{
-  if(new URL(request.url).pathname!=='/mcp')return json({error:'NOT_FOUND'},404);
+  const path=new URL(request.url).pathname;
+  const publicMetadata=discovery?.(request);
+  if(publicMetadata)return publicMetadata;
+  if(oauth&&path==='/oauth/token')return handleTokenRequest(oauth,request);
+  if(path!=='/mcp')return json({error:'NOT_FOUND'},404);
   if(request.headers.has('origin')&&!allowedOrigins.has(request.headers.get('origin')))return json({error:'FORBIDDEN'},403);
   if(request.method!=='POST')return new Response(null,{status:405,headers:{...headers,Allow:'POST'}});
   const token=/^Bearer ([A-Za-z0-9._~+/=-]{1,8192})$/i.exec(request.headers.get('authorization')||'')?.[1];
-  if(!token)return new Response(null,{status:401,headers:{...headers,'WWW-Authenticate':'Bearer'}});
+  if(!token)return new Response(null,{status:401,headers:{...headers,'WWW-Authenticate':authHeader}});
   let principal;
   try{principal=await authorize(token);}catch{return json({error:'AUTH_UNAVAILABLE'},503);}
   if(!principal||principal.revoked||!Number.isFinite(principal.expiresAt)||principal.expiresAt<=Date.now())
-   return new Response(null,{status:401,headers:{...headers,'WWW-Authenticate':'Bearer'}});
+   return new Response(null,{status:401,headers:{...headers,'WWW-Authenticate':authHeader}});
   if(principal.environment!==environment||principal.campaignAdmin!==true||!principal.scopes?.includes('campaigns:read'))
    return json({error:'FORBIDDEN'},403);
   const requestVersion=request.headers.get('mcp-protocol-version');
