@@ -2,10 +2,10 @@ import {writeFileSync,readFileSync} from 'node:fs';
 import {campaignTools,tools,version,scopeByTool} from './catalog.mjs';
 const destination=new URL('../../../docs/NEOPEP-CONNECT-AI-FERRAMENTAS.md',import.meta.url);
 const document=[
- '# NeoPep Connect AI — ferramentas do protótipo local',
+ '# NeoPep Connect AI — catálogo candidato de ferramentas',
  '',
  'Arquivo gerado pelo catálogo. Versão `'+version+'`. O acesso depende de autorização a cada requisição.',
- 'As operações de campanha só aparecem em Teste com adaptador explicitamente configurado.','',
+ 'O catálogo descreve o código candidato, não a implantação ativa. O acesso depende do ambiente e das capacidades publicadas. Escrita de rascunhos permanece fora do catálogo ativo.','',
  '',
  ...[...tools,...campaignTools].flatMap(tool=>[
   '## '+tool.name,'',tool.description,'','Escopo `'+(scopeByTool.get(tool.name)||'campaigns:read')+'`.','',

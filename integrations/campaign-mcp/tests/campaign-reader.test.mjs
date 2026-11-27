@@ -82,3 +82,42 @@ test('WhatsApp: agenda, pausas, recibos e recorrências sem expor identificadore
  assert.equal(requests.at(-1)[1],'list');
  await assert.rejects(read({...principal,campaignAdmin:false},'get_campaign',{channel:'whatsapp',campaign_id:id}),/FORBIDDEN/);
 });
+
+test('leitura editorial exclui referências brutas e protege publicação excluída',async()=>{
+ const id='11111111-1111-4111-8111-111111111111',pid='22222222-2222-4222-8222-222222222222';
+ const principal={id,ownerId:id,environment:'test',campaignAdmin:true,scopes:['campaigns:read']};let deleted=false,loadCalls=0;
+ const read=createCampaignReader({publishableKey:'fixture',sessionFor:async()=> 'session',request:async(url,opts)=>{
+  if(url.endsWith('/user'))return Response.json({id});const q=JSON.parse(opts.body);
+  if(q.p_action==='get')return Response.json({campaign_id:id,deleted_at:null,publications:[{id:pid,editor_id:pid,revision:2,batches:[],deleted_at:deleted?'2026-01-01':null}]});
+  if(q.p_action==='load'){loadCalls++;return Response.json({editor_id:pid,channel:'whatsapp',revision:2,draft:{title:'Material',blocks:[{id:pid,type:'image',text:'Legenda',media_path:'secret/path',ref:'secret',url:'https://secret.invalid'}]}});}
+  throw Error('unexpected RPC');
+ }});
+ const input={channel:'whatsapp',campaign_id:id,publication_id:pid};
+ const result=await read(principal,'get_publication_content',input);
+ assert.equal(result.editable_draft,true);assert.equal(result.blocks[0].has_attachment,true);assert(!JSON.stringify(result).includes('secret'));
+ deleted=true;await assert.rejects(read(principal,'get_publication_content',input),/NOT_FOUND_OR_FORBIDDEN/);assert.equal(loadCalls,1);
+});
+test('catálogos limitam a projeção e não revelam JID ou campos extras',async()=>{
+ const id='11111111-1111-4111-8111-111111111111';
+ const principal={id,ownerId:id,environment:'test',campaignAdmin:true,scopes:['campaigns:read']};
+ const read=createCampaignReader({publishableKey:'fixture',sessionFor:async()=> 'session',request:async(url,opts)=>{
+  if(url.endsWith('/user'))return Response.json({id});
+  assert.equal(JSON.parse(opts.body).p_action,'catalog');
+  if(url.endsWith('neo_campaign_editor_v1'))return Response.json([{id,label:'Material',price_cents:12345,secret:'x'}]);
+  if(url.endsWith('neo_campaign_wa_sync'))return Response.json([{id:'private-jid',name:'Grupo',state:'eligible',members:['secret']},{name:'Indisponível',state:'unavailable'}]);
+  throw Error('unexpected RPC');
+ }});
+ assert.deepEqual(await read(principal,'list_authorized_assets',{channel:'whatsapp',kind:'document'}),{items:[{id,label:'Material',kind:'document'}],limit:30});
+ assert.deepEqual(await read(principal,'list_destinations',{channel:'whatsapp'}),{items:[{name:'Grupo',state:'eligible'}],selection_limit:30});
+});
+test('App diferencia exibição e disponibilidade de envio WhatsApp',async()=>{
+ const id='11111111-1111-4111-8111-111111111111';
+ const principal={id,ownerId:id,environment:'test',campaignAdmin:true,scopes:['campaigns:read']};
+ const read=createCampaignReader({publishableKey:'fixture',sessionFor:async()=> 'session',channels:['app'],request:async(url)=>{
+  if(url.endsWith('/user'))return Response.json({id});
+  return Response.json({campaign_id:id,title:'App',publications:[{id,title:'App',revision:1,batches:[{due_at:'2026-01-01T00:00:00Z',states:['accepted']},{due_at:'2026-01-01T00:00:00Z',states:['waiting']},{states:['cancelled']}]}]});
+ }});
+ const value=await read(principal,'get_campaign',{channel:'app',campaign_id:id});
+ assert.deepEqual(value.publications[0].schedules.map(x=>x.delivery_status),['displayed','available_in_app','ended_or_cancelled']);
+ assert.equal(value.publications[0].schedules[0].receipt_count,null);
+});

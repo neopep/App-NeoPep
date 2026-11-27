@@ -54,7 +54,7 @@ test('leitura nativa exige adaptação explícita, escopo e ambiente do principa
   return {items:[]};
  };
  const handler=createHandler({authorize:async()=>auth,readCampaign});
- assert.equal((await (await invoke(handler,'tools/list')).json()).result.tools.length,4);
+ assert.equal((await (await invoke(handler,'tools/list')).json()).result.tools.length,7);
  const params={name:'list_campaigns',arguments:{channel:'whatsapp'}};
  assert.deepEqual((await (await invoke(handler,'tools/call',params)).json()).result.structuredContent,{items:[]});
  await invoke(handler,'tools/call',{...params,arguments:{...params.arguments,owner:'other'}});
