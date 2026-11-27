@@ -171,6 +171,9 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
      output('group_send_stage',{group_jid:jid,stage:'attempt_started'});
      try{
       const receipt=isImage?await provider.sendImage(jid,text,image):isFile?await provider.sendFile(jid,text,file,message.mime,message.name):await provider.sendText(jid,text);
+      if(receipt?.blocked==='video_conversion'){
+       output('send_result',{request_id:requestId,status:'rejected',reason_code:'video_conversion',reason:'Vídeo não convertido ao padrão nativo; nenhum documento enviado.'});return;
+      }
       if(receipt?.blocked==='previous_421'){
        if(revision===generation)output('group_send_stage',{group_jid:jid,stage:'paused_previous_421'});
        output('send_result',{request_id:requestId,status:'rejected',reason_code:'previous_421',reason:'Envio pausado por rejeição anterior do WhatsApp. Nenhuma mensagem transmitida.'});return;
