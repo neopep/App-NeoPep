@@ -1,5 +1,6 @@
 import {SignJWT} from 'jose';
 import {challengeS256} from './pkce.mjs';
+import {neoCimdClientAllowed} from './cimd-client.mjs';
 
 const encode=value=>new TextEncoder().encode(value);
 const hex=bytes=>Array.from(new Uint8Array(bytes),byte=>byte.toString(16).padStart(2,'0')).join('');
@@ -16,18 +17,18 @@ export function createIssuer({issuer,resource,key,keyId,publicJwk,clients,store,
  const metadata={issuer,authorization_endpoint:issuer+'/oauth/authorize',token_endpoint:issuer+'/oauth/token',
   jwks_uri:issuer+'/.well-known/jwks.json',response_types_supported:['code'],
   grant_types_supported:['authorization_code','refresh_token'],code_challenge_methods_supported:['S256'],
-  token_endpoint_auth_methods_supported:['none'],scopes_supported:[scope]};
+  token_endpoint_auth_methods_supported:['none'],client_id_metadata_document_supported:true,authorization_response_iss_parameter_supported:true,scopes_supported:[scope]};
  const jwks=publicJwk?.kty==='EC'&&publicJwk.crv==='P-256'&&
   [publicJwk.x,publicJwk.y].every(value=>typeof value==='string'&&/^[A-Za-z0-9_-]{43}$/.test(value))
   ?{keys:[{kty:'EC',crv:'P-256',x:publicJwk.x,y:publicJwk.y,alg:'ES256',use:'sig',kid:keyId}]}:null;
  if(!jwks)delete metadata.jwks_uri;
  const protectedResource={resource,authorization_servers:[issuer],scopes_supported:[scope]};
- const allowClient=(clientId,redirectUri)=>clients.get(clientId)?.includes(redirectUri)===true;
+ const allowClient=(clientId,redirectUri)=>neoCimdClientAllowed(clients,clientId,redirectUri);
  return {
   metadata,protectedResource,jwks,
   // Call only behind the host's explicit consent and CSRF-protected session flow.
   async issueCode({session,clientId,redirectUri,challenge,method,requestedResource,requestedScope,consent}){
-   if(consent!==true||!allowClient(clientId,redirectUri)||requestedResource!==resource||requestedScope!==scope||
+   if(consent!==true||!await allowClient(clientId,redirectUri)||requestedResource!==resource||requestedScope!==scope||
      method!=='S256'||typeof challenge!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(challenge))throw invalid();
    const identity=await confirmNeoPepSession(session,{clientId,resource});
    if(!identity?.connectionId||identity.campaignAdmin!==true)throw invalid();
@@ -38,12 +39,12 @@ export function createIssuer({issuer,resource,key,keyId,publicJwk,clients,store,
   },
   async exchange(fields){
    const clientId=fields.client_id;
-   if(!clients.has(clientId)||fields.resource!==resource)throw invalid();
+   if(fields.resource!==resource)throw invalid();
    const codeGrant=fields.grant_type==='authorization_code';
    if(!codeGrant&&fields.grant_type!=='refresh_token')throw invalid();
    const previous=codeGrant?fields.code:fields.refresh_token;
    const redirectUri=codeGrant?fields.redirect_uri:null;
-   if(!isSecret(previous)||(codeGrant&&!allowClient(clientId,redirectUri)))throw invalid();
+   if(!isSecret(previous)||!await allowClient(clientId,redirectUri))throw invalid();
    let challenge=null;
    if(codeGrant){try{challenge=await challengeS256(fields.code_verifier);}catch{throw invalid();}}
    const next=secret();

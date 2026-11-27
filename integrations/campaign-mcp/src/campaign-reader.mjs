@@ -39,7 +39,7 @@ export function createCampaignReader({publishableKey,sessionFor,request=fetch,pr
   const token=await sessionFor(principal.id,principal.ownerId);
   if(!token)throw Error('AUTH_REQUIRED');
   const headers={apikey:publishableKey,Authorization:'Bearer '+token};
-  const options={headers,redirect:'error',signal:AbortSignal.timeout(5000)};
+  const options={headers,redirect:'manual',signal:AbortSignal.timeout(5000)};
   const identity=await request(profile.supabaseOrigin+'/auth/v1/user',options);
   if(!identity.ok||(await identity.json()).id!==principal.ownerId)throw Error('FORBIDDEN');
   const prefix=channel==='app'?'app_':'';

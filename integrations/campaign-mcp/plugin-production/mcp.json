@@ -1,0 +1,23 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "neopep-connect-ai-producao": {
+      "type": "streamable-http",
+      "url": "https://connect.neopep.com.br/mcp",
+      "extensions": {
+        "com.openai": {
+          "auth": {
+            "type": "oauth",
+            "client": {
+              "mode": "cimd"
+            },
+            "resource": "https://connect.neopep.com.br/mcp",
+            "baseScopes": [
+              "campaigns:read"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

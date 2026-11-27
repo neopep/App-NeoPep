@@ -1,3 +1,4 @@
+import {neoCimdClientAllowed} from './cimd-client.mjs';
 const noStore={'Cache-Control':'no-store','Referrer-Policy':'no-referrer'};
 const allowedKeys=['response_type','client_id','redirect_uri','code_challenge','code_challenge_method','resource','scope','state'];
 const fail=(status=400)=>Response.json({error:'invalid_request'},{status,headers:noStore});
@@ -11,23 +12,23 @@ export function createConsentHandler({issuer,clients,approvalOrigin,csrfKey,sess
  async function challenge(params,expires){
   return base64url(await crypto.subtle.sign('HMAC',csrfKey,utf8.encode(JSON.stringify([params,expires]))));
  }
- function fields(params){
+ async function fields(params){
   // RFC 6749 §3.1: ignore unrecognized extensions (e.g. ui_locales), reject duplicates.
   if([...params.keys()].some(key=>params.getAll(key).length!==1))return null;
   const p=Object.fromEntries(allowedKeys.map(key=>[key,params.get(key)]));
-  if(p.response_type!=='code'||!clients.get(p.client_id)?.includes(p.redirect_uri)||
+  if(p.response_type!=='code'||!p.redirect_uri||!await neoCimdClientAllowed(clients,p.client_id,p.redirect_uri)||
    p.code_challenge_method!=='S256'||!/^[A-Za-z0-9_-]{43}$/.test(p.code_challenge||'')||
    p.resource!==resource||p.scope!=='campaigns:read'||!p.state||p.state.length>512)return null;
   const redirect=new URL(p.redirect_uri);
-  if(redirect.protocol!=='https:'||redirect.hash||redirect.username||redirect.password)return null;
+  if(redirect.hash||redirect.username||redirect.password)return null;
   return p;
  }
  return async request=>{
   const url=new URL(request.url);
   if(url.pathname!=='/oauth/authorize')return null;
   if(url.search.length>2048)return fail();
-  const p=fields(url.searchParams);
-  if(!p)return fail();
+  const p=await fields(url.searchParams);
+  if(!p){console.warn('NEO_OAUTH: authorize_request_rejected');return fail();}
   if(request.method==='GET'){
    const expires=Date.now()+120000;
    const target=new URL('/admin/',approvalOrigin);
@@ -59,6 +60,7 @@ export function createConsentHandler({issuer,clients,approvalOrigin,csrfKey,sess
    const redirect=new URL(p.redirect_uri);
    redirect.searchParams.set('state',p.state);
    redirect.searchParams.set('code',code);
+   redirect.searchParams.set('iss',issuer.metadata.issuer);
    return Response.json({redirect:redirect.href},{headers:cors});
   }catch{return Response.json({error:'authorization_unavailable'},{status:403,headers:cors});}
  };

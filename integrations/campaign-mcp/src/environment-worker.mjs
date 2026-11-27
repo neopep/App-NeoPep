@@ -57,10 +57,14 @@ export async function environmentHandler(profile,env,request=fetch){
   confirmNeoPepSession:async session=>session,
   store:{registerCode:data=>call('grant/register',data),rotate:data=>call('grant/rotate',data)}});
  const consent=createConsentHandler({issuer:oauth,clients,approvalOrigin,csrfKey,sessionFor:async(token,{clientId,proof})=>{
-  if(await call('consent/claim',{proof})!==true)return null;
+  let claim;
+  try{claim=await call('consent/claim',{proof});}catch{console.warn('NEO_OAUTH: claim_backend_failed');throw Error('CONSENT_CLAIM_FAILED');}
+  if(claim!==true){console.warn('NEO_OAUTH: claim_rejected');return null;}
+  console.log('NEO_OAUTH: claim_ok');
   const {ownerId,data}=await verify(token,'register',{clientId,label:'NeoPep Connect AI'});
-  if(!data?.id)return null;
-  if(await call('session/bind',{id:data.id,ownerId,token})!==true)return null;
+  if(!data?.id){console.warn('NEO_OAUTH: connection_id_missing');return null;}
+  if(await call('session/bind',{id:data.id,ownerId,token})!==true){console.warn('NEO_OAUTH: bind_rejected');return null;}
+  console.log('NEO_OAUTH: bind_ok');
   return {connectionId:data.id,campaignAdmin:true};
  }});
  const authorize=createConnectionAuthorizer({key:verifyKey,issuer:issuerOrigin,resource,environment:profile.name,

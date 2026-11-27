@@ -1,0 +1,34 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "neopep-connect-ai-producao",
+  "version": "1.0.3",
+  "description": "Consulta administrativa de campanhas e publicações do NeoPep Produção, somente leitura.",
+  "author": {
+    "name": "Sunplus Solar Systems"
+  },
+  "homepage": "https://app.neopep.com.br",
+  "keywords": [
+    "neopep",
+    "campanhas",
+    "whatsapp"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "NeoPep Connect AI – Produção",
+        "shortDescription": "Consulte campanhas e agendamentos do NeoPep.",
+        "longDescription": "Integração privada com o servidor NeoPep Produção para consultar campanhas, publicações e agendamentos disponíveis à conta administrativa autorizada. Somente leitura.",
+        "developerName": "Sunplus Solar Systems",
+        "category": "Productivity",
+        "capabilities": [
+          "Read"
+        ],
+        "websiteURL": "https://app.neopep.com.br",
+        "defaultPrompt": [
+          "Consulte as campanhas do WhatsApp no NeoPep Produção.",
+          "Mostre os agendamentos disponíveis no NeoPep."
+        ]
+      }
+    }
+  }
+}
