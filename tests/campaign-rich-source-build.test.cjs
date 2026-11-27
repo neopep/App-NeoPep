@@ -33,7 +33,7 @@ test('upload always stays on the authenticated actor in the TESTE JPEG bucket',(
 test('iPhone PWA and admin load the current cache-busted SDK',()=>{
  assert.match(app,/cloud\.js\?v=20261126biblioteca61/);
  assert.match(admin,/cloud\.js\?v=connect-ai-6/);
- assert.match(admin,/campaign-editor\.js\?v=campanhas-central-22/);
+ assert.match(admin,/campaign-editor\.js\?v=campanhas-central-23/);
 });
 
 test('JPEG apto preserva bytes e resolução, e executor antigo usa limite de 1 MiB',async()=>{
@@ -77,4 +77,28 @@ test('seleção múltipla salva blocos individuais em ordem e não deixa lote pa
   assert.equal(stored.length,fail?0:2);
   assert.equal(errors.length,fail?1:0);
  }
+});
+
+test('prévia local de álbum mantém IDs de imagens, valida limites e bloqueia registro e despacho',async()=>{
+ const vm=require('node:vm');
+ const start=editor.indexOf("   if(channel==='whatsapp'&&input.multiple&&selections.length>1)");
+ const end=editor.indexOf('   const file=selections[0];',start);
+ const execute=vm.runInNewContext('(async ({selections,draft,storeMedia,uuid,tell})=>{'+editor.slice(start,end)+'})',{
+  channel:'whatsapp',input:{multiple:true},field:()=>({value:'album'}),
+  state:{editorId:'draft'},current:()=>true,mediaKey:id=>'draft:'+id,render(){},changed(){},closeSheet(){},
+  dispatchImageLimit:()=>5242880,jpegForDispatch:async photo=>photo
+ });
+ const photo={name:'a.jpg',size:5242880,type:'image/jpeg'};
+ for(const count of [2,3]){
+  const draft={blocks:[]},errors=[];
+  let id=0;
+  await execute({selections:Array(count).fill(photo),draft,uuid:()=>String(++id),tell:t=>errors.push(t),
+   storeMedia:async(mode,apply)=>apply({put(){}})
+  });
+  assert.deepEqual(draft.blocks.map(b=>[b.id,b.album_id]),count===2?[['2','1'],['3','1']]:[]);
+  assert.equal(errors.length,count===2?0:1);
+ }
+ assert.match(editor,/class="neo-campaign-album"/);
+ assert.match(editor,/async function saveRemote\(\)[\s\S]{0,450}blocks.some\(b=>b.album_id\)/);
+ assert.match(editor,/async function dispatch\(scheduled\)[\s\S]{0,250}blocks.some\(b=>b.album_id\)/);
 });

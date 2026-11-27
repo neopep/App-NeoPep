@@ -113,7 +113,7 @@ Escopo `campaigns:read`.
     "type": "object",
     "properties": {
       "guide_version": {
-        "const": "2026-11-27.5"
+        "const": "2026-11-27.6"
       },
       "guide_receipt": {
         "type": [
@@ -1109,7 +1109,7 @@ Escopo `campaigns:read + campaigns:drafts`.
       },
       "guideVersion": {
         "type": "string",
-        "const": "2026-11-27.5",
+        "const": "2026-11-27.6",
         "description": "Versão retornada por get_publication_guide; consulte antes de escrever."
       },
       "guideReceipt": {
@@ -1177,7 +1177,7 @@ Escopo `campaigns:read + campaigns:drafts`.
       },
       "guideVersion": {
         "type": "string",
-        "const": "2026-11-27.5",
+        "const": "2026-11-27.6",
         "description": "Versão retornada por get_publication_guide; consulte antes de escrever."
       },
       "guideReceipt": {
@@ -1329,7 +1329,7 @@ Escopo `campaigns:read + campaigns:drafts`.
       },
       "guideVersion": {
         "type": "string",
-        "const": "2026-11-27.5",
+        "const": "2026-11-27.6",
         "description": "Versão retornada por get_publication_guide; consulte antes de escrever."
       },
       "guideReceipt": {

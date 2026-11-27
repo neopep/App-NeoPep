@@ -26,7 +26,9 @@
   const text=String(block.text||'');
   if(mode==='separate'){
    if(text.trim()&&blocks.length>=32)return 'BLOCK_LIMIT';
-   if(text.trim())blocks.splice(index+1,0,{id:newId(),type:'text',text});
+   let after=index+1;
+   while(block.album_id&&blocks[after]?.album_id===block.album_id)after++;
+   if(text.trim())blocks.splice(after,0,{id:newId(),type:'text',text});
    block.text='';block.layout='separate';return null;
   }
   if(mode==='join'){
@@ -214,7 +216,7 @@
      <div class="inline-actions">${publication?'':'<button type="button" class="secondary" data-editor="fresh">Novo rascunho</button>'}${channel==='whatsapp'&&!publication?'<button type="button" class="secondary" data-editor="cross">Criar versão App</button>':''}</div>`)}
     ${channel==='app'?pane('audience','Públicos, planos e exibição',advancedApp?appSettingsPane():testApp?'<p>Somente as contas de homologação autorizadas no servidor. Esta campanha não envia push.</p>':'<label>Público App<select name="audience"><option value="all">Todos</option><option value="free">Free</option><option value="premium">Premium</option></select></label><label class="check"><input name="push" type="checkbox"> Solicitar push App para contas com consentimento</label>'):
     pane('groups','Grupos sincronizados','<div class="inline-actions"><button type="button" class="secondary" data-editor="groups">Atualizar grupos e diagnóstico</button><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button></div><label class="central-search editor-search"><input name="group_search" type="search" aria-label="Pesquisar grupo ou conexão" placeholder="Pesquisar grupo ou conexão"><span class="search-decoration" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></span></label><p class="sub" data-editor-group-count></p><div data-editor-groups></div>')}
-    ${pane('photo','Foto','<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">Escolha o modo de envio. O texto separado será uma mensagem independente. Salve e confira a prévia antes de publicar.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto'+(channel==='whatsapp'?'s':'')+'</button>')}
+    ${pane('photo','Foto',(channel==='whatsapp'?'<label>Ao selecionar várias fotos<select name="photo_delivery"><option value="individual">Mensagens individuais</option><option value="album">Álbum agrupado · prévia local</option></select></label>':'')+'<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">Escolha o modo de envio. O texto separado será uma mensagem independente. Salve e confira a prévia antes de publicar.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto'+(channel==='whatsapp'?'s':'')+'</button>')}
     ${pane('file','Documento','<label>Modo do anexo<select name="file_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><button type="button" class="secondary" data-editor="choose_document">Escolher PDF, MP4 ou TXT</button>')}
     <input type="file" name="media" accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4,text/plain" hidden>
     ${pane('link','Link','<label>Link HTTPS<input name="link" type="url" maxlength="2000"></label><button type="button" class="secondary" data-editor="link">Adicionar link</button>')}
@@ -583,7 +585,10 @@
    objectUrls.clear();
    preview.innerHTML=draft.blocks.map((block,index)=>{
     const link=linkFor(block);
-    return `<article class="neo-structured-bubble" data-block-id="${e(block.id)}">
+    const grouped=channel==='whatsapp'&&block.album_id;
+    const albumStart=grouped&&draft.blocks[index-1]?.album_id!==block.album_id;
+    const albumEnd=grouped&&draft.blocks[index+1]?.album_id!==block.album_id;
+    return `${albumStart?'<section class="neo-campaign-album" aria-label="Prévia de álbum"><header>Álbum</header>':''}<article class="neo-structured-bubble" data-block-id="${e(block.id)}">
      ${block.type==='image'?'<img data-editor-image="'+e(block.id)+'" alt="Imagem da campanha" role="button" tabindex="0" aria-label="Ampliar imagem da campanha" hidden>':''}
      ${block.type==='image'?'<p class="sub" data-editor-media-status="'+e(block.id)+'" hidden></p>':''}
      ${block.type!=='product'&&(block.label||block.type==='file'&&block.name)?`<strong>${e(block.label||'Documento')}</strong>`:''}
@@ -596,10 +601,11 @@
      <div class="neo-structured-text" data-block-text>${formatted(block.text)}</div>
      ${link?`<span class="neo-wa-link">${e(link)}</span>`:''}
      ${readOnly?'':`<details class="structured-bubble-actions"><summary aria-label="Opções da mensagem">⋯</summary><div class="inline-actions">
+      ${grouped?'<button type="button" class="text-btn" data-editor="ungroup" data-index="'+index+'">Separar imagens do álbum</button>':''}
       ${['text','image','product','document','community','file','link'].includes(block.type)?`<button type="button" class="text-btn" data-editor="edit" data-index="${index}">${block.type==='text'?'Editar texto':'Editar legenda'}</button>`:''}
       ${['image','file'].includes(block.type)?`<button type="button" class="text-btn" data-editor="caption_split" data-index="${index}">${block.text?'Separar legenda em outra mensagem':'Manter sem legenda'}</button>${draft.blocks[index+1]?.type==='text'?'<button type="button" class="text-btn" data-editor="caption_join" data-index="'+index+'">Usar texto seguinte como legenda</button>':''}`:''}
-      ${['duplicate','up','down','delete'].map((a,i)=>`<button type="button" class="text-btn" data-editor="${a}" data-index="${index}" ${a==='up'&&!index||a==='down'&&index===draft.blocks.length-1?'disabled':''}>${['Duplicar','Subir','Descer','Excluir'][i]}</button>`).join('')}
-     </div></details>`}</article>`;
+      ${(grouped?['up','down','delete']:['duplicate','up','down','delete']).map(a=>`<button type="button" class="text-btn" data-editor="${a}" data-index="${index}" ${a==='up'&&!index||a==='down'&&index===draft.blocks.length-1?'disabled':''}>${({duplicate:'Duplicar',up:'Subir',down:'Descer',delete:'Excluir'})[a]}</button>`).join('')}
+     </div></details>`}</article>${albumEnd?'</section>':''}`;
    }).join('')||'<p class="sub">Adicione um bloco para revisar a mensagem.</p>';
    if(channel==='app'){
     const title=document.createElement('h2');title.className='structured-app-popup-title';title.textContent=draft.title||'Título da notificação';preview.prepend(title);
@@ -691,6 +697,7 @@
    if(channel==='whatsapp'&&(!draft.groups.length||!draft.groups.every(id=>groups.some(g=>g.id===id&&g.state==='eligible'))))add('groups','Selecione grupos autorizados','groups');
    if(scheduled&&!draft.planned_local)add('time','Defina data e horário','schedule');
    if(editing||message.value.trim())add('text','Confirme o texto ou legenda','compose');
+   if(draft.blocks.some(b=>b.album_id))add('album','Álbum disponível para prévia local. Registro e despacho indisponíveis.','photo','blocked');
    if(!draft.blocks.length)add('content','Adicione conteúdo','menu');
    if(channel==='whatsapp'&&draft.blocks.length>6)add('limit','Limite de 6 blocos por grupo','menu');
    if(draft.blocks.some(b=>b.type==='file')&&!libraryOriginalReady())add('file','Envio de arquivos bloqueado neste canal','file_help','blocked');
@@ -822,6 +829,7 @@
    checkDispatch=true;checkScheduled=scheduled;paintIssues();
    openPane('schedule',trigger);
    const explain=text=>{$('[data-editor-simulation]').textContent=text;tell(text);};
+   if(draft.blocks.some(b=>b.album_id)){explain('O álbum está disponível apenas na prévia local.');return;}
    if(publication?.paused){explain('Campanha desligada. Volte à Central e reative antes de publicar.');return;}
    if(!draft.title.trim()){explain('Informe o nome da publicação em Ajustes.');return;}
    if(scheduled&&!draft.planned_local){explain('Selecione a data e o horário do agendamento.');return;}
@@ -847,7 +855,7 @@
    openPane('confirmation',trigger);
   }
   async function dispatch(scheduled){
-   if(dispatching||saving||!current()||state.dispatchConfirmed&&publication)return;
+   if(dispatching||saving||!current()||state.dispatchConfirmed&&publication||draft.blocks.some(b=>b.album_id))return;
    showGate();if(!dispatchReady[scheduled?'schedule':'publish']){tell('A versão ou a autorização mudou. Confira antes de confirmar.');return;}
    const rich=testWA&&richMode();
    if(publication&&channel==='whatsapp'&&!rich){tell('O envio exige Connect compatível e destinos sincronizados autorizados.');return;}
@@ -946,6 +954,7 @@
    if(saving||dispatching||!current())return;
    if(publication&&state.dispatchConfirmed){tell('Esta publicação já foi registrada. Volte à Central para editar e republicar.');return;}
    lastSaveError='';
+   if(draft.blocks.some(b=>b.album_id)){tell('Álbum preservado no rascunho local. A integração com o servidor ainda não está disponível.');return;}
    const editingBlock=editing&&draft.blocks.find(block=>block.id===editing);
    if(editingBlock&&['image','product','document','community','link','file'].includes(editingBlock.type)){
     const caption=message.value.trim();
@@ -1072,14 +1081,19 @@
     }
     const layout=field('layout')?.value||'caption';
     const quality=field('photo_quality').value;
+    const albumId=field('photo_delivery')?.value==='album'?uuid():null;
     const items=[],editorId=state.editorId;
     const active=()=>current()&&state.editorId===editorId;
     try{
      for(const file of selections){
-      const asset=await prepareImage(file,quality);
+      const asset=albumId?await jpegForDispatch(file):await prepareImage(file,quality);
       if(!active())return;
       const id=uuid();
-      items.push({asset,key:mediaKey(id),block:{id,type:'image',name:file.name.slice(0,120),layout,text:''}});
+      items.push({asset,key:mediaKey(id),block:{id,type:'image',name:file.name.slice(0,120),layout,text:'',...(albumId?{album_id:albumId}:{})}});
+     }
+     if(albumId&&(items.some(({asset})=>asset.size>dispatchImageLimit())||
+      items.reduce((total,{asset})=>total+asset.size,0)>10*1024*1024)){
+      tell('O álbum ultrapassa o limite por imagem ou o total de 10 MiB.');return;
      }
      await storeMedia('readwrite',store=>{
       for(const {asset,key} of items)store.put(asset,key);
@@ -1556,7 +1570,13 @@
     editing=block.id;message.value=block.text||'';
     composeAction();message.focus({preventScroll:true});changed();
    }
+   if(action==='ungroup'&&block?.album_id){
+    const id=block.album_id;
+    for(const item of draft.blocks)if(item.album_id===id)delete item.album_id;
+    render();changed();return;
+   }
    if(action==='duplicate'&&block){
+    if(block.album_id){tell('Separe as imagens antes de duplicar.');return;}
     if(draft.blocks.length>=32){tell('Limite de 32 blocos por rascunho.');return;}
     const copy={...block,id:uuid()};
     if(['image','file'].includes(block.type)){
@@ -1570,6 +1590,9 @@
    }
    if(['up','down'].includes(action)&&block){
     const to=index+(action==='up'?-1:1);
+    if(to>=0&&to<draft.blocks.length&&(block.album_id||draft.blocks[to].album_id)&&block.album_id!==draft.blocks[to].album_id){
+     tell('Mantenha as imagens do álbum juntas.');return;
+    }
     if(to>=0&&to<draft.blocks.length){[draft.blocks[index],draft.blocks[to]]=[draft.blocks[to],draft.blocks[index]];render();changed();}
    }
    if(action==='delete'&&block){if(captionTarget===block.id){captionTarget=null;composeAction();}removed={block,index};draft.blocks.splice(index,1);if(editing===block.id){editing=null;message.value='';composeAction();}render();changed();}

@@ -1206,3 +1206,13 @@ dialog.neo-structured-editor::backdrop{background:#192720}
 }
 .neo-connect-ai-dialog dt { font-weight: 650; }
 .neo-connect-ai-dialog dd { margin: 0 0 .5rem; color: var(--muted); }
+
+.neo-campaign-album {
+ display:grid;
+ grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:.375rem;
+ width:100%;
+}
+.neo-campaign-album > header { grid-column:1/-1; }
+.neo-campaign-album > .neo-structured-bubble { width:100%; min-width:0; margin:0; }
+.neo-campaign-album img[data-editor-image] { width:100%; aspect-ratio:1; object-fit:contain; }

@@ -230,3 +230,9 @@ O seletor de fotos existente do WhatsApp importa até quatro imagens de uma vez 
 
 O álbum agrupado ainda depende do bloco compartilhado, validação do Supabase, fila e recibos persistentes, executor Windows e integração MCP. O protótipo de transporte continua desligado. Nenhum envio, migração ou deploy executado.
 - Incremento `cb5a368` enviado ao GitHub. Build e check passaram, com 570/570 testes web, 36/36 MCP e 26/26 contratos Windows/bridge/provider. Geradores conferidos. Sem homologação física no WhatsApp.
+
+## Prévia agrupada no seletor nativo
+
+Base remota confirmada em `1c86ead`. O seletor WhatsApp oferece mensagens individuais (padrão) ou prévia local agrupada. Agrupa blocos JPEG existentes pelo mesmo `album_id`, mantendo ID, ordem, texto e mídia local de cada item. Edição de legenda, remoção, ordenação interna e ampliação reutilizam o fluxo de imagem. A separação explícita remove o agrupamento. Ao separar uma legenda, o texto independente entra depois do álbum. Limites locais de duas a quatro imagens na seleção, até o limite JPEG negociado por item e 10 MiB no total. A versão do guia e da base gerada passa a 2026-11-27.6.
+
+O marcador local ainda não é um contrato de publicação. O editor bloqueia registro remoto, agendamento e despacho enquanto o rascunho contém agrupamento. A fila, a validação SQL, o executor `album_v1`, os recibos persistentes e as ferramentas MCP continuam pendentes; o bridge permanece desligado. Nenhuma migração, publicação ou envio real realizado.
