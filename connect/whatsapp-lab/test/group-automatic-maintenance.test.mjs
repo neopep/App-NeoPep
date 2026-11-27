@@ -16,13 +16,13 @@ test('ambiguous metadata or distribution format cannot be pruned',()=>{
  assert.equal(planDistributionMaintenance(metadata,{'99@lid':'unknown'}),null);
 });
 async function fixture({enabled=true,fresh=metadata,record={'10@lid':true,'20@lid':true,'99@lid':true},keyPresent=true}={}){
- const ev=new EventEmitter(),writes=[],saved=[],calls=[],events=[];let config;
+ const ev=new EventEmitter(),writes=[],saved=[],calls=[],events=[],payloads=[];let config;
  const initial=[['sender-key-memory:'+jid,record],['sender-key-memory:'+other,{'30@lid':true}],['sender-key:preserve','secret'],['session:preserve','session']];
  const socket={ev,user:{id:pn,lid},end(){},async groupFetchAllParticipating(){calls.push('list');return {x:metadata};},
  async groupMetadata(){calls.push('metadata');return fresh;},signalRepository:{async hasSenderKey(){return keyPresent;}},
- async sendMessage(id){calls.push('send');await config.cachedGroupMetadata(id);return {key:{id:'message1'}};}};
+ async sendMessage(id,payload){payloads.push(payload);calls.push('send');await config.cachedGroupMetadata(id);return {key:{id:'message1'}};}};
  const provider=await createBaileysProvider({onQr(){},onState(){},onCredentials:v=>saved.push(JSON.parse(v)),onMaintenance:v=>events.push(v),automaticMaintenance:enabled,serialized:JSON.stringify({creds:{me:{id:pn,lid}},keys:initial})},{load:async()=>[{default:opts=>{config=opts;socket.authState={keys:{get:opts.auth.keys.get,async set(data){writes.push(data);await opts.auth.keys.set(data);},async transaction(fn,key){assert.equal(key,pn);return fn();}}};return socket;},BufferJSON:{replacer:(k,v)=>v,reviver:(k,v)=>v},DisconnectReason:{},proto:{WebMessageInfo:{Status:{SERVER_ACK:2,ERROR:0}}}},{default:()=>({})}]});
- provider.start();ev.emit('connection.update',{connection:'open'});return {provider,writes,saved,calls,events,ev,initial};
+ provider.start();ev.emit('connection.update',{connection:'open'});return {provider,writes,saved,calls,events,ev,initial,payloads};
 }
 test('automatic maintenance preserves keys and other groups and sends only original authorized request',async()=>{
  const f=await fixture();
@@ -65,5 +65,23 @@ test('revalidation needs official confirmation, never transmits, and does not re
  assert.equal((await f.provider.revalidateGroupAvailability(jid,true)).code,'rejected_again');
  assert.deepEqual(await f.provider.sendText(jid,'test'),{blocked:'previous_421'});
  assert.equal(f.calls.filter(v=>v==='send').length,2);
+ }finally{f.provider.close();}
+});
+
+test('video transport never sends MOV or oversized MP4 as a document',async()=>{
+ const f=await fixture({enabled:false});
+ try{
+ const mp4=Buffer.from([0,0,0,16,102,116,121,112,105,115,111,109,0,0,0,0]);
+ const mov=Buffer.from([0,0,0,16,102,116,121,112,113,116,32,32,0,0,0,0]);
+ const big=Buffer.alloc(16*1024*1024+1);mp4.copy(big);
+ assert.deepEqual(await f.provider.sendFile(jid,'caption',mov,'video/quicktime','v.mov'),{blocked:'video_conversion'});
+ assert.deepEqual(await f.provider.sendFile(jid,'caption',big,'video/mp4','v.mp4'),{blocked:'video_conversion'});
+ assert.equal(f.payloads.length,0);
+ await f.provider.sendFile(jid,'caption',mp4,'video/mp4','v.mp4');
+ assert.equal(f.payloads[0].video,mp4);assert.equal(f.payloads[0].document,undefined);
+ assert.equal(f.payloads[0].caption,'caption');
+ const pdf=Buffer.from('%PDF-1.4\n%%EOF');
+ await f.provider.sendFile(jid,'pdf',pdf,'application/pdf','p.pdf');
+ assert.equal(f.payloads[1].document,pdf);assert.equal(f.payloads[1].video,undefined);
  }finally{f.provider.close();}
 });
