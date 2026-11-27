@@ -1,7 +1,7 @@
 name: Connect AI contract
 on:
   push:
-    branches: [desenvolvimento/campanhas-plugin-ia-20261126]
+    branches: [desenvolvimento/campanhas-plugin-ia-20261126, desenvolvimento/connect-ai-especialistas-criativos-20261127]
   pull_request:
     paths:
       - 'integrations/campaign-mcp/**'
