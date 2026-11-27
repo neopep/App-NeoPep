@@ -42,7 +42,7 @@ export async function createBaileysProvider(
  {onQr,onState,onCredentials=()=>{},onReceipt=()=>{},onGroupCheck=()=>{},serialized=null},
  {load=loadModules,schedule=setTimeout,cancel=clearTimeout}={}
 ){
- let socket=null,connected=false,closed=false,retries=0,reconnectTimer,pendingGroup=null;
+ let socket=null,connected=false,closed=false,retries=0,reconnectTimer,pendingGroup=null,pendingDiagnostic=null;
  const [baileys,{default:pino}]=await load();
  const {BufferJSON,DisconnectReason,proto}=baileys;
  const stored=serialized?JSON.parse(serialized,BufferJSON.reviver):null;
@@ -101,6 +101,7 @@ export async function createBaileysProvider(
   current.ev.on('creds.update',save);
   current.ev.on('group-participants.update',event=>{
    if(pendingGroup?.socket===current&&pendingGroup.jid===event?.id)pendingGroup.changed=true;
+   if(pendingDiagnostic?.socket===current&&pendingDiagnostic.jid===event?.id)pendingDiagnostic.changed=true;
   });
   // A generated message key is not delivery evidence.
   const validKey=key=>key?.fromMe===true&&/^[0-9-]{1,64}@g\.us$/.test(key.remoteJid||'')&&typeof key.id==='string'&&key.id.length>0&&key.id.length<=160;
@@ -151,7 +152,7 @@ export async function createBaileysProvider(
   if(!connected||socket!==current)throw Error('A sessão mudou.');
   const listed=Object.values(groups).find(group=>group?.id===groupJid);
   if(!listed)throw Error('A conta não participa deste grupo.');
-  if(pendingGroup)throw Error('Envio em andamento.');
+  if(pendingGroup||pendingDiagnostic)throw Error('Operação em andamento.');
   const task={socket:current,jid:groupJid,listed,changed:false};
   pendingGroup=task;
   try{
@@ -166,6 +167,31 @@ export async function createBaileysProvider(
    const user=connected?socket?.user:null;
    const number=/^([0-9]{6,15})(?::[0-9]+)?@s\.whatsapp\.net$/.exec(user?.id??'')?.[1];
    return {name:user?.name??'',number:number??''};
+  },
+  // Read-only metadata inspection. Never relay, retry, reset or expose cryptographic material.
+  async diagnoseGroup(jid){
+   const current=socket;
+   if(!connected||!current||pendingGroup||pendingDiagnostic||typeof jid!=='string'||!/^[0-9-]{1,64}@g\.us$/.test(jid))return {code:'diagnostic_unavailable',stage:'start'};
+   const task={socket:current,jid,changed:false};
+   pendingDiagnostic=task;
+   let listed;
+   try{
+    let groups;
+    try{groups=await current.groupFetchAllParticipating();}
+    catch{return {code:'metadata_unavailable',stage:'list'};}
+    if(!connected||current!==socket)return {code:'diagnostic_unavailable',stage:'list'};
+    listed=Object.values(groups||{}).find(row=>row?.id===jid);
+    if(!listed)return {code:'not_participating',stage:'list'};
+    let fresh;
+    try{fresh=await current.groupMetadata(jid);}
+    catch{return {code:'metadata_unavailable',stage:'individual',listed_mode:listed.addressingMode,listed_count:Array.isArray(listed.participants)?listed.participants.length:0};}
+    if(!connected||current!==socket)return {code:'diagnostic_unavailable',stage:'individual'};
+    const ownIds=[current.user?.id,current.user?.lid,creds.me?.id,creds.me?.lid];
+    const result=compareGroupMetadata(listed,fresh,ownIds,task.changed);
+    const own=fresh?groupDiagnostics(fresh,ownIds):{role:'unknown',posting:'unknown',settings:'unknown'};
+    return {...result,stage:'complete',role:own.role,posting:own.posting,settings:own.settings,
+     unknown_count:Math.max(0,result.fresh_count-result.lid_count-result.pn_count),crypto_status:'not_verified'};
+   }finally{if(pendingDiagnostic===task)pendingDiagnostic=null;}
   },
   async listGroups(){
    const current=socket;
