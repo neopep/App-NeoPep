@@ -14,7 +14,7 @@ test('agendamento futuro só é editável se não começou',()=>{
 test('grupos, entrega explícita, recuperação local e consentimento visível',()=>{
  assert.match(central,/Resultados de hoje/);assert.match(central,/group_names/);assert.match(central,/Entrega confirmada a pelo menos um destinatário/);
  assert.match(central,/saved\?\.revision===item\.revision&&sameDraft\(saved\.draft,item\.draft\)/);
- assert.match(editor,/if\(publication&&draftIsClean\(\)\)/);
+ assert.match(editor,/if\(publication&&draftIsClean\(\)&&!state.attempt&&\(!state.dispatchAttempt\|\|state.dispatchConfirmed\)\)/);
  assert.match(app,/Mais informações/);assert.match(app,/initial&&key!=='location'/);
  assert.match(sql,/m\.receipt_id=p_data->>'message_id' and m\.group_jid=p_data->>'group_jid'/);
 });

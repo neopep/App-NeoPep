@@ -97,7 +97,7 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
       const receipt=isImage?await provider.sendImage(jid,text,image):isFile?await provider.sendFile(jid,text,file,message.mime,message.name):await provider.sendText(jid,text);
       output('send_result',{request_id:requestId,status:revision===generation&&state==='conectado'?'accepted':'uncertain',
        message_id:String(receipt?.messageId??'').slice(0,160)});
-      if(revision===generation&&state==='conectado'&&receipt?.messageId){
+      if(message.track_delivery===true&&revision===generation&&state==='conectado'&&receipt?.messageId){
        const key=receiptKey({group_jid:jid,message_id:receipt.messageId});
        remember(tracked,key,{at:Date.now(),status:null});
        const early=earlyReceipts.get(key);earlyReceipts.delete(key);

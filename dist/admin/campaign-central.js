@@ -123,6 +123,7 @@
    const prefix='neo-campaign-editor:'+account+':'+channel+':'+current+':',found=[],cleanIds=new Set();
    const dirty=item=>{
     if(!item?.draft||!Array.isArray(item.draft.blocks))return false;
+    if(item.attempt||item.dispatchAttempt)return true;
     const compose=String(item.compose||'').trim();
     if(item.editing){
      const block=item.draft.blocks.find(b=>b.id===item.editing);
@@ -154,7 +155,7 @@
    const campaignId=current;
    for(const {id,item} of localDrafts()){
     const pub=detail?.publications?.find(p=>p.id===id);
-    if(!pub||!item?.draft||!active()||current!==campaignId)continue;
+    if(!pub||!item?.draft||item.attempt||item.dispatchAttempt||!active()||current!==campaignId)continue;
     const compose=String(item.compose||'').trim(),block=item.editing&&item.draft.blocks.find(b=>b.id===item.editing);
     if(compose!==(item.editing?String(block?.text||'').trim():''))continue;
     const key='neo-campaign-editor:'+account+':'+channel+':'+campaignId+':'+id,raw=getLocal(key);

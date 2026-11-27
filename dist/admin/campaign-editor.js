@@ -441,7 +441,7 @@
    if(!current())return false;
    state.compose=message.value;state.provisional=provisional;state.editing=editing;state.captionTarget=captionTarget;state.photoQuality=field('photo_quality')?.value;state.weeklyCount=field('weekly_count')?.value;state.push=field('push')?.checked===true;
    try{
-    if(publication&&draftIsClean()){
+    if(publication&&draftIsClean()&&!state.attempt&&(!state.dispatchAttempt||state.dispatchConfirmed)){
      clearConfirmedLocal();return true;
     }
     const saved=JSON.stringify(state);

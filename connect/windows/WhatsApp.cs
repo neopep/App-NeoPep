@@ -291,14 +291,14 @@ sealed partial class WhatsApp : Form {
         get { return !closing&&!forgetting&&ready&&pipe!=null&&process!=null
             &&connectionId!=Guid.Empty&&groupReadAt.HasValue&&DateTime.Now-groupReadAt.Value<TimeSpan.FromHours(24); }
     }
-    public async Task<Tuple<string,string>> DispatchCampaignTextAsync(Guid request,string group,string text) {
+    public async Task<Tuple<string,string>> DispatchCampaignTextAsync(Guid request,string group,string text,bool trackDelivery=false) {
         if(!CampaignSessionReady||pendingSend!=Guid.Empty||automatedSend!=null||!selected.Contains(group)
             ||String.IsNullOrWhiteSpace(text)||text.Length>2000||request==Guid.Empty
             ||canPublish==null||!canPublish())return Tuple.Create("refused",(string)null);
         var completion=new TaskCompletionSource<Tuple<string,string>>(TaskCreationOptions.RunContinuationsAsynchronously);
         automatedSend=completion;automatedRequest=request;sendingText=true;UpdateComposer();
         try {
-            pipe.WriteLine(json.Serialize(new {action="send_text",request_id=request.ToString(),group_jid=group,text=text}));
+            pipe.WriteLine(json.Serialize(new {action="send_text",request_id=request.ToString(),group_jid=group,text=text,track_delivery=trackDelivery}));
             return await Task.WhenAny(completion.Task,Task.Delay(TimeSpan.FromSeconds(25)))==completion.Task
                 ? await completion.Task : Tuple.Create("uncertain",(string)null);
         }catch{return Tuple.Create("uncertain",(string)null);}
@@ -313,7 +313,7 @@ sealed partial class WhatsApp : Form {
         automatedSend=completion;automatedRequest=request;sendingText=true;UpdateComposer();
         try {
             pipe.WriteLine(json.Serialize(new {action="send_image",request_id=request.ToString(),
-                group_jid=group,text=caption,image=Convert.ToBase64String(jpeg)}));
+                group_jid=group,text=caption,image=Convert.ToBase64String(jpeg),track_delivery=true}));
             return await Task.WhenAny(completion.Task,Task.Delay(TimeSpan.FromSeconds(35)))==completion.Task
                 ? await completion.Task : Tuple.Create("uncertain",(string)null);
         }catch{return Tuple.Create("uncertain",(string)null);}
@@ -334,7 +334,7 @@ sealed partial class WhatsApp : Form {
         automatedSend=completion;automatedRequest=request;sendingText=true;UpdateComposer();
         try {
             pipe.WriteLine(json.Serialize(new {action="send_file",request_id=request.ToString(),
-                group_jid=group,text=caption,file=Convert.ToBase64String(bytes),mime=mime,name=name}));
+                group_jid=group,text=caption,file=Convert.ToBase64String(bytes),mime=mime,name=name,track_delivery=true}));
             return await Task.WhenAny(completion.Task,Task.Delay(TimeSpan.FromSeconds(mime!="application/pdf"&&bytes.Length>5*1024*1024?80:40)))==completion.Task
                 ? await completion.Task : Tuple.Create("uncertain",(string)null);
         }catch{return Tuple.Create("uncertain",(string)null);}

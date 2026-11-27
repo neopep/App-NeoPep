@@ -488,7 +488,7 @@ sealed partial class Connect : Form {
                     if(whatsapp==window&&window.CampaignConnection==connection&&window.CampaignSessionReady&&deviceApproved&&SessionReady()&&Value(local,"campaign_worker_enabled")=="1")
                         outcome=await window.DispatchCampaignFileAsync(request,Value(job,"group_jid"),Value(job,"text"),bytes,mime,name);
                 }else if(kind=="text"||kind=="link"||kind=="product"||kind=="document"||kind=="community"){
-                    outcome=await window.DispatchCampaignTextAsync(request,Value(job,"group_jid"),Value(job,"text"));
+                    outcome=await window.DispatchCampaignTextAsync(request,Value(job,"group_jid"),Value(job,"text"),true);
                 }
             }
         }catch(Exception){Record("rich_campaign_uncertain");}

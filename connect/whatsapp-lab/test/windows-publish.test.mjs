@@ -88,7 +88,7 @@ test('provider exige recibo explícito de outro membro, não o ID do envio',asyn
 test('bridge correlaciona recibo antecipado e ignora destinatário ou ID não rastreado',async()=>{
  const output=[];let hooks;
  const bridge=createBridge({emit:x=>output.push(x),providerFactory:async o=>{hooks=o;return {start(){o.onState('conectado')},close(){},account(){return {}},async sendText(jid){o.onReceipt({group_jid:jid,message_id:'ID-1',status:'delivery_ack'});return {messageId:'ID-1'};}}}});
- await bridge.receive({action:'connect'});await bridge.receive(req());
+ await bridge.receive({action:'connect'});await bridge.receive({...req(),track_delivery:true});
  assert.equal(output.filter(x=>x.type==='delivery_receipt').length,1);
  hooks.onReceipt({group_jid:'456@g.us',message_id:'ID-1',status:'delivery_ack'});
  hooks.onReceipt({group_jid:'123@g.us',message_id:'ID-1',status:'server_ack'});
