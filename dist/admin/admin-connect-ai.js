@@ -3,7 +3,7 @@ window.NeoAdminConnectAI=(()=>{
  <span aria-hidden="true">✦</span><span><strong>NeoPep Connect AI</strong><small>Integrações, automação e gerenciamento inteligente.</small></span><span aria-hidden="true">›</span>
  </button>`;
  const clients={
-  chatgpt:{label:'ChatGPT',help:'No Desktop, use o catálogo local se disponível. Plus Web e iPhone precisam de teste em cada cliente.',url:'https://developers.openai.com/plugins/build/plugins'},
+  chatgpt:{label:'ChatGPT',help:'No ChatGPT Windows, adicione um servidor MCP personalizado por URL HTTPS e selecione OAuth. Use o ícone PNG abaixo. Valide Web e iPhone separadamente.',url:'https://developers.openai.com/plugins/build/plugins'},
   claude:{label:'Claude',help:'Em uma conta elegível, use um conector MCP remoto personalizado e autorize a conta NeoPep.',url:'https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp'},
   gemini:{label:'Gemini',help:'Verifique plano, idioma e região antes de usar um aplicativo conectado personalizado.',url:'https://support.google.com/gemini/answer/17209137'},
   codex:{label:'Codex',help:'Use o marketplace local ou a configuração MCP do cliente. A conexão precisa de autorização própria.',url:'https://developers.openai.com/codex/mcp'}
@@ -114,7 +114,7 @@ window.NeoAdminConnectAI=(()=>{
   <p role="status">Servidor e conexões aguardam homologação.</p>
   <section data-connect-ai-consent hidden aria-label="Autorizar integração">
    <h3>Autorizar integração</h3><p data-consent-client></p>
-   <p>Permitir que este cliente consulte campanhas no NeoPep Teste com a sua conta?</p>
+   <p>Permitir que este cliente consulte campanhas no NeoPep ${window.location?.origin==='https://app.neopep.com.br'?'Produção':'Teste'} com a sua conta?</p>
    <button type="button" class="primary">Autorizar leitura</button><p role="status"></p>
   </section>
   <details data-connect-ai-connections><summary>Conexões</summary><p role="status">A gestão depende da autorização individual do NeoPep.</p><ul></ul></details>
@@ -127,6 +127,7 @@ window.NeoAdminConnectAI=(()=>{
    <label>Ambiente<select data-connect-ai-environment><option value="test">Teste</option><option value="production">Produção</option></select></label>
    <p data-connect-ai-instructions></p><p role="status" data-connect-ai-install-state></p>
    <a class="text-btn" data-connect-ai-guide target="_blank" rel="noopener noreferrer">Abrir instruções oficiais</a>
+   <a class="text-btn" href="../assets/connect-ai-mcp-icon.png" download="neopep-connect-ai.png">Baixar ícone PNG do servidor</a>
    <label>Endereço MCP candidato<input data-connect-ai-address readonly></label>
    <button type="button" class="secondary" data-connect-ai-copy>Copiar endereço MCP</button>
    <p role="status" data-connect-ai-copy-status></p>

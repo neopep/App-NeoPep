@@ -34,7 +34,7 @@ export function createHandler({authorize=async()=>null,environment='test',origin
  const metadataUrl=oauth?new URL('/.well-known/oauth-protected-resource/mcp',oauth.protectedResource.resource).href:null;
  const authHeader=metadataUrl?'Bearer resource_metadata="'+metadataUrl+'"':'Bearer';
  const allowedOrigins=new Set(origins);
- const nativeReads=environment==='test'&&typeof readCampaign==='function'?campaignTools.map(tool=>({
+ const nativeReads=typeof readCampaign==='function'?campaignTools.map(tool=>({
   ...tool,inputSchema:{...tool.inputSchema,properties:{...tool.inputSchema.properties,
    channel:{enum:readChannels.filter(value=>['app','whatsapp'].includes(value))}}}
  })):[];
@@ -92,7 +92,7 @@ export function createHandler({authorize=async()=>null,environment='test',origin
   }
   if(!scopeByTool.has(params.name)||Object.keys(args).length)return error(id,-32602,'Ferramenta ou parâmetros inválidos.');
   const value=params.name==='get_capabilities'
-   ?{environment,contract_version:version,enabled_tools:available.map(t=>t.name),restrictions:nativeReads.length?['Somente leitura nos canais habilitados de Teste']:['Somente leitura de contexto','Sem operações sobre campanhas nesta versão']}
+   ?{environment,contract_version:version,enabled_tools:available.map(t=>t.name),restrictions:nativeReads.length?['Somente leitura nos canais habilitados']:['Somente leitura de contexto','Sem operações sobre campanhas nesta versão']}
    :{brand_version:'preview.1',name:'NeoPep',editorial_rules:['Use informações verificáveis.','Preserve a privacidade e evite alegações médicas não fundamentadas.']};
   return result({content:[{type:'text',text:JSON.stringify(value)}],structuredContent:value});
  }

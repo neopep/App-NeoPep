@@ -35,7 +35,7 @@ test('card fica acima dos canais e o diálogo conserva o formulário existente',
  environment.dispatchEvent(new window.Event('change'));
  assert.equal(dialog.querySelector('[data-connect-ai-address]').value,'https://connect.neopep.com.br/mcp');
  assert.ok(dialog.querySelector('[data-connect-ai-surface]'));
- assert.match(read('dist/admin/index.html'),/admin-connect-ai\.js\?v=4.*admin\.js\?v=132/s);
+ assert.match(read('dist/admin/index.html'),/admin-connect-ai\.js\?v=5.*admin\.js\?v=132/s);
 });
 
 test('consentimento exige clique e conexões só são revogadas após confirmação',async()=>{

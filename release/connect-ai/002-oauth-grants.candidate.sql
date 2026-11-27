@@ -1,4 +1,4 @@
--- Candidate only. Apply after 001 to the authorized Teste database.
+-- Candidate only. Apply after 001 to the authorized target database.
 begin;
 create table neo_private.connect_ai_oauth_grants(
  digest text primary key check(digest ~ '^[0-9a-f]{64}$'),

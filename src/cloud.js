@@ -6,6 +6,14 @@ let client=null,user=null,profileRevision=null,listener=null,consents=[],isAdmin
 // Mantém o callback já usado no Supabase ao abrir o aplicativo também na raiz.
 function authRedirect(){const current=new URL(location.href),target=new URL(config.authRedirectPath||'./',current);if(target.origin!==current.origin)throw Error('O retorno de autenticação deve permanecer neste site.');target.hash='';target.search='';return target;}
 const official=config.supabaseUrl==='https://cpslafpzjtbpmoxxysaa.supabase.co';
+const connectAIHosts=Object.freeze({
+ 'https://teste.app.neopep.com.br':Object.freeze({project:'https://qnuluspqfazdppciermw.supabase.co',endpoint:'https://connect-teste.neopep.com.br'}),
+ 'https://app.neopep.com.br':Object.freeze({project:'https://cpslafpzjtbpmoxxysaa.supabase.co',endpoint:'https://connect.neopep.com.br'})
+});
+function connectAIHost(){
+ const host=connectAIHosts[location.origin];
+ return host?.project===config.supabaseUrl?host.endpoint:null;
+}
 const connectTestEnabled=config.connectTestEnabled===true&&!official;
 const connectEnabled=connectTestEnabled||(official&&config.connectEnabled===true);
 const campaignsEnabled=!official||config.campaignActivationEnabled===true;
@@ -30,7 +38,7 @@ const authStorage={
 function chooseRemember(value){if(typeof value!=='boolean')return;const saved=rememberSession===value?null:AUTH_KEYS.map(key=>[key,authStorage.getItem(key)]);rememberSession=value;writeStore(browserStore('localStorage'),REMEMBER_KEY,String(value));if(saved){for(const [key] of saved)authStorage.removeItem(key);for(const [key,item] of saved)if(item!==null)authStorage.setItem(key,item)}}
 const clearAuthStorage=()=>AUTH_KEYS.forEach(key=>authStorage.removeItem(key));
 const api={configured,connectTestEnabled:connectEnabled,
- get connectAIAvailable(){return config.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co'&&location.origin==='https://teste.app.neopep.com.br'},
+ get connectAIAvailable(){return Boolean(connectAIHost())},
  async connectAIConnections(action,id=null){
   if(!api.connectAIAvailable||!['list','revoke'].includes(action))throw Error('Operação indisponível.');
   const version=identityVersion;
@@ -43,7 +51,7 @@ const api={configured,connectTestEnabled:connectEnabled,
   const version=identityVersion,account=user?.id;
   const {session}=ok(await need().auth.getSession());
   if(version!==identityVersion||session?.user?.id!==account||!session?.access_token)throw Error('Entre novamente no NeoPep.');
-  const target=new URL('https://connect-teste.neopep.com.br/oauth/authorize');
+  const target=new URL('/oauth/authorize',connectAIHost());
   target.search=query;
   const response=await fetch(target,{method:'POST',redirect:'error',credentials:'omit',referrerPolicy:'no-referrer',
    headers:{Authorization:'Bearer '+session.access_token,'X-Neo-Consent':'approve','X-Neo-Csrf':proof,'X-Neo-Expires':expires}});

@@ -1,3 +1,4 @@
+import {testProfile} from './environments.mjs';
 import postgres from 'postgres';
 import {decodeJwt} from 'jose';
 import {createNeoSession} from './neo-session.mjs';
@@ -7,12 +8,16 @@ const hex=bytes=>Array.from(new Uint8Array(bytes),n=>n.toString(16).padStart(2,'
 const unhex=value=>Uint8Array.from(value.match(/../g),byte=>parseInt(byte,16));
 const liveConnection=row=>row&&!row.revoked_at&&Date.parse(row.expires_at)>Date.now();
 
-export async function openSessionBroker(env,request=fetch,connect=postgres){
+export async function openSessionBroker(env,request=fetch,connect=postgres,profile=testProfile){
  const keyHex=env.NEO_CONNECT_AI_SESSION_KEY;
  if(!/^[a-fA-F0-9]{64}$/.test(keyHex||'')||!env.NEO_CONNECT_AI_DB?.connectionString)throw Error('BROKER_CONFIGURATION');
  const key=await crypto.subtle.importKey('raw',unhex(keyHex),'AES-GCM',false,['encrypt','decrypt']);
  const sql=connect(env.NEO_CONNECT_AI_DB.connectionString,{max:1,prepare:false,connect_timeout:5,fetch_types:false});
- const verify=createNeoSession({publishableKey:env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY,request});
+ async function verifyDatabase(){
+  const [row]=await sql`select project_ref from neo_private.connect_ai_environment`;
+  if(row?.project_ref!==profile.project)throw Error('BROKER_ENVIRONMENT_MISMATCH');
+ }
+ const verify=createNeoSession({publishableKey:env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY,request,profile});
  const aad=(id,ownerId)=>encoder.encode(JSON.stringify([id,ownerId]));
  async function getConnection(id){
   const [row]=await sql`select id,owner_id,client_id, expires_at,revoked_at
@@ -28,6 +33,7 @@ export async function openSessionBroker(env,request=fetch,connect=postgres){
   return decoder.decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:unhex(row.iv),additionalData:aad(id,ownerId)},key,unhex(row.ciphertext)));
  }
  return {
+  verifyDatabase,
   close:()=>sql.end({timeout:2}),
   async fetch(req){
    const p=new URL(req.url).pathname;
@@ -55,7 +61,7 @@ export async function openSessionBroker(env,request=fetch,connect=postgres){
    }else if(p==='/connection/read'){
     const row=await getConnection(d.id);
     if(liveConnection(row))result={id:row.id,ownerId:row.owner_id,clientId:row.client_id,expiresAt:Date.parse(row.expires_at),
-     environment:'test',resource:'https://connect-teste.neopep.com.br/mcp',scopes:['campaigns:read']};
+     environment:profile.name,resource:profile.resource,scopes:['campaigns:read']};
    }else if(p==='/grant/register'){
     await sql`insert into neo_private.connect_ai_oauth_grants (digest,connection_id,kind,redirect_uri,challenge,expires_at)
      values (${d.digest},${d.connectionId},'code',${d.redirectUri},${d.challenge},${new Date(d.expiresAt)})`;

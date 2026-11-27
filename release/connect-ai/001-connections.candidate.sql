@@ -1,5 +1,11 @@
 -- Candidate for qnuluspqfazdppciermw. Requires the existing Campaign Central ACL.
 begin;
+create table neo_private.connect_ai_environment(
+ project_ref text primary key check(project_ref='qnuluspqfazdppciermw')
+);
+insert into neo_private.connect_ai_environment values ('qnuluspqfazdppciermw');
+alter table neo_private.connect_ai_environment enable row level security;
+revoke all on neo_private.connect_ai_environment from public,anon,authenticated;
 create table neo_private.connect_ai_connections(
  id uuid primary key default gen_random_uuid(),
  owner_id uuid not null references auth.users(id) on delete cascade,

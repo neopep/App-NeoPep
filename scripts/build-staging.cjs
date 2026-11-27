@@ -54,9 +54,8 @@ async function prepare() {
       .replaceAll('cpslafpzjtbpmoxxysaa.supabase.co', 'qnuluspqfazdppciermw.supabase.co')
       .replaceAll('https://*.supabase.co', staging)
       .replaceAll('wss://*.supabase.co', staging.replace('https:', 'wss:'));
-    const output = path === 'dist/admin/index.html' ? html
-      .replace("connect-src 'self' "+staging+';', "connect-src 'self' "+staging+' https://connect-teste.neopep.com.br;')
-      .replace(/<head>(?!<meta name="referrer" content="no-referrer">)/, '<head><meta name="referrer" content="no-referrer">') : html;
+    const output = path === 'dist/admin/index.html'
+      ? html.replace('https://connect.neopep.com.br;', 'https://connect-teste.neopep.com.br;') : html;
     fs.writeFileSync(path, output);
   }
   const style = 'dist/style.css';

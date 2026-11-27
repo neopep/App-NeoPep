@@ -1,4 +1,4 @@
--- Teste only, after 001 and 002. Bind a dedicated login to the NOLOGIN role separately.
+-- Apply in the target project after its 001 and shared 002. Bind a dedicated login to the NOLOGIN role separately.
 begin;
 create role neo_connect_ai_broker nologin;
 create table neo_private.connect_ai_consent_claims (
@@ -17,6 +17,8 @@ alter table neo_private.connect_ai_consent_claims enable row level security;
 alter table neo_private.connect_ai_sessions enable row level security;
 revoke all on neo_private.connect_ai_consent_claims,neo_private.connect_ai_sessions from public,anon,authenticated;
 grant usage on schema neo_private to neo_connect_ai_broker;
+grant select on neo_private.connect_ai_environment to neo_connect_ai_broker;
+create policy connect_ai_environment_broker on neo_private.connect_ai_environment for select to neo_connect_ai_broker using (true);
 grant select,insert,delete on neo_private.connect_ai_consent_claims,neo_private.connect_ai_sessions to neo_connect_ai_broker;
 grant select (id,owner_id,client_id,created_at,expires_at,revoked_at) on neo_private.connect_ai_connections to neo_connect_ai_broker;
 grant select (digest,connection_id,kind),insert on neo_private.connect_ai_oauth_grants to neo_connect_ai_broker;

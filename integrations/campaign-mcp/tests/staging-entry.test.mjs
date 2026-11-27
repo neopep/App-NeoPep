@@ -1,12 +1,15 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {exportJWK,generateKeyPair} from 'jose';
-import {stagingHandler} from '../src/staging-entry.mjs';
+import staging from '../src/staging-entry.mjs';
+import production from '../src/production-entry.mjs';
+import {environmentHandler} from '../src/environment-worker.mjs';
+import {testProfile,productionProfile} from '../src/environments.mjs';
 import {challengeS256} from '../src/pkce.mjs';
 
-test('composição Teste vincula consentimento à sessão NeoPep e entrega leitura MCP',async()=>{
- const issuer='https://connect-teste.neopep.com.br',resource=issuer+'/mcp';
- const approval='https://teste.app.neopep.com.br',redirect='https://client.invalid/callback';
+for(const profile of [testProfile,productionProfile])test('consentimento e leitura isolados em '+profile.name,async()=>{
+ const {issuerOrigin:issuer,resource,approvalOrigin:approval}=profile;
+ const redirect='https://client.invalid/callback';
  const ownerId='11111111-1111-4111-8111-111111111111',id='22222222-2222-4222-8222-222222222222';
  const token='fixture.subject.signature';
  const {publicKey,privateKey}=await generateKeyPair('ES256',{extractable:true});
@@ -27,20 +30,20 @@ test('composição Teste vincula consentimento à sessão NeoPep e entrega leitu
    if(p==='/grant/register'){grant=data;return Response.json(true);}
    if(p==='/grant/rotate')return Response.json(grant?.digest===data.digest?{id,ownerId}:null);
    if(p==='/session/read')return Response.json(bound?.token||null);
-   if(p==='/connection/read')return Response.json({id,ownerId,clientId:'client',environment:'test',resource,
+   if(p==='/connection/read')return Response.json({id,ownerId,clientId:'client',environment:profile.name,resource,
     expiresAt:Date.now()+60000,scopes:['campaigns:read']});
    throw Error('Unexpected broker call');
   }}
  };
  const upstream=async(url,init)=>{
-  assert.match(url,/^https:\/\/qnuluspqfazdppciermw\.supabase\.co\//);
+  assert.equal(new URL(url).origin,profile.supabaseOrigin);
   assert.equal(init.headers.Authorization,'Bearer '+token);
   if(url.endsWith('/auth/v1/user'))return Response.json({id:ownerId});
   if(url.endsWith('/neo_connect_ai_connections'))return Response.json({id,owner_id:ownerId});
   assert.equal(JSON.parse(init.body).p_action,'list');
   return Response.json([]);
  };
- const handle=async(request)=>(await stagingHandler(env,upstream))(request);
+ const handle=async(request)=>(await environmentHandler(profile,env,upstream))(request);
  const verifier='a'.repeat(43),url=new URL('/oauth/authorize',issuer);
  url.search=new URLSearchParams({response_type:'code',client_id:'client',redirect_uri:redirect,
   code_challenge:await challengeS256(verifier),code_challenge_method:'S256',resource,scope:'campaigns:read',state:'state-test'});
@@ -67,5 +70,12 @@ test('composição Teste vincula consentimento à sessão NeoPep e entrega leitu
  const response=await handle(new Request(resource,{method:'POST',headers:{Authorization:'Bearer '+access,'Content-Type':'application/json'},
   body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'list_campaigns',arguments:{channel:'whatsapp'}}})}));
  assert.deepEqual((await response.json()).result.structuredContent,{items:[],next_offset:null});
- assert.equal((await (await stagingHandler({}))(new Request(issuer+'/.well-known/jwks.json'))).status,404);
+ assert.equal((await (await environmentHandler(profile,{}))(new Request(issuer+'/.well-known/jwks.json'))).status,404);
+});
+
+test('entry points reject the other environment before opening a broker',async()=>{
+ for(const [worker,own,other] of [[staging,testProfile,productionProfile],[production,productionProfile,testProfile]]){
+  assert.equal((await worker.fetch(new Request(other.resource),{})).status,404);
+  assert.equal((await worker.fetch(new Request(own.resource,{method:'POST'}),{})).status,401);
+ }
 });

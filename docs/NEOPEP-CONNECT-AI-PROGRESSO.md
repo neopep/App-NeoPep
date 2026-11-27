@@ -147,3 +147,10 @@ Ponto de corte: `docs/PONTO-DE-CORTE-20261126.md`. A publicação anterior de Te
 - `8569d0b` acrescenta broker, migração 003 e reversão. `8ccc5d3` registra os limites dos clientes e ajusta a verificação da versão do SDK no painel.
 - Suíte do aplicativo: 544 de 545 testes passaram. A falha de badges no tema escuro foi reproduzida isoladamente com os arquivos originais de `51c34f0`. O teste focal adicional confirma CSP exclusiva do painel Teste e inserção única da política de referrer em builds repetidos.
 - O dry-run do Wrangler 4.54.0 gerou o bundle com as duas flags em zero. A documentação oficial de Sites exige que o proprietário publique o Site para criar o plugin e limita compartilhamento direto em contas pessoais. O ensaio individual com Web e iPhone ainda depende de autorização para uma publicação privada e de elegibilidade da conta.
+
+## Candidatas para Produção e Teste
+
+- Base reconciliada com o remoto em `11cb8fc`, incluindo o registro do deploy anterior de Teste. Produção publicada em `a315404` e Teste em `fe8ecb2` são as bases de comparação.
+- Configuração imutável compartilhada do Worker e entradas separadas. O broker confere o identificador gravado pela migração 001 antes de usar o banco. Migração 001 separada por ambiente e migrações 002/003 compartilhadas. Consentimento e gestão no painel usam apenas o MCP pareado com a origem e o Supabase da página.
+- Instalação privada prioriza cadastro MCP direto no ChatGPT Windows. Ícone PNG oficial de 96 × 96, 2.140 bytes, disponível no painel. O ensaio real depende de callback HTTPS aprovado e cliente elegível.
+- Próximo passo: reconciliar o pacote visual sobre a base publicada de Teste, conferir os dois bundles e registrar a ordem de ativação. Nenhuma implantação ou migração remota executada.

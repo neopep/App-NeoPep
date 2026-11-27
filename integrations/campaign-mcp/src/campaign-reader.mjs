@@ -1,4 +1,4 @@
-const testOrigin='https://qnuluspqfazdppciermw.supabase.co';
+import {testProfile} from './environments.mjs';
 const uuid=value=>typeof value==='string'&&/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(value);
 const label=value=>typeof value==='string'?value.slice(0,200):'';
 const states=['archived','needs_attention','scheduled','in_progress','draft','unknown'];
@@ -18,10 +18,10 @@ const schedules=row=>(Array.isArray(row.batches)?row.batches:[]).slice(0,20).map
  states:[...new Set((Array.isArray(batch.states)?batch.states:[]).filter(value=>deliveryStates.has(value)))]
 }));
 
-export function createCampaignReader({publishableKey,sessionFor,request=fetch,channels=['whatsapp'],appRecurrences=false}){
+export function createCampaignReader({publishableKey,sessionFor,request=fetch,profile=testProfile,channels=['whatsapp'],appRecurrences=false}){
  if(!publishableKey||typeof sessionFor!=='function')throw Error('Incomplete campaign reader configuration');
  return async (principal,operation,input={})=>{
-  if(principal?.environment!=='test'||principal.campaignAdmin!==true||
+  if(principal?.environment!==profile.name||principal.campaignAdmin!==true||
    !principal.scopes?.includes('campaigns:read')||!uuid(principal.ownerId))
    throw Error('FORBIDDEN');
   const channel=input.channel;
@@ -40,11 +40,11 @@ export function createCampaignReader({publishableKey,sessionFor,request=fetch,ch
   if(!token)throw Error('AUTH_REQUIRED');
   const headers={apikey:publishableKey,Authorization:'Bearer '+token};
   const options={headers,redirect:'error',signal:AbortSignal.timeout(5000)};
-  const identity=await request(testOrigin+'/auth/v1/user',options);
+  const identity=await request(profile.supabaseOrigin+'/auth/v1/user',options);
   if(!identity.ok||(await identity.json()).id!==principal.ownerId)throw Error('FORBIDDEN');
   const prefix=channel==='app'?'app_':'';
   const rpc=async(action,p_data)=>{
-   const result=await request(testOrigin+'/rest/v1/rpc/neo_campaign_central_v1',{
+   const result=await request(profile.supabaseOrigin+'/rest/v1/rpc/neo_campaign_central_v1',{
     ...options,method:'POST',headers:{...headers,'Content-Type':'application/json'},
     body:JSON.stringify({p_action:action,p_data})
    });

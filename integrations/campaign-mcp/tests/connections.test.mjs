@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
 
-test('registro persistente restringe autoria, emissor, administração e revogação',async()=>{
+import {testProfile,productionProfile} from '../src/environments.mjs';
+
+for(const profile of [testProfile,productionProfile])test('permissões SQL e emissor em '+profile.name,async()=>{
  const a='11111111-1111-4111-8111-111111111111',b='22222222-2222-4222-8222-222222222222';
  const db=new PGlite();
  try{
@@ -12,8 +14,13 @@ test('registro persistente restringe autoria, emissor, administração e revoga�
    create function auth.uid() returns uuid language sql stable as $$select current_setting('neo.actor')::uuid$$;
    create function auth.jwt() returns jsonb language sql stable as $$select jsonb_build_object('iss',current_setting('neo.issuer'))$$;
    create function neo_private.campaign_admin_allowed() returns boolean language sql stable as $$select current_setting('neo.admin')='yes'$$;`);
-  await db.exec(readFileSync(new URL('../../../release/connect-ai/001-connections.candidate.sql',import.meta.url),'utf8'));
-  const configure=async(id,admin='yes',issuer='https://qnuluspqfazdppciermw.supabase.co/auth/v1')=>{
+  await db.exec(readFileSync(new URL('../../../release/connect-ai/001-connections'+(profile.name==='production'?'.production':'')+'.candidate.sql',import.meta.url),'utf8'));
+  for(const name of ['002-oauth-grants','003-session-broker'])
+   await db.exec(readFileSync(new URL('../../../release/connect-ai/'+name+'.candidate.sql',import.meta.url),'utf8'));
+  await db.exec('set role neo_connect_ai_broker');
+  assert.equal((await db.query('select project_ref from neo_private.connect_ai_environment')).rows[0].project_ref,profile.project);
+  await assert.rejects(db.exec("delete from neo_private.connect_ai_environment"),{code:'42501'});
+  const configure=async(id,admin='yes',issuer=profile.supabaseOrigin+'/auth/v1')=>{
    await db.exec('reset role');
    await db.query("select set_config('neo.actor',$1,false), set_config('neo.admin',$2,false), set_config('neo.issuer',$3,false)",[id,admin,issuer]);
    await db.exec('set role authenticated');
@@ -22,6 +29,8 @@ test('registro persistente restringe autoria, emissor, administração e revoga�
   await configure(a);
   const one=await call('register'),two=await call('register');
   assert.notEqual(one.id,two.id);
+  assert.equal(one.resource,profile.resource);
+  assert.equal(one.environment,profile.name);
   await assert.rejects(db.exec('select * from neo_private.connect_ai_connections'),{code:'42501'});
   await configure(b);
   assert.equal(await call('inspect',one.id),null);

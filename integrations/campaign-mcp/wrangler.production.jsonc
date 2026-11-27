@@ -1,0 +1,9 @@
+{
+  "name": "neopep-connect-ai-production",
+  "main": "src/production-entry.mjs",
+  "compatibility_date": "2026-11-26",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": {"NEO_CONNECT_AI_ENABLED": "0", "NEO_CONNECT_AI_READ_APP": "0"}
+}
