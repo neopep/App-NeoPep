@@ -20,11 +20,29 @@ export function groupDiagnostics(row,ownIds){
   role,posting:row.announce===true?'admins':row.announce===false?'all':'unknown',
   settings:row.restrict===true?'admins':row.restrict===false?'all':'unknown'};
 }
+// Fresh, read-only group metadata check. Participant identifiers never leave this module.
+export function compareGroupMetadata(listed, fresh, ownIds, changedDuringRead=false){
+ const mode=row=>['pn','lid'].includes(row?.addressingMode)?row.addressingMode:'unknown';
+ const ids=row=>Array.isArray(row?.participants)?row.participants.map(p=>typeof p?.id==='string'?p.id.replace(/:[0-9]+@/,'@'):''):null;
+ const before=ids(listed),after=ids(fresh);
+ const sameMembers=!!before&&!!after&&before.length===after.length&&new Set(before).size===new Set(after).size&&before.every(id=>after.includes(id));
+ const stats={listed_mode:mode(listed),fresh_mode:mode(fresh),listed_count:before?.length??0,fresh_count:after?.length??0,
+  lid_count:after?.filter(id=>id.endsWith('@lid')).length??0,pn_count:after?.filter(id=>id.endsWith('@s.whatsapp.net')).length??0,
+  members_changed:!sameMembers||changedDuringRead};
+ const self=fresh?groupDiagnostics(fresh,ownIds):{role:'unknown',posting:'unknown'};
+ let code='ok';
+ if(!fresh||fresh.id!==listed?.id||!after?.length||after.some(id=>!id)||new Set(after).size!==after.length)code='metadata_invalid';
+ else if(stats.listed_mode==='unknown'||stats.fresh_mode==='unknown'||stats.listed_mode!==stats.fresh_mode)code='mode_mismatch';
+ else if(self.role==='unknown'||self.posting==='unknown'||(self.posting==='admins'&&!['admin','superadmin'].includes(self.role)))code='permission_unverified';
+ else if(changedDuringRead)code='membership_changed_during_read';
+ else if(!sameMembers)code='membership_refreshed';
+ return {...stats,code};
+}
 export async function createBaileysProvider(
- {onQr,onState,onCredentials=()=>{},onReceipt=()=>{},serialized=null},
+ {onQr,onState,onCredentials=()=>{},onReceipt=()=>{},onGroupCheck=()=>{},serialized=null},
  {load=loadModules,schedule=setTimeout,cancel=clearTimeout}={}
 ){
- let socket=null,connected=false,closed=false,retries=0,reconnectTimer;
+ let socket=null,connected=false,closed=false,retries=0,reconnectTimer,pendingGroup=null;
  const [baileys,{default:pino}]=await load();
  const {BufferJSON,DisconnectReason,proto}=baileys;
  const stored=serialized?JSON.parse(serialized,BufferJSON.reviver):null;
@@ -55,16 +73,35 @@ export async function createBaileysProvider(
   current.ev.removeAllListeners('creds.update');
   current.ev.removeAllListeners('messages.update');
   current.ev.removeAllListeners('message-receipt.update');
+  current.ev.removeAllListeners('group-participants.update');
   current.end?.(undefined);
  }
  function start(){
   if(closed)return;
   const current=baileys.default({
    auth,logger:pino({level:'silent'}),markOnlineOnConnect:false,syncFullHistory:false,
-   shouldSyncHistoryMessage:()=>false,defaultQueryTimeoutMs:15000
+   shouldSyncHistoryMessage:()=>false,defaultQueryTimeoutMs:15000,
+   // The documented metadata hook runs at relay time. No long-lived metadata cache.
+   cachedGroupMetadata:async jid=>{
+    const task=pendingGroup;
+    if(!task||task.socket!==current||task.jid!==jid)return undefined;
+    let fresh;
+    const reportCheck=check=>{if(!closed&&socket===current)onGroupCheck({group_jid:jid,...check});};
+    try{fresh=await current.groupMetadata(jid);}
+    catch{reportCheck({code:'metadata_unavailable'});throw Error('Metadados do grupo indisponíveis.');}
+    if(!connected||socket!==current)throw Error('A sessão mudou.');
+    const ownIds=[current.user?.id,current.user?.lid,creds.me?.id,creds.me?.lid];
+    const check=compareGroupMetadata(task.listed,fresh,ownIds,task.changed);
+    reportCheck(check);
+    if(!['ok','membership_refreshed'].includes(check.code))throw Error('Metadados ou permissões do grupo inconsistentes.');
+    return fresh;
+   }
   });
   socket=current;
   current.ev.on('creds.update',save);
+  current.ev.on('group-participants.update',event=>{
+   if(pendingGroup?.socket===current&&pendingGroup.jid===event?.id)pendingGroup.changed=true;
+  });
   // A generated message key is not delivery evidence.
   const validKey=key=>key?.fromMe===true&&/^[0-9-]{1,64}@g\.us$/.test(key.remoteJid||'')&&typeof key.id==='string'&&key.id.length>0&&key.id.length<=160;
   const report=(key,status,code)=>{if(!closed&&current===socket&&validKey(key))onReceipt({group_jid:key.remoteJid,message_id:key.id,status,...(code?{error_code:code}:{})});};
@@ -112,10 +149,16 @@ export async function createBaileysProvider(
   if(typeof groupJid!=='string'||!/^[0-9-]{1,64}@g\.us$/.test(groupJid))throw Error('Grupo inválido.');
   const groups=await current.groupFetchAllParticipating();
   if(!connected||socket!==current)throw Error('A sessão mudou.');
-  if(!Object.values(groups).some(group=>group?.id===groupJid))throw Error('A conta não participa deste grupo.');
-  const receipt=await current.sendMessage(groupJid,payload);
-  if(!receipt?.key?.id)throw Error('Não foi possível confirmar o aceite do envio.');
-  return {messageId:String(receipt.key.id).slice(0,160)};
+  const listed=Object.values(groups).find(group=>group?.id===groupJid);
+  if(!listed)throw Error('A conta não participa deste grupo.');
+  if(pendingGroup)throw Error('Envio em andamento.');
+  const task={socket:current,jid:groupJid,listed,changed:false};
+  pendingGroup=task;
+  try{
+   const receipt=await current.sendMessage(groupJid,payload,{useCachedGroupMetadata:true});
+   if(!receipt?.key?.id)throw Error('Não foi possível obter o identificador da tentativa.');
+   return {messageId:String(receipt.key.id).slice(0,160)};
+  }finally{if(pendingGroup===task)pendingGroup=null;}
  }
  return {
   start,
