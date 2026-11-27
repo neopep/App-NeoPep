@@ -100,6 +100,7 @@ export async function createBaileysProvider(
  const stored=serialized?JSON.parse(serialized,BufferJSON.reviver):null;
  const creds=stored?.creds||baileys.initAuthCreds();
  const keys=new Map(Array.isArray(stored?.keys)?stored.keys:[]);
+ const recoveredGroups=new Set();
  const save=()=>{if(!closed)onCredentials(JSON.stringify({creds,keys:[...keys]},BufferJSON.replacer));};
  const auth={creds,keys:{
   async get(type,ids){
@@ -250,6 +251,51 @@ export async function createBaileysProvider(
     return {...result,...audit,stage:'complete',role:own.role,posting:own.posting,settings:own.settings,
      unknown_count:Math.max(0,result.fresh_count-result.lid_count-result.pn_count),crypto_status:'not_verified'};
    }finally{if(pendingDiagnostic===task)pendingDiagnostic=null;}
+  },
+  // Explicit local recovery only; same record invalidation used by rc14 on group retry.
+  // No resend, no key rotation, no forced address mode, no removal of pairwise sessions.
+  async recoverGroupDistribution(jid){
+   const current=socket;
+   if(!connected||!current||pendingGroup||pendingDiagnostic||typeof jid!=='string'||!/^[0-9-]{1,64}@g\.us$/.test(jid))return {code:'unavailable'};
+   if(recoveredGroups.has(jid))return {code:'already_recovered'};
+   const task={socket:current,jid,changed:false};
+   pendingDiagnostic=task;
+   try{
+    const groups=await current.groupFetchAllParticipating();
+    const listed=Object.values(groups||{}).find(row=>row?.id===jid);
+    if(!listed)return {code:'not_participating'};
+    const fresh=await current.groupMetadata(jid);
+    if(!connected||current!==socket)return {code:'unavailable'};
+    const ownPn=creds.me?.id,ownLid=creds.me?.lid;
+    const own=groupDiagnostics(fresh||{},[ownPn,ownLid,current.user?.id,current.user?.lid]);
+    const check=compareGroupMetadata(listed,fresh,[ownPn,ownLid,current.user?.id,current.user?.lid],task.changed);
+    if(check.code!=='ok'||!['admin','superadmin'].includes(own.role))return {code:'metadata_or_permission'};
+    if(!ownPn||own.addressing_mode!=='lid'||!ownLid)return {code:'identity_unverified'};
+    const store=current.authState?.keys;
+    if(typeof store?.transaction!=='function'||typeof store?.get!=='function'||typeof store?.set!=='function')return {code:'unavailable'};
+    let result={code:'unavailable'};
+    // rc14 serializes group relay using the account PN transaction key.
+    await store.transaction(async()=>{
+     if(!connected||socket!==current||task.changed){result={code:'metadata_or_permission'};return;}
+     const raw=(await store.get('sender-key-memory',[jid]))[jid];
+     if(!raw){result={code:'already_empty',before:0,after:0};return;}
+     if(typeof raw!=='object'||Array.isArray(raw)||ArrayBuffer.isView(raw)){result={code:'invalid_memory'};return;}
+     const inventory=await auditGroupCryptoStore({groupJid:jid,metadata:fresh,keys,repository:current.signalRepository,ownPn,ownLid});
+     const before=Object.values(raw).filter(v=>v===true).length;
+     if(inventory.own_lid_key!=='present'){result={code:'identity_unverified'};return;}
+     if(inventory.memory_unmatched<1||!before){result={code:'no_mismatch',before,after:before};return;}
+     if(!connected||socket!==current||task.changed){result={code:'metadata_or_permission'};return;}
+     await store.set({'sender-key-memory':{[jid]:null}});
+     result={code:'recovered',before,unmatched:inventory.memory_unmatched,after:0};
+    },ownPn);
+    if(result.code==='recovered'){
+     const observed=await store.get('sender-key-memory',[jid]);
+     if(observed[jid]||keys.has('sender-key-memory:'+jid))return {code:'verification_failed'};
+     recoveredGroups.add(jid);
+    }
+    return result;
+   }catch{return {code:'verification_failed'};}
+   finally{if(pendingDiagnostic===task)pendingDiagnostic=null;}
   },
   async listGroups(){
    const current=socket;
