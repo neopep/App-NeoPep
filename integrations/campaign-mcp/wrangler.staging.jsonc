@@ -10,6 +10,7 @@
   "vars": {
     "NEO_CONNECT_AI_ENABLED": "0",
     "NEO_CONNECT_AI_READ_APP": "0",
-    "NEO_CONNECT_AI_DRAFTS": "0"
+    "NEO_CONNECT_AI_DRAFTS": "0",
+    "NEO_CONNECT_AI_JOBS": "0"
   }
 }

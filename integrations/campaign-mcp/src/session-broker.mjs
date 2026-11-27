@@ -1,3 +1,4 @@
+import {createDraftJobBroker} from './draft-job-broker.mjs';
 import {testProfile} from './environments.mjs';
 import postgres from 'postgres';
 import {decodeJwt} from 'jose';
@@ -38,6 +39,15 @@ export async function openSessionBroker(env,request=fetch,connect=postgres,profi
   if(!row)return null;
   return decoder.decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:unhex(row.iv),additionalData:aad(id,ownerId)},key,unhex(row.ciphertext)));
  }
+ const jobBroker=createDraftJobBroker({sql,authorize:async(id,ownerId)=>{
+  if(profile.name!=='test'||env.NEO_CONNECT_AI_JOBS!=='1'||!await draftsAllowed())return false;
+  const row=await getConnection(id);
+  if(!liveConnection(row)||row.owner_id!==ownerId||!row.scopes?.includes('campaigns:drafts')||!row.scopes?.includes('campaigns:read'))return false;
+  const token=await readSession(id,ownerId);
+  if(!token)return false;
+  const checked=await verify(token,'inspect',{id});
+  return checked.ownerId===ownerId&&checked.data?.id===id&&!checked.data.revoked_at&&checked.data.scopes?.includes('campaigns:drafts')===true;
+ }});
  return {
   verifyDatabase,draftsAllowed,
   close:()=>sql.end({timeout:2}),
@@ -45,6 +55,7 @@ export async function openSessionBroker(env,request=fetch,connect=postgres,profi
    const p=new URL(req.url).pathname;
    const d=await req.json();
    let result=null;
+   if(p.startsWith('/jobs/'))return jobBroker(p,d);
    if(p==='/environment/drafts'){
     result=await draftsAllowed();
    }else if(p==='/consent/claim'){
