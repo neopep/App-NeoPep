@@ -1,24 +1,24 @@
 # NeoPep Connect AI — progresso
 
 Branch de referência: `desenvolvimento/campanhas-plugin-ia-20261126`.
-Base deste lote: `83ba99f`. Os incrementos anteriores estão registrados abaixo.
+Base deste lote: `51c34f0`. Os incrementos anteriores estão registrados abaixo.
 Ponto de corte: `docs/PONTO-DE-CORTE-20261126.md`. A publicação anterior de Teste pertence a outro ciclo.
 
 | Etapa | Estado |
 |---|---|
 | 001 Auditoria | Parcialmente testado. Fonte nativa do Central localizada; parâmetros de leitura e escrita ainda em auditoria. |
 | 002 Catálogo | Contexto disponível no PoC; lista e detalhe App/WhatsApp, agenda, estados e recorrência App testados com fixtures. |
-| 003 Autenticação | SQL candidato de conexões e concessões, PKCE, emissão JWT e troca/rotação testados localmente. Broker de sessão, consentimento HTTP e provisionamento pendentes. |
-| 004 Servidor | PoC testado sob Node. Worker real e clientes MCP ainda não homologados. |
-| 005 Central administrativa | Seções iniciais e instalação por cliente, superfície e ambiente testadas em DOM simulado. Gestão autenticada pendente. |
-| 006 Criação e edição | Preparação do payload nativo de criação com idempotência testada; execução e edição pendentes. |
+| 003 Autenticação | Consentimento explícito, broker SQL, sessão NeoPep e OAuth PKCE implementados para Teste. Fixtures locais aprovadas. Homologação real pendente. |
+| 004 Servidor | Worker Teste com entrada desativada e bundle validado em dry-run. Runtime e clientes reais ainda pendentes. |
+| 005 Central administrativa | Consentimento, listagem e revogação pelo painel Teste exercitados em DOM simulado. Instalação prática pendente. |
+| 006 Criação e edição | Preparação de criação e edição textual com revisão e preservação de campos testadas. Escrita pelas ferramentas permanece desativada. |
 | 007 Criativos | Planejado |
 | 008 Operações em massa | Planejado |
 | 009 Destinatários | Planejado |
 | 010 Agendamento e publicação | Planejado |
 | 011 Gerenciamento | Planejado |
 | 012 Documentação e CI | Geração determinística e workflow preparado. Ainda falta vincular mudanças semânticas nos contratos nativos à revisão obrigatória. |
-| 013 Segurança e monitoração | Planejado |
+| 013 Segurança e monitoração | Testes locais de RLS, armazenamento cifrado e rotação. Roteiro de diagnóstico e reversão pronto. Métricas e alertas reais pendentes. |
 | 014 Homologação e instalação | Catálogo privado, ZIPs separados e verificação reprodutível em CI. Instalação real pendente por cliente, plano e dispositivo. |
 
 ## Incremento inicial
@@ -131,3 +131,13 @@ Ponto de corte: `docs/PONTO-DE-CORTE-20261126.md`. A publicação anterior de Te
 - O emissor só retorna JWKS quando configurado com uma chave pública P-256 e projeta exclusivamente campos públicos. O teste confirma que um campo privado fornecido por engano não aparece na resposta.
 - A edição candidata prepara o envelope de revisão, IDs e blocos de texto. Nenhuma ação de escrita é anunciada ou chamou o RPC. Antes de habilitar, carregar o rascunho autorizado e preservar seus demais campos, aplicar os validadores nativos e testar conflitos de revisão.
 - 14 testes locais aprovados. Sem alterações externas. Próximo: concluir autorização e consentimento HTTP, broker NeoPep e autorização real do primeiro leitura, seguindo o gate Plus.
+
+
+## Incremento da primeira integração privada de Teste
+
+- Base remota `51c34f0`. `08b7410` integra servidor, sessão NeoPep e consentimento HTTP. `c23546c` adiciona a confirmação explícita no painel, gestão das conexões e preservação de campos de rascunho.
+- Entrada em `integrations/campaign-mcp/src/staging-entry.mjs` e `wrangler.staging.jsonc`. O broker em `src/session-broker.mjs` usa Hyperdrive e a migração candidata `003-session-broker`. A sessão NeoPep é verificada no projeto Teste. O acesso guardado é cifrado e expira com o token de acesso original. A rotação MCP revalida essa sessão. Novos consentimentos removem sessões expiradas ou revogadas.
+- SQL 001–003 testado em PGlite com papel restrito, prova de uso único, leitura cifrada isolada por proprietário e revogação. Composição OAuth até a leitura MCP exercitada com upstream simulado. A suíte da integração reúne 16 testes. Build local, check, catálogo e reprodução dos ZIPs também passaram. Wrangler empacotou o Worker com as duas flags em zero em modo dry-run.
+- Nenhuma migração aplicada ou configuração externa alterada. Os pushes servem para continuidade do desenvolvimento privado. Não houve instalação em Plus, Claude, Gemini, Codex ou Sites.
+- Rascunhos: o contrato textual preserva título, mídia, destinatários, agenda e configurações, a partir da revisão nativa. A ferramenta ainda não executa gravações. Etapas independentes de mídia, operações em massa, agendamento e métricas reais continuam pendentes.
+- Próxima ação exata: revisar a [implantação de Teste](NEOPEP-CONNECT-AI-IMPLANTACAO-TESTE.md), identificar um cliente com callback HTTPS registrável, validar os privilégios efetivos do login do broker e solicitar autorização para preparar os recursos privados de Teste. Executar o roteiro antes de ampliar escopo ou clientes.

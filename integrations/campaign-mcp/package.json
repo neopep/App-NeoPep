@@ -6,7 +6,8 @@
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
-    "jose": "6.2.18"
+    "jose": "6.2.18",
+    "postgres": "3.4.8"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.3.14",

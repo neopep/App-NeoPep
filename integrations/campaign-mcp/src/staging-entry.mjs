@@ -4,6 +4,7 @@ import {createIssuer} from './oauth-issuer.mjs';
 import {createConsentHandler} from './consent.mjs';
 import {createNeoSession} from './neo-session.mjs';
 import {createConnectionAuthorizer} from './authorization.mjs';
+import {openSessionBroker} from './session-broker.mjs';
 import {createCampaignReader} from './campaign-reader.mjs';
 
 const issuerOrigin='https://connect-teste.neopep.com.br';
@@ -18,7 +19,7 @@ function configuredClients(text){
   if(!id||id.length>128||!Array.isArray(redirects)||!redirects.length)throw Error('CLIENT_CONFIG');
   for(const redirect of redirects){
    const url=new URL(redirect);
-   if(url.protocol!=='https:'||url.hash||url.username||url.password)throw Error('CLIENT_CONFIG');
+   if(url.protocol!=='https:'||url.hash||url.username||url.password||url.searchParams.has('code')||url.searchParams.has('state'))throw Error('CLIENT_CONFIG');
   }
  }
  return new Map(Object.entries(parsed));
@@ -63,19 +64,25 @@ export async function stagingHandler(env,request=fetch){
   if(await call('consent/claim',{proof})!==true)return null;
   const {ownerId,data}=await verify(token,'register',{clientId,label:'NeoPep Connect AI'});
   if(!data?.id)return null;
-  await call('session/bind',{id:data.id,ownerId,token});
+  if(await call('session/bind',{id:data.id,ownerId,token})!==true)return null;
   return {connectionId:data.id,campaignAdmin:true};
  }});
  const authorize=createConnectionAuthorizer({key:verifyKey,issuer:issuerOrigin,resource,environment:'test',
   findConnection:id=>call('connection/read',{id}),
   isCampaignAdmin:async(ownerId,environment,id)=>Boolean(await activeSession(id,ownerId))});
- return createHandler({oauth,consent,authorize,readCampaign:createCampaignReader({
-  publishableKey:env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY,sessionFor:activeSession,request
+ const readChannels=env.NEO_CONNECT_AI_READ_APP==='1'?['whatsapp','app']:['whatsapp'];
+ return createHandler({oauth,consent,authorize,readChannels,readCampaign:createCampaignReader({
+  publishableKey:env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY,sessionFor:activeSession,request,channels:readChannels,appRecurrences:readChannels.includes('app')
  })});
 }
 
 export default {async fetch(request,env){
  if(new URL(request.url).origin!==issuerOrigin)return new Response(null,{status:404});
- try{return await (await stagingHandler(env))(request);}
+ let broker;
+ try{
+  if(env.NEO_CONNECT_AI_ENABLED==='1')broker=await openSessionBroker(env);
+  return await (await stagingHandler({...env,NEO_CONNECT_AI_BROKER:broker}))(request);
+ }
  catch{return Response.json({error:'TESTE_CONFIGURATION_UNAVAILABLE'},{status:503,headers:{'Cache-Control':'no-store'}});}
+ finally{if(broker)await broker.close().catch(()=>{});}
 }};

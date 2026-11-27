@@ -2,7 +2,8 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
-import {exportJWK,generateKeyPair,jwtVerify} from 'jose';
+import {exportJWK,generateKeyPair,jwtVerify,SignJWT} from 'jose';
+import {openSessionBroker} from '../src/session-broker.mjs';
 import {createIssuer} from '../src/oauth-issuer.mjs';
 import {challengeS256} from '../src/pkce.mjs';
 import {createHandler} from '../src/worker.mjs';
@@ -18,10 +19,35 @@ test('OAuth usa transação SQL para troca única, rotação e revogação por r
     create function auth.uid() returns uuid language sql as $$select null::uuid$$;
     create function auth.jwt() returns jsonb language sql as $$select '{}'::jsonb$$;
     create function neo_private.campaign_admin_allowed() returns boolean language sql as $$select false$$;`);
-  for(const migration of ['001-connections','002-oauth-grants'])
+  for(const migration of ['001-connections','002-oauth-grants','003-session-broker'])
    await db.exec(readFileSync(new URL('../../../release/connect-ai/'+migration+'.candidate.sql',import.meta.url),'utf8'));
   await db.query('insert into auth.users values($1)',[ownerId]);
   await db.query("insert into neo_private.connect_ai_connections(id,owner_id,client_id,label) values($1,$2,'client','fixture')",[connectionId,ownerId]);
+  await db.exec('set role neo_connect_ai_broker');
+  const claim="insert into neo_private.connect_ai_consent_claims values(repeat('a',64),now()+interval '2 minutes') on conflict do nothing returning proof";
+  assert.equal((await db.query(claim)).rows.length,1);
+  assert.equal((await db.query(claim)).rows.length,0);
+  await db.query("insert into neo_private.connect_ai_sessions values($1,'iv','encrypted',now()+interval '1 minute')",[connectionId]);
+  await assert.rejects(db.query('update neo_private.connect_ai_connections set revoked_at=now()'),{code:'42501'});
+  await db.query('delete from neo_private.connect_ai_sessions');
+  const broker=await openSessionBroker({
+   NEO_CONNECT_AI_DB:{connectionString:'fixture'},NEO_CONNECT_AI_SESSION_KEY:'11'.repeat(32),
+   NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY:'fixture'
+  },async()=>{throw Error('Unexpected external request');},()=>async(parts,...args)=>{
+   const query=parts.reduce((sql,part,index)=>sql+(index?'$'+index:'')+part,'');
+   return (await db.query(query,args)).rows;
+  });
+  const invoke=async(path,body)=>(await broker.fetch(new Request('https://broker.invalid'+path,{
+   method:'POST',body:JSON.stringify(body)
+  }))).json();
+  const upstreamToken=await new SignJWT({}).setProtectedHeader({alg:'ES256'}).setExpirationTime('5m').sign(privateKey);
+  const link={id:connectionId,ownerId};
+  assert.equal(await invoke('/session/bind',{...link,token:upstreamToken}),true);
+  const [sealed]=(await db.query('select ciphertext from neo_private.connect_ai_sessions')).rows;
+  assert.match(sealed.ciphertext,/^[a-f0-9]+$/);
+  assert.ok(!sealed.ciphertext.includes(upstreamToken));
+  assert.equal(await invoke('/session/read',link),upstreamToken);
+  assert.equal(await invoke('/session/read',{...link,ownerId:connectionId}),null);
   const store={
    registerCode:({digest,connectionId,redirectUri,challenge,expiresAt})=>db.query(
     "insert into neo_private.connect_ai_oauth_grants(digest,connection_id,kind,redirect_uri,challenge,expires_at) values($1,$2,'code',$3,$4,$5)",
@@ -58,7 +84,9 @@ test('OAuth usa transação SQL para troca única, rotação e revogação por r
   assert.equal((await exchange(refresh)).status,400);
   assert.equal((await exchange({...refresh,refresh_token:second.refresh_token})).status,400);
   assert.ok((await db.query('select revoked_at from neo_private.connect_ai_connections')).rows[0].revoked_at);
+  assert.equal(await invoke('/session/read',link),null);
   await db.exec('set role authenticated');
   await assert.rejects(db.query("select neo_private.connect_ai_rotate_grant('x','code','x',null,null,'x')"),{code:'42501'});
+  await assert.rejects(db.query('select ciphertext from neo_private.connect_ai_sessions'),{code:'42501'});
  }finally{await db.close();}
 });
