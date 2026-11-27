@@ -18,6 +18,11 @@ export function createPrivateMediaTickets({profile,env,sql,verifyDatabase,freshS
   if(v.bucket!==plan.bucket||v.path!==plan.path||v.blockType!==plan.blockType||(v.mime==='image/jpeg'&&v.size>1048576)||(v.channel==='app'&&v.mime!=='image/jpeg')||(expected&&Object.keys(expected).some(k=>v[k]!==expected[k])))throw Error('INVALID_TICKET_RECEIPT');
   return v;
  }
+ async function recoverProof(p,ticket,action,digest,lease=null){
+  await authorize(p);
+  const [row]=await sql`select neo_private.connect_ai_media_recovery(${p.id}::uuid,${p.ownerId}::uuid,${ticket}::uuid,${action}::text,${digest}::text,${lease}::uuid) as value`;
+  return row?.value===true;
+ }
  const project=v=>({ticketId:v.ticketId,channel:v.channel,campaignId:v.campaignId,publicationId:v.publicationId,blockId:v.blockId,revision:v.revision,mime:v.mime,size:v.size,name:v.name,state:v.state,expiresAt:v.expiresAt,uploadAvailable:false});
  const store=createPrivateMediaStorage({profile,env,publishableKey:env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY,freshSession,verifyDatabase,request,validateBytes,now});
  const attach=createMediaAttachmentWriter({profile,env,freshSession,verifyDatabase,request,now});
@@ -39,6 +44,17 @@ export function createPrivateMediaTickets({profile,env,sql,verifyDatabase,freshS
    if(v?.ticketId!==ticket||!uuid(v.publicationId)||!['attached_historically','unconfirmed'].includes(v.state)||(v.state==='attached_historically'&&(!Number.isSafeInteger(v.revision)||v.revision<2)))throw Error('INVALID_TICKET_RECEIPT');
    return {ticketId:ticket,publicationId:v.publicationId,state:v.state,...(v.state==='attached_historically'?{revision:v.revision}:{})};
   },
+  async recoverStorage(p,ticket){
+   await authorize(p);if(!uuid(ticket))throw Error('INVALID_MEDIA');
+   if(typeof validateBytes!=='function')throw Error('MEDIA_VALIDATOR_UNAVAILABLE');
+   const current=await call(p,ticket,'inspect',{});
+   if(current.state!=='uncertain')return {ticketId:ticket,state:current.state==='stored'?'stored':'upload_unconfirmed'};
+   try{
+    const proof=await store.recover(p,current);
+    if(!await recoverProof(p,ticket,'recover',proof.sha256))return {ticketId:ticket,state:'upload_unconfirmed'};
+    return {ticketId:ticket,state:'stored'};
+   }catch{return {ticketId:ticket,state:'upload_unconfirmed'};}
+  },
   async uploadAndAttach(p,ticket,bytes){
    await authorize(p);
    if(typeof validateBytes!=='function')throw Error('MEDIA_VALIDATOR_UNAVAILABLE');
@@ -59,6 +75,7 @@ export function createPrivateMediaTickets({profile,env,sql,verifyDatabase,freshS
    if(claimed.state!=='uploading')throw Error('INVALID_TICKET_RECEIPT');
    let stored;
    try{
+    if(!await recoverProof(p,ticket,'bind',inspection.sha256,claimed.leaseId))throw Error('MEDIA_UPLOAD_UNCONFIRMED');
     const proof=await store(p,claimed,content);
     if(proof.state!=='bytes_verified'||proof.ticketId!==ticket||proof.sha256!==inspection.sha256||proof.size!==plan.size)throw Error('MEDIA_UPLOAD_UNCONFIRMED');
     await authorize(p);
