@@ -1,7 +1,7 @@
 # NeoPep Connect AI — catálogo candidato de ferramentas
 
 Arquivo gerado pelo catálogo. Versão `1.0.0-preview.2`. O acesso depende de autorização a cada requisição.
-O catálogo descreve o código candidato, não a implantação ativa. O acesso depende do ambiente e das capacidades publicadas. Escrita de rascunhos permanece fora do catálogo ativo.
+O catálogo descreve o código candidato, não a implantação ativa. O acesso depende do ambiente e das capacidades publicadas. As ferramentas de escrita são candidatas exclusivas de Teste e exigem consentimento campaigns:drafts; não estão implantadas.
 
 
 ## get_capabilities
@@ -803,6 +803,342 @@ Escopo `campaigns:read`.
     "required": [
       "items",
       "selection_limit"
+    ],
+    "additionalProperties": false
+  }
+}
+```
+
+## create_campaign_draft
+
+Cria campanha em rascunho exclusivamente no Teste. Não envia nem agenda. Reutilize requestId em tentativas.
+
+Escopo `campaigns:read + campaigns:drafts`.
+
+```json
+{
+  "input": {
+    "type": "object",
+    "properties": {
+      "channel": {
+        "enum": [
+          "app",
+          "whatsapp"
+        ]
+      },
+      "title": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 120
+      },
+      "requestId": {
+        "type": "string",
+        "format": "uuid"
+      }
+    },
+    "required": [
+      "channel",
+      "title",
+      "requestId"
+    ],
+    "additionalProperties": false
+  },
+  "output": {
+    "type": "object",
+    "properties": {
+      "campaignId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "channel": {
+        "enum": [
+          "app",
+          "whatsapp"
+        ]
+      },
+      "status": {
+        "const": "draft_created_or_reused"
+      }
+    },
+    "required": [
+      "campaignId",
+      "channel",
+      "status"
+    ],
+    "additionalProperties": false
+  }
+}
+```
+
+## add_publications
+
+Adiciona até seis publicações textuais em rascunho. plannedLocal é sugestão de horário, não agenda. Retorna resultado individual; reutilize IDs em tentativas.
+
+Escopo `campaigns:read + campaigns:drafts`.
+
+```json
+{
+  "input": {
+    "type": "object",
+    "properties": {
+      "channel": {
+        "enum": [
+          "app",
+          "whatsapp"
+        ]
+      },
+      "campaignId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 6,
+        "items": {
+          "type": "object",
+          "properties": {
+            "publicationId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "requestId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "blocks": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 6,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "id",
+                  "text"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "plannedLocal": {
+              "type": "string",
+              "maxLength": 16
+            }
+          },
+          "required": [
+            "publicationId",
+            "requestId",
+            "title",
+            "blocks"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "channel",
+      "campaignId",
+      "items"
+    ],
+    "additionalProperties": false
+  },
+  "output": {
+    "type": "object",
+    "properties": {
+      "campaignId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "channel": {
+        "enum": [
+          "app",
+          "whatsapp"
+        ]
+      },
+      "results": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "publicationId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "status": {
+              "enum": [
+                "draft_saved_or_reused",
+                "not_confirmed"
+              ]
+            },
+            "revision": {
+              "type": "integer"
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "publicationId",
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "campaignId",
+      "channel",
+      "results"
+    ],
+    "additionalProperties": false
+  }
+}
+```
+
+## update_publications
+
+Edita texto de publicações ainda em rascunho. Exige revisão atual e ID de bloco; preserva outros campos. Conflitos exigem nova leitura.
+
+Escopo `campaigns:read + campaigns:drafts`.
+
+```json
+{
+  "input": {
+    "type": "object",
+    "properties": {
+      "channel": {
+        "enum": [
+          "app",
+          "whatsapp"
+        ]
+      },
+      "campaignId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 6,
+        "items": {
+          "type": "object",
+          "properties": {
+            "publicationId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "requestId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "edits": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 6,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "id",
+                  "text"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "publicationId",
+            "requestId",
+            "revision",
+            "edits"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "channel",
+      "campaignId",
+      "items"
+    ],
+    "additionalProperties": false
+  },
+  "output": {
+    "type": "object",
+    "properties": {
+      "campaignId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "channel": {
+        "enum": [
+          "app",
+          "whatsapp"
+        ]
+      },
+      "results": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "publicationId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "status": {
+              "enum": [
+                "draft_saved_or_reused",
+                "not_confirmed"
+              ]
+            },
+            "revision": {
+              "type": "integer"
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "publicationId",
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "campaignId",
+      "channel",
+      "results"
     ],
     "additionalProperties": false
   }

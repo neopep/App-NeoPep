@@ -65,7 +65,8 @@ window.NeoAdminConnectAI=(()=>{
     for(const row of rows){
      const item=document.createElement('li');
      const state=row.revoked_at?'Revogada':Date.parse(row.expires_at)<=Date.now()?'Expirada':'Ativa';
-     item.textContent=row.client_id+' · '+state+' ';
+     const permissions=Array.isArray(row.scopes)&&row.scopes.includes('campaigns:drafts')?'Leitura e rascunhos':'Somente leitura';
+     item.textContent=row.client_id+' · '+state+' · '+permissions+' ';
      if(state==='Ativa'){
       const button=document.createElement('button');
       button.type='button';
@@ -129,7 +130,7 @@ window.NeoAdminConnectAI=(()=>{
    <button type="button" class="primary">Autorizar leitura</button><p role="status"></p>
   </section>
   <details data-connect-ai-connections><summary>Conexões</summary><p role="status">A gestão depende da autorização individual do NeoPep.</p><ul></ul></details>
-  <details><summary>Ferramentas</summary><p>A disponibilidade será informada pelo catálogo do servidor conectado.</p></details>
+  <details><summary>Ferramentas</summary><p>A disponibilidade será informada pelo catálogo do servidor conectado. Produção permanece somente leitura. A criação e edição de rascunhos estão em validação isolada de Teste.</p></details>
   <details><summary>Base de conhecimento</summary><p>Consulte o guia de campanhas do NeoPep antes de preparar publicações.</p></details>
   <details><summary>Histórico</summary><p>Histórico de operações disponível após a conexão ao servidor.</p></details>
   <details><summary>Instalar integração</summary>
