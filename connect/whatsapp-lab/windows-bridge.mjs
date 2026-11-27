@@ -92,7 +92,15 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
        role:['admin','superadmin','member'].includes(result.role)?result.role:'unknown',
        posting:['admins','all'].includes(result.posting)?result.posting:'unknown',
        settings:['admins','all'].includes(result.settings)?result.settings:'unknown',
-       members_changed:result.members_changed===true,crypto_status:'not_verified'});
+       members_changed:result.members_changed===true,crypto_status:'not_verified',
+       store_status:['inspected','invalid_memory_shape'].includes(result.store_status)?result.store_status:'unavailable',
+       memory_status:['absent','present','invalid'].includes(result.memory_status)?result.memory_status:'unknown',
+       memory_entries:count(result.memory_entries),memory_lid:count(result.memory_lid),memory_pn:count(result.memory_pn),memory_other:count(result.memory_other),
+       memory_unmatched:count(result.memory_unmatched),memory_unparseable:count(result.memory_unparseable),
+       cached_members:count(result.cached_members),uncached_members:count(result.uncached_members),cached_devices:count(result.cached_devices),session_records:count(result.session_records),
+       own_lid_available:typeof result.own_lid_available==='boolean'?result.own_lid_available:null,
+       own_lid_key:['present','absent'].includes(result.own_lid_key)?result.own_lid_key:'unknown',
+       own_pn_key:['present','absent'].includes(result.own_pn_key)?result.own_pn_key:'unknown'});
      };
      if(state!=='conectado'||!current||sending||checking||diagnosing||typeof current.diagnoseGroup!=='function'){report();return;}
      diagnosing=true;const revision=generation,provider=current;
