@@ -20,7 +20,7 @@ function fixture(){
  assert.equal(p_action,'save');assert.equal(state,'stored');assert.equal(p_data.revision,1);assert.equal(p_data.request_id,ticket);assert.deepEqual(p_data.draft.blocks[0],draft.blocks[0]);assert.equal(p_data.draft.blocks[1].media_path,p.ownerId+'/'+ticket+'.jpg');
  return Response.json({editor_id:id(4),source_id:id(3),channel:'whatsapp',revision:2});
  }};
- return {deps,calls,stale:()=>revision=2};
+ return {deps,calls,stale:()=>revision=2,stored:d=>{state='stored';sha256=d;}};
 }
 test('private upload verifies storage and finishes ticket before revision-checked attachment',async()=>{
  const f=fixture(),r=await createPrivateMediaTickets(f.deps).uploadAndAttach(p,ticket,bytes);
@@ -38,4 +38,13 @@ test('ambiguous upload marks uncertain, never saves or retries',async()=>{
 test('changed revision after storage leaves attachment unconfirmed and never rewrites',async()=>{
  const f=fixture(),request=f.deps.request;f.deps.request=async(url,init)=>{const r=await request(url,init);if(url.includes('/storage/')&&init.method==='GET')f.stale();return r;};
  const r=await createPrivateMediaTickets(f.deps).uploadAndAttach(p,ticket,bytes);assert.equal(r.state,'stored_attachment_unconfirmed');assert.ok(!f.calls.includes('save'));
+});
+
+test('explicit attachment recovery is GET-only and historical receipt avoids save',async()=>{
+ const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');
+ for(const history of [false,true]){
+  const f=fixture();f.stored(digest);const sql=f.deps.sql;
+  f.deps.sql=async(parts,...args)=>{if(parts.join('?').includes('connect_ai_media_attachment_receipt')){f.calls.push('receipt');return [{value:{ticketId:ticket,publicationId:id(4),state:history?'attached_historically':'unconfirmed',...(history?{revision:2}:{})}}];}return sql(parts,...args);};
+  const r=await createPrivateMediaTickets(f.deps).resumeAttachment(p,ticket);assert.equal(r.state,history?'attached_historically':'attached');assert.equal(f.calls.includes('POST'),false);assert.equal(f.calls.includes('save'),!history);
+ }
 });

@@ -45,7 +45,7 @@ export function createPrivateMediaStorage({profile,env,publishableKey,freshSessi
  store.recover=async(p,ticket)=>{
   await auth(p);
   if(typeof validateBytes!=='function')throw Error('MEDIA_VALIDATOR_UNAVAILABLE');
-  if(!ticket||ticket.state!=='uncertain'||ticket.ownerId!==p.ownerId||ticket.connectionId!==p.id||ticket.requestId!==ticket.ticketId||!['app','whatsapp'].includes(ticket.channel)||!(Date.parse(ticket.expiresAt)>now()))throw Error('INVALID_TICKET_RECEIPT');
+  if(!ticket||!['uncertain','stored'].includes(ticket.state)||ticket.ownerId!==p.ownerId||ticket.connectionId!==p.id||ticket.requestId!==ticket.ticketId||!['app','whatsapp'].includes(ticket.channel)||!(Date.parse(ticket.expiresAt)>now()))throw Error('INVALID_TICKET_RECEIPT');
   const plan=planUpload(p,{campaignId:ticket.campaignId,publicationId:ticket.publicationId,blockId:ticket.blockId,requestId:ticket.ticketId,revision:ticket.revision,mime:ticket.mime,size:ticket.size,name:ticket.name});
   if(ticket.path!==plan.path||ticket.bucket!==plan.bucket||ticket.blockType!==plan.blockType||(plan.mime==='image/jpeg'&&plan.size>1048576)||(ticket.channel==='app'&&plan.mime!=='image/jpeg'))throw Error('INVALID_TICKET_RECEIPT');
   const bytes=await readObject(p,plan),proof=await inspectUpload(plan,bytes,plan.mime);

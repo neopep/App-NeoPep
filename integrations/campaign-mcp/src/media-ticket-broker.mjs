@@ -55,6 +55,27 @@ export function createPrivateMediaTickets({profile,env,sql,verifyDatabase,freshS
     return {ticketId:ticket,state:'stored'};
    }catch{return {ticketId:ticket,state:'upload_unconfirmed'};}
   },
+  // Explicit recovery only; no upload. Historic receipt wins over any new save.
+  async resumeAttachment(p,ticket){
+   await authorize(p);if(!uuid(ticket))throw Error('INVALID_MEDIA');
+   if(typeof validateBytes!=='function')throw Error('MEDIA_VALIDATOR_UNAVAILABLE');
+   const current=await call(p,ticket,'inspect',{});
+   if(current.state!=='stored'||!(/^[a-f0-9]{64}$/.test(current.sha256||'')))return {ticketId:ticket,state:'stored_attachment_unconfirmed'};
+   try{
+    const [row]=await sql`select neo_private.connect_ai_media_attachment_receipt(${p.id}::uuid,${p.ownerId}::uuid,${ticket}::uuid) as value`;
+    const v=row?.value;
+    if(v?.ticketId!==ticket||v.publicationId!==current.publicationId||!['attached_historically','unconfirmed'].includes(v.state))throw Error('INVALID_TICKET_RECEIPT');
+    if(v.state==='attached_historically'){
+     if(v.revision!==current.revision+1)throw Error('INVALID_TICKET_RECEIPT');
+     return {ticketId:ticket,state:v.state,publicationId:v.publicationId,revision:v.revision};
+    }
+    const proof=await store.recover(p,current);
+    if(proof.sha256!==current.sha256||proof.ticketId!==ticket||proof.size!==current.size)throw Error('MEDIA_UPLOAD_UNCONFIRMED');
+    await authorize(p);
+    const receipt=await attach(p,current,proof.sha256);
+    return {ticketId:ticket,state:'attached',publicationId:receipt.publicationId,revision:receipt.revision};
+   }catch{return {ticketId:ticket,state:'stored_attachment_unconfirmed'};}
+  },
   async uploadAndAttach(p,ticket,bytes){
    await authorize(p);
    if(typeof validateBytes!=='function')throw Error('MEDIA_VALIDATOR_UNAVAILABLE');

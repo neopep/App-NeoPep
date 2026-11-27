@@ -36,3 +36,11 @@ test('mismatched bytes, oversized response and uncertain POST never retry',async
 test('revalidates session before upload',async()=>{
  const f=fixture();f.deps.validateBytes=async()=>{f.revoke();return true;};await assert.rejects(createPrivateMediaStorage(f.deps)(p,ticket,bytes),/FORBIDDEN/);assert.equal(f.calls.length,0);
 });
+
+test('recovery of uncertain or stored objects performs only GET and revalidates bytes',async()=>{
+ for(const state of ['uncertain','stored']){
+  const f=fixture(),r=await createPrivateMediaStorage(f.deps).recover(p,{...ticket,state});
+  assert.equal(r.state,'bytes_verified');assert.equal(f.calls.length,1);assert.equal(f.calls[0].init.method,'GET');assert.equal(r.sha256.length,64);
+ }
+ const f=fixture();f.invalid();await assert.rejects(createPrivateMediaStorage(f.deps).recover(p,{...ticket,state:'uncertain'}),/INVALID_MEDIA/);assert.equal(f.calls.every(x=>x.init.method==='GET'),true);
+});
