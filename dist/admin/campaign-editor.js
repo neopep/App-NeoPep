@@ -789,7 +789,7 @@
     const result=await cloud.campaignDispatch('diagnostics',{});
     if(!current())return;
     gates=result||{};
-    if(testWA&&typeof cloud.campaignRich==='function'){
+    if(channel==='whatsapp'&&typeof cloud.campaignRich==='function'){
      try{gates.whatsapp_rich=await cloud.campaignRich('diagnostics');}
      catch{gates.whatsapp_rich={ready:false};}
      if(!current())return;
@@ -801,7 +801,7 @@
    }catch{if(current())gates={};}
    if(current()){if(testWA)renderGroups();showGate();}
   }
-  const outcomes={waiting:'Aguardando',leased:'Em preparação',started:'Em processamento',accepted:'Aceito pelo cliente',
+  const outcomes={paused_previous_421:'Envio pausado por rejeição anterior',rejected:'Rejeitado pelo WhatsApp',delivered:'Entrega confirmada',server_ack:'Recebido pelo WhatsApp',awaiting_confirmation:'Aguardando confirmação',refused:'Envio recusado',waiting:'Aguardando',leased:'Em preparação',started:'Em processamento',accepted:'Aceito pelo cliente',
    uncertain:'Resultado incerto · revisar',failed:'Falhou',cancelled:'Cancelado'};
   async function showDispatch(){
    const root=$('[data-dispatch-results]');
@@ -829,8 +829,8 @@
      return;
     }
     const richHtml=richRows.map(row=>`<article class="monitor-block">
-     <strong>Bloco ${e(row.sequence)} · ${e(labels[row.kind]||row.kind)} · ${e(outcomes[row.dispatch_state]||row.dispatch_state)}</strong>
-     <p class="sub">Programado: ${e(new Date(row.scheduled_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}))} · ${e(row.dispatch_attempts)} tentativa(s) · ${row.has_receipt?'Recibo registrado':'Sem recibo'}</p>
+     <strong>Bloco ${e(row.sequence)} · ${e(labels[row.kind]||row.kind)} · ${e(outcomes[row.delivery_state||row.dispatch_state]||row.delivery_state||row.dispatch_state)}</strong>
+     <p class="sub">Programado: ${e(new Date(row.scheduled_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}))} · ${e(row.dispatch_attempts)} tentativa(s) · ${row.has_local_receipt||row.has_receipt?'Identificador local registrado':'Sem identificador local'}${row.blocked_reason==='previous_421'?' · Não transmitido':row.send_error_code?' · Código '+e(row.send_error_code):''}</p>
      ${row.dispatch_state==='waiting'?'<button type="button" class="secondary" data-editor="rich_cancel_batch" data-batch="'+e(row.batch_id)+'">Cancelar blocos pendentes</button>':''}</article>`).join('');
     root.innerHTML=richHtml+rows.map(row=>`<article class="monitor-block">
      <strong>${e(row.dispatch_jid)} · ${e(outcomes[row.dispatch_state]||row.dispatch_state)}</strong>
