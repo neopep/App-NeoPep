@@ -2,6 +2,22 @@
  'use strict';
  const e=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const states={eligible:'Elegível',stale:'Desatualizado',disconnected:'Desconectado',unavailable:'Indisponível'};
+ const originalLimit=mime=>mime==='video/mp4'?25*1024*1024:5*1024*1024;
+ // iOS Photos can label an MP4 as QuickTime, or return a real MOV. Inspect
+ // the container before normalizing the MIME; never rename a real MOV to MP4.
+ async function selectedVideo(file){
+  if(!file.size||file.size>originalLimit('video/mp4'))throw Error('O vídeo deve ter até 25 MB (arquivo selecionado: '+(file.size/1048576).toFixed(1)+' MB).');
+  const bytes=await file.arrayBuffer(),head=new Uint8Array(bytes);
+  const tag=offset=>String.fromCharCode(...head.subarray(offset,offset+4));
+  if(head.length<16||tag(4)!=='ftyp')throw Error('Formato de vídeo incompatível. Exporte o vídeo da fototeca como MP4 e selecione novamente.');
+  const size=new DataView(bytes).getUint32(0);
+  if(size<16||size>head.length)throw Error('O arquivo de vídeo está incompleto. Selecione novamente.');
+  const major=tag(8),brands=[major];
+  for(let i=16;i+4<=Math.min(size,256);i+=4)brands.push(tag(i));
+  if(major==='qt  '||!brands.some(x=>/^(isom|iso[2-9]|mp4[12]|avc1|M4V |MSNV|dash|cmfc|cmfs|hvc1|hev1)$/.test(x)))throw Error('A fototeca forneceu um vídeo MOV ou outro formato não MP4. Exporte como MP4 para enviar o original; apenas renomear o arquivo não converte o vídeo.');
+  const name=(file.name||'video').replace(/\.[^.]+$/,'').slice(0,110)+'.mp4';
+  return new File([bytes],name,{type:'video/mp4',lastModified:file.lastModified});
+ }
  const labels={text:'Texto',image:'Imagem',file:'Documento',link:'Link',product:'Produto',document:'Biblioteca',community:'Comunidade · referência interna'};
  let stopOpen;
  const uuid=()=>crypto.randomUUID();
@@ -145,7 +161,7 @@
   gear:'M3 6h18M3 12h18M3 18h18M7 4v4m10 2v4m-7 2v4',more:'M12 5v1m0 5v1m0 5v1',
   expand:'M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6',up:'M12 19V5m-6 6 6-6 6 6',plus:'M12 5v14M5 12h14',send:'m3 4 18 8-18 8 4-8-4-8Zm4 8h14',
   text:'M5 6h14M12 6v13m-4 0h8',photo:'M4 4h16v16H4zM4 16l5-5 4 4 2-2 5 5m-4-9h.01',
-  file:'M6 3h8l4 4v14H6zM9 12h6m-6 4h5',link:'m10 13 4-4m-5 6-2 2a3 3 0 0 1-4-4l4-4a3 3 0 0 1 4 0m2 2a3 3 0 0 0 4 0l4-4a3 3 0 0 0-4-4l-2 2',
+  video:'M3 5h13v14H3zM16 10l5-3v10l-5-3',file:'M6 3h8l4 4v14H6zM9 12h6m-6 4h5',link:'m10 13 4-4m-5 6-2 2a3 3 0 0 1-4-4l4-4a3 3 0 0 1 4 0m2 2a3 3 0 0 0 4 0l4-4a3 3 0 0 0-4-4l-2 2',
   product:'M4 8h16v12H4zM8 8V6a4 4 0 0 1 8 0v2',book:'M12 6c-3-2-6-2-9-2v14c3 0 6 0 9 2 3-2 6-2 9-2V4c-3 0-6 0-9 2Zm0 0v14',
   clock:'M4 6h16v14H4zM8 3v5m8-5v5m-4 2v5l3 2',repeat:'M4 11a8 8 0 0 1 14-4l2 2m0-5v5h-5M20 13a8 8 0 0 1-14 4l-2-2m0 5v-5h5',
   audience:'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM2 21v-2a7 7 0 0 1 14 0v2m1-8 2 2 3-4',
@@ -205,7 +221,7 @@
    <aside class="structured-sheet" data-editor-sheet hidden>
     <div class="structured-sheet-top"><button type="button" class="text-btn" data-pane-open="menu">Ferramentas</button><button type="button" class="text-btn" data-editor="sheet_close">Fechar painel</button></div>
     ${pane('menu','Adicionar ou configurar',`<div class="structured-tiles">
-      ${tile('text','Texto','compose')}${tile('photo','Foto','photo')}${tile('file','Documento','file')}${tile('link','Link','link')}
+      ${tile('text','Texto','compose')}${tile('photo','Foto','photo')}${tile('video','Vídeo','video')}${tile('file','Documento','file')}${tile('link','Link','link')}
       ${tile('product','Produto','product')}${tile('book','Biblioteca','document')}${channel==='whatsapp'?tile('group','Grupos','groups'):tile('audience','Público','audience')}${tile('clock','Agendar','schedule')}
       ${channel==='whatsapp'&&!testWA?tile('repeat','Recorrência','recurrence'):''}${tile('gear','Ajustes','settings')}${tile('audio','Áudio indisponível','audio',true)}
       ${tile('group','Comunidade','community')}${tile('more','Destinos','destinations')}
@@ -216,6 +232,7 @@
     pane('groups','Grupos sincronizados','<div class="inline-actions"><button type="button" class="secondary" data-editor="groups">Atualizar grupos e diagnóstico</button><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button></div><label class="central-search editor-search"><input name="group_search" type="search" aria-label="Pesquisar grupo ou conexão" placeholder="Pesquisar grupo ou conexão"><span class="search-decoration" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></span></label><p class="sub" data-editor-group-count></p><div data-editor-groups></div>')}
     ${pane('photo','Foto','<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">Escolha o modo de envio. O texto separado será uma mensagem independente. Salve e confira a prévia antes de publicar.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto</button>')}
     ${pane('file','Documento','<label>Modo do anexo<select name="file_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><button type="button" class="secondary" data-editor="choose_document">Escolher PDF, MP4 ou TXT</button>')}
+    ${pane('video','Vídeo','<label>Modo do vídeo<select name="video_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><p class="sub">MP4 de até 25 MB. O arquivo será preservado integralmente, sem cortes ou conversão pelo NeoPep.</p><button type="button" class="secondary" data-editor="choose_video">Selecionar vídeo</button><p class="sub" data-video-select-status role="status" aria-live="polite"></p>')}
     <input type="file" name="media" accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4,text/plain" hidden>
     ${pane('link','Link','<label>Link HTTPS<input name="link" type="url" maxlength="2000"></label><button type="button" class="secondary" data-editor="link">Adicionar link</button>')}
     ${pane('catalog','Referências','<div class="central-search editor-search"><input name="catalog_search" type="search" maxlength="100" aria-label="Buscar referências" placeholder="Buscar referências"><button type="button" class="structured-icon" data-editor="catalog_search" aria-label="Buscar referências" title="Buscar referências"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button></div><div class="structured-catalog-tools"><button type="button" class="secondary" data-editor="prepare_thumbs" hidden>Preparar miniaturas faltantes</button><p class="sub" data-catalog-thumb-status role="status"></p></div><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
@@ -261,7 +278,7 @@
   const status=$('[data-editor-status]'),message=field('message')||document.createElement('textarea');
   const live=$('[data-editor-live]');
   const preview=$('[data-editor-preview]'),connection=$('[data-structured-connection]');
-  const objectUrls=new Set(),sheet=$('[data-editor-sheet]');
+  const objectUrls=new Set(),localMedia=new Map(),sheet=$('[data-editor-sheet]');let pickingVideo=false,mediaSelectionBusy=false;
   let sheetTrigger=null,catalogKind='document',captionTarget=state.captionTarget||null,pendingDispatch=null;
   const products=new Map(),contentPreviews=new Map(),previewAbort=new AbortController();let shopCatalog,communityFeed,openedReference=false;
   let testGate={};
@@ -270,6 +287,7 @@
   const current=()=>active&&cloud.user?.id===account;
   const mediaKey=id=>account+':'+state.editorId+':'+id;
   async function readDraftMedia(id){
+   if(localMedia.has(id))return localMedia.get(id);
    const blob=await storeMedia('readonly',store=>store.get(mediaKey(id)));
    if(blob||!state.recoveryEditorId||!current())return blob;
    const recovered=await storeMedia('readonly',store=>store.get(account+':'+state.recoveryEditorId+':'+id));
@@ -288,6 +306,7 @@
   const tell=text=>{
    if(!current()||!status)return;
    clearTimeout(noticeTimer);status.textContent=text;
+   if(!sheet?.hidden&&sheet?.dataset.activePane==='video'){const note=$('[data-video-select-status]');if(note)note.textContent=text;}
    if(/^(Rascunho salvo|Versão .* registrada|Legenda atualizada)/.test(text))noticeTimer=setTimeout(()=>{if(current())status.textContent='';},5000);
   };
   function commitEdit(){
@@ -349,6 +368,7 @@
    if(sheet.hidden)sheetTrigger=trigger;
    sheet.hidden=false;
    sheet.dataset.activePane=name;
+   if(name==='video'){const note=$('[data-video-select-status]');if(note)note.textContent='';}
    sheet.scrollTop=0;
    for(const section of sheet.querySelectorAll('[data-editor-pane]'))section.hidden=section!==pane;
    if(document.activeElement!==message){const heading=pane.querySelector('h3');heading.tabIndex=-1;heading.focus({preventScroll:true});}
@@ -588,7 +608,7 @@
      ${block.type==='image'?'<p class="sub" data-editor-media-status="'+e(block.id)+'" hidden></p>':''}
      ${block.type!=='product'&&(block.label||block.type==='file'&&block.name)?`<strong>${e(block.label||'Documento')}</strong>`:''}
      ${block.type==='product'?productCard(block):''}
-     ${block.type==='file'?'<div class="structured-file-preview" data-local-file="'+e(block.id)+'"><p class="sub">Carregando prévia do documento…</p></div>':''}
+     ${block.type==='file'?'<div class="structured-file-preview" data-local-file="'+e(block.id)+'"><p class="sub">Carregando prévia do arquivo…</p></div>':''}
      ${['document','community'].includes(block.type)?referenceCard(block):''}
      ${['product','document','community','file','link'].includes(block.type)&&block.text?
        '<p class="sub">Legenda adicional:</p>':''}
@@ -630,7 +650,12 @@
      if(file.type==='application/pdf'&&window.NeoLibraryFiles?.pdfCover){
       try{const cover=await window.NeoLibraryFiles.pdfCover(file,previewAbort.signal);if(current()&&version===revision&&cover){const img=document.createElement('img');img.className='structured-document-cover';img.src=cover;img.alt='Primeira página do PDF';holder.append(img);}else if(current()&&version===revision){const note=document.createElement('p');note.className='sub';note.textContent='Não foi possível gerar a capa deste PDF. O arquivo continua disponível.';holder.append(note);}}catch{if(current()&&version===revision){const note=document.createElement('p');note.className='sub';note.textContent='Prévia do PDF indisponível. O arquivo foi preservado.';holder.append(note);}}
      }else if(file.type==='video/mp4'){
-      const video=document.createElement('video');video.src=url;video.controls=true;video.preload='metadata';video.playsInline=true;video.style.maxWidth='100%';if(block.name?.startsWith('previa-neopep-')){video.muted=true;video.loop=true;video.autoplay=!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;label.textContent='Prévia curta · '+Math.ceil(file.size/1024)+' KB';}holder.append(video);
+      const video=document.createElement('video');video.controls=true;video.preload='metadata';video.playsInline=true;video.setAttribute('playsinline','');video.style.width='100%';video.style.maxWidth='100%';video.style.minHeight='120px';
+      const note=document.createElement('p');note.className='sub';note.setAttribute('role','status');note.textContent='Carregando vídeo…';
+      video.addEventListener('loadedmetadata',()=>{if(current()&&version===revision)note.textContent='Vídeo anexado · toque para reproduzir.';},{once:true});
+      video.addEventListener('error',()=>{if(current()&&version===revision)note.textContent='O navegador não conseguiu reproduzir este vídeo. O arquivo MP4 original continua anexado.';},{once:true});
+      if(block.name?.startsWith('previa-neopep-')){video.muted=true;video.loop=true;video.autoplay=!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;label.textContent='Prévia curta · '+Math.ceil(file.size/1024)+' KB';}
+      holder.append(video,note);video.src=url;
      }else if(file.type==='text/plain'){
       const excerpt=await file.slice(0,4096).text();if(current()&&version===revision){const pre=document.createElement('p');pre.className='sub';pre.textContent=excerpt.slice(0,400);holder.append(pre);}
      }
@@ -999,7 +1024,7 @@
    viewport?.removeEventListener('resize',resize);viewport?.removeEventListener('scroll',resize);window.removeEventListener('resize',resize);dialog.removeEventListener('focusin',resize);
    active=false;cancelCatalog();previewAbort.abort();if(openedReference)window.NeoLibraryFiles?.close();clearTimeout(pending);clearTimeout(noticeTimer);window.removeEventListener('pagehide',saveLocal);
    for(const url of objectUrls)URL.revokeObjectURL(url);
-   dialog.remove();onClosed?.();if(trigger?.isConnected)trigger.focus({preventScroll:true});
+   localMedia.clear();dialog.remove();onClosed?.();if(trigger?.isConnected)trigger.focus({preventScroll:true});
   }
   function close(){
    if(saving||dispatching){tell('Aguarde a confirmação do registro.');return false;}
@@ -1053,24 +1078,34 @@
     return;
    }
    if(input.name!=='media')return;
-   const file=input.files?.[0];input.value='';
-   if(!file)return;
+   let file=input.files?.[0];
+   if(!file||mediaSelectionBusy)return;
+   const videoPick=pickingVideo||file.type.startsWith('video/')||/\.(mp4|mov|m4v)$/i.test(file.name);
+   if(videoPick){
+    mediaSelectionBusy=true;const select=$('[data-editor=choose_video]');if(select)select.disabled=true;
+    tell('Lendo vídeo da fototeca…');
+    try{file=await selectedVideo(file);if(!current())return;}
+    catch(error){if(current())tell(error.message||'Não foi possível ler o vídeo.');return;}
+    finally{input.value='';mediaSelectionBusy=false;if(select)select.disabled=false;}
+   }else input.value='';
    const image=/^image\/(jpeg|png|webp|heic|heif|avif)$/.test(file.type)||/\.(heic|heif)$/i.test(file.name);
-   if((!image&&!['application/pdf','video/mp4','text/plain'].includes(file.type))||!file.size||file.size>(image?25:5)*1024*1024||draft.blocks.length>=32){
-    tell('Selecione foto de até 25 MB ou PDF/MP4/TXT de até 5 MB, dentro do limite de blocos.');return;
+   if((!image&&!['application/pdf','video/mp4','text/plain'].includes(file.type))||!file.size||file.size>(image?25*1024*1024:originalLimit(file.type))||draft.blocks.length>=32){
+    tell('Selecione foto ou vídeo MP4 de até 25 MB, ou PDF/TXT de até 5 MB, dentro do limite de blocos.');return;
    }
-   const id=uuid(),layout=field(image?'layout':'file_layout')?.value||'caption';
+   const id=uuid(),layout=field(image?'layout':file.type==='video/mp4'&&sheet.dataset.activePane==='video'?'video_layout':'file_layout')?.value||'caption';
    try{
     if(file.type==='application/pdf'&&(await file.slice(0,5).text())!=='%PDF-'){tell('PDF inválido.');return;}
     const asset=image?await prepareImage(file,field('photo_quality').value):file;
     if(!current())return;
+    if(videoPick)tell('Guardando vídeo no rascunho…');
     await storeMedia('readwrite',store=>store.put(asset,mediaKey(id)));
     if(!current())return;
     if(draft.blocks.length>=32){void storeMedia('readwrite',store=>store.delete(mediaKey(id))).catch(()=>{});return;}
+    if(videoPick){localMedia.clear();localMedia.set(id,asset);}
     draft.blocks.push({id,type:image?'image':'file',name:(image?file.name:file.name.replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g,'_')).slice(0,120),layout,text:''});
     if(image||['application/pdf','video/mp4'].includes(file.type)){captionTarget=id;if(layout==='caption'&&!message.value.trim()&&!editing)editing=id;composeAction();}
-    render();changed();closeSheet();
-   }catch(error){tell(error.message||'Não foi possível guardar o arquivo neste dispositivo.');}
+    closeSheet();render();changed();if(videoPick){tell('Vídeo anexado. Confira a prévia na conversa.');preview.querySelector('[data-block-id="'+CSS.escape(id)+'"]')?.scrollIntoView({block:'nearest'});}
+   }catch(error){if(current())tell('Não foi possível guardar o arquivo neste dispositivo: '+(error?.message||'tente novamente.'));}
   });
   function cancelCatalog(){catalogController?.abort();catalogController=null;catalogToken++;catalogGenerating=false;catalogReady=false;}
   function catalogCurrent(token,signal){return current()&&token===catalogToken&&!signal.aborted&&!sheet.hidden&&sheet.dataset.activePane==='catalog';}
@@ -1218,14 +1253,14 @@
     if(s.policy?.can_manage===true){
      const panel=$('[data-library-share-policy]'),mode=$('[data-library-share-mode]');
      panel.hidden=false;mode.querySelector('[value="preview"]').disabled=!video;
-     mode.querySelector('[value="original"]').disabled=!['video/mp4','application/pdf'].includes(file.mime)||!(Number(file.size)>0&&Number(file.size)<=5242880);
+     mode.querySelector('[value="original"]').disabled=!['video/mp4','application/pdf'].includes(file.mime)||!(Number(file.size)>0&&Number(file.size)<=originalLimit(file.mime));
      mode.value=s.policy.mode;$('[data-library-member-download]').textContent='Download dos membros: '+(s.policy.member_download?'permitido':'desativado')+' (não será alterado).';
     }
     p.hidden=!video;
     const permitted=file.allow_download===true&&libraryFileDraftReady();
     const originalAllowed=s.policy?s.policy.original===true&&libraryFileDraftReady():permitted;
     const previewAllowed=s.policy?s.policy.preview===true&&libraryFileDraftReady():permitted;
-    o.disabled=!originalAllowed||!['video/mp4','application/pdf'].includes(file.mime)||!Number.isFinite(Number(file.size))||Number(file.size)<=0||Number(file.size)>5242880;
+    o.disabled=!originalAllowed||!['video/mp4','application/pdf'].includes(file.mime)||!Number.isFinite(Number(file.size))||Number(file.size)<=0||Number(file.size)>originalLimit(file.mime);
     if(video&&typeof cloud.libraryVideoPreview==='function'&&previewAllowed){
      try{s.preview=await cloud.libraryVideoPreview(row.id,file.path);}catch{}
     }
@@ -1234,7 +1269,7 @@
     if(s.preview?.state==='ready'&&s.preview.url){
      const v=document.createElement('video');v.src=s.preview.url;v.muted=true;v.playsInline=true;v.loop=true;v.autoplay=!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;v.controls=true;v.preload='metadata';v.style.maxWidth='100%';v.setAttribute('aria-label','Prévia curta sem áudio');$('[data-library-share-video]').append(v);
     }
-    status.textContent=!originalAllowed&&!previewAllowed&&file.allow_download!==true?'Download dos membros desativado. '+(s.policy?.can_manage?'Escolha acima uma autorização exclusiva para campanhas, se desejar.':'O responsável pelo arquivo pode autorizar o compartilhamento.'):!libraryFileDraftReady()?'Preparação de arquivos indisponível neste canal. Use capa + link.':video&&s.preview?.state!=='ready'?'Prévia curta ainda não disponível. Confira o processamento no NeoPep Connect e reabra este material.':o.disabled?'Original acima de 5 MB ou formato não suportado.':!libraryOriginalReady()?'Você pode adicionar o arquivo ou prévia ao rascunho. O envio continua desativado no servidor.':'Selecione como compartilhar.';
+    status.textContent=!originalAllowed&&!previewAllowed&&file.allow_download!==true?'Download dos membros desativado. '+(s.policy?.can_manage?'Escolha acima uma autorização exclusiva para campanhas, se desejar.':'O responsável pelo arquivo pode autorizar o compartilhamento.'):!libraryFileDraftReady()?'Preparação de arquivos indisponível neste canal. Use capa + link.':video&&s.preview?.state!=='ready'?'Prévia curta ainda não disponível. Confira o processamento no NeoPep Connect e reabra este material.':o.disabled?'Original acima do limite (MP4 25 MB; PDF 5 MB) ou formato não suportado.':!libraryOriginalReady()?'Você pode adicionar o arquivo ou prévia ao rascunho. O envio continua desativado no servidor.':'Selecione como compartilhar.';
    }catch{if(libraryShareActive(s))status.textContent='Não foi possível consultar o arquivo. Você pode tentar capa + link.';}
   }
   async function applyLibrarySharePermission(){
@@ -1253,7 +1288,7 @@
    const s=libraryShare;if(!s||!libraryShareActive(s)||s.busy)return;
    if(mode==='cover'){addCatalogReference(s.row);return;}
    const file=s.file,short=mode==='preview';
-   if(!file||(s.policy?(short?s.policy.preview!==true:s.policy.original!==true):file.allow_download!==true)||!libraryFileDraftReady()||short&&s.preview?.state!=='ready'||!short&&(!['video/mp4','application/pdf'].includes(file.mime)||!(Number(file.size)>0&&Number(file.size)<=5242880)))return;
+   if(!file||(s.policy?(short?s.policy.preview!==true:s.policy.original!==true):file.allow_download!==true)||!libraryFileDraftReady()||short&&s.preview?.state!=='ready'||!short&&(!['video/mp4','application/pdf'].includes(file.mime)||!(Number(file.size)>0&&Number(file.size)<=originalLimit(file.mime))))return;
    if(draft.blocks.length+(short?2:1)>32){tell('Limite de 32 blocos por rascunho.');return;}
    s.busy=true;const status=$('[data-library-share-status]');status.textContent='Preparando arquivo autorizado…';
    for(const b of sheet.querySelectorAll('[data-editor^="library_share_"]'))b.disabled=true;
@@ -1272,7 +1307,7 @@
     if(!libraryShareActive(s))return;
     const address=new URL(url),origin=window.NEO_CONFIG?.supabaseUrl;
     if(address.origin!==origin||address.protocol!=='https:'||!address.pathname.startsWith('/storage/v1/object/sign/'+(short?'neo-library-video-previews':'neo-library')+'/'))throw Error('Origem não autorizada.');
-    const limit=short?512000:5242880,mime=short?'video/mp4':file.mime;
+    const limit=short?512000:originalLimit(file.mime),mime=short?'video/mp4':file.mime;
     const response=await fetch(address.href,{signal:previewAbort.signal,credentials:'omit',cache:'no-store',redirect:'error',referrerPolicy:'no-referrer'});
     if(!response.ok||Number(response.headers.get('content-length'))>limit||response.headers.get('content-type')?.split(';')[0]!==mime||!response.body?.getReader)throw Error('Arquivo indisponível.');
     const reader=response.body.getReader(),parts=[];let size=0;
@@ -1374,7 +1409,7 @@
      zoom.append(exit,photo);dialog.append(zoom);zoom.addEventListener('close',()=>zoom.remove(),{once:true});zoom.showModal();return;
     }
     const bubble=event.target.closest('[data-block-id]');
-    if(bubble&&!event.target.closest('details,a')){const item=draft.blocks.find(block=>block.id===bubble.dataset.blockId);if(!readOnly&&captionTypes.includes(item?.type)){captionTarget=item.id;composeAction();}const options=bubble.querySelector('details');if(options)options.open=!options.open;}
+    if(bubble&&!event.target.closest('details,a,video')){const item=draft.blocks.find(block=>block.id===bubble.dataset.blockId);if(!readOnly&&captionTypes.includes(item?.type)){captionTarget=item.id;composeAction();}const options=bubble.querySelector('details');if(options)options.open=!options.open;}
     return;
    }
    const target=control.dataset.paneOpen;
@@ -1396,8 +1431,10 @@
     if(item&&window.NeoLibraryFiles){openedReference=true;void window.NeoLibraryFiles.open(item,control).catch(()=>tell('Não foi possível abrir o material.'));}
    }
    if(readOnly){if(action==='edit_preview'&&close())onEdit?.();return;}
-   if(action==='choose_image'||action==='choose_document'){
-    field('media').accept=action==='choose_image'?'image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,.heic,.heif':'application/pdf,video/mp4,text/plain';
+   if(action==='choose_image'||action==='choose_document'||action==='choose_video'){
+    if(mediaSelectionBusy)return;
+    pickingVideo=action==='choose_video';
+    field('media').accept=action==='choose_image'?'image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,.heic,.heif':pickingVideo?'video/*,.mp4,.mov,.m4v':'application/pdf,video/mp4,text/plain';
     field('media').click();return;
    }
    if(action==='name_continue'){
