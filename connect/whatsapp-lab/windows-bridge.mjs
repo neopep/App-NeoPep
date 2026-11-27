@@ -31,6 +31,14 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
      await current?.close();current=null;update('conectando');
      const candidate=await providerFactory({
       serialized:typeof message.vault==='string'?message.vault:null,
+      automaticMaintenance:message.automatic_maintenance===true,
+      onMaintenance:value=>{
+       if(revision!==generation||!value||!/^[0-9-]{1,64}@g\.us$/.test(value.group_jid||''))return;
+       const codes=['preflight_unavailable','preflight_blocked','checked_no_change','pruned','maintenance_unverified','previous_421'];
+       if(!codes.includes(value.code))return;
+       const count=v=>Number.isSafeInteger(v)&&v>=0&&v<=100000?v:null;
+       output('group_maintenance',{group_jid:value.group_jid,code:value.code,before:count(value.before),after:count(value.after),removed:count(value.removed),membership_changed:value.membership_changed===true});
+      },
       onCredentials:value=>{if(revision===generation)output('vault',value);},
       onReceipt:value=>{if(revision===generation)reportReceipt(value);},
       onGroupCheck:value=>{
@@ -66,6 +74,8 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
      });
      if(closed||revision!==generation){await candidate.close();return;}
      current=candidate;await current.start();
+    }else if(message.action==='maintenance_settings'){
+     if(typeof message.automatic_maintenance==='boolean')current?.setAutomaticMaintenance?.(message.automatic_maintenance);
     }else if(message.action==='groups'&&state==='conectado'&&!checking){
      checking=true;output('groups_loading',null);
      const revision=generation;
