@@ -61,3 +61,21 @@ export function prepareDraftAddition({channel,campaignId,publicationId,requestId
  });
  return {p_action:channel==='app'?'app_save':'save',p_data:{campaign_id:campaignId,publication_id:publicationId,request_id:requestId,revision:0,draft:{title:value,blocks:content,groups:[],audience:'all',timezone:'America/Sao_Paulo',planned_local:plannedLocal}}};
 }
+
+// Media captions use the native block.text field. Separate messages are independent
+// text blocks; never reinterpret a flag at dispatch time or modify existing media.
+export function prepareMediaCaptionEdit({channel,campaignId,publicationId,requestId,revision,current,blockId,mode,text='',separateBlockId}){
+ if(channel!=='whatsapp'||![campaignId,publicationId,requestId,blockId].every(x=>typeof x==='string'&&uuid.test(x))||
+  !Number.isSafeInteger(revision)||revision<1||current?.revision!==revision||current.channel!==channel||current.campaignId!==campaignId||current.publicationId!==publicationId||current.status!=='draft'||
+  !Array.isArray(current.draft?.blocks)||!['caption','separate','none'].includes(mode)||typeof text!=='string'||text.length>(mode==='separate'?2000:1000))throw Error('INVALID_DRAFT');
+ const draft=structuredClone(current.draft),indices=draft.blocks.map((b,i)=>b.id===blockId?i:-1).filter(i=>i>=0);
+ if(indices.length!==1||!['image','file'].includes(draft.blocks[indices[0]].type))throw Error('INVALID_DRAFT');
+ const i=indices[0],block=draft.blocks[i];
+ if(mode==='none'&&text.trim())throw Error('INVALID_DRAFT');
+ if(mode==='separate'){
+  if(!text.trim()||typeof separateBlockId!=='string'||!uuid.test(separateBlockId)||draft.blocks.some(b=>b.id===separateBlockId)||draft.blocks.length>=32)throw Error('INVALID_DRAFT');
+  draft.blocks.splice(i+1,0,{id:separateBlockId,type:'text',text});
+ }
+ block.text=mode==='caption'?text:'';block.layout=mode==='caption'&&text.trim()?'caption':'separate';
+ return {p_action:'save',p_data:{campaign_id:campaignId,publication_id:publicationId,request_id:requestId,revision,draft}};
+}

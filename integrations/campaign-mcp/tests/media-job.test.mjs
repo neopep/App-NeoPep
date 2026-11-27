@@ -7,10 +7,10 @@ const principal={environment:'test',campaignAdmin:true,scopes:['campaigns:drafts
 const input={campaignId:id(3),publicationId:id(4),blockId:id(5),requestId:id(6),revision:1,mime:'image/jpeg',size:5,name:'creative.jpg'};
 test('media restricts destination, type, size, environment and arbitrary URLs',async()=>{
  const plan=planUpload(principal,input);
- assert.equal(plan.path,id(1)+'/'+id(6)+'.jpg');
+ assert.equal(plan.path,id(1)+'/'+id(6)+'.jpg');assert.equal(planUpload(principal,{...input,size:5242880}).limit,5242880);
  assert.throws(()=>planUpload({...principal,environment:'production'},input),/FORBIDDEN/);
  assert.throws(()=>planUpload(principal,{...input,url:'http://127.0.0.1/'}),/INVALID_MEDIA/);
- assert.throws(()=>planUpload(principal,{...input,size:1048577}),/INVALID_MEDIA/);
+ assert.throws(()=>planUpload(principal,{...input,size:5242881}),/INVALID_MEDIA/);
  await assert.rejects(inspectUpload(plan,new Uint8Array([0,1,2,3,4]),input.mime),/INVALID_MEDIA/);
  const check=await inspectUpload(plan,new Uint8Array([255,216,255,255,217]),input.mime);
  assert.equal(check.readyForUpload,false);assert.equal(check.sha256.length,64);

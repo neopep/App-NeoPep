@@ -180,8 +180,8 @@ const api={configured,connectTestEnabled:connectEnabled,
  async campaignMediaUpload(path,jpeg){
   const sdk=need(),version=identityVersion,owner=user?.id;
   if(typeof path!=='string'||!new RegExp('^[a-f0-9-]{36}/[a-f0-9-]{36}\\.jpg$').test(path)||
-    path.split('/')[0]!==owner||!jpeg||jpeg.type!=='image/jpeg'||!jpeg.size||jpeg.size>1048576)
-    throw Error('Imagem JPEG ou destino privado inválido. Máximo de 1 MB.');
+    path.split('/')[0]!==owner||!jpeg||jpeg.type!=='image/jpeg'||!jpeg.size||jpeg.size>5242880)
+    throw Error('Imagem JPEG ou destino privado inválido. Máximo de 5 MB.');
   const uploaded=ok(await sdk.storage.from('neo-campaign-images').upload(path,jpeg,{
    contentType:'image/jpeg',upsert:false,cacheControl:'3600'
   }));
