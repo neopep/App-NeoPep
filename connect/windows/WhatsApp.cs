@@ -18,7 +18,8 @@ sealed partial class WhatsApp : Form {
     readonly byte[] entropy;
     readonly string draftPath;
     readonly string sendAuditPath;
-    readonly string diagnosticPath;
+    readonly string diagnosticPath,maintenancePath;
+    readonly CheckBox automaticMaintenance=new CheckBox();
     string draftGroupId="";
     readonly TabControl tabs=new TabControl();
     readonly Label connection=new Label(),summary=new Label(),diagnostic=new Label();
@@ -97,6 +98,7 @@ sealed partial class WhatsApp : Form {
         draftPath=Path.Combine(profile,"whatsapp-message-draft.dat");
         sendAuditPath=Path.Combine(profile,"whatsapp-send-audit.log");
         diagnosticPath=Path.Combine(profile,"whatsapp-diagnostico.log");
+        maintenancePath=Path.Combine(profile,"whatsapp-maintenance-disabled.flag");
         Text=environment.AppName+" • WhatsApp"; Size=new Size(1024,700); MinimumSize=new Size(800,570); AutoScaleMode=AutoScaleMode.Dpi;
         BackColor=ConnectTheme.Background; ForeColor=ConnectTheme.Text; Font=new Font("Segoe UI",10);
         tabs.Dock=DockStyle.Fill;
@@ -143,6 +145,21 @@ sealed partial class WhatsApp : Form {
         diagnostics.Controls.Add(runDiagnostic);
         recoverDistribution=Action("Recuperar distribuição deste grupo",RunGroupRecovery);recoverDistribution.Enabled=false;
         diagnostics.Controls.Add(recoverDistribution);
+        automaticMaintenance.Text="Manutenção automática antes de publicar";
+        automaticMaintenance.AutoSize=true;automaticMaintenance.Checked=!File.Exists(maintenancePath);
+        automaticMaintenance.CheckedChanged+=delegate{
+            try{
+                if(automaticMaintenance.Checked){if(File.Exists(maintenancePath))File.Delete(maintenancePath);}
+                else File.WriteAllText(maintenancePath,"disabled");
+            }catch{
+                diagnosticProgress.Text="Não foi possível salvar a preferência local.";
+                return;
+            }
+            if(pipe!=null)try{pipe.WriteLine(json.Serialize(new {action="maintenance_settings",automatic_maintenance=automaticMaintenance.Checked}));}
+            catch{diagnosticProgress.Text="Preferência salva; será aplicada na próxima conexão.";}
+        };
+        diagnostics.Controls.Add(automaticMaintenance);
+        diagnostics.Controls.Add(LabelOf("Verifica metadados e remove somente registros de distribuição LID sem correspondência confirmada. Não reenvia após rejeição."));
         Format(diagnosticProgress);diagnosticProgress.MaximumSize=new Size(680,0);
         diagnostics.Controls.Add(diagnosticProgress);
         diagnosticHistory.Multiline=true;diagnosticHistory.ReadOnly=true;diagnosticHistory.ScrollBars=ScrollBars.Vertical;
@@ -556,7 +573,7 @@ sealed partial class WhatsApp : Form {
         try{BeginInvoke(action);}catch(InvalidOperationException){}
     }
     void Send(string action,string credential){
-        try{pipe.WriteLine(json.Serialize(new {action=action,vault=credential}));}
+        try{pipe.WriteLine(json.Serialize(new {action=action,vault=credential,automatic_maintenance=automaticMaintenance.Checked}));}
         catch{StopBridge();Notify("A conexão local foi interrompida. Tente novamente.");}
     }
     void Disconnect(){
@@ -680,6 +697,15 @@ sealed partial class WhatsApp : Form {
                         string description=code=="recovered"?"Registro local invalidado; chaves e sessões preservadas.":code=="already_empty"?"Registro já vazio.":code=="already_recovered"?"Recuperação já executada nesta sessão.":code=="no_mismatch"?"Sem divergência atual; nada alterado.":code=="metadata_or_permission"?"Metadados ou permissões não confirmados.":code=="identity_unverified"?"Identidade criptográfica não confirmada.":code=="not_participating"?"Grupo não encontrado.":code=="invalid_memory"?"Formato do registro inesperado; nada alterado.":"Recuperação indisponível ou não confirmada.";
                         AddGroupDiagnostic(jid,description+"\r\nRegistros antes: "+DiagnosticCount(result,"before")+" | Depois: "+DiagnosticCount(result,"after")+"\r\nNenhum envio solicitado por esta operação. Execute novo diagnóstico.");
                         diagnosing=false;diagnosingGroup="";diagnosticProgress.Text=description;UpdateComposer();
+                    }
+                }
+            }else if(type=="group_maintenance"&&ready&&!forgetting){
+                var row=message["value"] as Dictionary<string,object>;
+                if(row!=null){
+                    string jid=TextValue(row,"group_jid"),code=TextValue(row,"code");
+                    if(System.Text.RegularExpressions.Regex.IsMatch(jid,@"\A[0-9-]{1,64}@g[.]us\z")){
+                        string description=code=="pruned"?"Manutenção automática: registros antigos removidos "+DiagnosticCount(row,"removed")+" (antes "+DiagnosticCount(row,"before")+", depois "+DiagnosticCount(row,"after")+")":code=="checked_no_change"?"Manutenção automática: nenhuma alteração necessária ou elegível.":code=="previous_421"?"Envio pausado: rejeição 421 anterior nesta sessão. Verifique no WhatsApp oficial.":code=="preflight_blocked"?"Envio interrompido: metadados ou permissões não confirmados.":code=="preflight_unavailable"?"Consulta de manutenção indisponível.":code=="maintenance_unverified"?"Manutenção não confirmada; envio interrompido.":null;
+                        if(description!=null){AddGroupDiagnostic(jid,description);if(code=="pruned")recoveryEligible.Remove(jid);}
                     }
                 }
             }else if(type=="group_send_stage"&&ready&&!forgetting){
