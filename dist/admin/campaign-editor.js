@@ -214,7 +214,7 @@
      <div class="inline-actions">${publication?'':'<button type="button" class="secondary" data-editor="fresh">Novo rascunho</button>'}${channel==='whatsapp'&&!publication?'<button type="button" class="secondary" data-editor="cross">Criar versão App</button>':''}</div>`)}
     ${channel==='app'?pane('audience','Públicos, planos e exibição',advancedApp?appSettingsPane():testApp?'<p>Somente as contas de homologação autorizadas no servidor. Esta campanha não envia push.</p>':'<label>Público App<select name="audience"><option value="all">Todos</option><option value="free">Free</option><option value="premium">Premium</option></select></label><label class="check"><input name="push" type="checkbox"> Solicitar push App para contas com consentimento</label>'):
     pane('groups','Grupos sincronizados','<div class="inline-actions"><button type="button" class="secondary" data-editor="groups">Atualizar grupos e diagnóstico</button><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button></div><label class="central-search editor-search"><input name="group_search" type="search" aria-label="Pesquisar grupo ou conexão" placeholder="Pesquisar grupo ou conexão"><span class="search-decoration" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></span></label><p class="sub" data-editor-group-count></p><div data-editor-groups></div>')}
-    ${pane('photo','Foto','<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">Escolha o modo de envio. O texto separado será uma mensagem independente. Salve e confira a prévia antes de publicar.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto</button>')}
+    ${pane('photo','Foto','<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">Escolha o modo de envio. O texto separado será uma mensagem independente. Salve e confira a prévia antes de publicar.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto'+(channel==='whatsapp'?'s':'')+'</button>')}
     ${pane('file','Documento','<label>Modo do anexo<select name="file_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><button type="button" class="secondary" data-editor="choose_document">Escolher PDF, MP4 ou TXT</button>')}
     <input type="file" name="media" accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4,text/plain" hidden>
     ${pane('link','Link','<label>Link HTTPS<input name="link" type="url" maxlength="2000"></label><button type="button" class="secondary" data-editor="link">Adicionar link</button>')}
@@ -1061,8 +1061,42 @@
     return;
    }
    if(input.name!=='media')return;
-   const file=input.files?.[0];input.value='';
-   if(!file)return;
+   const selections=Array.from(input.files||[]);input.value='';
+   if(!selections.length)return;
+   if(channel==='whatsapp'&&input.multiple&&selections.length>1){
+    if(selections.length>4||draft.blocks.length+selections.length>32){
+     tell('Selecione até quatro fotos, dentro do limite do rascunho.');return;
+    }
+    if(selections.some(file=>!(/^image\/(jpeg|png|webp|heic|heif|avif)$/.test(file.type)||/\.(heic|heif)$/i.test(file.name))||!file.size||file.size>25*1024*1024)){
+     tell('Escolha apenas imagens de até 25 MB.');return;
+    }
+    const layout=field('layout')?.value||'caption';
+    const quality=field('photo_quality').value;
+    const items=[],editorId=state.editorId;
+    const active=()=>current()&&state.editorId===editorId;
+    try{
+     for(const file of selections){
+      const asset=await prepareImage(file,quality);
+      if(!active())return;
+      const id=uuid();
+      items.push({asset,key:mediaKey(id),block:{id,type:'image',name:file.name.slice(0,120),layout,text:''}});
+     }
+     await storeMedia('readwrite',store=>{
+      for(const {asset,key} of items)store.put(asset,key);
+     });
+     if(!active()||draft.blocks.length+items.length>32){
+      await storeMedia('readwrite',store=>{
+       for(const {key} of items)store.delete(key);
+      });
+      if(active())tell('O rascunho atingiu o limite de blocos.');
+      return;
+     }
+     draft.blocks.push(...items.map(item=>item.block));
+     render();changed();closeSheet();
+    }catch(error){if(current())tell(error.message||'Não foi possível guardar as imagens.');}
+    return;
+   }
+   const file=selections[0];
    const image=/^image\/(jpeg|png|webp|heic|heif|avif)$/.test(file.type)||/\.(heic|heif)$/i.test(file.name);
    if((!image&&!['application/pdf','video/mp4','text/plain'].includes(file.type))||!file.size||file.size>(image?25:5)*1024*1024||draft.blocks.length>=32){
     tell('Selecione foto de até 25 MB ou PDF/MP4/TXT de até 5 MB, dentro do limite de blocos.');return;
@@ -1406,6 +1440,7 @@
    if(readOnly){if(action==='edit_preview'&&close())onEdit?.();return;}
    if(action==='choose_image'||action==='choose_document'){
     field('media').accept=action==='choose_image'?'image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,.heic,.heif':'application/pdf,video/mp4,text/plain';
+    field('media').multiple=channel==='whatsapp'&&action==='choose_image';
     field('media').click();return;
    }
    if(action==='name_continue'){

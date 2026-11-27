@@ -223,3 +223,9 @@ Comprovante temporário assinado implementado: a consulta retorna guide_receipt 
 ## Álbum nativo WhatsApp — incremento de transporte
 
 Baileys rc14 confirmado no pacote npm. Implementados pai, associações dos filhos e recibos conhecidos, com interrupção em falha e bloqueio de repetição por ID na sessão do bridge. Máximo de quatro JPEGs, 5 MiB por item e 10 MiB por álbum. O ponto de entrada Windows não habilita o comando. Testes Windows/bridge/provider 26/26, sem rede WhatsApp. [Contrato e gates pendentes](../release/connect-ai/010-whatsapp-album-contract.md). Não houve ativação ou deploy.
+
+## Seleção múltipla no editor nativo
+
+O seletor de fotos existente do WhatsApp importa até quatro imagens de uma vez como mensagens individuais, na ordem selecionada. Mantém os mesmos controles de legenda, ordenação e remoção dos blocos existentes. Uma foto continua pelo fluxo anterior. A conversão termina antes de gravar o conjunto no IndexedDB em uma única transação; falha de conversão não cria rascunho parcial. O guia 2026-11-27.5 e o painel gerado registram a capacidade efetiva. O bridge normaliza o UUID para bloquear replay na mesma sessão inclusive com maiúsculas.
+
+O álbum agrupado ainda depende do bloco compartilhado, validação do Supabase, fila e recibos persistentes, executor Windows e integração MCP. O protótipo de transporte continua desligado. Nenhum envio, migração ou deploy executado.

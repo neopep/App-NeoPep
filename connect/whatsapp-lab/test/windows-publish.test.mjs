@@ -118,7 +118,7 @@ test('bridge exige opt-in, limita tamanho e bloqueia repetição mesmo após ace
  const jpeg=Buffer.alloc(5242880);
  jpeg.set([255,216,255]);jpeg.set([255,217],jpeg.length-2);
  const item={image:jpeg.toString('base64'),caption:''};
- const message={...req(),action:'send_album',images:[item,item]};
+ const message={...req(),request_id:'aaaaaaaa-1111-4111-8111-111111111111',action:'send_album',images:[item,item]};
  const disabled=create(false);
  await disabled.receive({action:'connect'});
  await disabled.receive(message);
@@ -131,7 +131,7 @@ test('bridge exige opt-in, limita tamanho e bloqueia repetição mesmo após ace
  assert.equal(calls,0);
  await bridge.receive(message);
  assert.deepEqual(messages.at(-1).value.media,[{index:0,messageId:'child'}]);
- await bridge.receive(message);
+ await bridge.receive({...message,request_id:message.request_id.toUpperCase()});
  assert.equal(messages.at(-1).value.status,'uncertain');
  assert.equal(calls,1);
  await bridge.close();

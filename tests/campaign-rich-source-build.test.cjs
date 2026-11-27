@@ -33,7 +33,7 @@ test('upload always stays on the authenticated actor in the TESTE JPEG bucket',(
 test('iPhone PWA and admin load the current cache-busted SDK',()=>{
  assert.match(app,/cloud\.js\?v=20261126biblioteca61/);
  assert.match(admin,/cloud\.js\?v=connect-ai-6/);
- assert.match(admin,/campaign-editor\.js\?v=campanhas-central-21/);
+ assert.match(admin,/campaign-editor\.js\?v=campanhas-central-22/);
 });
 
 test('JPEG apto preserva bytes e resolução, e executor antigo usa limite de 1 MiB',async()=>{
@@ -54,5 +54,27 @@ test('JPEG apto preserva bytes e resolução, e executor antigo usa limite de 1 
   const result=await fn(file);
   if(limit===5242880){assert.equal(result,file);assert.equal(conversions,0);}
   else{assert.notEqual(result,file);assert.equal(conversions,1);}
+ }
+});
+
+test('seleção múltipla salva blocos individuais em ordem e não deixa lote parcial quando a conversão falha',async()=>{
+ const vm=require('node:vm');
+ const start=editor.indexOf("   if(channel==='whatsapp'&&input.multiple&&selections.length>1)");
+ const end=editor.indexOf('   const file=selections[0];',start);
+ const execute=vm.runInNewContext('(async ({selections,draft,prepareImage,storeMedia,uuid,tell})=>{'+editor.slice(start,end)+'})',{
+  channel:'whatsapp',input:{multiple:true},field:()=>({value:'caption'}),
+  state:{editorId:'draft'},current:()=>true,mediaKey:id=>'draft:'+id,render(){},changed(){},closeSheet(){}
+ });
+ const selections=['b.jpg','a.jpg'].map(name=>({name,type:'image/jpeg',size:100}));
+ for(const fail of [false,true]){
+  const draft={blocks:[]},stored=[],errors=[];
+  let counter=0;
+  await execute({selections,draft,uuid:()=>String(++counter),tell:t=>errors.push(t),
+   prepareImage:async file=>{if(fail&&file===selections[1])throw Error('JPEG inválido');return file;},
+   storeMedia:async(mode,apply)=>apply({put:(asset,key)=>stored.push([asset.name,key])})
+  });
+  assert.deepEqual(draft.blocks.map(block=>[block.type,block.name]),fail?[]:[['image','b.jpg'],['image','a.jpg']]);
+  assert.equal(stored.length,fail?0:2);
+  assert.equal(errors.length,fail?1:0);
  }
 });

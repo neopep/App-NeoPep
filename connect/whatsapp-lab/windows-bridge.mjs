@@ -53,10 +53,11 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
      }finally{checking=false;}
     }else if(message.action==='send_album'){
      const requestId=message.request_id;
-     if(typeof requestId!=='string'||!/^[a-f0-9-]{36}$/i.test(requestId))return;
+     if(typeof requestId!=='string'||!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(requestId))return;
+     const attemptId=requestId.toLowerCase();
      const report=(status,receipt={})=>output('send_result',{request_id:requestId,status,...receipt});
      if(!enableAlbums||sending||state!=='conectado'||typeof current?.sendAlbum!=='function')return report('rejected');
-     if(albumAttempts.has(requestId)||albumAttempts.size>=4096)return report('uncertain');
+     if(albumAttempts.has(attemptId)||albumAttempts.size>=4096)return report('uncertain');
      if(typeof message.group_jid!=='string'||!/^[0-9-]{1,64}@g\.us$/.test(message.group_jid)||
       !Array.isArray(message.images)||message.images.length<2||message.images.length>ALBUM_MAX_IMAGES)return report('rejected');
      let encoded=0;
@@ -70,7 +71,7 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
       images.push({image,caption:item.caption});
      }
      if(!validAlbum(images))return report('rejected');
-     albumAttempts.add(requestId);
+     albumAttempts.add(attemptId);
      sending=true;
      const revision=generation;
      try{

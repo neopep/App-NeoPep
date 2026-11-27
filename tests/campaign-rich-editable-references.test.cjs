@@ -43,7 +43,7 @@ test('library and community deep links never disclose private signed media URLs'
 });
 
 test('admin loads new iPhone caption editor, while no send is added to the migration',()=>{
- assert.match(html,/campaign-editor\.js\?v=campanhas-central-21/);
+ assert.match(html,/campaign-editor\.js\?v=campanhas-central-22/);
  const sql=migration.replace(/^--[^\n]*\n/gm,'').trim();
  assert.match(sql,/^CREATE OR REPLACE FUNCTION public\.neo_campaign_rich_admin_v1/);
  assert.match(sql,/\$function\$\s*;$/);
