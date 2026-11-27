@@ -166,9 +166,9 @@ sealed partial class Connect {
             }
         }
     }
-    static void ConvertPreview(string runtime,string work){
+    static void ConvertPreview(string runtime,string work,bool campaign=false){
         // Fixed local names and executable; the process receives no session credentials.
-        var start=new ProcessStartInfo(Path.Combine(runtime,"node.exe"),"video-preview-cli.mjs"){
+        var start=new ProcessStartInfo(Path.Combine(runtime,"node.exe"),campaign?"video-preview-cli.mjs campaign-native":"video-preview-cli.mjs"){
             WorkingDirectory=Path.Combine(runtime,"bridge"),UseShellExecute=false,CreateNoWindow=true,
             RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true
         };
@@ -177,12 +177,29 @@ sealed partial class Connect {
             var stdout=process.StandardOutput.ReadToEndAsync();
             var stderr=process.StandardError.ReadToEndAsync();
             process.StandardInput.WriteLine(work);process.StandardInput.Close();
-            if(!process.WaitForExit(420000)){
+            if(!process.WaitForExit(campaign?70000:420000)){
                 try{process.Kill();}catch{}
                 throw new IOException("preview_timeout");
             }
             if(process.ExitCode!=0)throw new IOException("preview_conversion");
             if(!Task.WaitAll(new Task[]{stdout,stderr},5000))throw new IOException("preview_pipe");
+        }
+    }
+    async Task<byte[]> PrepareNativeCampaignVideo(byte[] source){
+        if(source==null||source.Length<8||source.Length>25*1024*1024||provisioningVideoTools||videoPreviewBusy||(sibling!=null&&sibling.videoPreviewBusy))throw new IOException("video_conversion_unavailable");
+        var runtime=Path.Combine(ConnectProfile.InstallFolder,ConnectVersion.Runtime);
+        videoPreviewBusy=true;
+        string work=null;
+        try{
+            if(!await Task.Run(()=>PreviewToolReady(runtime)))throw new IOException("video_tools_unavailable");
+            work=Path.Combine(Folder,"campaign-video-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(work);
+            var target=Path.Combine(work,"native.mp4");
+            await Task.Run(()=>{File.WriteAllBytes(Path.Combine(work,"source.media"),source);ConvertPreview(runtime,work,true);});
+            if(!File.Exists(target)||new FileInfo(target).Length<16||new FileInfo(target).Length>16*1024*1024)throw new IOException("video_output_invalid");
+            return File.ReadAllBytes(target);
+        }finally{
+            if(work!=null)try{Directory.Delete(work,true);}catch{}
+            videoPreviewBusy=false;
         }
     }
     async Task TickVideoPreview(){
