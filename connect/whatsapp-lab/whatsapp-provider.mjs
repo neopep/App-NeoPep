@@ -113,7 +113,7 @@ export async function createBaileysProvider(
  const stored=serialized?JSON.parse(serialized,BufferJSON.reviver):null;
  const creds=stored?.creds||baileys.initAuthCreds();
  const keys=new Map(Array.isArray(stored?.keys)?stored.keys:[]);
- const recoveredGroups=new Set(),changedGroups=new Set(),rejectedGroups=new Set();
+ const recoveredGroups=new Set(),changedGroups=new Set(),rejectedGroups=new Set(),revalidatedGroups=new Set();
  let maintenanceEnabled=automaticMaintenance===true;
  const save=()=>{if(!closed)onCredentials(JSON.stringify({creds,keys:[...keys]},BufferJSON.replacer));};
  const auth={creds,keys:{
@@ -255,7 +255,7 @@ export async function createBaileysProvider(
   const current=socket;
   if(!connected||!current)throw Error('WhatsApp desconectado.');
   if(typeof groupJid!=='string'||!/^[0-9-]{1,64}@g\.us$/.test(groupJid))throw Error('Grupo inválido.');
-  if(rejectedGroups.has(groupJid)){onMaintenance({group_jid:groupJid,code:'previous_421'});throw Error('Grupo com rejeição 421 anterior. Verifique pelo WhatsApp oficial.');}
+  if(rejectedGroups.has(groupJid)){onMaintenance({group_jid:groupJid,code:'previous_421'});return {blocked:'previous_421'};}
   const groups=await current.groupFetchAllParticipating();
   if(!connected||socket!==current)throw Error('A sessão mudou.');
   const listed=Object.values(groups).find(group=>group?.id===groupJid);
@@ -277,6 +277,30 @@ export async function createBaileysProvider(
    const user=connected?socket?.user:null;
    const number=/^([0-9]{6,15})(?::[0-9]+)?@s\.whatsapp\.net$/.exec(user?.id??'')?.[1];
    return {name:user?.name??'',number:number??''};
+  },
+  // A human must confirm that the legitimate privacy restriction was removed
+  // and the official linked client is available. Metadata alone cannot verify it.
+  // Never send or replay messages during revalidation.
+  async revalidateGroupAvailability(jid,officialConfirmed){
+   const current=socket;
+   if(officialConfirmed!==true||!connected||!current||pendingGroup||pendingDiagnostic||typeof jid!=='string'||!/^[0-9-]{1,64}@g\.us$/.test(jid))return {code:'unavailable'};
+   if(rejectedGroups.has(jid)&&revalidatedGroups.has(jid))return {code:'rejected_again'};
+   const task={socket:current,jid,changed:false};pendingDiagnostic=task;
+   try{
+    const groups=await current.groupFetchAllParticipating();
+    const listed=Object.values(groups||{}).find(row=>row?.id===jid);
+    if(!listed)return {code:'not_participating'};
+    const fresh=await current.groupMetadata(jid);
+    const ownIds=[current.user?.id,current.user?.lid,creds.me?.id,creds.me?.lid];
+    const check=compareGroupMetadata(listed,fresh,ownIds,task.changed);
+    if(!connected||current!==socket||task.changed||check.code!=='ok')return {code:'metadata_or_permission'};
+    if(!rejectedGroups.has(jid))return {code:'checked_no_pause'};
+    if(revalidatedGroups.has(jid))return {code:'rejected_again'};
+    if(revalidatedGroups.size>=4096)return {code:'unavailable'};
+    revalidatedGroups.add(jid);rejectedGroups.delete(jid);
+    return {code:'local_pause_cleared'};
+   }catch{return {code:'unavailable'};}
+   finally{if(pendingDiagnostic===task)pendingDiagnostic=null;}
   },
   // Read-only metadata inspection. Never relay, retry, reset or expose cryptographic material.
   async diagnoseGroup(jid){
