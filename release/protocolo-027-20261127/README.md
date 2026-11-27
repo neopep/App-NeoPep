@@ -1,0 +1,7 @@
+# NeoPep Connect 0.2.27 — isolamento de protocolo interno
+Base Windows 0.2.26 a534c86f94d42fcf1b2583698f265459bfcdfa27. Usuário reportou WA-ENVELOPE-FORMATO persistente após reconectar. Servidor verificou Windows 0.2.26 aprovado e heartbeat WhatsApp não pronto. A fase ENVELOPE antecede processamento de credenciais/estado; hipótese de ruído stdout não é causa comprovada. O pipe misturava mensagens JSON do aplicativo e possíveis saídas de dependências. 
+- Frame NEO-WA/1 exclusivo, stdout incidental descartado sem registrar conteúdo; parser C# aceita somente frames e registra no máximo um código de ruído por sessão.
+- Limite alinhado ao serializador de 40 Mi caracteres; frames inválidos/oversize falham de modo seguro, preservando o cofre. Validação de tipo de credencial. Nenhuma alteração de chaves, pareamento, permissões do WhatsApp ou política de envio. Não reiniciar para contornar restrição ativa.
+- Preserva conversão nativa e controles 421 da 0.2.26, sem fallback documental nem reenvio. SQL de compatibilidade para .27 somente depois do build validado; .26 permanece funcional.
+- Homologar reconexão da sessão existente. Se persistir, coletar apenas código seguro, fase e horário, nunca cofre ou logs brutos de dependências.
+- Web: alterações de vídeo e histórico já preparadas nas branches web por ambiente; Vercel bloqueou publicação por limite diário. Não alterar esses arquivos nesta release Windows.
