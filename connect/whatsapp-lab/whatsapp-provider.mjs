@@ -90,8 +90,21 @@ export async function auditGroupCryptoStore({groupJid,metadata,keys,repository,o
   own_lid_available:!!parse(ownLid)&&['lid','hosted.lid'].includes(parse(ownLid).domain),
   own_lid_key:await presence(ownLid),own_pn_key:await presence(ownPn)};
 }
+// Prune only exact LID records absent from a stable, entirely LID membership list.
+ // Never remove keys/sessions or infer device identity from counts.
+export function planDistributionMaintenance(metadata,raw){
+ const normalize=id=>typeof id==='string'&&/^[0-9]+(?::[0-9]+)?@lid$/.test(id)?id.replace(/:[0-9]+@/,'@'):null;
+ if(metadata?.addressingMode!=='lid'||!Array.isArray(metadata.participants)||!metadata.participants.length||!raw||typeof raw!=='object'||Array.isArray(raw)||ArrayBuffer.isView(raw))return null;
+ const members=metadata.participants.map(p=>normalize(p?.id));
+ if(members.some(id=>!id)||new Set(members).size!==members.length)return null;
+ const current=new Set(members);
+ const entries=Object.entries(raw);
+ if(entries.some(([id,value])=>!normalize(id)||typeof value!=='boolean'))return null;
+ const retained=entries.filter(([id])=>current.has(normalize(id)));
+ return {next:Object.fromEntries(retained),before:entries.length,after:retained.length,removed:entries.length-retained.length};
+}
 export async function createBaileysProvider(
- {onQr,onState,onCredentials=()=>{},onReceipt=()=>{},onGroupCheck=()=>{},serialized=null},
+ {onQr,onState,onCredentials=()=>{},onReceipt=()=>{},onGroupCheck=()=>{},onMaintenance=()=>{},automaticMaintenance=false,serialized=null},
  {load=loadModules,schedule=setTimeout,cancel=clearTimeout}={}
 ){
  let socket=null,connected=false,closed=false,retries=0,reconnectTimer,pendingGroup=null,pendingDiagnostic=null;
@@ -100,7 +113,8 @@ export async function createBaileysProvider(
  const stored=serialized?JSON.parse(serialized,BufferJSON.reviver):null;
  const creds=stored?.creds||baileys.initAuthCreds();
  const keys=new Map(Array.isArray(stored?.keys)?stored.keys:[]);
- const recoveredGroups=new Set();
+ const recoveredGroups=new Set(),changedGroups=new Set(),rejectedGroups=new Set();
+ let maintenanceEnabled=automaticMaintenance===true;
  const save=()=>{if(!closed)onCredentials(JSON.stringify({creds,keys:[...keys]},BufferJSON.replacer));};
  const auth={creds,keys:{
   async get(type,ids){
@@ -153,6 +167,9 @@ export async function createBaileysProvider(
   socket=current;
   current.ev.on('creds.update',save);
   current.ev.on('group-participants.update',event=>{
+   if(socket===current&&/^[0-9-]{1,64}@g\.us$/.test(event?.id||'')){
+    if(changedGroups.size<4096||changedGroups.has(event.id))changedGroups.add(event.id);
+   }
    if(pendingGroup?.socket===current&&pendingGroup.jid===event?.id)pendingGroup.changed=true;
    if(pendingDiagnostic?.socket===current&&pendingDiagnostic.jid===event?.id)pendingDiagnostic.changed=true;
   });
@@ -167,6 +184,7 @@ export async function createBaileysProvider(
     if(update?.status===ack)report(key,'server_ack');
     else if(failure!==undefined&&update?.status===failure){
      const raw=String(update?.messageStubParameters?.[0]??'');
+     if(raw==='421'&&validKey(key)&&current===socket&&rejectedGroups.size<4096)rejectedGroups.add(key.remoteJid);
      report(key,'send_error',/^[0-9]{1,5}$/.test(raw)?raw:'unknown');
     }
    }
@@ -197,10 +215,47 @@ export async function createBaileysProvider(
    },code===DisconnectReason.restartRequired?250:Math.min(15000,1000*2**(retries-1)));
   });
  }
+ async function maintainBeforeSend(current,task){
+  const jid=task.jid;
+  const report=(code,extra={})=>{if(current===socket&&!closed)onMaintenance({group_jid:jid,code,...extra});};
+  let fresh;
+  try{fresh=await current.groupMetadata(jid);}
+  catch{report('preflight_unavailable');throw Error('Consulta de manutenção indisponível.');}
+  const ownPn=creds.me?.id,ownLid=creds.me?.lid;
+  const check=compareGroupMetadata(task.listed,fresh,[current.user?.id,current.user?.lid,ownPn,ownLid],task.changed);
+  if(!connected||socket!==current||!['ok','membership_refreshed'].includes(check.code)){
+   report('preflight_blocked');throw Error('Metadados ou permissões não confirmados.');
+  }
+  const changed=changedGroups.has(jid)||check.members_changed;
+  const store=current.authState?.keys,role=groupDiagnostics(fresh,[ownPn,ownLid,current.user?.id,current.user?.lid]).role;
+  if(check.code!=='ok'||fresh.addressingMode!=='lid'||!['admin','superadmin'].includes(role)||!ownPn||!ownLid||
+     typeof store?.transaction!=='function'||typeof current.signalRepository?.hasSenderKey!=='function'){
+   report('checked_no_change',{membership_changed:changed});return;
+  }
+  let outcome={code:'checked_no_change',membership_changed:changed};
+  await store.transaction(async()=>{
+   if(!connected||current!==socket||task.changed)throw Error('Grupo mudou durante manutenção.');
+   const raw=(await store.get('sender-key-memory',[jid]))[jid];
+   const plan=planDistributionMaintenance(fresh,raw);
+   if(!plan||!plan.removed)return;
+   if(!await current.signalRepository.hasSenderKey({group:jid,meId:ownLid}))return;
+   if(!connected||current!==socket||task.changed)throw Error('Grupo mudou durante manutenção.');
+   // Use the library transaction; keep current and all other group/device records.
+   await store.set({'sender-key-memory':{[jid]:plan.next}});
+   outcome={code:'pruned',before:plan.before,after:plan.after,removed:plan.removed,membership_changed:changed};
+  },ownPn);
+  if(outcome.code==='pruned'){
+   const observed=(await store.get('sender-key-memory',[jid]))[jid];
+   if(!observed||Object.keys(observed).length!==outcome.after){report('maintenance_unverified');throw Error('Manutenção não confirmada.');}
+  }
+  if(!connected||current!==socket||task.changed){report('preflight_blocked');throw Error('Grupo mudou durante manutenção.');}
+  changedGroups.delete(jid);report(outcome.code,outcome);
+ }
  async function sendToParticipatingGroup(groupJid,payload){
   const current=socket;
   if(!connected||!current)throw Error('WhatsApp desconectado.');
   if(typeof groupJid!=='string'||!/^[0-9-]{1,64}@g\.us$/.test(groupJid))throw Error('Grupo inválido.');
+  if(maintenanceEnabled&&rejectedGroups.has(groupJid)){onMaintenance({group_jid:groupJid,code:'previous_421'});throw Error('Grupo com rejeição 421 anterior. Verifique pelo WhatsApp oficial.');}
   const groups=await current.groupFetchAllParticipating();
   if(!connected||socket!==current)throw Error('A sessão mudou.');
   const listed=Object.values(groups).find(group=>group?.id===groupJid);
@@ -209,6 +264,7 @@ export async function createBaileysProvider(
   const task={socket:current,jid:groupJid,listed,changed:false};
   pendingGroup=task;
   try{
+   if(maintenanceEnabled)await maintainBeforeSend(current,task);
    const receipt=await current.sendMessage(groupJid,payload,{useCachedGroupMetadata:true});
    if(!receipt?.key?.id)throw Error('Não foi possível obter o identificador da tentativa.');
    return {messageId:String(receipt.key.id).slice(0,160)};
@@ -216,6 +272,7 @@ export async function createBaileysProvider(
  }
  return {
   start,
+  setAutomaticMaintenance(enabled){maintenanceEnabled=enabled===true;},
   account(){
    const user=connected?socket?.user:null;
    const number=/^([0-9]{6,15})(?::[0-9]+)?@s\.whatsapp\.net$/.exec(user?.id??'')?.[1];
