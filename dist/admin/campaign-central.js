@@ -35,7 +35,7 @@
   return 'cancelled';
  }
  // WhatsApp acceptance is not a recipient delivery/read receipt.
- const waLabels={paused_previous_421:'Envio pausado por rejeição anterior',delivered:'Entrega confirmada',server_ack:'Recebido pelo WhatsApp',send_error:'Falha informada pelo WhatsApp',accepted:'Entrega não confirmada',scheduled:'Agendada',waiting:'Aguardando envio',in_progress:'Enviando',refused:'Falha no envio',uncertain:'Envio não confirmado',cancelled:'Cancelada',partial:'Envio parcial',draft:'Rascunho',legacy:'Manual legado',unknown:'Estado não registrado'};
+ const waLabels={video_conversion_failed:'Vídeo não enviado: falha na conversão',paused_previous_421:'Envio pausado por rejeição anterior',delivered:'Entrega confirmada',server_ack:'Recebido pelo WhatsApp',send_error:'Falha informada pelo WhatsApp',accepted:'Entrega não confirmada',scheduled:'Agendada',waiting:'Aguardando envio',in_progress:'Enviando',refused:'Falha no envio',uncertain:'Envio não confirmado',cancelled:'Cancelada',partial:'Envio parcial',draft:'Rascunho',legacy:'Manual legado',unknown:'Estado não registrado'};
  const originLabels={publish:'Manual',schedule:'Agendamento único',recurring:'Recorrente'};
  const kindLabels={file:'Arquivo',document:'Material da Biblioteca',product:'Produto da Loja',text:'Texto',image:'Imagem',video:'Vídeo',link:'Link'};
  function waBatchState(batch,now=Date.now()){
@@ -45,6 +45,7 @@
   if(states.includes('uncertain'))return 'uncertain';
   if(states.includes('leased')||states.includes('started'))return 'in_progress';
   if(states.includes('waiting'))return Date.parse(batch.due_at)>now?'scheduled':'waiting';
+  if(Number(batch.video_conversion_count||0)>0&&!states.includes('accepted'))return 'video_conversion_failed';
   if(Number(batch.blocked_count||0)>0&&!states.includes('accepted'))return 'paused_previous_421';
   if(states.every(s=>s==='accepted')){
    const total=Number(batch.message_count||states.length);
@@ -64,7 +65,7 @@
   const rows=(occurrences||[]).map(o=>{const pub=publications.find(p=>p.id===o.publication_id),batch=pub?.batches?.find(b=>b.id===o.batch_id);
    return {...o,pub,batch,state:waBatchState(batch,now),pending:waNeedsAttention(batch),history:waHistory(batch)};});
   const sent=rows.filter(r=>r.state==='delivered').length,pending=rows.filter(r=>r.pending).length,cancelled=rows.filter(r=>r.state==='cancelled').length;
-  const failed=rows.filter(r=>['refused','uncertain','send_error','partial','unknown','paused_previous_421'].includes(r.state)).length;
+  const failed=rows.filter(r=>['refused','uncertain','send_error','partial','unknown','paused_previous_421','video_conversion_failed'].includes(r.state)).length;
   const next=rows.filter(r=>waActive(r.batch)).sort((a,b)=>a.local_time.localeCompare(b.local_time))[0];
   return {rows,sent,pending,cancelled,failed,next,total:rows.length};
  }
@@ -79,7 +80,7 @@
  }
  function deliveryLine(batch){
   const count=batch?.message_count||batch?.states?.length||0,delivered=Number(batch?.delivery_count||0),server=Number(batch?.server_ack_count||0);
-  if(!batch)return '';if(Number(batch.blocked_count||0)>0)return '<p class="sub">'+escape(batch.blocked_count+' envio(s) pausado(s) por rejeição anterior. Nenhuma transmissão desses blocos. Não reenviar automaticamente.')+'</p>';if(!batch.states?.includes('accepted'))return ['refused','uncertain','unknown'].includes(waBatchState(batch))?'<p class="sub">Envio não confirmado. Confira o histórico antes de tentar novamente.</p>':'';
+  if(!batch)return '';if(Number(batch.video_conversion_count||0)>0)return '<p class="sub">'+escape(batch.video_conversion_count+' vídeo(s) não enviado(s). Confira o conversor no NeoPep Connect. Nenhum documento substituto foi enviado.')+'</p>';if(Number(batch.blocked_count||0)>0)return '<p class="sub">'+escape(batch.blocked_count+' envio(s) pausado(s) por rejeição anterior. Nenhuma transmissão desses blocos. Não reenviar automaticamente.')+'</p>';if(!batch.states?.includes('accepted'))return ['refused','uncertain','unknown'].includes(waBatchState(batch))?'<p class="sub">Envio não confirmado. Confira o histórico antes de tentar novamente.</p>':'';
   if(batch?.send_error_count)return '<p class="sub">Falha informada pelo WhatsApp'+escape(batch.send_error_codes?.length?' · Código '+batch.send_error_codes.join(', '):'')+'. Não reenviar automaticamente.</p>';
   if(count&&delivered===count)return '<p class="sub">Entrega confirmada a pelo menos um destinatário por mensagem.</p>';
   return '<p class="sub">'+escape(delivered?delivered+' de '+count+' mensagens com entrega confirmada (ao menos um destinatário).':server?'Recebimento pelo servidor WhatsApp confirmado; entrega ao grupo não confirmada.':'Envio solicitado; entrega ao grupo não confirmada.')+'</p>';
