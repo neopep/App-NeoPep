@@ -11,5 +11,17 @@ export function createPrivateDraftJobExecutor({profile,env,sql,verifyDatabase,fr
   result:async(p,j,r,l,o,v)=>{const [row]=await sql`select neo_private.connect_ai_job_result(${p.id}::uuid,${p.ownerId}::uuid,${j}::uuid,${r}::uuid,${l}::uuid,${o}::text,${v}::integer) as value`;return row?.value===true;},
   writeDraft:async(p,op,input)=>{if(!await authorized(p))throw Error('AUTH_REQUIRED');return writeDraft(p,op,input);}
  });
- return async(p,j)=>{if(!enabled||!uuid(j)||!await authorized(p))throw Error('FORBIDDEN');await verifyDatabase();return run(p,j);};
+ const requireJob=async(p,j)=>{if(!enabled||!uuid(j)||!await authorized(p))throw Error('FORBIDDEN');await verifyDatabase();};
+ const execute=async(p,j)=>{await requireJob(p,j);return run(p,j);};
+ // Explicit single receipt recovery, no replay, no client-supplied evidence.
+ execute.reconcile=async(p,j,r)=>{
+  if(!uuid(r))throw Error('INVALID_REQUEST');
+  await requireJob(p,j);
+  if(!await authorized(p))throw Error('FORBIDDEN');
+  const [row]=await sql`select neo_private.connect_ai_job_reconcile(${p.id}::uuid,${p.ownerId}::uuid,${j}::uuid,${r}::uuid) as value`;
+  const v=row?.value;
+  if(!uuid(v?.publicationId)||!['pending','leased','saved','conflict','blocked','uncertain','retryable','cancelled'].includes(v.state)||typeof v.reconciled!=='boolean'||(v.reconciled&&(v.state!=='saved'||v.revision!==1)))throw Error('INVALID_RECEIPT');
+  return {publicationId:v.publicationId,state:v.state,reconciled:v.reconciled,...(v.reconciled?{revision:v.revision}:{})};
+ };
+ return execute;
 }

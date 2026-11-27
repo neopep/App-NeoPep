@@ -39,3 +39,16 @@ test('revocation after claim prevents status or write',async()=>{
  const f=fixture(),sql=f.deps.sql;f.deps.sql=async(...args)=>{const r=await sql(...args);f.revoke();return r;};
  const r=await createPrivateDraftJobExecutor(f.deps)(p,j);assert.equal(r.stopped,'authorization_or_deadline');assert.equal(f.calls.length,1);assert.equal(f.writes,0);
 });
+
+test('private reconciliation uses only job and request identifiers and returns projected receipt',async()=>{
+ const f=fixture();f.deps.sql=async(parts,...args)=>{assert.match(parts.join('?'),/connect_ai_job_reconcile/);assert.deepEqual(args,[p.id,p.ownerId,j,id(5)]);return [{value:{publicationId:id(4),state:'saved',revision:1,reconciled:true,draft:'must not leak'}}];};
+ const run=createPrivateDraftJobExecutor(f.deps);
+ assert.deepEqual(await run.reconcile(p,j,id(5)),{publicationId:id(4),state:'saved',revision:1,reconciled:true});
+ assert.equal(f.writes,0);
+ f.revoke();await assert.rejects(run.reconcile(p,j,id(5)),/FORBIDDEN/);
+});
+test('reconciliation rejects invalid receipt and requires same flags',async()=>{
+ const f=fixture();f.deps.sql=async()=>[{value:{publicationId:id(4),state:'uncertain',reconciled:true}}];
+ await assert.rejects(createPrivateDraftJobExecutor(f.deps).reconcile(p,j,id(5)),/INVALID_RECEIPT/);
+ await assert.rejects(createPrivateDraftJobExecutor({...f.deps,env:{...f.deps.env,NEO_CONNECT_AI_DRAFT_JOBS:'0'}}).reconcile(p,j,id(5)),/FORBIDDEN/);
+});

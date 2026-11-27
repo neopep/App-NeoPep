@@ -50,7 +50,7 @@ export async function openSessionBroker(env,request=fetch,connect=postgres,profi
   writeDraft:createDraftWriter({publishableKey:env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY,sessionFor:freshDraftSession,request,profile,enabled:true})}):undefined;
  return {
   verifyDatabase,
-  ...(runDraftJob?{runDraftJob}:{}),
+  ...(runDraftJob?{runDraftJob,reconcileDraftJob:runDraftJob.reconcile}:{}),
   close:()=>sql.end({timeout:2}),
   async fetch(req){
    const p=new URL(req.url).pathname;
