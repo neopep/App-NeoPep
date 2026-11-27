@@ -465,13 +465,13 @@ sealed partial class Connect : Form {
     async Task TickRichCampaign(WhatsApp window,Guid connection) {
         // Em ambos os perfis, a fila rica exige opt-in local, JWT do ambiente e gate/allowlist do servidor.
         if(Value(local,"campaign_worker_enabled")!="1"||!deviceApproved||!SessionReady()||!window.CampaignSessionReady)return;
-        var lease=await RichCampaign("claim",new {originals_v1=true});
+        var lease=await RichCampaign("claim",new {originals_v1=true,image5_v1=true});
         if(lease==null)return;
         var id=Value(lease,"id");var fence=Value(lease,"fence");
         var started=false;
         var outcome=Tuple.Create("uncertain",(string)null);
         try {
-            var job=await RichCampaign("start",new {id=id,fence=fence,originals_v1=true});
+            var job=await RichCampaign("start",new {id=id,fence=fence,originals_v1=true,image5_v1=true});
             if(job==null)return;
             started=true;
             Guid request;
@@ -480,7 +480,7 @@ sealed partial class Connect : Form {
                 var kind=Value(job,"kind");
                 if(kind=="image"||(kind=="product"&&!String.IsNullOrEmpty(Value(job,"media_path")))){
                     var bytes=await LoadRichCampaignJpeg(Value(job,"media_bucket"),Value(job,"media_path"));
-                    if(whatsapp==window&&window.CampaignSessionReady)
+                    if(whatsapp==window&&window.CampaignConnection==connection&&window.CampaignSessionReady&&deviceApproved&&SessionReady()&&Value(local,"campaign_worker_enabled")=="1")
                         outcome=await window.DispatchCampaignImageAsync(request,Value(job,"group_jid"),Value(job,"text"),bytes);
                 }else if(kind=="file"){
                     var mime=Value(job,"original_mime");var name=Value(job,"original_name");

@@ -297,7 +297,7 @@ sealed partial class WhatsApp : Form {
         try {
             pipe.WriteLine(json.Serialize(new {action="send_image",request_id=request.ToString(),
                 group_jid=group,text=caption,image=Convert.ToBase64String(jpeg)}));
-            return await Task.WhenAny(completion.Task,Task.Delay(TimeSpan.FromSeconds(35)))==completion.Task
+            return await Task.WhenAny(completion.Task,Task.Delay(TimeSpan.FromSeconds(75)))==completion.Task
                 ? await completion.Task : Tuple.Create("uncertain",(string)null);
         }catch{return Tuple.Create("uncertain",(string)null);}
         finally{automatedSend=null;automatedRequest=Guid.Empty;sendingText=false;UpdateComposer();}
