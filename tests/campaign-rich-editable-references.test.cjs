@@ -43,9 +43,25 @@ test('library and community deep links never disclose private signed media URLs'
 });
 
 test('admin loads new iPhone caption editor, while no send is added to the migration',()=>{
- assert.match(html,/campaign-editor\.js\?v=campanhas-central-19/);
+ assert.match(html,/campaign-editor\.js\?v=campanhas-central-20/);
  const sql=migration.replace(/^--[^\n]*\n/gm,'').trim();
  assert.match(sql,/^CREATE OR REPLACE FUNCTION public\.neo_campaign_rich_admin_v1/);
  assert.match(sql,/\$function\$\s*;$/);
  assert.doesNotMatch(sql,/\$function\$\s*;\s*(?:UPDATE|INSERT|DELETE|SELECT)\b/i);
+});
+
+test('media caption conversion preserves text and WhatsApp marks without hidden dispatch flags',()=>{
+ const fn=editor.slice(editor.indexOf(' function mediaCaptionMode('),editor.indexOf(' // Locally generated canvas covers'));
+ const apply=new Function(fn+';return mediaCaptionMode;')();
+ for(const type of ['image','file']){
+  const blocks=[{id:'media',type,text:'*Negrito* e _itálico_',layout:'caption'}];
+  assert.equal(apply(blocks,0,'separate',()=> 'text'),null);
+  assert.deepEqual(blocks,[{id:'media',type,text:'',layout:'separate'},{id:'text',type:'text',text:'*Negrito* e _itálico_'}]);
+  assert.equal(apply(blocks,0,'join',()=> 'unused'),null);
+  assert.equal(blocks.length,1);assert.equal(blocks[0].text,'*Negrito* e _itálico_');assert.equal(blocks[0].layout,'caption');
+ }
+ const tooLong=[{type:'file',text:''},{type:'text',text:'a'.repeat(1001)}];
+ assert.equal(apply(tooLong,0,'join',()=>''),'CAPTION_LIMIT');assert.equal(tooLong.length,2);
+ const full=Array.from({length:32},()=>({type:'image',text:'caption'}));
+ assert.equal(apply(full,0,'separate',()=>''),'BLOCK_LIMIT');assert.equal(full[0].text,'caption');
 });
