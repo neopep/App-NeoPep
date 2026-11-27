@@ -90,7 +90,7 @@ sealed partial class Connect {
         string stage=null;
         try{
             if(await Task.Run(()=>PreviewToolReady(runtime))){label.Text="Conversor de vídeos pronto.";return;}
-            if(System.Windows.Forms.MessageBox.Show("Baixar o conversor FFmpeg (aprox. 115 MB) diretamente do distribuidor oficial indicado pelo projeto FFmpeg? O arquivo será conferido antes de ser usado.","Prévias de vídeo",System.Windows.Forms.MessageBoxButtons.YesNo,System.Windows.Forms.MessageBoxIcon.Question)!=System.Windows.Forms.DialogResult.Yes)return;
+            if(System.Windows.Forms.MessageBox.Show("Baixar o conversor FFmpeg (aprox. 115 MB) diretamente do distribuidor oficial indicado pelo projeto FFmpeg? O arquivo será conferido antes de ser usado.","Conversor de vídeos",System.Windows.Forms.MessageBoxButtons.YesNo,System.Windows.Forms.MessageBoxIcon.Question)!=System.Windows.Forms.DialogResult.Yes)return;
             label.Text="Baixando e verificando o conversor…";
             stage=Path.Combine(ConnectProfile.InstallFolder,"video-tools-stage-"+Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(stage);
@@ -102,7 +102,7 @@ sealed partial class Connect {
             if(Directory.Exists(target))Directory.Move(target,target+".previous-"+Guid.NewGuid().ToString("N"));
             Directory.Move(extracted,target);
             if(!await Task.Run(()=>PreviewToolReady(runtime)))throw new IOException("video_tools_verification");
-            label.Text="Conversor pronto. As prévias serão processadas quando a fila estiver habilitada.";
+            label.Text="Conversor pronto para vídeos nativos e prévias da biblioteca.";
         }catch{label.Text="Não foi possível preparar o conversor. Verifique a conexão e tente novamente.";}
         finally{
             if(stage!=null)try{Directory.Delete(stage,true);}catch{}
