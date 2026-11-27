@@ -10,7 +10,7 @@ Ponto de corte: `docs/PONTO-DE-CORTE-20261126.md`. A publicação anterior de Te
 | 002 Catálogo | Contexto disponível no PoC; lista e detalhe App/WhatsApp, agenda, estados e recorrência App testados com fixtures. |
 | 003 Autenticação | SQL candidato de conexões e concessões, PKCE, emissão JWT e troca/rotação testados localmente. Broker de sessão, consentimento HTTP e provisionamento pendentes. |
 | 004 Servidor | PoC testado sob Node. Worker real e clientes MCP ainda não homologados. |
-| 005 Central administrativa | Seções iniciais e estados honestos testados em DOM simulado. Gestão autenticada pendente. |
+| 005 Central administrativa | Seções iniciais e instalação por cliente, superfície e ambiente testadas em DOM simulado. Gestão autenticada pendente. |
 | 006 Criação e edição | Preparação do payload nativo de criação com idempotência testada; execução e edição pendentes. |
 | 007 Criativos | Planejado |
 | 008 Operações em massa | Planejado |
@@ -19,7 +19,7 @@ Ponto de corte: `docs/PONTO-DE-CORTE-20261126.md`. A publicação anterior de Te
 | 011 Gerenciamento | Planejado |
 | 012 Documentação e CI | Geração determinística e workflow preparado. Ainda falta vincular mudanças semânticas nos contratos nativos à revisão obrigatória. |
 | 013 Segurança e monitoração | Planejado |
-| 014 Homologação e instalação | Catálogo privado e ZIPs de Teste/Produção preparados. Instalação real pendente por cliente, plano e dispositivo. |
+| 014 Homologação e instalação | Catálogo privado, ZIPs separados e verificação reprodutível em CI. Instalação real pendente por cliente, plano e dispositivo. |
 
 ## Incremento inicial
 
@@ -115,3 +115,12 @@ Ponto de corte: `docs/PONTO-DE-CORTE-20261126.md`. A publicação anterior de Te
 - App e recorrências continuam opt-in no runtime porque o SQL conhecido possui variante oficial de Produção e a sua disponibilidade no Teste precisa ser comprovada. Nenhum acesso remoto foi tentado. Os testes usam fixtures dos contratos candidatos.
 - `src/draft-plan.mjs` prepara apenas os parâmetros nativos de criação para os dois canais, com UUID de idempotência e sem destino ou envio. Nenhuma mutação está anunciada.
 - 13 testes locais aprovados e manual gerado. Próximo: gestão das conexões no painel e validação automatizada do catálogo privado. Sem alterações externas.
+
+
+## Instalação privada no painel e verificação dos pacotes
+
+- Preservado o commit concorrente `a8c84b1`, que traz `docs/NEOPEP-CONNECT-AI-INSTALACAO.md`. A leitura dos dois canais está confirmada no GitHub em `7a8fb57`.
+- A seção **Instalar integração** oferece ChatGPT, Claude, Gemini e Codex, seleção de superfície e ambiente, links oficiais, cópia do endereço candidato e orientação de atualização. Sites é opcional para Web/iPhone. A versão instalada não é inferida. O download homologado e a verificação ficam desativados até revisão de pacote e endpoint.
+- `integrations/campaign-mcp/verify-packages.py` compara duas gerações de cada ZIP, valida os arquivos, o catálogo, os ativos e a separação das URLs OAuth. Boa estrutura conferida contra os exemplos oficiais já registrados. A obtenção do JSON Schema oficial pelo terminal voltou HTTP 403, portanto não houve validação integral com o schema remoto.
+- Testes locais de DOM e integridade dos pacotes aprovados. Nenhuma instalação, migração, infraestrutura ou emissão real.
+- Próximo: ligar consentimento NeoPep ao emissor e à sessão do titular, expor JWKS apenas com chave pública, e homologar distribuição em cada cliente antes de habilitar download e verificação no painel.
