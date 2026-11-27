@@ -1,0 +1,3 @@
+# Validador offline candidato
+
+Ensaio local: JPEG com Pillow 12.3.0, PDF com pypdf 5.9.0, MP4 com FFmpeg 7.1.5. Três fixtures válidas passaram; os mesmos três arquivos com byte adicional foram rejeitados. Versões do ensaio não são aprovação de dependências para operação. Revisar vulnerabilidades, fixar dependências e homologar isolamento e scanner antes de ativar. O CLI devolve valid=false e contentSafety=false mesmo após análise estrutural bem-sucedida. Não conectado ao binding do Worker, sem deploy, sem recurso contratado. Limites conservadores de formatos (JPEG sem EXIF/ICC, PDF passivo, MP4 H264/AAC fast-start) são candidatos e precisam de homologação com mídias reais. Não utilizar para aceitar uploads reais até completar os gates.
