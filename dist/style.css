@@ -1218,3 +1218,6 @@ dialog.neo-structured-editor::backdrop{background:#192720}
 #privacyPreferences[data-privacy-page="permissoes-iniciais"] [data-privacy-select-none],#privacyPreferences[data-privacy-page="permissoes-iniciais"] .privacy-policy-link,#privacyPreferences[data-privacy-page="permissoes-iniciais"] [name=skip]{font-size:.78rem;min-height:44px;padding:6px 8px}
 #privacyPreferences[data-privacy-page="permissoes-iniciais"] button.primary{font-size:1rem;min-height:52px;margin-block:4px;font-weight:750}
 .library-campaign-choice{display:grid;gap:4px;margin-block:6px;font-size:.85rem}.library-campaign-choice select{width:100%;font-size:.85rem;min-width:0}
+
+/* Resultado por destino: compacto, sem depender apenas da cor. */
+.central-group-results{display:grid;gap:.35rem;margin:.5rem 0}.central-group-summary{margin:0}.central-group-result{min-width:0;display:grid;gap:.25rem;justify-items:start;padding:.48rem .55rem;border:1px solid var(--line,rgba(128,128,128,.25));border-radius:9px}.central-group-result strong{font-size:.87rem;overflow-wrap:anywhere}.central-group-result .campaign-state{font-size:.76rem;max-width:100%;white-space:normal}.central-group-result small{font-size:.73rem;overflow-wrap:anywhere;margin:0}.central-group-history{margin:.55rem 0;padding-top:.4rem;border-top:1px solid var(--line,rgba(128,128,128,.25))}
