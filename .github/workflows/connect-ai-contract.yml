@@ -1,0 +1,23 @@
+name: Connect AI contract
+on:
+  push:
+    branches: [desenvolvimento/campanhas-plugin-ia-20261126]
+  pull_request:
+    paths:
+      - 'integrations/campaign-mcp/**'
+      - 'docs/NEOPEP-CONNECT-AI-*.md'
+      - 'dist/admin/campaign-*.js'
+      - 'release/campaign-central/**'
+      - 'src/cloud.js'
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node integrations/campaign-mcp/src/generate-docs.mjs --check
+      - run: node --test integrations/campaign-mcp/tests/*.test.mjs
