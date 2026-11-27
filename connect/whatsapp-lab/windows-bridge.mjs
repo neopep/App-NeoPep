@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url';
 import {createBaileysProvider,validCampaignFile,CAMPAIGN_FILE_MAX} from './whatsapp-provider.mjs';
 
 export function createBridge({emit,providerFactory=createBaileysProvider,renderQr}){
- let current,generation=0,qrVersion=0,state='desconectado',checking=false,sending=false,closed=false;
+ let current,generation=0,qrVersion=0,state='desconectado',checking=false,sending=false,diagnosing=false,closed=false;
  // Refuse replay of original-file request IDs during the runtime session, including uncertain sends.
  const fileAttempts=new Set(),tracked=new Map(),earlyReceipts=new Map();
  const output=(type,value)=>{if(!closed)emit({type,value});};
@@ -78,10 +78,31 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
         posting:['admins','all'].includes(row.posting)?row.posting:'unknown',
         settings:['admins','all'].includes(row.settings)?row.settings:'unknown'})));
      }finally{checking=false;}
+    }else if(message.action==='diagnose_group'){
+     const jid=message.group_jid;
+     if(typeof jid!=='string'||!/^[0-9-]{1,64}@g\.us$/.test(jid))return;
+     const report=(result={})=>{
+      const codes=['ok','membership_refreshed','membership_changed_during_read','mode_mismatch','metadata_invalid','metadata_unavailable','permission_unverified','not_participating','diagnostic_unavailable'];
+      const mode=v=>['pn','lid'].includes(v)?v:'unknown';
+      const count=v=>Number.isSafeInteger(v)&&v>=0&&v<=100000?v:null;
+      output('group_diagnostic',{group_jid:jid,code:codes.includes(result.code)?result.code:'diagnostic_unavailable',
+       stage:['start','list','individual','complete'].includes(result.stage)?result.stage:'start',
+       listed_mode:mode(result.listed_mode),fresh_mode:mode(result.fresh_mode),
+       listed_count:count(result.listed_count),fresh_count:count(result.fresh_count),lid_count:count(result.lid_count),pn_count:count(result.pn_count),unknown_count:count(result.unknown_count),
+       role:['admin','superadmin','member'].includes(result.role)?result.role:'unknown',
+       posting:['admins','all'].includes(result.posting)?result.posting:'unknown',
+       settings:['admins','all'].includes(result.settings)?result.settings:'unknown',
+       members_changed:result.members_changed===true,crypto_status:'not_verified'});
+     };
+     if(state!=='conectado'||!current||sending||checking||diagnosing||typeof current.diagnoseGroup!=='function'){report();return;}
+     diagnosing=true;const revision=generation,provider=current;
+     try{const result=await provider.diagnoseGroup(jid);if(revision===generation)report(result);}
+     catch{if(revision===generation)report();}
+     finally{diagnosing=false;}
     }else if((message.action==='send_text'||message.action==='send_image'||message.action==='send_file')){
      const requestId=typeof message.request_id==='string'&&/^[a-f0-9-]{36}$/i.test(message.request_id)?message.request_id:null;
      if(!requestId)return;
-     if(sending||state!=='conectado'||!current){
+     if(sending||diagnosing||state!=='conectado'||!current){
       output('send_result',{request_id:requestId,status:'rejected',reason:'Envio indisponível ou em andamento.'});return;
      }
      const jid=message.group_jid,text=message.text;
