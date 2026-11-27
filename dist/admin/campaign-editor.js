@@ -653,6 +653,7 @@
    if(draft.blocks.length>=32){tell('Limite de 32 blocos por rascunho.');return false;}
    draft.blocks.splice(block.type==='text'?(provisional??draft.blocks.length):draft.blocks.length,0,{id:uuid(),...block});if(block.type==='text')provisional=null;render();changed();return true;
   }
+  let groupIdentities=[];
   function renderGroups(){
    const root=$('[data-editor-groups]');
    if(!root)return;
@@ -660,13 +661,15 @@
    const entries=new Map(draft.groups.map(id=>[id,{id,name:'Grupo anteriormente selecionado',state:'unavailable'}]));
    const allowed=officialWA?null:authorizedDestination();
    for(const row of groups)if(!testWA||!allowed||row.id===allowed)entries.set(row.id,row);
-   root.innerHTML=[...entries.values()].filter(row=>`${row.name} ${row.connection||''}`.toLocaleLowerCase('pt-BR').includes(query)).map(row=>{
+   const rows=[...entries.values()].filter(row=>`${row.name} ${row.connection||''}`.toLocaleLowerCase('pt-BR').includes(query));
+   const renderRow=row=>{
     const chosen=draft.groups.includes(row.id);
     return `<label class="check"><input type="checkbox" data-editor-group="${e(row.id)}" ${chosen?'checked':''} ${!chosen&&(row.state!=='eligible'||!groupSelectable(row.id))?'disabled':''}>
-    <span>${e(row.name)} · ${e(row.connection||'Conexão sem evidência')} · ${e(states[row.state]||'Estado desconhecido')}
+    <span>${e(row.name)} · ${e(states[row.state]||'Estado desconhecido')}
     ${row.participant_count==null?'':' · '+e(row.participant_count)+' participantes'}
     ${row.last_synced_at?' · '+e(new Date(row.last_synced_at).toLocaleString('pt-BR')):''}</span></label>`;
-   }).join('')||'<p class="sub">Nenhum grupo sincronizado no recorte.</p>';
+   };
+   root.innerHTML=(window.NeoWhatsAppAccountGroups?window.NeoWhatsAppAccountGroups(rows,groupIdentities,renderRow,e):rows.map(renderRow).join(''))||'<p class="sub">Nenhum grupo sincronizado no recorte.</p>';
    const selected=$('[data-selected-groups]');
    if(selected){
     const first=entries.get(draft.groups[0]);
@@ -680,12 +683,12 @@
    const token=++loadToken;
    connection.textContent='Consultando grupos sincronizados…';
    try{
-    const list=await cloud.campaignWhatsAppSync('catalog');
+    const [list,accounts]=await Promise.all([cloud.campaignWhatsAppSync('catalog'),cloud.campaignWhatsAppIdentities?.().catch(()=>[])||[]]);
     if(!current()||token!==loadToken)return;
-    groups=list;renderGroups();
+    groups=list;groupIdentities=accounts;renderGroups();
     connection.textContent=groups.some(row=>row.state==='eligible')?'Grupos sincronizados disponíveis. Escolha os destinos, salve a versão e confira a autorização de envio.':
      'Sem grupo elegível na consulta atual. Atualize o NeoPep Connect.';
-   }catch{if(current()&&token===loadToken){groups=[];renderGroups();connection.textContent='Diagnóstico indisponível. Despacho bloqueado.';}}
+   }catch{if(current()&&token===loadToken){groups=[];groupIdentities=[];renderGroups();connection.textContent='Diagnóstico indisponível. Despacho bloqueado.';}}
   }
   const richMode=()=>testWA&&(Boolean(publication)||draft.blocks.length!==1||draft.blocks.some(block=>block.type!=='text'||/(https?:\/\/|www\.)/i.test(block.text||''))||
    draft.blocks.map(block=>block.text||'').join('\n\n').trim().length>160);

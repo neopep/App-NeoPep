@@ -138,6 +138,27 @@ function neoWhatsappPreview({cloud,read,trigger,form,onEdit,resolve}){
  return close;
 }
 
+function renderWhatsAppAccountGroups(rows,identities,renderRow,escape){
+ const metadata=new Map(identities.map(row=>[row.id,row]));
+ const grouped=new Map();
+ for(const row of rows){
+  const prefix=String(row.id||'').split(':')[0];
+  const key=/^[a-f0-9-]{36}$/i.test(prefix)?prefix:String(row.connection||'');
+  if(!grouped.has(key))grouped.set(key,[]);
+  grouped.get(key).push(row);
+ }
+ const states={connected:'Conectada',stale:'Desatualizada',disconnected:'Desconectada',unavailable:'Indisponível'};
+ return [...grouped].map(([key,items])=>{
+  const account=metadata.get(key);
+  const heading=account?.account_name||items[0].connection||'Conexão indisponível';
+  const number=/^[0-9]{6,15}$/.test(account?.account_number||'')?' · +'+account.account_number:'';
+  const state=states[account?.state];
+  return '<section aria-label="Grupos sincronizados"><p class="sub"><strong>'+escape(heading)+'</strong>'+
+   escape(number)+(state?' · '+escape(state):'')+'</p>'+items.map(renderRow).join('')+'</section>';
+ }).join('');
+}
+if(typeof window!=='undefined')window.NeoWhatsAppAccountGroups=renderWhatsAppAccountGroups;
+
 function mountSyncedCampaignGroups(root,{cloud,picking=false}){
  const states={eligible:'Elegível',stale:'Sincronização desatualizada',disconnected:'Desconectado',unavailable:'Indisponível'};
  root.innerHTML=`<div class="form-grid"><label class="central-search"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input type="search" maxlength="100" aria-label="Pesquisar grupos sincronizados" placeholder="Pesquisar grupos sincronizados"></label>
@@ -145,18 +166,18 @@ function mountSyncedCampaignGroups(root,{cloud,picking=false}){
  <button type="button" class="secondary" data-sync-refresh>Atualizar grupos</button><p role="status" data-sync-status></p><div data-sync-rows></div>`;
  const search=root.querySelector('input'),filter=root.querySelector('select'),status=root.querySelector('[data-sync-status]');
  const destination=root.querySelector('[data-sync-rows]');
- let catalog=[],selected=new Map(),revision=0,current=null,ready=false,initialized=false;
+ let catalog=[],identities=[],selected=new Map(),revision=0,current=null,ready=false,initialized=false;
  function render(){
   const query=search.value.trim().toLocaleLowerCase('pt-BR');
   const records=new Map([...selected,...catalog.map(row=>[row.id,row])]);
   const rows=[...records.values()].filter(row=>(!filter.value||filter.value===row.state)&&
    (row.name+' '+(row.connection||'')).toLocaleLowerCase('pt-BR').includes(query));
-  destination.innerHTML=rows.map(row=>{
+  destination.innerHTML=renderWhatsAppAccountGroups(rows,identities,row=>{
    const checked=selected.has(row.id);
-   const label=`<strong>${esc(row.name)}</strong><small class="sub"> · ${esc(row.connection||'Conexão indisponível')} · ${esc(states[row.state]||'Estado desconhecido')}${row.participant_count==null?'':' · '+Number(row.participant_count)+' participantes'}${row.last_synced_at?' · sincronizado em '+esc(new Date(row.last_synced_at).toLocaleString('pt-BR')):''}</small>`;
+   const label=`<strong>${esc(row.name)}</strong><small class="sub"> · ${esc(states[row.state]||'Estado desconhecido')}${row.participant_count==null?'':' · '+Number(row.participant_count)+' participantes'}${row.last_synced_at?' · sincronizado em '+esc(new Date(row.last_synced_at).toLocaleString('pt-BR')):''}</small>`;
    return picking?`<label class="check"><input type="checkbox" data-sync-id="${esc(row.id)}" ${checked?'checked':''} ${row.state!=='eligible'&&!checked?'disabled':''}><span>${label}</span></label>`:
     `<article class="monitor-block">${label}</article>`;
-  }).join('')||'<p>Nenhum grupo encontrado. Sincronize os grupos selecionados no NeoPep Connect.</p>';
+  },esc)||'<p>Nenhum grupo encontrado. Sincronize os grupos selecionados no NeoPep Connect.</p>';
   status.textContent=picking?`${selected.size} de até 30 grupos selecionados.`:'';
  }
  async function load(campaign=null,{preserve=false}={}){
@@ -165,12 +186,13 @@ function mountSyncedCampaignGroups(root,{cloud,picking=false}){
   if(!preserve){selected=new Map();catalog=[];initialized=false;}
   destination.replaceChildren();status.textContent='Consultando grupos sincronizados…';
   try{
-   const [rows,initial]=await Promise.all([
+   const [rows,initial,accounts]=await Promise.all([
     cloud.campaignWhatsAppSync('catalog'),
-    campaign&&picking&&!preserve?cloud.campaignWhatsAppSync('recipients',campaign):[]
+    campaign&&picking&&!preserve?cloud.campaignWhatsAppSync('recipients',campaign):[],
+    cloud.campaignWhatsAppIdentities?.().catch(()=>[])||[]
    ]);
    if(token!==revision||!root.isConnected)return false;
-   catalog=rows;
+   catalog=rows;identities=accounts;
    if(!preserve)selected=new Map(initial.map(row=>[row.id,row]));
    for(const [key,row] of selected)selected.set(key,catalog.find(item=>item.id===key)||{...row,state:'unavailable'});
    ready=true;initialized=true;render();return true;

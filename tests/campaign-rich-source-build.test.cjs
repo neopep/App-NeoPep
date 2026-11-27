@@ -32,8 +32,8 @@ test('upload always stays on the authenticated actor in the TESTE JPEG bucket',(
 
 test('iPhone PWA and admin load the current cache-busted SDK',()=>{
  assert.match(app,/cloud\.js\?v=20261126biblioteca61/);
- assert.match(admin,/cloud\.js\?v=connect-ai-6/);
- assert.match(admin,/campaign-editor\.js\?v=campanhas-central-24/);
+ assert.match(admin,/cloud\.js\?v=connect-ai-7/);
+ assert.match(admin,/campaign-editor\.js\?v=campanhas-central-25/);
 });
 
 test('JPEG apto preserva bytes e resolução, e executor antigo usa limite de 1 MiB',async()=>{

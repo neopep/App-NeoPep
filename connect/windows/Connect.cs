@@ -258,7 +258,7 @@ sealed partial class Connect : Form {
         Directory.CreateDirectory(folder);
         whatsapp=new WhatsApp(folder,groups,SyncWhatsAppGroups,SetWhatsAppStatus,
             ()=>SessionReady()&&deviceApproved&&Value(local,"campaign_worker_enabled")=="1",LoadCampaignSources,composer,LoadCampaignImage,
-            profile,WhatsAppEntropy());
+            profile,WhatsAppEntropy(),SetWhatsAppIdentity);
         whatsappOpen=true;
         whatsapp.FormClosed+=delegate{whatsappOpen=false;whatsapp=null;};
         whatsapp.Show(this);
@@ -293,6 +293,13 @@ sealed partial class Connect : Form {
         if(!SessionReady()||!deviceApproved)return;
         await Post("/rest/v1/rpc/neo_connect_wa_set_status",new {
             p_device=Value(local,"device"),p_secret=Value(local,"secret"),p_connection=connection,p_status=status
+        },true);
+    }
+
+    async Task SetWhatsAppIdentity(Guid connection,string name,string number){
+        if(!SessionReady()||!deviceApproved)return;
+        await Post("/rest/v1/rpc/neo_connect_wa_update_identity",new {
+            p_device=Value(local,"device"),p_secret=Value(local,"secret"),p_connection=connection,p_name=name,p_number=number
         },true);
     }
 

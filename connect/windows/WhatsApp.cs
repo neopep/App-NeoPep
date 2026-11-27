@@ -32,6 +32,9 @@ sealed partial class WhatsApp : Form {
     bool drawingGroups,syncing;
     readonly Func<Guid,long,object[],Task<long>> saveSelection;
     readonly Func<Guid,string,Task> reportStatus;
+    readonly Func<Guid,string,string,Task> reportIdentity;
+    string accountName="",accountNumber="";
+    bool accountVerified;
     readonly Func<bool> canPublish;
     Guid connectionId;
     long selectionRevision;
@@ -57,8 +60,8 @@ sealed partial class WhatsApp : Form {
 
     public WhatsApp(string profile,bool showGroups=false,Func<Guid,long,object[],Task<long>> saveSelection=null,Func<Guid,string,Task> reportStatus=null,Func<bool> canPublish=null,Func<string,string,Task<Dictionary<string,object>[]>> loadSources=null,bool showComposer=false,Func<string,string,Task<byte[]>> loadImage=null) : this(profile,showGroups,saveSelection,reportStatus,canPublish,loadSources,showComposer,loadImage,ConnectProfile.Teste,null) {}
 
-    internal WhatsApp(string profile,bool showGroups,Func<Guid,long,object[],Task<long>> saveSelection,Func<Guid,string,Task> reportStatus,Func<bool> canPublish,Func<string,string,Task<Dictionary<string,object>[]>> loadSources,bool showComposer,Func<string,string,Task<byte[]>> loadImage,ConnectProfile environment,byte[] entropy) {
-        this.environment=environment;this.entropy=entropy;
+    internal WhatsApp(string profile,bool showGroups,Func<Guid,long,object[],Task<long>> saveSelection,Func<Guid,string,Task> reportStatus,Func<bool> canPublish,Func<string,string,Task<Dictionary<string,object>[]>> loadSources,bool showComposer,Func<string,string,Task<byte[]>> loadImage,ConnectProfile environment,byte[] entropy,Func<Guid,string,string,Task> reportIdentity=null) {
+        this.environment=environment;this.entropy=entropy;this.reportIdentity=reportIdentity;
         this.saveSelection=saveSelection;this.reportStatus=reportStatus;this.canPublish=canPublish;this.loadSources=loadSources;this.loadImage=loadImage;
         var waHeartbeat=new Timer{Interval=60000};
         waHeartbeat.Tick+=async delegate{if(ready)await ReportStatus("connected");};
@@ -160,11 +163,11 @@ sealed partial class WhatsApp : Form {
 
     DateTime? groupReadAt;
     void RefreshGroups(){
-        if(ready&&!syncing){groupReadAt=null;sync.Enabled=false;Send("groups",null);}
+        if(ready&&accountVerified&&!syncing){groupReadAt=null;sync.Enabled=false;Send("groups",null);}
         else groupStatus.Text="Conecte o WhatsApp para consultar grupos.";
     }
     void ShowGroupStatus(){
-        sync.Enabled=ready&&!syncing&&groupReadAt.HasValue&&saveSelection!=null;
+        sync.Enabled=ready&&accountVerified&&!syncing&&groupReadAt.HasValue&&saveSelection!=null;
         UpdateComposer();
         groupStatus.Text=groupRows.Count+" grupos • "+selected.Count+" selecionados localmente"
             +(groupReadAt.HasValue?" • consulta "+groupReadAt.Value.ToString("g"):"");
@@ -275,7 +278,7 @@ sealed partial class WhatsApp : Form {
     }
     public Guid CampaignConnection { get { return connectionId; } }
     public bool CampaignSessionReady {
-        get { return !closing&&!forgetting&&ready&&pipe!=null&&process!=null
+        get { return !closing&&!forgetting&&ready&&accountVerified&&pipe!=null&&process!=null
             &&connectionId!=Guid.Empty&&groupReadAt.HasValue&&DateTime.Now-groupReadAt.Value<TimeSpan.FromHours(24); }
     }
     public async Task<Tuple<string,string>> DispatchCampaignTextAsync(Guid request,string group,string text) {
@@ -356,7 +359,7 @@ sealed partial class WhatsApp : Form {
         RefreshComposerGroups();
     }
     async Task SyncSelection(){
-        if(!ready||syncing||!groupReadAt.HasValue||saveSelection==null||localVault==null)return;
+        if(!ready||!accountVerified||syncing||!groupReadAt.HasValue||saveSelection==null||localVault==null)return;
         if(MessageBox.Show("Enviar esta seleção completa? Grupos desmarcados serão removidos da lista web desta conexão.",
             "Sincronizar grupos",MessageBoxButtons.YesNo,MessageBoxIcon.Question)!=DialogResult.Yes)return;
         var rows=new List<object>();
@@ -369,6 +372,7 @@ sealed partial class WhatsApp : Form {
             var next=await saveSelection(idAtStart,selectionRevision,rows.ToArray());
             if(closing||idAtStart!=connectionId||localVault==null)return;
             selectionRevision=next;SaveVault();
+            await ReportIdentity();
             groupStatus.Text="Seleção sincronizada com o NeoPep.";
         }catch{
             if(!closing)groupStatus.Text="Não foi possível confirmar a sincronização. Confira a autorização, a rede e a disponibilidade do serviço.";
@@ -385,14 +389,19 @@ sealed partial class WhatsApp : Form {
         },TaskContinuationOptions.OnlyOnFaulted);
     }
     async Task ReportStatus(string status){
-        if(selectionRevision==0||reportStatus==null||connectionId==Guid.Empty)return;
+        if((status=="connected"&&!accountVerified)||selectionRevision==0||reportStatus==null||connectionId==Guid.Empty)return;
         try{await reportStatus(connectionId,status);}catch{}
+    }
+    async Task ReportIdentity(){
+        if(!ready||selectionRevision==0||reportIdentity==null||connectionId==Guid.Empty||accountNumber.Length==0)return;
+        try{await reportIdentity(connectionId,accountName,accountNumber);}catch{} // Legacy servers may lack the metadata RPC.
     }
     void ClearQr(){var previous=qr.Image;qr.Image=null;if(previous!=null)previous.Dispose();}
     string OpenVault(){
         if(!File.Exists(vault))return null;
         var text=Utf8.GetString(ProtectedData.Unprotect(File.ReadAllBytes(vault),entropy,DataProtectionScope.CurrentUser));
         localVault=json.Deserialize<Dictionary<string,object>>(text);
+        accountNumber=TextValue(localVault,"neo_wa_number");
         if(!Guid.TryParse(TextValue(localVault,"neo_connection"),out connectionId))connectionId=Guid.NewGuid();
         if(!Int64.TryParse(TextValue(localVault,"neo_revision"),out selectionRevision))selectionRevision=0;
         var saved=localVault.ContainsKey("neo_selected")?localVault["neo_selected"] as IEnumerable:null;
@@ -401,12 +410,13 @@ sealed partial class WhatsApp : Form {
         return text;
     }
     void WriteVault(string value){
-        if(value==null){localVault=null;connectionId=Guid.Empty;selectionRevision=0;File.Delete(vault);File.Delete(vault+".new");return;}
+        if(value==null){localVault=null;connectionId=Guid.Empty;selectionRevision=0;accountName="";accountNumber="";File.Delete(vault);File.Delete(vault+".new");return;}
         localVault=json.Deserialize<Dictionary<string,object>>(value);
         if(connectionId==Guid.Empty)connectionId=Guid.NewGuid();
         SaveVault();
     }
     void SaveVault(){
+        localVault["neo_wa_number"]=accountNumber;
         localVault["neo_connection"]=connectionId.ToString();
         localVault["neo_revision"]=selectionRevision;
         localVault["neo_selected"]=new List<string>(selected).ToArray();
@@ -481,14 +491,15 @@ sealed partial class WhatsApp : Form {
                 ready=value=="conectado";
                 if(value!="aguardando_qr")ClearQr();
                 if(!ready){
+                    accountVerified=false;accountStatus.Text="";
                     if(value=="conectando"||value=="reconectando"){sync.Enabled=false;groupReadAt=null;groups.Items.Clear();}
                     else ClearGroups();
                 }
                 switch(value){
                     case "conectando": Notify("Conectando…");break;
                     case "aguardando_qr": Notify("Escaneie o QR Code no telefone de teste.");break;
-                    case "conectado": Notify("WhatsApp conectado. Consulte os grupos na aba Grupos.");RefreshGroups();ObserveStatus(ReportStatus("connected"));break;
-                    case "reconectando": Notify("Rede interrompida. Reconectando…");break;
+                    case "conectado": Notify("WhatsApp conectado. Consulte os grupos na aba Grupos.");break;
+                    case "reconectando": ObserveStatus(ReportStatus("disconnected"));Notify("Rede interrompida. Reconectando…");break;
                     case "desconectando": break;
                     case "desconectado": StopBridge();Notify("Sessão desconectada e removida.");break;
                     case "limpeza_local": StopBridge();Notify("Sessão local removida. Revogue também em Dispositivos conectados no telefone.");break;
@@ -505,12 +516,26 @@ sealed partial class WhatsApp : Form {
                 var account=message["value"] as Dictionary<string,object>;
                 if(account!=null){
                     string name=TextValue(account,"name"),number=TextValue(account,"number");
+                    if(!System.Text.RegularExpressions.Regex.IsMatch(number,@"^[0-9]{6,15}$"))number="";
+                    if(number.Length>0&&accountNumber.Length>0&&number!=accountNumber){
+                        ObserveStatus(ReportStatus("revoked"));
+                        ClearGroups();connectionId=Guid.NewGuid();selectionRevision=0;
+                    }
+                    accountVerified=number.Length>0||accountNumber.Length==0;
+                    accountName=name;
+                    if(number.Length>0){
+                        accountNumber=number;
+                        if(localVault!=null)SaveVault();
+                    }
                     accountStatus.Text=(name+(number.Length==0?"":" +"+number)).Trim();
+                    if(accountVerified)RefreshGroups();
+                    if(number.Length>0)ObserveStatus(ReportIdentity());
+                    ObserveStatus(ReportStatus("connected"));
                 }
             }else if(type=="groups_loading"&&ready){
                 phase="GRUPOS_ESPERA";
                 groupStatus.Text="Consultando grupos…";
-            }else if(type=="groups"&&ready&&!forgetting){
+            }else if(type=="groups"&&ready&&accountVerified&&!forgetting){
                 phase="GRUPOS";
                 groupRows.Clear();
                 var rows=message["value"] as IEnumerable;
@@ -555,7 +580,7 @@ sealed partial class WhatsApp : Form {
         }
     }
     void StopBridge(){
-        ++generation;ready=false;forgetting=false;
+        ++generation;ready=false;forgetting=false;accountVerified=false;
         if(automatedAlbum!=null)automatedAlbum.TrySetResult(new Dictionary<string,object>{{"status","uncertain"}});
         if(automatedSend!=null)automatedSend.TrySetResult(Tuple.Create("uncertain",(string)null));
         if(pendingSend!=Guid.Empty){

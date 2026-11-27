@@ -281,7 +281,12 @@ test('central separa canais e oferece balões WhatsApp sem deslocar o formulári
   if(action==='queue')return [{id:'job',campaign_id:'wa',title:'Fictícia',group_name:'Grupo teste',state:'pending',timezone:'America/Sao_Paulo'}];
   return [];
  };
- screen.cloud.campaignWhatsAppSync=async()=>[{id:'uuid:123@g.us',name:'Grupo sincronizado',connection:'Minha conexão',state:'eligible'}];
+ const connection='10000000-0000-4000-8000-000000000004';
+ screen.cloud.campaignWhatsAppSync=async()=>[
+  {id:connection+':123@g.us',name:'Grupo sincronizado',connection:'Minha conexão',state:'eligible'},
+  {id:connection+':124@g.us',name:'Segundo grupo',connection:'Minha conexão',state:'eligible'}
+ ];
+ screen.cloud.campaignWhatsAppIdentities=async()=>[{id:connection,account_name:'Conta <fixture>',account_number:'12025550123',state:'connected'}];
  screen.run("globalThis.setInterval=()=>1;globalThis.location={origin:'https://teste.app.neopep.com.br'};globalThis.URL=class {constructor(){this.href='https://teste.app.neopep.com.br/#loja';this.protocol='https:'}};window.innerWidth=320;window.innerHeight=600;");
  screen.run(fs.readFileSync('dist/admin/admin-whatsapp.js','utf8'));
  await screen.select('campaigns');await new Promise(setImmediate);
@@ -293,7 +298,10 @@ test('central separa canais e oferece balões WhatsApp sem deslocar o formulári
  assert.match(list.textContent,/Somente WhatsApp/);
  assert.equal(screen.document.querySelector('[data-wa-publication]'),null);
  screen.document.querySelector('[data-campaign-action=view_groups]').click();await new Promise(setImmediate);
- assert.match(screen.document.querySelector('[data-wa-sync-catalog]').textContent,/Grupo sincronizado.*Minha conexão/s);
+ const catalog=screen.document.querySelector('[data-wa-sync-catalog]');
+ assert.match(catalog.textContent,/Conta <fixture>.*\+12025550123.*Conectada.*Grupo sincronizado.*Segundo grupo/s);
+ assert.equal(catalog.textContent.match(/12025550123/g).length,1);
+ assert.equal(catalog.querySelector('fixture'),null);
  assert.equal(screen.document.querySelector('[data-wa-group]').hidden,true);
  assert.equal(screen.document.querySelector('[data-wa=new_item]').closest('.neo-campaign-actions').hidden,true);
  screen.document.querySelector('[data-campaign-action=view_publications]').click();
