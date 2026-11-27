@@ -25,11 +25,11 @@ O broker é interno ao Worker. Ele grava a prova de consentimento como digest, u
 
 | Cliente | Ensaio privado e condição |
 |---|---|
-| ChatGPT Plus Desktop | Importar o catálogo local se a conta e versão oferecerem essa opção. Verificar se a instalação permite OAuth remoto com cliente pré-registrável e leitura MCP. |
+| ChatGPT Plus Desktop | Importar o catálogo local se a conta e versão oferecerem essa opção. Verificar se a instalação permite OAuth remoto com cliente pré-registrável e leitura MCP. [Catálogo local](https://developers.openai.com/plugins/build/plugins). |
 | ChatGPT Plus Web e iPhone | Verificar separadamente a disponibilidade do conector e sua elegibilidade na mesma conta. A instalação Desktop por si só não estabelece suporte nas outras superfícies. |
-| ChatGPT Sites | Avaliar se a conta permite Site privado e uso da integração nessa superfície. O Site serviria como interface, usando o mesmo MCP e OAuth individual, com execução remota sem PC Windows. Testar autoria, compartilhamento privado, segundo usuário e iPhone. Uma alternativa só é válida se a sessão individual e a revogação funcionarem sem credencial compartilhada. |
-| Claude | Usar o fluxo de conector remoto personalizado em conta elegível. Conferir callback e teste separado em cada superfície. |
-| Gemini | Testar o aplicativo conectado personalizado quando a conta atender os requisitos oficiais de elegibilidade, dispositivo, idioma e região. Se indisponível, registrar o bloqueio. |
+| ChatGPT Sites | A criação do plugin hospedado requer publicação do Site pelo proprietário e instalação individual. Contas pessoais não podem convidar outros usuários ao plugin. Avaliar como ensaio individual: adaptar as chamadas ao MCP Cloudflare com OAuth de cada usuário, testar uso por chat no Web e iPhone e conferir que nenhuma operação dependa de um PC ligado. O ensaio para várias contas exige um caminho de instalação autorizado para cada uma. [Documentação OpenAI](https://help.openai.com/en/articles/20001547-hosting-a-plugin-with-chatgpt-sites). |
+| Claude | Usar o fluxo de conector remoto personalizado em conta elegível. Conferir callback e teste separado em cada superfície. [Conectores MCP Claude](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp). |
+| Gemini | Testar o aplicativo conectado personalizado quando a conta atender os requisitos oficiais de elegibilidade, dispositivo, idioma e região. Se indisponível, registrar o bloqueio. [Apps personalizados Gemini](https://support.google.com/gemini/answer/17209137). |
 | Codex | Instalar o catálogo Teste ou configurar o MCP, em cliente oficialmente compatível. Confirmar OAuth e ferramentas, incluindo se o cliente permite callback HTTPS pré-registrado. |
 
 Consultar [gate de clientes](NEOPEP-CONNECT-AI-GATE-PLUS-E-CLIENTES.md) e [instalação privada](NEOPEP-CONNECT-AI-INSTALACAO.md). Os resultados de clientes comerciais e do runtime Cloudflare devem ser preenchidos no ensaio autorizado.
@@ -39,3 +39,12 @@ Consultar [gate de clientes](NEOPEP-CONNECT-AI-GATE-PLUS-E-CLIENTES.md) e [insta
 1. Desativar o Worker com `NEO_CONNECT_AI_ENABLED=0` e remover o domínio Teste se necessário. Conferir a recusa de chamadas e revogar as conexões de ensaio pelo painel.
 2. Desabilitar o login do broker e remover o binding Hyperdrive se houver incidente. Em caso de comprometimento de chave, invalidar o material e exigir novo consentimento após rotação. Preservar o histórico para auditoria.
 3. Se preciso, voltar o frontend Teste para o deployment anterior verificado. Preservar tabelas de campanha e dados existentes. Qualquer remoção de tabelas, papéis ou registros deve ser revisada separadamente.
+
+## Contratos nativos para a próxima etapa
+
+| Etapa | Reuso e teste de aceite |
+|---|---|
+| Criativos | Reutilizar o upload autenticado de `src/cloud.js` ao bucket privado `neo-campaign-images` (JPEG até 1 MiB) e o fluxo nativo de PDF/MP4 até 5 MiB. Conferir tipo, proprietário e revisão no backend antes de anexar. Validar idempotência e rejeição de caminhos de outra conta. Adotar fallback por seleção manual no painel até o cliente comprovar transferência suportada. |
+| Operações em massa | Preparar revisão por campanha e revisão do rascunho, com lista de itens elegíveis e recusados. Cada aplicação precisa de chave idempotente por item, revalidação da versão e resultado individual. Preservar criativos e destinatários em alterações de texto. |
+| Agenda | Reusar a interpretação do horário local e a confirmação da revisão do RPC nativo. Separar simulação de ocorrências da ação que cria lotes. Validar fuso, hora inválida, revisão desatualizada e repetição. |
+| Diagnóstico | Usar `initialize`, `ping` e uma leitura de fixture autenticada. Medir disponibilidade, duração e classe de erro separadamente para OAuth, Hyperdrive, RPC e MCP. Agregar métricas sem usuário, destinatários, caminhos de criativos, sessões ou conteúdo. |
