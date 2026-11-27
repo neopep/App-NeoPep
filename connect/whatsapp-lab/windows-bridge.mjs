@@ -33,6 +33,16 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
       serialized:typeof message.vault==='string'?message.vault:null,
       onCredentials:value=>{if(revision===generation)output('vault',value);},
       onReceipt:value=>{if(revision===generation)reportReceipt(value);},
+      onGroupCheck:value=>{
+       if(revision!==generation||!value||!/^[0-9-]{1,64}@g\.us$/.test(value.group_jid||''))return;
+       const codes=['ok','membership_refreshed','membership_changed_during_read','mode_mismatch','metadata_invalid','metadata_unavailable','permission_unverified'];
+       if(!codes.includes(value.code))return;
+       const mode=v=>['pn','lid'].includes(v)?v:'unknown';
+       const count=v=>Number.isSafeInteger(v)&&v>=0&&v<=100000?v:0;
+       output('group_check',{group_jid:value.group_jid,code:value.code,listed_mode:mode(value.listed_mode),fresh_mode:mode(value.fresh_mode),
+        listed_count:count(value.listed_count),fresh_count:count(value.fresh_count),lid_count:count(value.lid_count),pn_count:count(value.pn_count),
+        members_changed:value.members_changed===true});
+      },
       onState:value=>{
        if(revision!==generation)return;
        update(value);
