@@ -15,7 +15,7 @@ const rules=[
  ['ler_conteudo',['get_publication_content'],['Leia conteúdo, IDs dos blocos e revisão atual.']],
  ['criar_rascunhos',['create_campaign_draft','add_publications'],['Crie campanha pai apenas se solicitada ou inexistente. Use UUID e requestId próprios por publicação.','Até seis itens por chamada; mantenha IDs no retry. plannedLocal é proposta de horário, não agenda.']],
  ['editar_textos',['get_publication_content','update_publications'],['Use revisão atual; preserve mídia e destinos; conflito exige nova leitura.']],
- ['editar_legendas',['get_publication_content','update_media_caption'],['Legenda é text da mídia; texto separado é outro bloco.']],
+ ['editar_legendas',['get_publication_content','update_publications'],['Somente WhatsApp, em rascunho: use items[].mediaCaption com ID do bloco, revisão atual e modo caption, none ou separate.','Legenda é text da mídia; texto separado é outro bloco.']],
  ['anexar_criativos',['create_upload_ticket','attach_creatives'],['Transferência autorizada ou upload privado, nunca URL arbitrária, base64 grande ou caminho inventado.']],
  ['referencias',['list_authorized_assets','attach_reference'],['Somente ativos autorizados e revalidados.']],
  ['destinos',['list_destinations','assign_destinations'],['Grupos elegíveis da conexão vigente; revalidar antes de agendar.']],
