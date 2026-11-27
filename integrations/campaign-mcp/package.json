@@ -9,6 +9,7 @@
     "jose": "6.2.18"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.3.14",
     "@modelcontextprotocol/sdk": "1.32.2",
     "linkedom": "0.18.15"
   }
