@@ -13,3 +13,22 @@ Múltiplas contas independentes de cada host, autorização e revogação por co
 Referências oficiais a reconfirmar na homologação: https://developers.openai.com/plugins/build/plugins ; https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt ; https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp ; https://support.google.com/gemini/answer/17209137 .
 
 Preservar continuidade e ponto de corte. Nenhum provisionamento, submissão pública, migração, envio real ou gasto autorizado por este documento.
+
+## Matriz operacional para homologação privada
+
+Use o mesmo servidor MCP por ambiente e os mesmos schemas e escopos. O marketplace versionado distribui os pacotes locais OpenAI. Os conectores remotos usam a URL do ambiente, sem exigir o ZIP. Cada instalação recebe autorização individual, inclusive quando o mesmo administrador usa várias contas do mesmo cliente.
+
+| Cliente | Plano e superfície a testar separadamente | Entrada privada candidata | Evidência atual |
+|---|---|---|---|
+| ChatGPT | Plus Desktop/Work | Catálogo local do repositório | Formato documentado. Instalação e OAuth pendentes. |
+| ChatGPT | Plus Web | Conector remoto se disponível para a conta | Instalação, uso e disponibilidade na conta pendentes. |
+| ChatGPT | Plus iPhone | Conector remoto, conforme recurso disponível na conta | Disponibilidade no iPhone, OAuth e continuidade da autorização pendentes. |
+| Claude | Conta individual elegível, Web e Desktop em testes separados | Conector personalizado por URL | Caminho documentado. Plano, acesso e execução pendentes. |
+| Claude | Celular, no mesmo plano | Verificar disponibilidade do conector | Pendente. |
+| Gemini | Conta elegível no Brasil, Web em português | Aplicativo conectado personalizado por URL, quando disponível | Elegibilidade, descoberta, OAuth e execução pendentes. |
+| Gemini | Celular, mesma região e plano | Verificar disponibilidade do aplicativo conectado | Pendente. |
+| Codex | CLI e integração Desktop | Catálogo local ou configuração MCP do cliente | Cliente adicional. SDK MCP testado em fixture, instalação Codex pendente. |
+
+Para cada linha, registrar versão do cliente, plano, região e dispositivo. Depois de autorização explícita para homologar, conectar duas contas independentes ao mesmo ambiente, conferir `tools/list`, desautorizar uma e provar que a outra mantém acesso. Repetir as mesmas leituras e comparar os schemas observados. No iPhone e no Web, verificar o plugin em cada cliente, mesmo se já estiver instalado no Desktop. Confirmar escrita e criativos somente depois que estiverem habilitados e com dados fictícios. Se a conta não oferecer o mecanismo oficial, registrar o bloqueio e continuar o desenvolvimento no servidor comum.
+
+O teste com o SDK oficial não autentica contas de ChatGPT, Claude ou Gemini. Nenhuma instalação, sincronização entre superfícies ou disponibilidade regional foi comprovada.
