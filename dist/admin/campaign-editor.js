@@ -17,6 +17,27 @@
    return '<'+tag+'>'+e(part.slice(1,-1))+'</'+tag+'>';
   }).join('');
  }
+
+ // Keep the actual wire format unambiguous: media caption lives in text;
+ // independent messages are real ordered text blocks, not a presentation flag.
+ function mediaCaptionMode(blocks,index,mode,newId){
+  const block=blocks[index];
+  if(!block||!['image','file'].includes(block.type))return 'INVALID_MEDIA';
+  const text=String(block.text||'');
+  if(mode==='separate'){
+   if(text.trim()&&blocks.length>=32)return 'BLOCK_LIMIT';
+   if(text.trim())blocks.splice(index+1,0,{id:newId(),type:'text',text});
+   block.text='';block.layout='separate';return null;
+  }
+  if(mode==='join'){
+   const next=blocks[index+1];
+   if(!next||next.type!=='text'||!String(next.text||'').trim())return 'NO_TEXT';
+   const joined=[text,String(next.text)].filter(x=>x.trim()).join('\n\n');
+   if(joined.length>1000)return 'CAPTION_LIMIT';
+   block.text=joined;block.layout='caption';blocks.splice(index+1,1);return null;
+  }
+  return 'INVALID_MODE';
+ }
  // Locally generated canvas covers are data URLs. Decode bytes without fetch:
  // img-src permits data: for previews, but connect-src intentionally does not.
  function localCoverBlob(source){
@@ -189,8 +210,8 @@
      <div class="inline-actions">${publication?'':'<button type="button" class="secondary" data-editor="fresh">Novo rascunho</button>'}${channel==='whatsapp'&&!publication?'<button type="button" class="secondary" data-editor="cross">Criar versão App</button>':''}</div>`)}
     ${channel==='app'?pane('audience','Públicos, planos e exibição',advancedApp?appSettingsPane():testApp?'<p>Somente as contas de homologação autorizadas no servidor. Esta campanha não envia push.</p>':'<label>Público App<select name="audience"><option value="all">Todos</option><option value="free">Free</option><option value="premium">Premium</option></select></label><label class="check"><input name="push" type="checkbox"> Solicitar push App para contas com consentimento</label>'):
     pane('groups','Grupos sincronizados','<div class="inline-actions"><button type="button" class="secondary" data-editor="groups">Atualizar grupos e diagnóstico</button><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button></div><label class="central-search editor-search"><input name="group_search" type="search" aria-label="Pesquisar grupo ou conexão" placeholder="Pesquisar grupo ou conexão"><span class="search-decoration" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></span></label><p class="sub" data-editor-group-count></p><div data-editor-groups></div>')}
-    ${pane('photo','Foto','<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">No ambiente de Teste, imagens JPEG com legenda podem ser enviadas ao grupo autorizado. Salve a versão antes de publicar.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto</button>')}
-    ${pane('file','Documento','<button type="button" class="secondary" data-editor="choose_document">Escolher PDF, MP4 ou TXT</button>')}
+    ${pane('photo','Foto','<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">Escolha o modo de envio. O texto separado será uma mensagem independente. Salve e confira a prévia antes de publicar.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto</button>')}
+    ${pane('file','Documento','<label>Modo do anexo<select name="file_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><button type="button" class="secondary" data-editor="choose_document">Escolher PDF, MP4 ou TXT</button>')}
     <input type="file" name="media" accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4,text/plain" hidden>
     ${pane('link','Link','<label>Link HTTPS<input name="link" type="url" maxlength="2000"></label><button type="button" class="secondary" data-editor="link">Adicionar link</button>')}
     ${pane('catalog','Referências','<div class="central-search editor-search"><input name="catalog_search" type="search" maxlength="100" aria-label="Buscar referências" placeholder="Buscar referências"><button type="button" class="structured-icon" data-editor="catalog_search" aria-label="Buscar referências" title="Buscar referências"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button></div><div class="structured-catalog-tools"><button type="button" class="secondary" data-editor="prepare_thumbs" hidden>Preparar miniaturas faltantes</button><p class="sub" data-catalog-thumb-status role="status"></p></div><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
@@ -271,7 +292,7 @@
    const text=message.value.trim(),max=block.type==='link'?160:captionTypes.includes(block.type)?1000:4000;
    if(text.length>max){tell('O texto deste bloco deve ter até '+max+' caracteres.');return false;}
    block.text=text;
-   if(block.type==='image')block.layout='caption';
+   if(['image','file'].includes(block.type))block.layout=text?'caption':'separate';
    editing=null;message.value='';return true;
   }
   function selectCaption(block,useCompose=false){
@@ -567,10 +588,12 @@
      ${['document','community'].includes(block.type)?referenceCard(block):''}
      ${['product','document','community','file','link'].includes(block.type)&&block.text?
        '<p class="sub">Legenda adicional:</p>':''}
+     ${['image','file'].includes(block.type)?`<p class="sub">${String(block.text||'').trim()?'Com legenda':'Sem legenda'}</p>`:''}
      <div class="neo-structured-text" data-block-text>${formatted(block.text)}</div>
      ${link?`<span class="neo-wa-link">${e(link)}</span>`:''}
      ${readOnly?'':`<details class="structured-bubble-actions"><summary aria-label="Opções da mensagem">⋯</summary><div class="inline-actions">
       ${['text','image','product','document','community','file','link'].includes(block.type)?`<button type="button" class="text-btn" data-editor="edit" data-index="${index}">${block.type==='text'?'Editar texto':'Editar legenda'}</button>`:''}
+      ${['image','file'].includes(block.type)?`<button type="button" class="text-btn" data-editor="caption_split" data-index="${index}">${block.text?'Separar legenda em outra mensagem':'Manter sem legenda'}</button>${draft.blocks[index+1]?.type==='text'?'<button type="button" class="text-btn" data-editor="caption_join" data-index="'+index+'">Usar texto seguinte como legenda</button>':''}`:''}
       ${['duplicate','up','down','delete'].map((a,i)=>`<button type="button" class="text-btn" data-editor="${a}" data-index="${index}" ${a==='up'&&!index||a==='down'&&index===draft.blocks.length-1?'disabled':''}>${['Duplicar','Subir','Descer','Excluir'][i]}</button>`).join('')}
      </div></details>`}</article>`;
    }).join('')||'<p class="sub">Adicione um bloco para revisar a mensagem.</p>';
@@ -915,7 +938,7 @@
     const caption=message.value.trim();
     const max=editingBlock.type==='link'?160:1000;
     if(caption.length>max){tell('A legenda deste item deve ter no máximo '+max+' caracteres.');return;}
-    editingBlock.text=caption;editing=null;message.value='';
+    editingBlock.text=caption;if(['image','file'].includes(editingBlock.type))editingBlock.layout=caption?'caption':'separate';editing=null;message.value='';
     composeAction();render();changed();
    }
    if(editing||message.value.trim()){tell('Conclua o bloco de texto em edição antes de registrar a versão.');return;}
@@ -1031,7 +1054,7 @@
    if((!image&&!['application/pdf','video/mp4','text/plain'].includes(file.type))||!file.size||file.size>(image?25:5)*1024*1024||draft.blocks.length>=32){
     tell('Selecione foto de até 25 MB ou PDF/MP4/TXT de até 5 MB, dentro do limite de blocos.');return;
    }
-   const id=uuid(),layout=field('layout').value;
+   const id=uuid(),layout=field(image?'layout':'file_layout')?.value||'caption';
    try{
     if(file.type==='application/pdf'&&(await file.slice(0,5).text())!=='%PDF-'){tell('PDF inválido.');return;}
     const asset=image?await prepareImage(file,field('photo_quality').value):file;
@@ -1039,8 +1062,8 @@
     await storeMedia('readwrite',store=>store.put(asset,mediaKey(id)));
     if(!current())return;
     if(draft.blocks.length>=32){void storeMedia('readwrite',store=>store.delete(mediaKey(id))).catch(()=>{});return;}
-    draft.blocks.push({id,type:image?'image':'file',name:(image?file.name:file.name.replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g,'_')).slice(0,120),...(image?{layout,text:''}:{})});
-    if(image){captionTarget=id;if(layout==='caption'&&!message.value.trim()&&!editing)editing=id;composeAction();}
+    draft.blocks.push({id,type:image?'image':'file',name:(image?file.name:file.name.replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g,'_')).slice(0,120),layout,text:''});
+    if(image||['application/pdf','video/mp4'].includes(file.type)){captionTarget=id;if(layout==='caption'&&!message.value.trim()&&!editing)editing=id;composeAction();}
     render();changed();closeSheet();
    }catch(error){tell(error.message||'Não foi possível guardar o arquivo neste dispositivo.');}
   });
@@ -1459,7 +1482,7 @@
     const text=message.value.trim();
     if(editing){
      const activeBlock=draft.blocks.find(row=>row.id===editing);
-     if(activeBlock&&['image','product','document','community'].includes(activeBlock.type)&&text.length>1000){
+     if(activeBlock&&['image','product','document','community','file'].includes(activeBlock.type)&&text.length>1000){
       tell('A legenda deste bloco pode ter até 1.000 caracteres.');return;
      }
      if(activeBlock?.type==='link'&&text.length>160){tell('A legenda do link pode ter até 160 caracteres.');return;}
@@ -1468,9 +1491,16 @@
     if(editing){
      const edited=draft.blocks.find(row=>row.id===editing);
      if(edited)edited.text=text;
+     if(edited&&['image','file'].includes(edited.type))edited.layout=text?'caption':'separate';
      editing=null;message.value='';composeAction();render();changed();
     }else if(!add({type:'text',text}))return;
     message.value='';paintLive();message.focus({preventScroll:true});
+   }
+   if(['caption_split','caption_join'].includes(action)&&block){
+    if(editing||message.value.trim()){tell('Confirme o texto ou a legenda em edição antes de mudar o modo.');return;}
+    const problem=mediaCaptionMode(draft.blocks,index,action==='caption_split'?'separate':'join',uuid);
+    if(problem){tell(({BLOCK_LIMIT:'Limite de 32 blocos por rascunho.',CAPTION_LIMIT:'A legenda pode ter até 1.000 caracteres.',NO_TEXT:'Não há texto seguinte para usar como legenda.'})[problem]||'Modo indisponível.');return;}
+    captionTarget=block.id;render();changed();return;
    }
    if(action==='edit'&&block){
     if(captionTypes.includes(block.type)){selectCaption(block);return;}
