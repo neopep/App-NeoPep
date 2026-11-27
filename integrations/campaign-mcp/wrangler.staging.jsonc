@@ -11,5 +11,11 @@
     "NEO_CONNECT_AI_ENABLED": "0",
     "NEO_CONNECT_AI_READ_APP": "0",
     "NEO_CONNECT_AI_DRAFTS": "0"
-  }
+  },
+  "hyperdrive": [
+    {
+      "binding": "NEO_CONNECT_AI_DB",
+      "id": "3d481b9cf7c848888a6982ba3c1b1eb4"
+    }
+  ]
 }
