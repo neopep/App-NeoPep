@@ -35,7 +35,7 @@ test('card fica acima dos canais e o diálogo conserva o formulário existente',
  environment.dispatchEvent(new window.Event('change'));
  assert.equal(dialog.querySelector('[data-connect-ai-address]').value,'https://connect.neopep.com.br/mcp');
  assert.ok(dialog.querySelector('[data-connect-ai-surface]'));
- assert.match(read('dist/admin/index.html'),/admin-connect-ai\.js\?v=7.*admin\.js\?v=132/s);
+ assert.match(read('dist/admin/index.html'),/admin-connect-ai\.js\?v=8.*admin\.js\?v=132/s);
 });
 
 test('consentimento exige clique e conexões só são revogadas após confirmação',async()=>{
@@ -65,4 +65,23 @@ test('consentimento exige clique e conexões só são revogadas após confirmaç
  details.querySelector('button').click();
  await new Promise(setImmediate);
  assert.deepEqual(calls.slice(2),[['list',undefined],['revoke','id-fixture'],['list',undefined]]);
+});
+
+test('base administrativa exibe guia, nove métodos e vinte referências sem anunciar escrita',()=>{
+ const {window}=parseHTML('<html><body><section><div class="neo-campaign-toolbar"></div></section></body></html>');
+ const root=window.document.querySelector('section');
+ vm.runInNewContext(read('dist/admin/connect-ai-knowledge.js'),{window});
+ vm.runInNewContext(read('dist/admin/admin-connect-ai.js'),{window,document:window.document});
+ window.NeoAdminConnectAI.mount(root);
+ const panel=root.querySelector('[data-connect-ai-knowledge]');
+ assert.match(panel.textContent,/2026-11-27.4/);
+ assert.match(panel.textContent,/Especialistas criativos \(9\)/);
+ assert.match(panel.textContent,/Referências externas \(20\)/);
+ assert.match(panel.textContent,/somente leitura/);
+ assert.equal(panel.querySelectorAll('a').length,20);
+ assert.equal(window.NeoConnectAIKnowledge.guide_receipt,undefined);
+ assert.equal(window.NeoConnectAIKnowledge.available_tools,undefined);
+ const input=panel.querySelector('input[type=search]');input.value='Artemis';input.dispatchEvent(new window.Event('input'));
+ assert.equal(panel.querySelectorAll('a').length,1);
+ assert.match(panel.querySelector('a').textContent,/Artemis/);
 });

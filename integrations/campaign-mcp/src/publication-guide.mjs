@@ -1,6 +1,6 @@
 import {creativeVersion,creativeMethods,creativePolicy} from './creative-context.mjs';
 // Canonical operational instructions. The live tool list is the authority on access.
-export const guideVersion='2026-11-27.3';
+export const guideVersion='2026-11-27.4';
 const strings={type:'array',items:{type:'string'}};
 const obj=properties=>({type:'object',properties,required:Object.keys(properties),additionalProperties:false});
 export const publicationGuideSchema=obj({
@@ -15,7 +15,7 @@ const rules=[
  ['ler_conteudo',['get_publication_content'],['Leia conteúdo, IDs dos blocos e revisão atual.']],
  ['criar_rascunhos',['create_campaign_draft','add_publications'],['Crie campanha pai apenas se solicitada ou inexistente. Use UUID e requestId próprios por publicação.','Até seis itens por chamada; mantenha IDs no retry. plannedLocal é proposta de horário, não agenda.']],
  ['editar_textos',['get_publication_content','update_publications'],['Use revisão atual; preserve mídia e destinos; conflito exige nova leitura.']],
- ['editar_legendas',['get_publication_content','update_media_caption'],['Legenda é text da mídia; texto separado é outro bloco.']],
+ ['editar_legendas',['get_publication_content','update_publications'],['No WhatsApp, use items[].mediaCaption com blockId, mode e text; separate exige separateBlockId. Legenda é text da mídia; texto separado é outro bloco.']],
  ['anexar_criativos',['create_upload_ticket','attach_creatives'],['Transferência autorizada ou upload privado, nunca URL arbitrária, base64 grande ou caminho inventado.']],
  ['referencias',['list_authorized_assets','attach_reference'],['Somente ativos autorizados e revalidados.']],
  ['destinos',['list_destinations','assign_destinations'],['Grupos elegíveis da conexão vigente; revalidar antes de agendar.']],
