@@ -11,7 +11,7 @@ export function validCampaignFile(bytes,mime,name){
  return false;
 }
 export async function createBaileysProvider(
- {onQr,onState,onCredentials=()=>{},serialized=null},
+ {onQr,onState,onCredentials=()=>{},onReceipt=()=>{},serialized=null},
  {load=loadModules,schedule=setTimeout,cancel=clearTimeout}={}
 ){
  let socket=null,connected=false,closed=false,retries=0,reconnectTimer;
@@ -43,6 +43,8 @@ export async function createBaileysProvider(
   if(!current)return;
   current.ev.removeAllListeners('connection.update');
   current.ev.removeAllListeners('creds.update');
+  current.ev.removeAllListeners('messages.update');
+  current.ev.removeAllListeners('message-receipt.update');
   current.end?.(undefined);
  }
  function start(){
@@ -53,6 +55,22 @@ export async function createBaileysProvider(
   });
   socket=current;
   current.ev.on('creds.update',save);
+  // A generated message key is not delivery evidence.
+  const validKey=key=>key?.fromMe===true&&/^[0-9-]{1,64}@g\.us$/.test(key.remoteJid||'')&&typeof key.id==='string'&&key.id.length>0&&key.id.length<=160;
+  const report=(key,status)=>{if(!closed&&current===socket&&validKey(key))onReceipt({group_jid:key.remoteJid,message_id:key.id,status});};
+  current.ev.on('messages.update',updates=>{
+   const ack=proto?.WebMessageInfo?.Status?.SERVER_ACK;
+   if(ack===undefined||!Array.isArray(updates))return;
+   for(const {key,update} of updates)if(update?.status===ack)report(key,'server_ack');
+  });
+  current.ev.on('message-receipt.update',updates=>{
+   if(!Array.isArray(updates)||typeof baileys.areJidsSameUser!=='function')return;
+   for(const {key,receipt} of updates){
+    const participant=receipt?.userJid,own=[current.user?.id,current.user?.lid,creds.me?.id,creds.me?.lid].filter(Boolean);
+    // rc14 uses receiptTimestamp specifically for DELIVERY_ACK.
+    if(validKey(key)&&own.length&&typeof participant==='string'&&!own.some(id=>baileys.areJidsSameUser(participant,id))&&Number(receipt?.receiptTimestamp)>0)report(key,'delivery_ack');
+   }
+  });
   current.ev.on('connection.update',update=>{
    if(closed||current!==socket)return;
    if(update.qr)void Promise.resolve(onQr(update.qr)).catch(()=>{onState('erro');});
