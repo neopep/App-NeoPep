@@ -511,7 +511,7 @@ sealed partial class Connect : Form {
             if(ready)foreach(var delivery in window.CampaignDeliveryReceipts()){
                 if(whatsapp!=window||window.CampaignConnection!=connection||!window.CampaignSessionReady)break;
                 try{
-                    var confirmed=await RichCampaign("delivery_receipt",new {message_id=Value(delivery,"message_id"),group_jid=Value(delivery,"group_jid"),status=Value(delivery,"status")});
+                    var confirmed=await RichCampaign("delivery_receipt",new {message_id=Value(delivery,"message_id"),group_jid=Value(delivery,"group_jid"),status=Value(delivery,"status"),error_code=Value(delivery,"error_code")});
                     if(confirmed!=null&&confirmed.ContainsKey("ok")&&Convert.ToBoolean(confirmed["ok"]))window.ConfirmCampaignDeliveryReceipt(delivery);
                 }catch(Exception){Record("campaign_delivery_evidence_pending");break;}
             }

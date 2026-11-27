@@ -1807,10 +1807,10 @@ function privacyPreferencesPage(){
   `<form id="privacyPreferences" class="card privacy-preferences" data-privacy-account="${esc(Cloud.user.id)}" data-privacy-page="${page}">
   ${initial?'<p class="sub">Confirme suas preferências. Você pode alterá-las no Perfil.</p>':''}
   <fieldset disabled aria-label="Permissões opcionais">
-  ${privacyOptions.map(([key,label])=>`<label class="privacy-option" for="privacy-${key}"><span>${label}</span><input id="privacy-${key}" name="${key}" type="checkbox" role="switch"${initial&&key!=='location'?' checked':''}></label>`).join('')}
+  ${privacyOptions.map(([key,label])=>`<label class="privacy-option" for="privacy-${key}"><span>${label}</span><input id="privacy-${key}" name="${key}" type="checkbox" role="switch"${initial&&(key!=='location'||locationObservationEnabled())?' checked':''}></label>`).join('')}
   </fieldset>
   ${initial?'<button type="button" class="secondary full" data-privacy-select-none>Desmarcar todas</button>':''}
-  ${initial?'<p class="form-help">Localização opcional: identifica apenas sua cidade e estado.</p>':''}
+  ${initial?'<p class="form-help">Localização opcional: identifica sua cidade e estado. Você pode desmarcar antes de confirmar.</p>':''}
   <details class="space privacy-more"><summary>Mais informações</summary><p class="sub privacy-device-summary">Dispositivo atual: ${esc(deviceSummary||'Não identificado')}.</p><p class="form-help">Ao autorizar a localização, usamos a cidade e o estado estimados pela conexão (Vercel). Se o aparelho permitir, consultamos cidade e estado na BigDataCloud, que recebe coordenadas e IP. O NeoPep guarda apenas cidade, estado, país e fonte (não guarda coordenadas). Você pode revogar no Perfil.</p></details>
   <p class="sub" data-privacy-notice role="status">Consultando preferências…</p>
   <a class="text-btn privacy-policy-link" href="#privacidade" target="_blank" rel="noopener">Política de Privacidade</a>
@@ -1868,7 +1868,7 @@ function mountPrivacyPreferences(){
   baseline=values;
   for(const [key] of privacyOptions){
    const field=form.querySelector('[name='+key+']');
-   if(field)field.checked=initial&&values.pending&&key!=='location'?true:values[key]===true;
+   if(field)field.checked=initial&&values.pending&&(key!=='location'||locationObservationEnabled())?true:values[key]===true;
   }
   const locationField=form.querySelector('[name=location]');
   if(locationField)locationField.disabled=!values.location&&!locationObservationEnabled();

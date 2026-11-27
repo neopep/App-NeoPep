@@ -57,11 +57,18 @@ export async function createBaileysProvider(
   current.ev.on('creds.update',save);
   // A generated message key is not delivery evidence.
   const validKey=key=>key?.fromMe===true&&/^[0-9-]{1,64}@g\.us$/.test(key.remoteJid||'')&&typeof key.id==='string'&&key.id.length>0&&key.id.length<=160;
-  const report=(key,status)=>{if(!closed&&current===socket&&validKey(key))onReceipt({group_jid:key.remoteJid,message_id:key.id,status});};
+  const report=(key,status,code)=>{if(!closed&&current===socket&&validKey(key))onReceipt({group_jid:key.remoteJid,message_id:key.id,status,...(code?{error_code:code}:{})});};
   current.ev.on('messages.update',updates=>{
    const ack=proto?.WebMessageInfo?.Status?.SERVER_ACK;
    if(ack===undefined||!Array.isArray(updates))return;
-   for(const {key,update} of updates)if(update?.status===ack)report(key,'server_ack');
+   const failure=proto?.WebMessageInfo?.Status?.ERROR;
+   for(const {key,update} of updates){
+    if(update?.status===ack)report(key,'server_ack');
+    else if(failure!==undefined&&update?.status===failure){
+     const raw=String(update?.messageStubParameters?.[0]??'');
+     report(key,'send_error',/^[0-9]{1,5}$/.test(raw)?raw:'unknown');
+    }
+   }
   });
   current.ev.on('message-receipt.update',updates=>{
    if(!Array.isArray(updates)||typeof baileys.areJidsSameUser!=='function')return;

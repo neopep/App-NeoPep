@@ -72,6 +72,7 @@
  function deliveryLine(batch){
   const count=batch?.message_count||batch?.states?.length||0,delivered=Number(batch?.delivery_count||0),server=Number(batch?.server_ack_count||0);
   if(!batch?.states?.includes('accepted'))return '';
+  if(batch?.send_error_count)return '<p class="sub">Falha informada pelo WhatsApp'+escape(batch.send_error_codes?.length?' · Código '+batch.send_error_codes.join(', '):'')+'. Não reenviar automaticamente.</p>';
   if(count&&delivered===count)return '<p class="sub">Entrega confirmada a pelo menos um destinatário por mensagem.</p>';
   return '<p class="sub">'+escape(delivered?delivered+' de '+count+' mensagens com entrega confirmada (ao menos um destinatário).':server?'Recebimento pelo servidor WhatsApp confirmado; entrega ao grupo não confirmada.':'Envio solicitado; entrega ao grupo não confirmada.')+'</p>';
  }
@@ -172,7 +173,7 @@
    }
   }
   function show(message){if(active())root.querySelector('[data-central-status]').textContent=message;}
-  function status(pub){if(!isApp&&pub.edit_pending&&view==='agenda')return 'Rascunho · reagendar';const b=pub.batches?.[0];if(!isApp&&b&&waBatchState(b)==='accepted'){const n=b.message_count||b.states.length;if(n&&b.delivery_count===n)return 'Entrega confirmada';if(b.server_ack_count===n)return 'Recebido pelo WhatsApp';}return isApp?labels[state(pub)]:waLabels[b?waBatchState(b):pub.legacy_dispatch?'legacy':'draft'];}
+  function status(pub){if(!isApp&&pub.edit_pending&&view==='agenda')return 'Rascunho · reagendar';const b=pub.batches?.[0];if(!isApp&&b&&waBatchState(b)==='accepted'){const n=b.message_count||b.states.length;if(b.send_error_count)return 'Falha informada pelo WhatsApp';if(n&&b.delivery_count===n)return 'Entrega confirmada';if(b.server_ack_count===n)return 'Recebido pelo WhatsApp';}return isApp?labels[state(pub)]:waLabels[b?waBatchState(b):pub.legacy_dispatch?'legacy':'draft'];}
   function stopStatusPoll(){if(statusTimer!==null){clearTimeout(statusTimer);statusTimer=null;}}
   async function refreshVisibleStatus(force=false){
    if(statusRefreshing||!active()||screen!=='detail'||!current||(!force&&busy)||root.hidden||document.visibilityState==='hidden')return;

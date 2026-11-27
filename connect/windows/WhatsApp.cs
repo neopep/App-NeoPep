@@ -513,9 +513,10 @@ sealed partial class WhatsApp : Form {
                 var row=message["value"] as Dictionary<string,object>;
                 if(row!=null){
                     var jid=TextValue(row,"group_jid");var id=TextValue(row,"message_id");var status=TextValue(row,"status");
-                    if(System.Text.RegularExpressions.Regex.IsMatch(jid,@"\A[0-9-]{1,64}@g[.]us\z")&&id.Length>0&&id.Length<=160&&(status=="server_ack"||status=="delivery_ack")){
+                    if(System.Text.RegularExpressions.Regex.IsMatch(jid,@"\A[0-9-]{1,64}@g[.]us\z")&&id.Length>0&&id.Length<=160&&(status=="server_ack"||status=="delivery_ack"||status=="send_error")){
                         var key=jid+":"+id;Dictionary<string,object> previous;
-                        if(deliveryReceipts.TryGetValue(key,out previous)&&TextValue(previous,"status")=="delivery_ack")return;
+                        if(deliveryReceipts.TryGetValue(key,out previous)&&(TextValue(previous,"status")=="delivery_ack"||(TextValue(previous,"status")=="send_error"&&status=="server_ack")))return;
+                        if(status=="send_error"){var code=TextValue(row,"error_code");row["error_code"]=System.Text.RegularExpressions.Regex.IsMatch(code,@"\A[0-9]{1,5}\z")?code:"unknown";}
                         if(deliveryReceipts.Count<256||deliveryReceipts.ContainsKey(key)){row["observed_at"]=DateTime.UtcNow;deliveryReceipts[key]=row;}
                     }
                 }

@@ -2,7 +2,7 @@
 -- Não executar até aprovação do Connect 0.2.18, verificação de compatibilidade e CI.
 begin;
 set local lock_timeout='5s';
-alter table neo_private.campaign_wa_rich_messages add column if not exists server_ack_at timestamptz,add column if not exists delivery_ack_at timestamptz;
+alter table neo_private.campaign_wa_rich_messages add column if not exists server_ack_at timestamptz,add column if not exists delivery_ack_at timestamptz,add column if not exists send_error_at timestamptz,add column if not exists send_error_code text;
 do $patch$
 declare d text;a text;b text;fn regprocedure;
 begin
@@ -24,6 +24,8 @@ begin
  b:=$b$
        'server_ack_count',(select count(*) from neo_private.campaign_wa_rich_messages m where m.batch_id=b.id and m.owner_id=actor and m.state='accepted' and m.server_ack_at is not null),
        'delivery_count',(select count(*) from neo_private.campaign_wa_rich_messages m where m.batch_id=b.id and m.owner_id=actor and m.state='accepted' and m.delivery_ack_at is not null),
+       'send_error_count',(select count(*) from neo_private.campaign_wa_rich_messages m where m.batch_id=b.id and m.owner_id=actor and m.state='accepted' and m.send_error_at is not null and m.delivery_ack_at is null),
+       'send_error_codes',(select coalesce(jsonb_agg(distinct m.send_error_code) filter(where m.send_error_code is not null),'[]'::jsonb) from neo_private.campaign_wa_rich_messages m where m.batch_id=b.id and m.owner_id=actor and m.state='accepted' and m.send_error_at is not null and m.delivery_ack_at is null),
  $b$;
  if strpos(d,$a$'group_names'$a$)=0 then b:=b||$b$
        'message_count',(select count(*) from neo_private.campaign_wa_rich_messages m where m.batch_id=b.id and m.owner_id=actor),
@@ -72,13 +74,26 @@ begin
  if (length(d)-length(replace(d,a,'')))/length(a)<>1 then raise exception 'receipt_claim_contract_changed';end if;
  b:=$b$ if p_action='delivery_receipt' then
   -- No recipient IDs, content or phone numbers persisted. Match only the authenticated device's own dispatch.
-  if d.version<>'0.2.18' or p_data->>'status' not in ('server_ack','delivery_ack')
+  if d.version<>'0.2.18' or coalesce(p_data->>'status','') not in ('server_ack','delivery_ack','send_error')
     or coalesce(length(p_data->>'message_id'),0) not between 1 and 160
     or coalesce(p_data->>'group_jid','') !~ '^[0-9-]{1,64}@g[.]us$' then
     raise exception 'campaign_delivery_receipt_invalid' using errcode='22023';end if;
   update neo_private.campaign_wa_rich_messages m set
-    server_ack_at=coalesce(m.server_ack_at,now()),
-    delivery_ack_at=case when p_data->>'status'='delivery_ack' then coalesce(m.delivery_ack_at,now()) else m.delivery_ack_at end
+    server_ack_at=case when p_data->>'status' in ('server_ack','delivery_ack') then coalesce(m.server_ack_at,now()) else m.server_ack_at end,
+    delivery_ack_at=case when p_data->>'status'='delivery_ack' then coalesce(m.delivery_ack_at,now()) else m.delivery_ack_at end,
+    send_error_at=case when p_data->>'status'='send_error' then coalesce(m.send_error_at,now()) else m.send_error_at end,
+    send_error_code=case when p_data->>'status'='send_error' then case when coalesce(p_data->>'error_code','') ~ '^[0-9]{1,5}
+   where m.owner_id=actor and m.device_id=p_device and m.connection_id=t.connection_id
+    and m.state='accepted' and m.receipt_id=p_data->>'message_id' and m.group_jid=p_data->>'group_jid'
+    and m.sent_at>now()-interval '7 days';
+  return jsonb_build_object('ok',found);
+ end if;
+ $b$;
+ d:=replace(d,a,b||a);
+ execute d;
+end;$patch$;
+commit;
+ then p_data->>'error_code' else 'unknown' end else m.send_error_code end
    where m.owner_id=actor and m.device_id=p_device and m.connection_id=t.connection_id
     and m.state='accepted' and m.receipt_id=p_data->>'message_id' and m.group_jid=p_data->>'group_jid'
     and m.sent_at>now()-interval '7 days';

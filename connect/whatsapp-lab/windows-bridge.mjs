@@ -12,13 +12,13 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
  const receiptKey=r=>r.group_jid+':'+r.message_id;
  function remember(map,key,value){if(map.size>=4096&&!map.has(key))map.delete(map.keys().next().value);map.set(key,value);}
  function reportReceipt(r){
-  if(!r||!['server_ack','delivery_ack'].includes(r.status)||typeof r.message_id!=='string'||!r.message_id||r.message_id.length>160||!/^[0-9-]{1,64}@g\.us$/.test(r.group_jid||''))return;
-  const safe={group_jid:r.group_jid,message_id:r.message_id,status:r.status},key=receiptKey(safe),entry=tracked.get(key);
+  if(!r||!['server_ack','delivery_ack','send_error'].includes(r.status)||typeof r.message_id!=='string'||!r.message_id||r.message_id.length>160||!/^[0-9-]{1,64}@g\.us$/.test(r.group_jid||''))return;
+  const safe={group_jid:r.group_jid,message_id:r.message_id,status:r.status,...(r.status==='send_error'?{error_code:/^[0-9]{1,5}$/.test(r.error_code||'')?r.error_code:'unknown'}:{})},key=receiptKey(safe),entry=tracked.get(key);
   if(entry&&Date.now()-entry.at<86400000){
-   if(entry.status==='delivery_ack'||entry.status===safe.status)return;
+   if(entry.status==='delivery_ack'||entry.status===safe.status||(entry.status==='send_error'&&safe.status==='server_ack'))return;
    entry.status=safe.status;output('delivery_receipt',safe);
   }else if(sending){
-   const old=earlyReceipts.get(key);if(old?.receipt.status==='delivery_ack')return;
+   const old=earlyReceipts.get(key);if(old?.receipt.status==='delivery_ack'||(old?.receipt.status==='send_error'&&safe.status==='server_ack'))return;
    remember(earlyReceipts,key,{receipt:safe,at:Date.now()});
   }
  }
