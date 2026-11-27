@@ -45,6 +45,25 @@ test('421 stops later requests in same provider even if maintenance is disabled'
  const f=await fixture({enabled:false});
  try{await f.provider.sendText(jid,'test');
  f.ev.emit('messages.update',[{key:{fromMe:true,remoteJid:jid,id:'message1'},update:{status:0,messageStubParameters:['421']}}]);
- await assert.rejects(f.provider.sendText(jid,'test'));assert.equal(f.calls.filter(v=>v==='send').length,1);assert.equal(f.events.at(-1).code,'previous_421');
+ assert.deepEqual(await f.provider.sendText(jid,'test'),{blocked:'previous_421'});assert.equal(f.calls.filter(v=>v==='send').length,1);assert.equal(f.events.at(-1).code,'previous_421');
+ }finally{f.provider.close();}
+});
+
+test('revalidation needs official confirmation, never transmits, and does not repeatedly reopen after a new rejection',async()=>{
+ const f=await fixture({enabled:false});
+ try{
+ await f.provider.sendText(jid,'test');
+ const reject=()=>f.ev.emit('messages.update',[{key:{fromMe:true,remoteJid:jid,id:'message1'},update:{status:0,messageStubParameters:['421']}}]);
+ reject();
+ assert.equal((await f.provider.revalidateGroupAvailability(jid,false)).code,'unavailable');
+ assert.deepEqual(await f.provider.sendText(jid,'test'),{blocked:'previous_421'});
+ assert.equal((await f.provider.revalidateGroupAvailability(jid,true)).code,'local_pause_cleared');
+ assert.equal(f.calls.filter(v=>v==='send').length,1);
+ assert.equal(f.writes.length,0);
+ await f.provider.sendText(jid,'new authorized request');
+ reject();
+ assert.equal((await f.provider.revalidateGroupAvailability(jid,true)).code,'rejected_again');
+ assert.deepEqual(await f.provider.sendText(jid,'test'),{blocked:'previous_421'});
+ assert.equal(f.calls.filter(v=>v==='send').length,2);
  }finally{f.provider.close();}
 });
