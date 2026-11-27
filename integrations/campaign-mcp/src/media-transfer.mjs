@@ -15,7 +15,7 @@ export function stagedPlan(p,input){
  return {...plan,channel};
 }
 function verifiedPlan(p,t,id){
- if(!t||t.ticketId!==id||t.requestId!==id||t.connectionId!==p.id||t.ownerId!==p.ownerId||Date.parse(t.expiresAt)<=Date.now())throw Error('MEDIA_NOT_VERIFIED');
+ if(!t||t.ticketId!==id||t.requestId!==id||t.connectionId!==p.id||t.ownerId!==p.ownerId||!Number.isFinite(Date.parse(t.expiresAt))||Date.parse(t.expiresAt)<=Date.now())throw Error('MEDIA_NOT_VERIFIED');
  const expected=stagedPlan(p,{channel:t.channel,campaignId:t.campaignId,publicationId:t.publicationId,blockId:t.blockId,requestId:id,revision:t.revision,mime:t.mime,size:t.size,name:t.name});
  if(t.bucket!==expected.bucket||t.path!==expected.path||t.blockType!==expected.blockType)throw Error('MEDIA_NOT_VERIFIED');
  return expected;
@@ -44,7 +44,8 @@ export function createMediaTransfer({broker,storage,authorizeCurrent,validateFul
    const content=new Uint8Array(bytes);
    await gate(p);
    const claim=await broker.ticket(p,id,'claim',{});
-   verifiedPlan(p,claim,id);
+   const claimedPlan=verifiedPlan(p,claim,id);
+   if(JSON.stringify(claimedPlan)!==JSON.stringify(plan))throw Error('MEDIA_NOT_VERIFIED');
    if(claim.state!=='uploading'||!uuid(claim.leaseId))throw Error('TICKET_NOT_AVAILABLE');
    try{
     await gate(p);

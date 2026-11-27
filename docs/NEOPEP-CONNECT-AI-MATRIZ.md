@@ -42,3 +42,6 @@ Concluir infraestrutura isolada Teste e homologação real de leitura/escrita de
 
 ### Lotes — atualização 015
 Persistência de conteúdo instalada somente no Supabase Teste, flag de escrita false; teste transacional 60 itens aprovado. Runner e adaptador privado candidatos, CI do runner aprovado. Falta integrar submissão por partes, catálogo MCP, runner/runtime e painel; sem serviço externo ativo.
+
+### Instalação 017 e vínculo interno de mídia
+CI 46008013022 aprovado. Migração connect_ai_test_media_tickets_disabled instalada exclusivamente no Supabase Teste, após ensaio transacional (idempotência, isolamento de conexão, limite JPEG, objeto ausente, resultado incerto, gate e ACL). Verificação posterior: zero tickets/conexões, drafts_enabled=false, broker NOLOGIN, anon sem EXECUTE. Sem upload real. Adaptador privado media/ticket com flag NEO_CONNECT_AI_MEDIA=0 e gravador nativo opcional resolveMedia adicionados; não expostos no catálogo ou runtime externo. Faltam validador integral, transporte autorizado no cliente, registro de ferramentas/capacidade, integração dos lotes com tickets, edição de mídia em rascunhos existentes e homologação real. Produção preservada.

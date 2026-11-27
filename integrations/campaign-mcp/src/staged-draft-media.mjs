@@ -4,7 +4,11 @@ const uuid=v=>typeof v==='string'&&/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[0-9a-f]{12}
 export async function prepareStagedDraftAddition(principal,input,resolve){
  if(typeof resolve!=='function'||!Array.isArray(input.blocks)||!input.blocks.length||input.blocks.length>6)throw Error('INVALID_DRAFT');
  const proxies=input.blocks.map(b=>{
-  if(!Object.hasOwn(b,'mediaTicketId'))return b;
+  if(!b||typeof b!=='object')throw Error('INVALID_DRAFT');
+  if(!Object.hasOwn(b,'mediaTicketId')){
+   if(Object.hasOwn(b,'albumId'))throw Error('INVALID_DRAFT'); // never mix legacy media references with staged tickets
+   return b;
+  }
   if(!uuid(b.mediaTicketId)||typeof b.text!=='string'||b.text.length>1000||Object.keys(b).some(k=>!['id','text','mediaTicketId','albumId'].includes(k)))throw Error('INVALID_DRAFT');
   return {id:b.id,text:'Media'};
  });

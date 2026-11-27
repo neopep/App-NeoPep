@@ -39,3 +39,27 @@ test('edição preserva mídia/destinos e rejeita revisão antiga',async()=>{
  assert.equal(draft.blocks[1].text,'');
  assert.deepEqual(draft.blocks[2],{id:pub,type:'text',text:caption.items[0].mediaCaption.text});
 });
+
+test('native writer saves staged media only after trusted resolution; no resolver means no write',async()=>{
+ const ticket='55555555-5555-4555-8555-555555555555';
+ const media={...item,blocks:[{id:block,text:'*Legenda*',mediaTicketId:ticket}]};
+ const input={channel:'whatsapp',campaignId:id,items:[media]};
+ let saves=0;
+ const opts={enabled:true,publishableKey:'fixture',sessionFor:async()=>'fixture',request:async(url,opts)=>{
+  if(url.endsWith('/user'))return Response.json({id});
+  const q=JSON.parse(opts.body);
+  if(q.p_action==='get')return Response.json({campaign_id:id,deleted_at:null,publications:[]});
+  assert.equal(q.p_action,'save');saves++;
+  assert.equal(q.p_data.draft.blocks[0].media_path,id+'/'+ticket+'.jpg');
+  assert.equal(q.p_data.draft.blocks[0].text,'*Legenda*');
+  assert.deepEqual(q.p_data.draft.groups,[]);
+  return Response.json({revision:1});
+ }};
+ await assert.rejects(createDraftWriter(opts)(principal,'add_publications',input),/INVALID_DRAFT/);
+ const resolveMedia=async(p,t,target)=>({...target,requestId:t,ownerId:p.ownerId,connectionId:p.id,blockType:'image',path:id+'/'+ticket+'.jpg',size:100,state:'stored_and_validated'});
+ const writer=createDraftWriter({...opts,resolveMedia});
+ assert.equal((await writer(principal,'add_publications',input)).results[0].status,'draft_saved_or_reused');
+ const blocked=createDraftWriter({...opts,resolveMedia:async()=>{throw Error('MEDIA_NOT_VERIFIED');}});
+ assert.equal((await blocked(principal,'add_publications',input)).results[0].error,'MEDIA_NOT_VERIFIED');
+ assert.equal(saves,1);
+});
