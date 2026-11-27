@@ -687,9 +687,10 @@
    root.innerHTML=[...entries.values()].filter(row=>`${row.name} ${row.connection||''}`.toLocaleLowerCase('pt-BR').includes(query)).map(row=>{
     const chosen=draft.groups.includes(row.id);
     return `<label class="check"><input type="checkbox" data-editor-group="${e(row.id)}" ${chosen?'checked':''} ${!chosen&&(row.state!=='eligible'||!groupSelectable(row.id))?'disabled':''}>
-    <span>${e(row.name)} · ${e(row.connection||'Conexão sem evidência')} · ${e(states[row.state]||'Estado desconhecido')}
+    <span><strong>${e(row.name)}</strong><small class="sub" style="display:block;font-size:11px;opacity:.82">${e(row.connection||'Conexão sem evidência')}</small>
+    <small class="sub" style="display:block;font-size:11px">${e(states[row.state]||'Estado desconhecido')}
     ${row.participant_count==null?'':' · '+e(row.participant_count)+' participantes'}
-    ${row.last_synced_at?' · '+e(new Date(row.last_synced_at).toLocaleString('pt-BR')):''}</span></label>`;
+    ${row.last_synced_at?' · '+e(new Date(row.last_synced_at).toLocaleString('pt-BR')):''}</small></span></label>`;
    }).join('')||'<p class="sub">Nenhum grupo sincronizado no recorte.</p>';
    const selected=$('[data-selected-groups]');
    if(selected){

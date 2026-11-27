@@ -10,6 +10,16 @@ export function validCampaignFile(bytes,mime,name){
  if(mime==='video/mp4')return /\.mp4$/i.test(name)&&bytes.length>=16&&bytes.subarray(4,8).toString('ascii')==='ftyp'&&bytes.readUInt32BE(0)>=8&&bytes.readUInt32BE(0)<=bytes.length;
  return false;
 }
+// Diagnostics only: never infer a phone number from a LID or publish participant IDs.
+export function groupDiagnostics(row,ownIds){
+ const normalize=id=>typeof id==='string'?id.replace(/:[0-9]+@/,'@'):'';
+ const own=new Set(ownIds.map(normalize).filter(Boolean));
+ const self=Array.isArray(row.participants)?row.participants.find(p=>[p.id,p.phoneNumber,p.lid].some(id=>own.has(normalize(id)))):undefined;
+ const role=self?(self.admin==='superadmin'||self.isSuperAdmin===true?'superadmin':self.admin==='admin'||self.isAdmin===true?'admin':'member'):'unknown';
+ return {addressing_mode:['pn','lid'].includes(row.addressingMode)?row.addressingMode:'unknown',
+  role,posting:row.announce===true?'admins':row.announce===false?'all':'unknown',
+  settings:row.restrict===true?'admins':row.restrict===false?'all':'unknown'};
+}
 export async function createBaileysProvider(
  {onQr,onState,onCredentials=()=>{},onReceipt=()=>{},serialized=null},
  {load=loadModules,schedule=setTimeout,cancel=clearTimeout}={}
@@ -120,7 +130,8 @@ export async function createBaileysProvider(
    const groups=await current.groupFetchAllParticipating();
    if(!connected||current!==socket)throw Error('A sessão mudou.');
    return Object.values(groups).map(row=>({
-    id:row.id,name:row.subject,members:Number.isSafeInteger(row.size)?row.size:Array.isArray(row.participants)?row.participants.length:null
+    id:row.id,name:row.subject,members:Number.isSafeInteger(row.size)?row.size:Array.isArray(row.participants)?row.participants.length:null,
+    ...groupDiagnostics(row,[current.user?.id,current.user?.lid,creds.me?.id,creds.me?.lid])
    }));
   },
   // Envio manual, não automático: confirma participação antes de enviar.

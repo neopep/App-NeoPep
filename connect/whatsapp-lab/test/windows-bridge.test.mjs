@@ -31,7 +31,7 @@ test('IPC guarda sessão local, invalida QR antigo e limita grupos aos metadados
  assert.deepEqual(messages.at(-1),{type:'account',value:{name:'Conta teste',number:'5511999999999'}});
  await bridge.receive({action:'groups'});
  assert.deepEqual(messages.at(-2),{type:'groups_loading',value:null});
- assert.deepEqual(messages.at(-1),{type:'groups',value:[{id:'123@g.us',name:'Teste',members:7}]});
+ assert.deepEqual(messages.at(-1),{type:'groups',value:[{id:'123@g.us',name:'Teste',members:7,addressing_mode:'unknown',role:'unknown',posting:'unknown',settings:'unknown'}]});
  hooks.onCredentials('vault-de-teste');
  assert.deepEqual(messages.at(-1),{type:'vault',value:'vault-de-teste'});
  await bridge.receive({action:'disconnect'});
@@ -88,7 +88,7 @@ test('provedor limita retentativas, reconecta após falha e apaga sessão revoga
  assert.deepEqual(provider.account(),{name:'Conta teste',number:'5511999999999'});
  sockets.at(-1).user.id='123456789@lid';
  assert.deepEqual(provider.account(),{name:'Conta teste',number:''});
- assert.deepEqual(await provider.listGroups(),[{id:'123@g.us',name:'Grupo teste',members:3}]);
+ assert.deepEqual(await provider.listGroups(),[{id:'123@g.us',name:'Grupo teste',members:3,addressing_mode:'unknown',role:'unknown',posting:'unknown',settings:'unknown'}]);
  close(401);
  assert.equal(states.at(-1),'revogado');
  assert.equal(vault.at(-1),null);
@@ -178,4 +178,12 @@ test('IPC preserva bytes PDF e MP4, rejeita nomes, MIME e destinos inválidos, e
  assert.equal(sent.length,3);assert.equal(messages.at(-1).value.status,'uncertain');
  assert.equal(JSON.stringify(messages).includes(request.file),false);
  await bridge.close();
+});
+
+
+test('diagnostico PN/LID não exporta participantes e não confunde domínios',async()=>{
+ const {groupDiagnostics}=await import('../whatsapp-provider.mjs');
+ const own=['5511999999999:3@s.whatsapp.net','12345@lid'];
+ assert.deepEqual(groupDiagnostics({addressingMode:'pn',announce:true,restrict:false,participants:[{id:'999@lid',admin:'admin'},{id:'12345@lid',phoneNumber:'5511999999999@s.whatsapp.net',admin:'superadmin'}]},own),{addressing_mode:'pn',role:'superadmin',posting:'admins',settings:'all'});
+ assert.deepEqual(groupDiagnostics({addressingMode:'lid',announce:false,participants:[{id:'12345@s.whatsapp.net',admin:'admin'}]},own),{addressing_mode:'lid',role:'unknown',posting:'all',settings:'unknown'});
 });

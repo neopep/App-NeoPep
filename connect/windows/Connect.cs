@@ -284,7 +284,7 @@ sealed partial class Connect : Form {
         if(!SessionReady()||!deviceApproved)throw new InvalidOperationException();
         var result=await Post("/rest/v1/rpc/neo_connect_wa_replace_selection",new {
             p_device=Value(local,"device"),p_secret=Value(local,"secret"),p_connection=connection,
-            p_expected_revision=revision,p_label="WhatsApp",p_groups=groups
+            p_expected_revision=revision,p_label=whatsapp!=null&&whatsapp.CampaignConnection==connection?whatsapp.GroupAccountLabel:"WhatsApp",p_groups=groups
         },true);
         return Convert.ToInt64(result["revision"]);
     }
