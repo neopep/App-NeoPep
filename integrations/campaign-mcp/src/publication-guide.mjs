@@ -1,11 +1,13 @@
+import {creativeVersion,creativeMethods,creativePolicy} from './creative-context.mjs';
 // Canonical operational instructions. The live tool list is the authority on access.
-export const guideVersion='2026-11-27.2';
+export const guideVersion='2026-11-27.3';
 const strings={type:'array',items:{type:'string'}};
 const obj=properties=>({type:'object',properties,required:Object.keys(properties),additionalProperties:false});
 export const publicationGuideSchema=obj({
  guide_version:{const:guideVersion},guide_receipt:{type:['string','null'],description:'Comprovante temporário da consulta, exigido para escrita; não autoriza envio.'},environment:{enum:['test','production']},available_tools:strings,workflow:strings,
  native_editor:obj({timezone:{const:'America/Sao_Paulo'},block_types:strings,whatsapp_blocks:{const:6},draft_blocks:{const:32},text_limit:{const:2000},caption_limit:{const:1000},link_caption_limit:{const:160},conservative_image_limit_bytes:{const:1048576},image_target_bytes:{const:5242880},original_file_limit_bytes:{const:5242880},group_limit:{const:30},caption_modes:strings,formatting:strings,app_controls:strings}),
  examples:{type:'array',items:obj({name:{type:'string'},blocks:{type:'array',items:obj({type:{enum:['image','file','text']},text:{type:'string'},layout:{enum:['caption','separate','not_applicable']}})}})},
+ creative_context:obj({version:{type:'string'},methods:{type:'array',items:obj({id:{type:'string'},title:{type:'string'},instructions:{type:'string'},deliverable:{type:'string'}})},policy:strings}),
  operations:{type:'array',items:obj({name:{type:'string'},requires:strings,available:{type:'boolean'},rules:strings})},guardrails:strings
 });
 const rules=[
@@ -32,6 +34,7 @@ export function getPublicationGuide(environment,enabledTools,receipt=null){
  'Antes de qualquer tarefa editorial, consulte get_capabilities, get_publication_guide e get_brand_context. Não use regras memorizadas de uma sessão antiga.',
  'Interprete canal, campanha nova ou existente, quantidade, tema, criativos, modo de legenda, público e horários. Sem pedido de envio, prepare rascunho ou proposta.',
  'Consulte a Central, referências e destinatários autorizados quando disponíveis. Não invente informações.',
+ 'Selecione os métodos criativos pertinentes do creative_context antes de montar a publicação.',
  'Monte blocos na ordem do envio; preserve formatação; verifique limites reais. Nas ferramentas de escrita informe guideVersion e guideReceipt retornados pelo guia atual; renove a consulta quando expirar.',
  'Execute somente ferramentas anunciadas. Sem escrita disponível, entregue proposta no chat e informe que não foi salva.',
  'Confira resultados individuais e estados; só declare salvo, agendado ou enviado com evidência do servidor.'
@@ -45,6 +48,7 @@ export function getPublicationGuide(environment,enabledTools,receipt=null){
  {name:'Vídeo ou PDF sem legenda',blocks:[{type:'file',text:'',layout:'separate'}]},
  {name:'Imagem seguida de texto independente',blocks:[{type:'image',text:'',layout:'separate'},{type:'text',text:'*Novo conteúdo*\nVeja os detalhes.',layout:'not_applicable'}]}
  ],
+ creative_context:{version:creativeVersion,methods:creativeMethods,policy:creativePolicy},
  operations:rules.map(([name,requires,rules])=>({name,requires,available:requires.every(t=>available.has(t)),rules})),
  guardrails:['Exemplos ilustrativos, não payloads completos ou arquivos reais. IDs e revisões conforme schema e retorno do backend.',
  'Limites nativos não concedem acesso à IA. Imagem de 5 MiB é alvo candidato, não presumir suporte; consultar limite efetivo do executor. PDF/MP4 dependem do gate.',

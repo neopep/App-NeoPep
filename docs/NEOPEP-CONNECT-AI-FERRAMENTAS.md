@@ -1,7 +1,7 @@
 # NeoPep Connect AI — catálogo candidato de ferramentas
 
-Arquivo gerado pelo catálogo. Versão `1.0.0-preview.3`. O acesso depende de autorização a cada requisição.
-Antes de preparar campanhas, consulte get_capabilities, get_publication_guide e get_brand_context. A escrita candidata exige guideVersion atual e guideReceipt assinado, válido por 10 minutos e vinculado à conexão. Comprova consulta técnica, não compreensão pelo modelo. O catálogo descreve o código candidato, não a implantação ativa. O acesso depende do ambiente e das capacidades publicadas. As ferramentas de escrita são candidatas exclusivas de Teste e exigem consentimento campaigns:drafts; não estão implantadas.
+Arquivo gerado pelo catálogo. Versão `1.0.0-preview.4`. O acesso depende de autorização a cada requisição.
+O guia inclui métodos criativos próprios; referências externas não são executadas nem copiadas. Antes de preparar campanhas, consulte get_capabilities, get_publication_guide e get_brand_context. A escrita candidata exige guideVersion atual e guideReceipt assinado, válido por 10 minutos e vinculado à conexão. Comprova consulta técnica, não compreensão pelo modelo. O catálogo descreve o código candidato, não a implantação ativa. O acesso depende do ambiente e das capacidades publicadas. As ferramentas de escrita são candidatas exclusivas de Teste e exigem consentimento campaigns:drafts; não estão implantadas.
 
 
 ## get_capabilities
@@ -29,7 +29,7 @@ Escopo `campaigns:read`.
         ]
       },
       "contract_version": {
-        "const": "1.0.0-preview.3"
+        "const": "1.0.0-preview.4"
       },
       "enabled_tools": {
         "type": "array",
@@ -113,7 +113,7 @@ Escopo `campaigns:read`.
     "type": "object",
     "properties": {
       "guide_version": {
-        "const": "2026-11-27.2"
+        "const": "2026-11-27.3"
       },
       "guide_receipt": {
         "type": [
@@ -263,6 +263,53 @@ Escopo `campaigns:read`.
           "additionalProperties": false
         }
       },
+      "creative_context": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "methods": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "instructions": {
+                  "type": "string"
+                },
+                "deliverable": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "instructions",
+                "deliverable"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "policy": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "version",
+          "methods",
+          "policy"
+        ],
+        "additionalProperties": false
+      },
       "operations": {
         "type": "array",
         "items": {
@@ -311,6 +358,7 @@ Escopo `campaigns:read`.
       "workflow",
       "native_editor",
       "examples",
+      "creative_context",
       "operations",
       "guardrails"
     ],
@@ -1061,7 +1109,7 @@ Escopo `campaigns:read + campaigns:drafts`.
       },
       "guideVersion": {
         "type": "string",
-        "const": "2026-11-27.2",
+        "const": "2026-11-27.3",
         "description": "Versão retornada por get_publication_guide; consulte antes de escrever."
       },
       "guideReceipt": {
@@ -1129,7 +1177,7 @@ Escopo `campaigns:read + campaigns:drafts`.
       },
       "guideVersion": {
         "type": "string",
-        "const": "2026-11-27.2",
+        "const": "2026-11-27.3",
         "description": "Versão retornada por get_publication_guide; consulte antes de escrever."
       },
       "guideReceipt": {
@@ -1281,7 +1329,7 @@ Escopo `campaigns:read + campaigns:drafts`.
       },
       "guideVersion": {
         "type": "string",
-        "const": "2026-11-27.2",
+        "const": "2026-11-27.3",
         "description": "Versão retornada por get_publication_guide; consulte antes de escrever."
       },
       "guideReceipt": {
