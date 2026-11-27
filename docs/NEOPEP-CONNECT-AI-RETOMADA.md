@@ -21,9 +21,13 @@ Antes de alterar, consultar a ponta da branch desenvolvimento/connect-ai-especia
 5. Não habilitar envio real, publicação, agenda ou escrita em Produção; não contratar recursos sem autorização.
 
 ## Bloqueio atual
-A atualização manual do bundle já foi concluída. Falta validar respostas HTTP reais, pois a ferramenta web não conseguiu acessar os endpoints. Não declarar OAuth homologado antes de teste real.
+Discovery OAuth real HTTP 200 confirmado pelo operador. Faltam JWKS, MCP sem token, consentimento e leitura autenticada. Não declarar OAuth integralmente homologado.
 
 ## Atualização operacional — 27/11/2026
 - Proprietário implantou bundle 01c9181 via Wrangler; versão informada no terminal e219eb8a-c7c1-4927-9f8d-ed7d9c0f07e6. Cloudflare confirmou domínio e sete secrets preservados, Hyperdrive Teste correto.
 - PATCH de settings exclusivo Teste bem-sucedido; consulta posterior confirma ENABLED=1, READ_APP=0, DRAFTS=0, sete secrets preservados. Nenhuma alteração em Produção. WhatsApp leitura somente após autenticação.
 - Tentativa de consultar endpoints discovery/JWKS pela ferramenta web retornou indisponibilidade da ferramenta, sem status HTTP verificável do servidor. Próximo passo: validar HTTP pelo operador (curl), discovery e JWKS, confirmar 401 sem token e então autenticar plugin Desktop no Teste. Se resposta real 503 persistir, desativar ENABLED e investigar Hyperdrive/configuração. Não reimplantar/recriar recursos já confirmados sem necessidade. Não habilitar escrita.
+
+## Evidência HTTP real — 27/11/2026 14:46:27 UTC
+- Operador executou curl.exe -i https://connect-teste.neopep.com.br/.well-known/oauth-authorization-server e apresentou captura com HTTP/1.1 200 OK, JSON de discovery, issuer e endpoints exclusivos Teste, JWKS URI, PKCE S256, authorization_code/refresh_token, CIMD true e scopes_supported exclusivamente campaigns:read. Pelo fluxo do environment-worker, a verificação inicial do banco e configuração OAuth passou; não comprova consentimento, emissão de token ou leitura de campanhas.
+- Próximo gate: testar JWKS público e rejeição 401 do MCP sem token; depois autenticar Desktop apontado para Teste, consentimento e leitura real. DRAFTS=0 e READ_APP=0 mantidos. Não repetir deploy, domínio, Hyperdrive ou secrets.
