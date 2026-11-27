@@ -255,7 +255,7 @@ export async function createBaileysProvider(
   const current=socket;
   if(!connected||!current)throw Error('WhatsApp desconectado.');
   if(typeof groupJid!=='string'||!/^[0-9-]{1,64}@g\.us$/.test(groupJid))throw Error('Grupo inválido.');
-  if(maintenanceEnabled&&rejectedGroups.has(groupJid)){onMaintenance({group_jid:groupJid,code:'previous_421'});throw Error('Grupo com rejeição 421 anterior. Verifique pelo WhatsApp oficial.');}
+  if(rejectedGroups.has(groupJid)){onMaintenance({group_jid:groupJid,code:'previous_421'});throw Error('Grupo com rejeição 421 anterior. Verifique pelo WhatsApp oficial.');}
   const groups=await current.groupFetchAllParticipating();
   if(!connected||socket!==current)throw Error('A sessão mudou.');
   const listed=Object.values(groups).find(group=>group?.id===groupJid);
