@@ -91,3 +91,23 @@ test('entry points reject the other environment before opening a broker',async()
   assert.equal((await worker.fetch(new Request(own.resource,{method:'POST'}),{})).status,401);
  }
 });
+
+test('Teste permite descoberta CIMD sem clientes estáticos; Produção mantém configuração obrigatória',async()=>{
+ const {publicKey,privateKey}=await generateKeyPair('ES256',{extractable:true});
+ const env={NEO_CONNECT_AI_ENABLED:'1',NEO_CONNECT_AI_CSRF_KEY:'22'.repeat(32),NEO_CONNECT_AI_KEY_ID:'fixture',
+  NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY:'fixture',NEO_CONNECT_AI_CLIENTS:'{}',
+  NEO_CONNECT_AI_SIGNING_JWK:JSON.stringify(await exportJWK(privateKey)),
+  NEO_CONNECT_AI_PUBLIC_JWK:JSON.stringify(await exportJWK(publicKey)),
+  NEO_CONNECT_AI_BROKER:{fetch:async()=>{throw Error('Unexpected broker call');}}};
+ const handler=await environmentHandler(testProfile,env);
+ const meta=await handler(new Request(testProfile.issuerOrigin+'/.well-known/oauth-authorization-server'));
+ assert.equal(meta.status,200);
+ assert.equal((await meta.json()).client_id_metadata_document_supported,true);
+ const url=new URL('/oauth/authorize',testProfile.issuerOrigin);
+ url.search=new URLSearchParams({response_type:'code',client_id:'unknown',redirect_uri:'https://client.invalid/callback',
+  code_challenge:await challengeS256('a'.repeat(43)),code_challenge_method:'S256',resource:testProfile.resource,
+  scope:'campaigns:read',state:'fixture'});
+ assert.equal((await handler(new Request(url))).status,400);
+ await assert.rejects(()=>environmentHandler(productionProfile,env),/CLIENT_CONFIG/);
+ for(const invalid of ['[]','null','{"client":[]}'])await assert.rejects(()=>environmentHandler(testProfile,{...env,NEO_CONNECT_AI_CLIENTS:invalid}),/CLIENT_CONFIG/);
+});
