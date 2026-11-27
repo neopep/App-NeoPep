@@ -236,8 +236,8 @@
     ${channel==='app'?pane('audience','Públicos, planos e exibição',advancedApp?appSettingsPane():testApp?'<p>Somente as contas de homologação autorizadas no servidor. Esta campanha não envia push.</p>':'<label>Público App<select name="audience"><option value="all">Todos</option><option value="free">Free</option><option value="premium">Premium</option></select></label><label class="check"><input name="push" type="checkbox"> Solicitar push App para contas com consentimento</label>'):
     pane('groups','Grupos sincronizados','<div class="inline-actions"><button type="button" class="secondary" data-editor="groups">Atualizar grupos e diagnóstico</button><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button></div><label class="central-search editor-search"><input name="group_search" type="search" aria-label="Pesquisar grupo ou conexão" placeholder="Pesquisar grupo ou conexão"><span class="search-decoration" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></span></label><p class="sub" data-editor-group-count></p><div data-editor-groups></div>')}
     ${pane('photo','Foto','<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">Escolha o modo de envio. O texto separado será uma mensagem independente. Salve e confira a prévia antes de publicar.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto</button>')}
-    ${pane('file','Documento','<label>Modo do anexo<select name="file_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><button type="button" class="secondary" data-editor="choose_document">Escolher PDF, MP4, MOV ou TXT</button>')}
-    ${pane('video','Vídeo','<label>Modo do vídeo<select name="video_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><p class="sub">MP4 ou MOV de até 25 MB. O arquivo será preservado integralmente, sem cortes ou conversão pelo NeoPep.</p><button type="button" class="secondary" data-editor="choose_video">Selecionar vídeo</button><p class="sub" data-video-select-status role="status" aria-live="polite"></p>')}
+    ${pane('file','Documento','<label>Modo do anexo<select name="file_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><button type="button" class="secondary" data-editor="choose_document">Escolher PDF ou TXT</button>')}
+    ${pane('video','Vídeo','<label>Modo do vídeo<select name="video_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><p class="sub">MP4 ou MOV de até 25 MB. O original será preservado. No WhatsApp, o Connect prepara uma cópia MP4 para reprodução nativa, sem cortes. Se não for possível, o vídeo não será enviado como documento.</p><button type="button" class="secondary" data-editor="choose_video">Selecionar vídeo</button><p class="sub" data-video-select-status role="status" aria-live="polite"></p>')}
     <input type="file" name="media" accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4,video/quicktime,text/plain" hidden>
     ${pane('link','Link','<label>Link HTTPS<input name="link" type="url" maxlength="2000"></label><button type="button" class="secondary" data-editor="link">Adicionar link</button>')}
     ${pane('catalog','Referências','<div class="central-search editor-search"><input name="catalog_search" type="search" maxlength="100" aria-label="Buscar referências" placeholder="Buscar referências"><button type="button" class="structured-icon" data-editor="catalog_search" aria-label="Buscar referências" title="Buscar referências"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button></div><div class="structured-catalog-tools"><button type="button" class="secondary" data-editor="prepare_thumbs" hidden>Preparar miniaturas faltantes</button><p class="sub" data-catalog-thumb-status role="status"></p></div><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
@@ -789,7 +789,7 @@
     const result=await cloud.campaignDispatch('diagnostics',{});
     if(!current())return;
     gates=result||{};
-    if(testWA&&typeof cloud.campaignRich==='function'){
+    if(channel==='whatsapp'&&typeof cloud.campaignRich==='function'){
      try{gates.whatsapp_rich=await cloud.campaignRich('diagnostics');}
      catch{gates.whatsapp_rich={ready:false};}
      if(!current())return;
@@ -801,7 +801,7 @@
    }catch{if(current())gates={};}
    if(current()){if(testWA)renderGroups();showGate();}
   }
-  const outcomes={waiting:'Aguardando',leased:'Em preparação',started:'Em processamento',accepted:'Aceito pelo cliente',
+  const outcomes={video_conversion_failed:'Vídeo não enviado: falha na conversão',paused_previous_421:'Envio pausado por rejeição anterior',rejected:'Rejeitado pelo WhatsApp',delivered:'Entrega confirmada',server_ack:'Recebido pelo WhatsApp',awaiting_confirmation:'Aguardando confirmação',refused:'Envio recusado',waiting:'Aguardando',leased:'Em preparação',started:'Em processamento',accepted:'Aceito pelo cliente',
    uncertain:'Resultado incerto · revisar',failed:'Falhou',cancelled:'Cancelado'};
   async function showDispatch(){
    const root=$('[data-dispatch-results]');
@@ -829,8 +829,8 @@
      return;
     }
     const richHtml=richRows.map(row=>`<article class="monitor-block">
-     <strong>Bloco ${e(row.sequence)} · ${e(labels[row.kind]||row.kind)} · ${e(outcomes[row.dispatch_state]||row.dispatch_state)}</strong>
-     <p class="sub">Programado: ${e(new Date(row.scheduled_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}))} · ${e(row.dispatch_attempts)} tentativa(s) · ${row.has_receipt?'Recibo registrado':'Sem recibo'}</p>
+     <strong>Bloco ${e(row.sequence)} · ${e(labels[row.kind]||row.kind)} · ${e(outcomes[row.delivery_state||row.dispatch_state]||row.delivery_state||row.dispatch_state)}</strong>
+     <p class="sub">Programado: ${e(new Date(row.scheduled_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}))} · ${e(row.dispatch_attempts)} tentativa(s) · ${row.has_local_receipt||row.has_receipt?'Identificador local registrado':'Sem identificador local'}${row.blocked_reason==='previous_421'?' · Não transmitido':row.blocked_reason==='video_conversion'?' · Verifique o conversor':row.send_error_code?' · Código '+e(row.send_error_code):''}</p>
      ${row.dispatch_state==='waiting'?'<button type="button" class="secondary" data-editor="rich_cancel_batch" data-batch="'+e(row.batch_id)+'">Cancelar blocos pendentes</button>':''}</article>`).join('');
     root.innerHTML=richHtml+rows.map(row=>`<article class="monitor-block">
      <strong>${e(row.dispatch_jid)} · ${e(outcomes[row.dispatch_state]||row.dispatch_state)}</strong>
@@ -1253,7 +1253,7 @@
     if(!material)throw Error('Material indisponível.');
     const file=material.attachments?.find(f=>f.mime==='application/pdf'||f.mime?.startsWith('video/'))||material.attachments?.[0];
     if(!file||(!file.mime?.startsWith('video/')&&file.mime!=='application/pdf')){addCatalogReference(row);return;}
-    s.file=file;const video=file.mime.startsWith('video/');
+    s.file=file;const video=file.mime.startsWith('video/');o.textContent=video&&channel==='whatsapp'?'Vídeo completo (nativo)':'Arquivo original';
     if(typeof cloud.libraryCampaignShare==='function')s.policy=await cloud.libraryCampaignShare('get',row.id,file.path);
     if(!libraryShareActive(s))return;
     if(s.policy?.can_manage===true){
@@ -1440,7 +1440,7 @@
    if(action==='choose_image'||action==='choose_document'||action==='choose_video'){
     if(mediaSelectionBusy)return;
     pickingVideo=action==='choose_video';
-    field('media').accept=action==='choose_image'?'image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,.heic,.heif':pickingVideo?'video/*,.mp4,.mov,.m4v':'application/pdf,video/mp4,video/quicktime,text/plain';
+    field('media').accept=action==='choose_image'?'image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,.heic,.heif':pickingVideo?'video/mp4,video/quicktime,.mp4,.mov,.m4v':'application/pdf,text/plain';
     field('media').click();return;
    }
    if(action==='name_continue'){
