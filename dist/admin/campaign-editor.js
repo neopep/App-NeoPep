@@ -4,6 +4,8 @@
  const states={eligible:'Elegível',stale:'Desatualizado',disconnected:'Desconectado',unavailable:'Indisponível'};
  const videoOriginal=mime=>['video/mp4','video/quicktime'].includes(mime);
  const originalLimit=mime=>videoOriginal(mime)?25*1024*1024:5*1024*1024;
+ const stableDraft=value=>JSON.stringify(value,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
+ const sameDraft=(saved,draft)=>{try{return stableDraft(typeof saved==='string'?JSON.parse(saved):saved)===stableDraft(draft);}catch{return false;}};
  const originalExt=mime=>mime==='application/pdf'?'.pdf':mime==='video/quicktime'?'.mov':'.mp4';
  // iOS Photos can label an MP4 as QuickTime, or return a real MOV. Inspect
  // the container before normalizing the MIME; preserve QuickTime as MOV.
@@ -240,7 +242,7 @@
     ${pane('link','Link','<label>Link HTTPS<input name="link" type="url" maxlength="2000"></label><button type="button" class="secondary" data-editor="link">Adicionar link</button>')}
     ${pane('catalog','Referências','<div class="central-search editor-search"><input name="catalog_search" type="search" maxlength="100" aria-label="Buscar referências" placeholder="Buscar referências"><button type="button" class="structured-icon" data-editor="catalog_search" aria-label="Buscar referências" title="Buscar referências"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button></div><div class="structured-catalog-tools"><button type="button" class="secondary" data-editor="prepare_thumbs" hidden>Preparar miniaturas faltantes</button><p class="sub" data-catalog-thumb-status role="status"></p></div><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
     ${pane('community_share','Publicação da Comunidade','<div data-community-share-preview></div><div class="inline-actions"><button type="button" class="secondary" data-editor="community_reference">Manter referência à publicação</button><button type="button" class="primary" data-editor="community_import">Importar texto e imagem editáveis</button></div><p class="sub">Use a referência para manter o acesso restrito à Comunidade. Para republicar conteúdo a outro público, confirme a autorização do autor. Nenhuma mensagem será enviada nesta etapa.</p><p class="sub" role="status" data-community-share-status></p>')}
-    ${pane('library_share','Como deseja compartilhar?','<p class="sub" data-library-share-name></p><div class="inline-actions"><button type="button" class="secondary" data-editor="library_share_cover">Capa + link</button><button type="button" class="secondary" data-editor="library_share_preview" disabled>Prévia curta + link</button><button type="button" class="secondary" data-editor="library_share_original" disabled>Arquivo original</button></div><div data-library-share-policy hidden class="monitor-block"><strong>Compartilhamento em campanhas</strong><p class="sub" data-library-member-download></p><label>Autorização deste arquivo<select data-library-share-mode><option value="inherit">Usar permissão de download</option><option value="cover">Somente capa + link</option><option value="preview">Somente prévia curta + link</option><option value="original">Permitir arquivo completo</option></select></label><button type="button" class="secondary" data-editor="library_permission_apply">Salvar autorização</button><p class="sub">Esta opção não altera o download dos membros. Arquivos enviados ao WhatsApp podem ser salvos pelos destinatários.</p></div><div data-library-share-video></div><p class="sub" data-library-share-status role="status"></p>')}
+    ${pane('library_share','Como deseja compartilhar?','<p class="sub" data-library-share-name></p><div class="inline-actions"><button type="button" class="secondary" data-editor="library_share_cover">Capa + link</button><button type="button" class="secondary" data-editor="library_share_preview" disabled>Prévia curta + link</button><button type="button" class="secondary" data-editor="library_share_original" disabled>Arquivo original</button></div><div data-library-share-policy hidden class="monitor-block"><strong>Compartilhamento em campanhas</strong><p class="sub" data-library-member-download></p><label>Autorização deste arquivo<select data-library-share-mode><option value="cover">Somente capa + link</option><option value="preview">Somente prévia curta + link</option><option value="original">Permitir arquivo completo</option></select></label><button type="button" class="secondary" data-editor="library_permission_apply">Salvar autorização</button><p class="sub">Esta opção não altera o download dos membros. Arquivos enviados ao WhatsApp podem ser salvos pelos destinatários.</p></div><div data-library-share-video></div><p class="sub" data-library-share-status role="status"></p>')}
     ${pane('file_help','Envio de arquivos','<p>O envio de arquivos originais e prévias em vídeo depende da liberação no servidor e de um NeoPep Connect compatível. O documento pode permanecer no rascunho sem ser enviado.</p><p>Use Capa + link para materiais disponíveis na Biblioteca. Para liberar a modalidade de arquivo, confira a configuração do canal e os dispositivos autorizados.</p><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button>')}
     ${pane('schedule','Publicação e horário','<label>Horário planejado (São Paulo)<input name="planned_local" type="datetime-local" value="'+e(draft.planned_local)+'"></label><p data-editor-summary class="sub"></p><div class="inline-actions"><button type="button" class="secondary" data-editor="schedule" disabled>Programar</button><button type="button" class="secondary" data-editor="simulate">Ver prévia (sem enviar)</button></div><div class="structured-issues" data-editor-issues role="status"></div><p role="status" class="sub" data-editor-simulation></p><p class="sub">A prévia não envia mensagens. Para publicar, escolha os grupos e confirme o envio.</p><p class="sub" data-dispatch-gate></p>')}
     ${pane('confirmation','Confirmar campanha','<p data-confirm-question></p><p class="sub" data-confirm-summary></p><p class="structured-confirm-content" data-confirm-content></p><button type="button" class="primary" data-editor="confirm_dispatch">Confirmar</button> <button type="button" class="secondary" data-editor="sheet_close">Voltar à composição</button>')}
@@ -297,9 +299,9 @@
    if(recovered&&current())await storeMedia('readwrite',store=>store.put(recovered,mediaKey(id)));
    return current()?recovered:null;
   }
-  const draftIsClean=()=>Boolean(state.remoteId&&state.savedDraft===JSON.stringify(draft)&&
+  const draftIsClean=()=>Boolean(state.remoteId&&sameDraft(state.savedDraft,draft)&&
    (editing?draft.blocks.some(b=>b.id===editing&&String(b.text||'').trim()===message.value.trim()):!message.value.trim()));
-  let lastLocalWrite=null;
+  let lastLocalWrite=local?JSON.stringify(local):null;
   function clearConfirmedLocal(){
    const alias='neo-campaign-editor:'+account+':'+channel+':'+state.editorId;
    for(const k of new Set([key,alias]))if(lastLocalWrite&&localStorage.getItem(k)===lastLocalWrite)localStorage.removeItem(k);
@@ -439,7 +441,7 @@
    if(!current())return false;
    state.compose=message.value;state.provisional=provisional;state.editing=editing;state.captionTarget=captionTarget;state.photoQuality=field('photo_quality')?.value;state.weeklyCount=field('weekly_count')?.value;state.push=field('push')?.checked===true;
    try{
-    if(publication&&state.dispatchConfirmed&&draftIsClean()){
+    if(publication&&draftIsClean()&&!state.attempt&&(!state.dispatchAttempt||state.dispatchConfirmed)){
      clearConfirmedLocal();return true;
     }
     const saved=JSON.stringify(state);
@@ -685,9 +687,10 @@
    root.innerHTML=[...entries.values()].filter(row=>`${row.name} ${row.connection||''}`.toLocaleLowerCase('pt-BR').includes(query)).map(row=>{
     const chosen=draft.groups.includes(row.id);
     return `<label class="check"><input type="checkbox" data-editor-group="${e(row.id)}" ${chosen?'checked':''} ${!chosen&&(row.state!=='eligible'||!groupSelectable(row.id))?'disabled':''}>
-    <span>${e(row.name)} · ${e(row.connection||'Conexão sem evidência')} · ${e(states[row.state]||'Estado desconhecido')}
+    <span><strong>${e(row.name)}</strong><small class="sub" style="display:block;font-size:11px;opacity:.82">${e(row.connection||'Conexão sem evidência')}</small>
+    <small class="sub" style="display:block;font-size:11px">${e(states[row.state]||'Estado desconhecido')}
     ${row.participant_count==null?'':' · '+e(row.participant_count)+' participantes'}
-    ${row.last_synced_at?' · '+e(new Date(row.last_synced_at).toLocaleString('pt-BR')):''}</span></label>`;
+    ${row.last_synced_at?' · '+e(new Date(row.last_synced_at).toLocaleString('pt-BR')):''}</small></span></label>`;
    }).join('')||'<p class="sub">Nenhum grupo sincronizado no recorte.</p>';
    const selected=$('[data-selected-groups]');
    if(selected){
@@ -734,7 +737,7 @@
   function showGate(){
    if(readOnly)return;
    paintIssues();
-   const clean=state.remoteId&&state.savedDraft===JSON.stringify(draft)&&!message.value.trim()&&!editing;
+   const clean=state.remoteId&&sameDraft(state.savedDraft,draft)&&!message.value.trim()&&!editing;
    const rich=richMode();
    const enabled=publication&&channel==='whatsapp'?gates.whatsapp_rich?.ready===true:testApp?testGate.enabled&&testGate.destinations>0&&testGate.destinations<=30&&Boolean(testGate.audience_key):
     testWA?(rich?gates.whatsapp_rich?.ready===true:gates.whatsapp_test?.ready===true):channel==='app'?gates.app_enabled:gates.whatsapp_enabled;
@@ -858,14 +861,14 @@
    if(!draft.blocks.length){explain('Adicione conteúdo antes de continuar.');return;}
    if(testApp&&draft.app_settings?.popup_enabled===false){explain('Em Teste, somente o pop-up está disponível. Marque a exibição interna para homologar.');return;}
    if(draft.blocks.some(b=>b.type==='file')&&!libraryOriginalReady()){explain('Envio de arquivo original desativado no servidor. O rascunho foi preservado; use Capa + link quando disponível.');return;}
-   if(!state.remoteId||state.savedDraft!==JSON.stringify(draft)){
+   if(!state.remoteId||!sameDraft(state.savedDraft,draft)){
     explain('Salvando a versão antes da confirmação. Nenhuma mensagem será enviada.');
     await saveRemote();
    }
    if(!current())return;
    showGate();
    if(!dispatchReady[scheduled?'schedule':'publish']){
-    explain(state.savedDraft!==JSON.stringify(draft)?lastSaveError||'Não foi possível confirmar a versão salva. Confira a conexão e tente novamente.':'A publicação ainda não está liberada: confira os destinos, o tipo de conteúdo e a disponibilidade do canal.');
+    explain(!sameDraft(state.savedDraft,draft)?lastSaveError||'Não foi possível confirmar a versão salva. Confira a conexão e tente novamente.':'A publicação ainda não está liberada: confira os destinos, o tipo de conteúdo e a disponibilidade do canal.');
     return;
    }
    pendingDispatch=scheduled;
@@ -1257,10 +1260,10 @@
      const panel=$('[data-library-share-policy]'),mode=$('[data-library-share-mode]');
      panel.hidden=false;mode.querySelector('[value="preview"]').disabled=!video;
      mode.querySelector('[value="original"]').disabled=!['video/mp4','video/quicktime','application/pdf'].includes(file.mime)||!(Number(file.size)>0&&Number(file.size)<=originalLimit(file.mime));
-     mode.value=s.policy.mode;$('[data-library-member-download]').textContent='Download dos membros: '+(s.policy.member_download?'permitido':'desativado')+' (não será alterado).';
+     mode.value=s.policy.mode==='inherit'?(s.policy.original?'original':s.policy.preview?'preview':'cover'):s.policy.mode;$('[data-library-member-download]').textContent='Download dos membros: '+(s.policy.member_download?'permitido':'desativado')+' (não será alterado).';
     }
     p.hidden=!video;
-    const permitted=file.allow_download===true&&libraryFileDraftReady();
+    const permitted=false;
     const originalAllowed=s.policy?s.policy.original===true&&libraryFileDraftReady():permitted;
     const previewAllowed=s.policy?s.policy.preview===true&&libraryFileDraftReady():permitted;
     o.disabled=!originalAllowed||!['video/mp4','video/quicktime','application/pdf'].includes(file.mime)||!Number.isFinite(Number(file.size))||Number(file.size)<=0||Number(file.size)>originalLimit(file.mime);
@@ -1272,7 +1275,7 @@
     if(s.preview?.state==='ready'&&s.preview.url){
      const v=document.createElement('video');v.src=s.preview.url;v.muted=true;v.playsInline=true;v.loop=true;v.autoplay=!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;v.controls=true;v.preload='metadata';v.style.maxWidth='100%';v.setAttribute('aria-label','Prévia curta sem áudio');$('[data-library-share-video]').append(v);
     }
-    status.textContent=!originalAllowed&&!previewAllowed&&file.allow_download!==true?'Download dos membros desativado. '+(s.policy?.can_manage?'Escolha acima uma autorização exclusiva para campanhas, se desejar.':'O responsável pelo arquivo pode autorizar o compartilhamento.'):!libraryFileDraftReady()?'Preparação de arquivos indisponível neste canal. Use capa + link.':video&&s.preview?.state!=='ready'?'Prévia curta ainda não disponível. Confira o processamento no NeoPep Connect e reabra este material.':o.disabled?'Original acima do limite (MP4/MOV 25 MB; PDF 5 MB) ou formato não suportado.':!libraryOriginalReady()?'Você pode adicionar o arquivo ou prévia ao rascunho. O envio continua desativado no servidor.':'Selecione como compartilhar.';
+    status.textContent=!originalAllowed&&!previewAllowed&&!s.policy?.original&&!s.policy?.preview?'Uso de arquivo em campanhas não autorizado. '+(s.policy?.can_manage?'Escolha acima uma autorização exclusiva para campanhas, se desejar.':'O responsável pelo arquivo pode autorizar o compartilhamento.'):!libraryFileDraftReady()?'Preparação de arquivos indisponível neste canal. Use capa + link.':video&&s.preview?.state!=='ready'?'Prévia curta ainda não disponível. Confira o processamento no NeoPep Connect e reabra este material.':o.disabled?'Original acima do limite (MP4/MOV 25 MB; PDF 5 MB) ou formato não suportado.':!libraryOriginalReady()?'Você pode adicionar o arquivo ou prévia ao rascunho. O envio continua desativado no servidor.':'Selecione como compartilhar.';
    }catch{if(libraryShareActive(s))status.textContent='Não foi possível consultar o arquivo. Você pode tentar capa + link.';}
   }
   async function applyLibrarySharePermission(){
@@ -1291,7 +1294,7 @@
    const s=libraryShare;if(!s||!libraryShareActive(s)||s.busy)return;
    if(mode==='cover'){addCatalogReference(s.row);return;}
    const file=s.file,short=mode==='preview';
-   if(!file||(s.policy?(short?s.policy.preview!==true:s.policy.original!==true):file.allow_download!==true)||!libraryFileDraftReady()||short&&s.preview?.state!=='ready'||!short&&(!['video/mp4','video/quicktime','application/pdf'].includes(file.mime)||!(Number(file.size)>0&&Number(file.size)<=originalLimit(file.mime))))return;
+   if(!file||(s.policy?(short?s.policy.preview!==true:s.policy.original!==true):true)||!libraryFileDraftReady()||short&&s.preview?.state!=='ready'||!short&&(!['video/mp4','video/quicktime','application/pdf'].includes(file.mime)||!(Number(file.size)>0&&Number(file.size)<=originalLimit(file.mime))))return;
    if(draft.blocks.length+(short?2:1)>32){tell('Limite de 32 blocos por rascunho.');return;}
    s.busy=true;const status=$('[data-library-share-status]');status.textContent='Preparando arquivo autorizado…';
    for(const b of sheet.querySelectorAll('[data-editor^="library_share_"]'))b.disabled=true;
@@ -1301,12 +1304,12 @@
     if(!libraryShareActive(s))return;
     if(!latest||latest.mime!==file.mime||Number(latest.size)!==Number(file.size)||!libraryFileDraftReady())throw Error('O material mudou ou não permite mais este envio.');
     const policy=typeof cloud.libraryCampaignShare==='function'?await cloud.libraryCampaignShare('get',s.row.id,file.path):null;
-    if(!policy&&s.policy||policy&&(short?policy.preview!==true:policy.original!==true)||!policy&&latest.allow_download!==true)throw Error('O material não permite mais este envio.');
+    if(!policy||policy&&(short?policy.preview!==true:policy.original!==true))throw Error('O material não permite mais este envio.');
     if(policy)await cloud.libraryCampaignShare('authorize',s.row.id,file.path,{mode:short?'preview':'original'});
     if(!libraryShareActive(s))return;
     const refreshed=short?await cloud.libraryVideoPreview(s.row.id,file.path):null;
     if(short&&(refreshed?.state!=='ready'||!refreshed.url))throw Error('Prévia indisponível. Reabra o material para consultar novamente.');
-    const url=short?refreshed.url:policy?await cloud.libraryCampaignOriginalURL(s.row.id,latest):await cloud.libraryMediaURL(file,true);
+    const url=short?refreshed.url:await cloud.libraryCampaignOriginalURL(s.row.id,latest);
     if(!libraryShareActive(s))return;
     const address=new URL(url),origin=window.NEO_CONFIG?.supabaseUrl;
     if(address.origin!==origin||address.protocol!=='https:'||!address.pathname.startsWith('/storage/v1/object/sign/'+(short?'neo-library-video-previews':'neo-library')+'/'))throw Error('Origem não autorizada.');

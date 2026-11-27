@@ -284,7 +284,7 @@ sealed partial class Connect : Form {
         if(!SessionReady()||!deviceApproved)throw new InvalidOperationException();
         var result=await Post("/rest/v1/rpc/neo_connect_wa_replace_selection",new {
             p_device=Value(local,"device"),p_secret=Value(local,"secret"),p_connection=connection,
-            p_expected_revision=revision,p_label="WhatsApp",p_groups=groups
+            p_expected_revision=revision,p_label=whatsapp!=null&&whatsapp.CampaignConnection==connection?whatsapp.GroupAccountLabel:"WhatsApp",p_groups=groups
         },true);
         return Convert.ToInt64(result["revision"]);
     }
@@ -488,7 +488,7 @@ sealed partial class Connect : Form {
                     if(whatsapp==window&&window.CampaignConnection==connection&&window.CampaignSessionReady&&deviceApproved&&SessionReady()&&Value(local,"campaign_worker_enabled")=="1")
                         outcome=await window.DispatchCampaignFileAsync(request,Value(job,"group_jid"),Value(job,"text"),bytes,mime,name);
                 }else if(kind=="text"||kind=="link"||kind=="product"||kind=="document"||kind=="community"){
-                    outcome=await window.DispatchCampaignTextAsync(request,Value(job,"group_jid"),Value(job,"text"));
+                    outcome=await window.DispatchCampaignTextAsync(request,Value(job,"group_jid"),Value(job,"text"),true);
                 }
             }
         }catch(Exception){Record("rich_campaign_uncertain");}
@@ -508,6 +508,13 @@ sealed partial class Connect : Form {
             var connection=window.CampaignConnection;
             bool ready=window.CampaignSessionReady;
             if(ready)await SetWhatsAppStatus(connection,"connected");
+            if(ready)foreach(var delivery in window.CampaignDeliveryReceipts()){
+                if(whatsapp!=window||window.CampaignConnection!=connection||!window.CampaignSessionReady)break;
+                try{
+                    var confirmed=await RichCampaign("delivery_receipt",new {message_id=Value(delivery,"message_id"),group_jid=Value(delivery,"group_jid"),status=Value(delivery,"status"),error_code=Value(delivery,"error_code")});
+                    if(confirmed!=null&&confirmed.ContainsKey("ok")&&Convert.ToBoolean(confirmed["ok"]))window.ConfirmCampaignDeliveryReceipt(delivery);
+                }catch(Exception){Record("campaign_delivery_evidence_pending");break;}
+            }
             var gate=await CampaignDispatch("heartbeat",new {connection_id=connection,bridge_version="wa-text-v1",session_ready=ready});
             if(gate==null||!gate.ContainsKey("enabled")||!Convert.ToBoolean(gate["enabled"])||!ready)return;
             var lease=await CampaignDispatch("claim",new {});

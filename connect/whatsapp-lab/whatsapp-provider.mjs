@@ -10,8 +10,18 @@ export function validCampaignFile(bytes,mime,name){
  if(mime==='video/mp4')return /\.mp4$/i.test(name)&&bytes.length>=16&&bytes.subarray(4,8).toString('ascii')==='ftyp'&&bytes.readUInt32BE(0)>=8&&bytes.readUInt32BE(0)<=bytes.length;
  return false;
 }
+// Diagnostics only: never infer a phone number from a LID or publish participant IDs.
+export function groupDiagnostics(row,ownIds){
+ const normalize=id=>typeof id==='string'?id.replace(/:[0-9]+@/,'@'):'';
+ const own=new Set(ownIds.map(normalize).filter(Boolean));
+ const self=Array.isArray(row.participants)?row.participants.find(p=>[p.id,p.phoneNumber,p.lid].some(id=>own.has(normalize(id)))):undefined;
+ const role=self?(self.admin==='superadmin'||self.isSuperAdmin===true?'superadmin':self.admin==='admin'||self.isAdmin===true?'admin':'member'):'unknown';
+ return {addressing_mode:['pn','lid'].includes(row.addressingMode)?row.addressingMode:'unknown',
+  role,posting:row.announce===true?'admins':row.announce===false?'all':'unknown',
+  settings:row.restrict===true?'admins':row.restrict===false?'all':'unknown'};
+}
 export async function createBaileysProvider(
- {onQr,onState,onCredentials=()=>{},serialized=null},
+ {onQr,onState,onCredentials=()=>{},onReceipt=()=>{},serialized=null},
  {load=loadModules,schedule=setTimeout,cancel=clearTimeout}={}
 ){
  let socket=null,connected=false,closed=false,retries=0,reconnectTimer;
@@ -43,6 +53,8 @@ export async function createBaileysProvider(
   if(!current)return;
   current.ev.removeAllListeners('connection.update');
   current.ev.removeAllListeners('creds.update');
+  current.ev.removeAllListeners('messages.update');
+  current.ev.removeAllListeners('message-receipt.update');
   current.end?.(undefined);
  }
  function start(){
@@ -53,6 +65,29 @@ export async function createBaileysProvider(
   });
   socket=current;
   current.ev.on('creds.update',save);
+  // A generated message key is not delivery evidence.
+  const validKey=key=>key?.fromMe===true&&/^[0-9-]{1,64}@g\.us$/.test(key.remoteJid||'')&&typeof key.id==='string'&&key.id.length>0&&key.id.length<=160;
+  const report=(key,status,code)=>{if(!closed&&current===socket&&validKey(key))onReceipt({group_jid:key.remoteJid,message_id:key.id,status,...(code?{error_code:code}:{})});};
+  current.ev.on('messages.update',updates=>{
+   const ack=proto?.WebMessageInfo?.Status?.SERVER_ACK;
+   if(ack===undefined||!Array.isArray(updates))return;
+   const failure=proto?.WebMessageInfo?.Status?.ERROR;
+   for(const {key,update} of updates){
+    if(update?.status===ack)report(key,'server_ack');
+    else if(failure!==undefined&&update?.status===failure){
+     const raw=String(update?.messageStubParameters?.[0]??'');
+     report(key,'send_error',/^[0-9]{1,5}$/.test(raw)?raw:'unknown');
+    }
+   }
+  });
+  current.ev.on('message-receipt.update',updates=>{
+   if(!Array.isArray(updates)||typeof baileys.areJidsSameUser!=='function')return;
+   for(const {key,receipt} of updates){
+    const participant=receipt?.userJid,own=[current.user?.id,current.user?.lid,creds.me?.id,creds.me?.lid].filter(Boolean);
+    // rc14 uses receiptTimestamp specifically for DELIVERY_ACK.
+    if(validKey(key)&&own.length&&typeof participant==='string'&&!own.some(id=>baileys.areJidsSameUser(participant,id))&&Number(receipt?.receiptTimestamp)>0)report(key,'delivery_ack');
+   }
+  });
   current.ev.on('connection.update',update=>{
    if(closed||current!==socket)return;
    if(update.qr)void Promise.resolve(onQr(update.qr)).catch(()=>{onState('erro');});
@@ -95,7 +130,8 @@ export async function createBaileysProvider(
    const groups=await current.groupFetchAllParticipating();
    if(!connected||current!==socket)throw Error('A sessão mudou.');
    return Object.values(groups).map(row=>({
-    id:row.id,name:row.subject,members:Number.isSafeInteger(row.size)?row.size:Array.isArray(row.participants)?row.participants.length:null
+    id:row.id,name:row.subject,members:Number.isSafeInteger(row.size)?row.size:Array.isArray(row.participants)?row.participants.length:null,
+    ...groupDiagnostics(row,[current.user?.id,current.user?.lid,creds.me?.id,creds.me?.lid])
    }));
   },
   // Envio manual, não automático: confirma participação antes de enviar.

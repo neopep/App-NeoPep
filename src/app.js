@@ -1805,13 +1805,13 @@ function privacyPreferencesPage(){
  const deviceSummary=[device.category==='mobile'?'Celular':device.category==='tablet'?'Tablet':device.category==='desktop'?'Computador':null,device.os,device.browser,device.context==='pwa'?'Aplicativo instalado':device.context==='browser'?'Navegador':null].filter(Boolean).join(' · ');
  return (initial?'<div class="page-head"><h1>'+title+'</h1></div>':head(title,''))+
   `<form id="privacyPreferences" class="card privacy-preferences" data-privacy-account="${esc(Cloud.user.id)}" data-privacy-page="${page}">
-  ${initial?'<p class="sub">Revise as opções e confirme em OK. Você pode mudar depois no Perfil.</p>':''}
+  ${initial?'<p class="sub">Confira e confirme. Altere quando quiser no Perfil.</p>':''}
   <fieldset disabled aria-label="Permissões opcionais">
-  ${privacyOptions.map(([key,label])=>`<label class="privacy-option" for="privacy-${key}"><span>${label}</span><input id="privacy-${key}" name="${key}" type="checkbox" role="switch"${initial&&key!=='location'?' checked':''}></label>`).join('')}
+  ${privacyOptions.map(([key,label])=>`<label class="privacy-option" for="privacy-${key}"><span>${label}</span><input id="privacy-${key}" name="${key}" type="checkbox" role="switch"${initial&&(key!=='location'||locationObservationEnabled())?' checked':''}></label>`).join('')}
   </fieldset>
-  ${initial?'<button type="button" class="secondary full" data-privacy-select-none>Desmarcar todas</button>':''}
-  <p class="sub privacy-device-summary">Dispositivo atual: ${esc(deviceSummary||'Não identificado')}.</p>
-  <p class="form-help">Ao autorizar, primeiro usamos a cidade e o estado estimados pela conexão (Vercel). Se o aparelho permitir, usamos a posição do dispositivo para consultar cidade e estado na BigDataCloud, que recebe coordenadas e IP. O NeoPep guarda apenas cidade, estado, país e fonte (não guarda coordenadas). Você pode revogar no Perfil.</p>
+  ${initial?'<button type="button" class="text-btn full" data-privacy-select-none>Desmarcar todas</button>':''}
+  ${initial?'<p class="form-help">Localização opcional: identifica sua cidade e estado. Você pode desmarcar antes de confirmar.</p>':''}
+  <details class="space privacy-more"><summary>Mais informações</summary><p class="sub privacy-device-summary">Dispositivo atual: ${esc(deviceSummary||'Não identificado')}.</p><p class="form-help">Ao autorizar a localização, usamos a cidade e o estado estimados pela conexão (Vercel). Se o aparelho permitir, consultamos cidade e estado na BigDataCloud, que recebe coordenadas e IP. O NeoPep guarda apenas cidade, estado, país e fonte (não guarda coordenadas). Você pode revogar no Perfil.</p></details>
   <p class="sub" data-privacy-notice role="status">Consultando preferências…</p>
   <a class="text-btn privacy-policy-link" href="#privacidade" target="_blank" rel="noopener">Política de Privacidade</a>
   <button type="submit" class="primary full" disabled>${initial?'OK':'Salvar preferências'}</button>
@@ -1868,7 +1868,7 @@ function mountPrivacyPreferences(){
   baseline=values;
   for(const [key] of privacyOptions){
    const field=form.querySelector('[name='+key+']');
-   if(field)field.checked=initial&&values.pending&&key!=='location'?true:values[key]===true;
+   if(field)field.checked=initial&&values.pending&&(key!=='location'||locationObservationEnabled())?true:values[key]===true;
   }
   const locationField=form.querySelector('[name=location]');
   if(locationField)locationField.disabled=!values.location&&!locationObservationEnabled();
@@ -2135,12 +2135,12 @@ function renderCampaignBlocks(dialog,blocks,owner,onClicked){
    const status=document.createElement('p');status.className='sub';status.textContent='Carregando conteúdo…';section.append(status);
    const isImage=block.type==='image';
    const load=isImage?Cloud.campaignImageURL:Cloud.campaignOriginalURL;
-   const expected=isImage?/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.jpg$/:/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.(pdf|mp4)$/;
+   const expected=isImage?/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.jpg$/:/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.(pdf|mp4|mov)$/;
    if(typeof load==='function'&&expected.test(block.media_path||'')){
     void load.call(Cloud,block.media_path).then(url=>{
      if(!alive())return;
      if(isImage){const img=document.createElement('img');img.src=url;img.alt='Imagem da campanha';img.addEventListener('error',()=>{if(alive()){status.textContent='Imagem indisponível.';img.replaceWith(status);}},{once:true});status.replaceWith(img);}
-     else if(block.mime==='video/mp4'){const v=document.createElement('video');v.src=url;v.controls=true;v.preload='metadata';v.playsInline=true;status.replaceWith(v);}
+     else if(['video/mp4','video/quicktime'].includes(block.mime)){const v=document.createElement('video');v.src=url;v.controls=true;v.preload='metadata';v.playsInline=true;status.replaceWith(v);}
      else if(block.mime==='application/pdf'){const a=document.createElement('a');a.className='secondary';a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=block.name||'Abrir PDF';a.addEventListener('click',()=>{if(alive())onClicked?.();});status.replaceWith(a);}
      else status.textContent='Arquivo indisponível.';
     }).catch(()=>{if(alive())status.textContent='Conteúdo indisponível ou sem autorização.';});

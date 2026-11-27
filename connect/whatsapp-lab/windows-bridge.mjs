@@ -6,19 +6,33 @@ import {createBaileysProvider,validCampaignFile,CAMPAIGN_FILE_MAX} from './whats
 export function createBridge({emit,providerFactory=createBaileysProvider,renderQr}){
  let current,generation=0,qrVersion=0,state='desconectado',checking=false,sending=false,closed=false;
  // Refuse replay of original-file request IDs during the runtime session, including uncertain sends.
- const fileAttempts=new Set();
+ const fileAttempts=new Set(),tracked=new Map(),earlyReceipts=new Map();
  const output=(type,value)=>{if(!closed)emit({type,value});};
  function update(next){state=next;++qrVersion;output('state',next);}
+ const receiptKey=r=>r.group_jid+':'+r.message_id;
+ function remember(map,key,value){if(map.size>=4096&&!map.has(key))map.delete(map.keys().next().value);map.set(key,value);}
+ function reportReceipt(r){
+  if(!r||!['server_ack','delivery_ack','send_error'].includes(r.status)||typeof r.message_id!=='string'||!r.message_id||r.message_id.length>160||!/^[0-9-]{1,64}@g\.us$/.test(r.group_jid||''))return;
+  const safe={group_jid:r.group_jid,message_id:r.message_id,status:r.status,...(r.status==='send_error'?{error_code:/^[0-9]{1,5}$/.test(r.error_code||'')?r.error_code:'unknown'}:{})},key=receiptKey(safe),entry=tracked.get(key);
+  if(entry&&Date.now()-entry.at<86400000){
+   if(entry.status==='delivery_ack'||entry.status===safe.status||(entry.status==='send_error'&&safe.status==='server_ack'))return;
+   entry.status=safe.status;output('delivery_receipt',safe);
+  }else if(sending){
+   const old=earlyReceipts.get(key);if(old?.receipt.status==='delivery_ack'||(old?.receipt.status==='send_error'&&safe.status==='server_ack'))return;
+   remember(earlyReceipts,key,{receipt:safe,at:Date.now()});
+  }
+ }
  return {
   async receive(message){
    if(closed)return;
    try{
     if(message.action==='connect'){
-     const revision=++generation;
+     const revision=++generation;tracked.clear();earlyReceipts.clear();
      await current?.close();current=null;update('conectando');
      const candidate=await providerFactory({
       serialized:typeof message.vault==='string'?message.vault:null,
       onCredentials:value=>{if(revision===generation)output('vault',value);},
+      onReceipt:value=>{if(revision===generation)reportReceipt(value);},
       onState:value=>{
        if(revision!==generation)return;
        update(value);
@@ -48,7 +62,11 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
      try{
       const rows=await current.listGroups();
       if(revision===generation&&state==='conectado')output('groups',rows.filter(row=>/^[0-9-]+@g\.us$/.test(row?.id))
-       .map(row=>({id:row.id,name:String(row.name||'Sem nome').slice(0,120),members:Number.isSafeInteger(row.members)&&row.members>=0?row.members:null})));
+       .map(row=>({id:row.id,name:String(row.name||'Sem nome').slice(0,120),members:Number.isSafeInteger(row.members)&&row.members>=0?row.members:null,
+        addressing_mode:['pn','lid'].includes(row.addressing_mode)?row.addressing_mode:'unknown',
+        role:['admin','superadmin','member'].includes(row.role)?row.role:'unknown',
+        posting:['admins','all'].includes(row.posting)?row.posting:'unknown',
+        settings:['admins','all'].includes(row.settings)?row.settings:'unknown'})));
      }finally{checking=false;}
     }else if((message.action==='send_text'||message.action==='send_image'||message.action==='send_file')){
      const requestId=typeof message.request_id==='string'&&/^[a-f0-9-]{36}$/i.test(message.request_id)?message.request_id:null;
@@ -83,11 +101,17 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
       const receipt=isImage?await provider.sendImage(jid,text,image):isFile?await provider.sendFile(jid,text,file,message.mime,message.name):await provider.sendText(jid,text);
       output('send_result',{request_id:requestId,status:revision===generation&&state==='conectado'?'accepted':'uncertain',
        message_id:String(receipt?.messageId??'').slice(0,160)});
+      if(message.track_delivery===true&&revision===generation&&state==='conectado'&&receipt?.messageId){
+       const key=receiptKey({group_jid:jid,message_id:receipt.messageId});
+       remember(tracked,key,{at:Date.now(),status:null});
+       const early=earlyReceipts.get(key);earlyReceipts.delete(key);
+       if(early&&Date.now()-early.at<120000)reportReceipt(early.receipt);
+      }
      }catch{
       output('send_result',{request_id:requestId,status:'uncertain',reason:'O envio não pôde ser confirmado. Confira no WhatsApp antes de tentar novamente.'});
      }finally{sending=false;}
     }else if(message.action==='disconnect'){
-     ++generation;const previous=current;current=null;update('desconectando');output('vault',null);
+     ++generation;tracked.clear();earlyReceipts.clear();const previous=current;current=null;update('desconectando');output('vault',null);
      const revoked=previous?await previous.forget():false;
      update(revoked?'desconectado':'limpeza_local');
     }
