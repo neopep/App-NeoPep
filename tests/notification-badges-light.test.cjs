@@ -3,6 +3,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const css=fs.readFileSync('dist/style.css','utf8');
+const endMarker='/* Admin: aviso de novo cadastro acompanha o tema claro';
 const marker='/* Rodada 25/11: contadores NUMÉRICOS em azul-marinho no tema claro.';
 test('indicadores numéricos do tema claro são padronizados em azul-marinho',()=>{
  const start=css.indexOf(marker);
@@ -23,7 +24,9 @@ test('indicadores numéricos do tema claro são padronizados em azul-marinho',()
 });
 test('a alteração de badges não modifica status nem regras do tema escuro',()=>{
  const start=css.indexOf(marker);
- const added=css.slice(start);
+ const end=css.indexOf(endMarker,start);
+ assert.ok(end>start,'fim do bloco dos contadores precisa estar presente');
+ const added=css.slice(start,end);
  assert.ok(!added.includes('[data-theme=dark]'));
  for(const forbidden of ['.status-pill','.shop-deal-badge','.library-featured-badge','.agent-inbox-badge']){
   assert.ok(!added.includes(' '+forbidden+',')&&!added.includes('\n '+forbidden+','));
