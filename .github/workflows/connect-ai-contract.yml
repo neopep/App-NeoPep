@@ -22,6 +22,8 @@ jobs:
       - run: npm ci --prefix integrations/campaign-mcp
       - run: node integrations/campaign-mcp/src/generate-docs.mjs --check
       - run: node --test integrations/campaign-mcp/tests/*.test.mjs
+      - name: Test validator runtime contract (no scanner deployment)
+        run: cd integrations/campaign-mcp/validator-candidate && python3 -m unittest test_runtime.py
       - run: python3 integrations/campaign-mcp/verify-packages.py
       - run: |
           python3 integrations/campaign-mcp/build-plugin.py /tmp/neopep-plugin.zip
