@@ -58,3 +58,16 @@ test('bridge responde sem desconectar quando consulta falha',async()=>{
  assert.equal(events.find(e=>e.type==='group_diagnostic').value.code,'diagnostic_unavailable');
  assert.equal(events.filter(e=>e.type==='state').at(-1).value,'conectado');await bridge.close();
 });
+
+test('etapas de envio aparecem mesmo sem hook de metadados',async()=>{
+ const events=[];let hooks;let attempts=0;
+ const bridge=createBridge({emit:e=>events.push(e),providerFactory:async args=>{hooks=args;return {start(){args.onState('conectado');},close(){},account(){return {};},async sendText(){attempts++;return {messageId:'fixture-id'};}};}});
+ await bridge.receive({action:'connect'});
+ await bridge.receive({action:'send_text',group_jid:jid,request_id:'12345678-1234-1234-1234-123456789012',text:'private text',track_delivery:true});
+ hooks.onReceipt({group_jid:jid,message_id:'fixture-id',status:'send_error',error_code:'421'});
+ const stages=events.filter(e=>e.type==='group_send_stage').map(e=>e.value);
+ assert.deepEqual(stages,[{group_jid:jid,stage:'attempt_started'},{group_jid:jid,stage:'receipt_generated'}]);
+ assert.equal(attempts,1);assert.equal(events.at(-1).value.error_code,'421');
+ assert.equal(JSON.stringify(stages).includes('private text'),false);
+ await bridge.close();
+});
