@@ -124,3 +124,10 @@ Ponto de corte: `docs/PONTO-DE-CORTE-20261126.md`. A publicação anterior de Te
 - `integrations/campaign-mcp/verify-packages.py` compara duas gerações de cada ZIP, valida os arquivos, o catálogo, os ativos e a separação das URLs OAuth. Boa estrutura conferida contra os exemplos oficiais já registrados. A obtenção do JSON Schema oficial pelo terminal voltou HTTP 403, portanto não houve validação integral com o schema remoto.
 - Testes locais de DOM e integridade dos pacotes aprovados. Nenhuma instalação, migração, infraestrutura ou emissão real.
 - Próximo: ligar consentimento NeoPep ao emissor e à sessão do titular, expor JWKS apenas com chave pública, e homologar distribuição em cada cliente antes de habilitar download e verificação no painel.
+
+## JWKS pública e edição textual candidata
+
+- Preservado o gate remoto `e387062` para Plus e clientes. O painel de instalação foi confirmado antes disso em `e451bb2`.
+- O emissor só retorna JWKS quando configurado com uma chave pública P-256 e projeta exclusivamente campos públicos. O teste confirma que um campo privado fornecido por engano não aparece na resposta.
+- A edição candidata prepara o envelope de revisão, IDs e blocos de texto. Nenhuma ação de escrita é anunciada ou chamou o RPC. Antes de habilitar, carregar o rascunho autorizado e preservar seus demais campos, aplicar os validadores nativos e testar conflitos de revisão.
+- 14 testes locais aprovados. Sem alterações externas. Próximo: concluir autorização e consentimento HTTP, broker NeoPep e autorização real do primeiro leitura, seguindo o gate Plus.

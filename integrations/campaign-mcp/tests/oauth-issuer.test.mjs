@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
-import {generateKeyPair,jwtVerify} from 'jose';
+import {exportJWK,generateKeyPair,jwtVerify} from 'jose';
 import {createIssuer} from '../src/oauth-issuer.mjs';
 import {challengeS256} from '../src/pkce.mjs';
 import {createHandler} from '../src/worker.mjs';
@@ -30,7 +30,7 @@ test('OAuth usa transação SQL para troca única, rotação e revogação por r
     'select neo_private.connect_ai_rotate_grant($1,$2,$3,$4,$5,$6) as value',
     [digest,kind,clientId,redirectUri,challenge,nextDigest])).rows[0].value
   };
-  const oauth=createIssuer({issuer:base,resource,key:privateKey,keyId:'fixture',clients:new Map([['client',[redirectUri]]]),
+  const oauth=createIssuer({issuer:base,resource,key:privateKey,keyId:'fixture',publicJwk:{...await exportJWK(publicKey),d:'never-serialize'},clients:new Map([['client',[redirectUri]]]),
    store,confirmNeoPepSession:async session=>session==='verified'?{connectionId,campaignAdmin:true}:null});
   const handler=createHandler({oauth});
   const verifier='a'.repeat(43);
@@ -41,6 +41,9 @@ test('OAuth usa transação SQL para troca única, rotação e revogação por r
   assert.ok(!(await db.query('select digest from neo_private.connect_ai_oauth_grants')).rows.some(row=>row.digest===code));
   const metadata=await (await handler(new Request(base+'/.well-known/oauth-protected-resource/mcp'))).json();
   assert.equal(metadata.resource,resource);
+  const jwks=await (await handler(new Request(base+'/.well-known/jwks.json'))).json();
+  assert.equal(jwks.keys[0].kid,'fixture');
+  assert.ok(!Object.hasOwn(jwks.keys[0],'d'));
   const exchange=fields=>handler(new Request(base+'/oauth/token',{method:'POST',
    body:new URLSearchParams({client_id:'client',resource,...fields})}));
   const codeFields={grant_type:'authorization_code',redirect_uri:redirectUri,code_verifier:verifier,code};

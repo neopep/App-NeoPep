@@ -10,17 +10,21 @@ const isSecret=value=>typeof value==='string'&&/^[0-9a-f]{64}$/.test(value);
 const ok=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store','Pragma':'no-cache'}});
 const invalid=()=>Error('INVALID_GRANT');
 
-export function createIssuer({issuer,resource,key,keyId,clients,store,confirmNeoPepSession}){
+export function createIssuer({issuer,resource,key,keyId,publicJwk,clients,store,confirmNeoPepSession}){
  if(new URL(issuer).protocol!=='https:'||new URL(resource).protocol!=='https:'||!key||!keyId||
   !(clients instanceof Map)||!store||typeof confirmNeoPepSession!=='function')throw Error('Invalid issuer configuration');
  const metadata={issuer,authorization_endpoint:issuer+'/oauth/authorize',token_endpoint:issuer+'/oauth/token',
   jwks_uri:issuer+'/.well-known/jwks.json',response_types_supported:['code'],
   grant_types_supported:['authorization_code','refresh_token'],code_challenge_methods_supported:['S256'],
   token_endpoint_auth_methods_supported:['none'],scopes_supported:[scope]};
+ const jwks=publicJwk?.kty==='EC'&&publicJwk.crv==='P-256'&&
+  [publicJwk.x,publicJwk.y].every(value=>typeof value==='string'&&/^[A-Za-z0-9_-]{43}$/.test(value))
+  ?{keys:[{kty:'EC',crv:'P-256',x:publicJwk.x,y:publicJwk.y,alg:'ES256',use:'sig',kid:keyId}]}:null;
+ if(!jwks)delete metadata.jwks_uri;
  const protectedResource={resource,authorization_servers:[issuer],scopes_supported:[scope]};
  const allowClient=(clientId,redirectUri)=>clients.get(clientId)?.includes(redirectUri)===true;
  return {
-  metadata,protectedResource,
+  metadata,protectedResource,jwks,
   // Call only behind the host's explicit consent and CSRF-protected session flow.
   async issueCode({session,clientId,redirectUri,challenge,method,requestedResource,requestedScope,consent}){
    if(consent!==true||!allowClient(clientId,redirectUri)||requestedResource!==resource||requestedScope!==scope||
@@ -58,6 +62,7 @@ export function makeDiscoveryHandler(issuer){
  return request=>{
   if(request.method!=='GET')return null;
   const path=new URL(request.url).pathname;
+  if(path==='/.well-known/jwks.json'&&issuer.jwks)return ok(issuer.jwks);
   if(path==='/.well-known/oauth-authorization-server')return ok(issuer.metadata);
   if(path==='/.well-known/oauth-protected-resource/mcp'||path==='/.well-known/oauth-protected-resource')
    return ok(issuer.protectedResource);
