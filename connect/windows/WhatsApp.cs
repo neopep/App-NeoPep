@@ -32,7 +32,8 @@ sealed partial class WhatsApp : Form {
     readonly ComboBox diagnosticGroup=new ComboBox();
     readonly TextBox diagnosticHistory=new TextBox();
     readonly Label diagnosticProgress=new Label();
-    Button runDiagnostic;
+    Button runDiagnostic,recoverDistribution;
+    readonly HashSet<string> recoveryEligible=new HashSet<string>(StringComparer.Ordinal);
     TabPage diagnosticPage;
     string diagnosingGroup="";
     bool diagnosing;
@@ -140,6 +141,8 @@ sealed partial class WhatsApp : Form {
         diagnostics.Controls.Add(diagnosticGroup);
         runDiagnostic=Action("Executar diagnóstico completo",RunGroupDiagnostic);runDiagnostic.Enabled=false;
         diagnostics.Controls.Add(runDiagnostic);
+        recoverDistribution=Action("Recuperar distribuição deste grupo",RunGroupRecovery);recoverDistribution.Enabled=false;
+        diagnostics.Controls.Add(recoverDistribution);
         Format(diagnosticProgress);diagnosticProgress.MaximumSize=new Size(680,0);
         diagnostics.Controls.Add(diagnosticProgress);
         diagnosticHistory.Multiline=true;diagnosticHistory.ReadOnly=true;diagnosticHistory.ScrollBars=ScrollBars.Vertical;
@@ -205,6 +208,8 @@ sealed partial class WhatsApp : Form {
 
     void UpdateDiagnosticControls(){
         if(runDiagnostic!=null)runDiagnostic.Enabled=ready&&pipe!=null&&!diagnosing&&!sendingText&&diagnosticGroup.SelectedItem is GroupChoice;
+        var choice=diagnosticGroup.SelectedItem as GroupChoice;
+        if(recoverDistribution!=null)recoverDistribution.Enabled=ready&&pipe!=null&&!diagnosing&&!sendingText&&choice!=null&&recoveryEligible.Contains(choice.Id);
         diagnosticGroup.Enabled=!diagnosing;
     }
     void RefreshDiagnosticGroups(){
@@ -255,6 +260,20 @@ sealed partial class WhatsApp : Form {
         UpdateComposer();
         try{pipe.WriteLine(json.Serialize(new {action="diagnose_group",group_jid=choice.Id}));}
         catch{diagnosing=false;diagnosingGroup="";diagnosticProgress.Text="Não foi possível iniciar a consulta.";UpdateComposer();}
+    }
+    void RunGroupRecovery(){
+        var choice=diagnosticGroup.SelectedItem as GroupChoice;
+        if(choice==null||!ready||pipe==null||diagnosing||sendingText||!recoveryEligible.Contains(choice.Id))return;
+        if(MessageBox.Show("Recuperar somente o registro local de distribuição de chaves do grupo '"+choice.Name+"'?"+
+            Environment.NewLine+"As chaves, credenciais e sessões serão preservadas. Nenhuma mensagem será enviada nesta operação. "+
+            "Não garante a correção do erro 421.","Confirmar recuperação seletiva",MessageBoxButtons.YesNo,MessageBoxIcon.Warning,MessageBoxDefaultButton.Button2)!=DialogResult.Yes)return;
+        if(!ready||pipe==null||diagnosing||sendingText)return;
+        diagnosing=true;diagnosingGroup=choice.Id;
+        recoveryEligible.Remove(choice.Id);
+        diagnosticProgress.Text="Recuperando registro local de "+choice.Name+"…";
+        AddGroupDiagnostic(choice.Id,"Recuperação seletiva iniciada (sem envio).");UpdateComposer();
+        try{pipe.WriteLine(json.Serialize(new {action="recover_group_distribution",group_jid=choice.Id,confirmed=true}));}
+        catch{diagnosing=false;diagnosingGroup="";diagnosticProgress.Text="Resultado incerto. Execute novo diagnóstico.";UpdateComposer();}
     }
     static string CryptoPresence(string value){return value=="present"?"presente":value=="absent"?"ausente":"não verificada";}
     static string DiagnosticCount(Dictionary<string,object> check,string key){
@@ -439,7 +458,7 @@ sealed partial class WhatsApp : Form {
         groupRows.Clear();selected.Clear();groupReadAt=null;RenderGroups();
         groupStatus.Text="Conecte o WhatsApp para consultar grupos.";
         accountStatus.Text="";groupAccount.Text="";accountLabel="WhatsApp";groupLastErrors.Clear();
-        groupDiagnosticHistory.Clear();diagnosing=false;diagnosingGroup="";RefreshDiagnosticGroups();
+        groupDiagnosticHistory.Clear();recoveryEligible.Clear();diagnosing=false;diagnosingGroup="";RefreshDiagnosticGroups();
         RefreshComposerGroups();
     }
     async Task SyncSelection(){
@@ -640,11 +659,27 @@ sealed partial class WhatsApp : Form {
                                 "\nRegistros locais não comprovam validade das chaves nem entrega.";
                         }else if(manual)details+="\nInventário criptográfico local indisponível.";
                         details=details.Replace("\n","\r\n");
+                        if(manual){
+                            recoveryEligible.Remove(jid);
+                            int unmatched;
+                            if(code=="ok"&&TextValue(check,"store_status")=="inspected"&&TextValue(check,"memory_status")=="present"&&TextValue(check,"fresh_mode")=="lid"&&TextValue(check,"own_lid_key")=="present"&&(TextValue(check,"role")=="admin"||TextValue(check,"role")=="superadmin")&&Int32.TryParse(TextValue(check,"memory_unmatched"),out unmatched)&&unmatched>0)recoveryEligible.Add(jid);
+                        }
                         AddGroupDiagnostic(jid,details);
                         if(manual&&diagnosingGroup==jid){diagnosing=false;diagnosingGroup="";diagnosticProgress.Text="Consulta concluída: "+description+".";UpdateComposer();}
                         if(!manual&&code!="ok"&&code!="membership_refreshed"){
                             if(groupLastErrors.Count<500||groupLastErrors.ContainsKey(jid)){groupLastErrors[jid]=code;RenderGroups();}
                         }
+                    }
+                }
+            }else if(type=="group_recovery"&&ready&&!forgetting){
+                phase="GRUPO_RECUPERACAO";
+                var result=message["value"] as Dictionary<string,object>;
+                if(result!=null){
+                    string jid=TextValue(result,"group_jid"),code=TextValue(result,"code");
+                    if(System.Text.RegularExpressions.Regex.IsMatch(jid,@"\A[0-9-]{1,64}@g[.]us\z")&&diagnosingGroup==jid){
+                        string description=code=="recovered"?"Registro local invalidado; chaves e sessões preservadas.":code=="already_empty"?"Registro já vazio.":code=="already_recovered"?"Recuperação já executada nesta sessão.":code=="no_mismatch"?"Sem divergência atual; nada alterado.":code=="metadata_or_permission"?"Metadados ou permissões não confirmados.":code=="identity_unverified"?"Identidade criptográfica não confirmada.":code=="not_participating"?"Grupo não encontrado.":code=="invalid_memory"?"Formato do registro inesperado; nada alterado.":"Recuperação indisponível ou não confirmada.";
+                        AddGroupDiagnostic(jid,description+"\r\nRegistros antes: "+DiagnosticCount(result,"before")+" | Depois: "+DiagnosticCount(result,"after")+"\r\nNenhum envio solicitado por esta operação. Execute novo diagnóstico.");
+                        diagnosing=false;diagnosingGroup="";diagnosticProgress.Text=description;UpdateComposer();
                     }
                 }
             }else if(type=="group_send_stage"&&ready&&!forgetting){
