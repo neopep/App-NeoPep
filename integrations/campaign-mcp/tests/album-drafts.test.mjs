@@ -3,6 +3,7 @@ import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {test} from 'node:test';
 import {createCampaignReader} from '../src/campaign-reader.mjs';
+import {prepareDraftAddition} from '../src/draft-plan.mjs';
 import {createDraftWriter} from '../src/draft-writer.mjs';
 import {PGlite} from '@electric-sql/pglite';
 const migration=readFileSync(new URL('../../../release/connect-ai/011-album-drafts.candidate.sql',import.meta.url),'utf8');
@@ -39,6 +40,14 @@ test('album revision preserves four photos and revised order; both native queues
    await db.query("insert into storage.objects values ('neo-campaign-images',$1,$2,jsonb_build_object('size',1048576,'mimetype','image/jpeg'))",[media_path,owner]);
    blocks.push({id:id(n),album_id:album,type:'image',media_path,text:'*Foto* '+n});
   }
+  const input={channel:'whatsapp',campaignId:editor,publicationId:editor,requestId:id(90),
+   title:'Álbum de teste',ownerId:owner,blocks:blocks.map(b=>({id:b.id,text:b.text,albumId:b.album_id}))};
+  const planned=prepareDraftAddition(input).p_data.draft;
+  assert.deepEqual(planned.blocks.map(({layout,...b})=>b),blocks);
+  assert.throws(()=>prepareDraftAddition({...input,channel:'app'}),/INVALID_DRAFT/);
+  assert.throws(()=>prepareDraftAddition({...input,blocks:[input.blocks[0],{id:id(91),text:'texto'},...input.blocks.slice(1)]}),/INVALID_DRAFT/);
+  assert.throws(()=>prepareDraftAddition({...input,blocks:[{...input.blocks[0],media_path:'unsafe'},...input.blocks.slice(1)]}),/INVALID_DRAFT/);
+  assert.deepEqual(await rpc('save',{revision:0,...planned}),planned);
   assert.deepEqual(await rpc('save',{revision:1,blocks}),{blocks});
   assert.deepEqual(await rpc('load'),{blocks});
   const revised=blocks.slice().reverse();

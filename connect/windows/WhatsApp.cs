@@ -41,6 +41,10 @@ sealed partial class WhatsApp : Form {
     readonly Label sendStatus=new Label(),previewText=new Label();
     Guid pendingSend=Guid.Empty;
     bool sendingText;
+    // Enable only in a build that has passed album delivery homologation.
+    static readonly bool AlbumTransportApproved=false;
+    public bool CampaignAlbumReady { get { return AlbumTransportApproved&&CampaignSessionReady; } }
+    TaskCompletionSource<Dictionary<string,object>> automatedAlbum;
     TaskCompletionSource<Tuple<string,string>> automatedSend;
     Guid automatedRequest;
     readonly HashSet<string> sentRequests=new HashSet<string>(StringComparer.Ordinal);
@@ -245,7 +249,7 @@ sealed partial class WhatsApp : Form {
         }catch{}
     }
     void PublishManualText(){
-        if(environment.IsProduction||!ready||sendingText||automatedSend!=null||!groupReadAt.HasValue||pendingSend!=Guid.Empty||canPublish==null||!canPublish())return;
+        if(environment.IsProduction||!ready||sendingText||automatedSend!=null||automatedAlbum!=null||!groupReadAt.HasValue||pendingSend!=Guid.Empty||canPublish==null||!canPublish())return;
         var choice=targetGroup.SelectedItem as GroupChoice;
         string text=CampaignText();
         if(choice==null||!selected.Contains(choice.Id)||(campaignImage==null&&String.IsNullOrEmpty(text))||text.Length>2000)return;
@@ -275,7 +279,7 @@ sealed partial class WhatsApp : Form {
             &&connectionId!=Guid.Empty&&groupReadAt.HasValue&&DateTime.Now-groupReadAt.Value<TimeSpan.FromHours(24); }
     }
     public async Task<Tuple<string,string>> DispatchCampaignTextAsync(Guid request,string group,string text) {
-        if(!CampaignSessionReady||pendingSend!=Guid.Empty||automatedSend!=null||!selected.Contains(group)
+        if(!CampaignSessionReady||pendingSend!=Guid.Empty||automatedSend!=null||automatedAlbum!=null||!selected.Contains(group)
             ||String.IsNullOrWhiteSpace(text)||text.Length>2000||request==Guid.Empty
             ||canPublish==null||!canPublish())return Tuple.Create("refused",(string)null);
         var completion=new TaskCompletionSource<Tuple<string,string>>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -288,7 +292,7 @@ sealed partial class WhatsApp : Form {
         finally{automatedSend=null;automatedRequest=Guid.Empty;sendingText=false;UpdateComposer();}
     }
     public async Task<Tuple<string,string>> DispatchCampaignImageAsync(Guid request,string group,string caption,byte[] jpeg) {
-        if(!CampaignSessionReady||pendingSend!=Guid.Empty||automatedSend!=null||!selected.Contains(group)
+        if(!CampaignSessionReady||pendingSend!=Guid.Empty||automatedSend!=null||automatedAlbum!=null||!selected.Contains(group)
             ||caption==null||caption.Length>2000||jpeg==null||jpeg.Length<4||jpeg.Length>5*1024*1024
             ||jpeg[0]!=0xff||jpeg[1]!=0xd8||jpeg[2]!=0xff||request==Guid.Empty
             ||canPublish==null||!canPublish())return Tuple.Create("refused",(string)null);
@@ -302,9 +306,31 @@ sealed partial class WhatsApp : Form {
         }catch{return Tuple.Create("uncertain",(string)null);}
         finally{automatedSend=null;automatedRequest=Guid.Empty;sendingText=false;UpdateComposer();}
     }
+    public async Task<Dictionary<string,object>> DispatchCampaignAlbumAsync(Guid request,string group,IList<Tuple<byte[],string>> images) {
+        var uncertain=new Dictionary<string,object>{{"status","uncertain"}};
+        if(!CampaignAlbumReady||pendingSend!=Guid.Empty||automatedSend!=null||automatedAlbum!=null||!selected.Contains(group)
+           ||request==Guid.Empty||images==null||images.Count<2||images.Count>4||canPublish==null||!canPublish())return uncertain;
+        long bytes=0;
+        var payload=new List<object>();
+        foreach(var item in images){
+            var jpeg=item.Item1;var caption=item.Item2;
+            if(jpeg==null||jpeg.Length<5||jpeg.Length>5*1024*1024||(bytes+=jpeg.Length)>10*1024*1024
+               ||jpeg[0]!=255||jpeg[1]!=216||jpeg[2]!=255||jpeg[jpeg.Length-2]!=255||jpeg[jpeg.Length-1]!=217
+               ||caption==null||caption.Length>1000)return uncertain;
+            payload.Add(new {image=Convert.ToBase64String(jpeg),caption=caption});
+        }
+        var completion=new TaskCompletionSource<Dictionary<string,object>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        automatedAlbum=completion;automatedRequest=request;sendingText=true;UpdateComposer();
+        try{
+            pipe.WriteLine(json.Serialize(new {action="send_album",request_id=request.ToString(),group_jid=group,images=payload}));
+            return await Task.WhenAny(completion.Task,Task.Delay(TimeSpan.FromSeconds(105)))==completion.Task
+                ?await completion.Task:uncertain;
+        }catch{return uncertain;}
+        finally{automatedAlbum=null;automatedRequest=Guid.Empty;sendingText=false;UpdateComposer();}
+    }
     // Candidate transport; no production or unapproved destination can reach this method.
     public async Task<Tuple<string,string>> DispatchCampaignFileAsync(Guid request,string group,string caption,byte[] bytes,string mime,string name) {
-        if(!CampaignSessionReady||pendingSend!=Guid.Empty||automatedSend!=null||!selected.Contains(group)
+        if(!CampaignSessionReady||pendingSend!=Guid.Empty||automatedSend!=null||automatedAlbum!=null||!selected.Contains(group)
             ||caption==null||caption.Length>1000||bytes==null||bytes.Length<8||bytes.Length>5*1024*1024
             ||request==Guid.Empty||String.IsNullOrWhiteSpace(name)||name.Length>160
             ||name.IndexOfAny(System.IO.Path.GetInvalidFileNameChars())>=0
@@ -397,6 +423,7 @@ sealed partial class WhatsApp : Form {
                 WorkingDirectory=Path.Combine(runtime,"bridge"),UseShellExecute=false,CreateNoWindow=true,
                 RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Utf8
             };
+            start.EnvironmentVariables["NEO_CONNECT_ALBUM_V1"]=AlbumTransportApproved?"1":"0";
             start.EnvironmentVariables.Remove("NODE_OPTIONS");start.EnvironmentVariables.Remove("NODE_PATH");
             var child=new Process{StartInfo=start,EnableRaisingEvents=true};
             int revision=++generation;
@@ -493,6 +520,9 @@ sealed partial class WhatsApp : Form {
             }else if(type=="send_result"){
                 phase="RESULTADO";
                 var result=message["value"] as Dictionary<string,object>;
+                if(result!=null&&automatedAlbum!=null&&TextValue(result,"request_id")==automatedRequest.ToString()){
+                    automatedAlbum.TrySetResult(result);
+                }
                 if(result!=null&&automatedSend!=null&&TextValue(result,"request_id")==automatedRequest.ToString()){
                     var outcome=TextValue(result,"status");
                     var receipt=TextValue(result,"message_id");
@@ -526,6 +556,7 @@ sealed partial class WhatsApp : Form {
     }
     void StopBridge(){
         ++generation;ready=false;forgetting=false;
+        if(automatedAlbum!=null)automatedAlbum.TrySetResult(new Dictionary<string,object>{{"status","uncertain"}});
         if(automatedSend!=null)automatedSend.TrySetResult(Tuple.Create("uncertain",(string)null));
         if(pendingSend!=Guid.Empty){
             AuditSend("uncertain");

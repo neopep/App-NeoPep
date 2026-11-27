@@ -46,7 +46,7 @@ export function createDraftWriter({publishableKey,sessionFor,request=fetch,profi
    shape(item,operation==='add_publications'?['publicationId','requestId','title','blocks','plannedLocal']:['publicationId','requestId','revision','edits','mediaCaption','albumEdit']);
    if(!uuid(item.publicationId)||!uuid(item.requestId)||ids.has(item.publicationId)||requests.has(item.requestId))throw Error('INVALID_DRAFT');
    ids.add(item.publicationId);requests.add(item.requestId);
-   if(operation==='add_publications')return {item,op:prepareDraftAddition({channel,campaignId,...item})};
+   if(operation==='add_publications')return {item,op:prepareDraftAddition({channel,campaignId,...item,ownerId:principal.ownerId})};
    if(!Number.isSafeInteger(item.revision)||item.revision<1)throw Error('INVALID_DRAFT');
    if(Object.hasOwn(item,'albumEdit')){
     if(channel!=='whatsapp'||Object.hasOwn(item,'edits')||Object.hasOwn(item,'mediaCaption'))throw Error('INVALID_DRAFT');

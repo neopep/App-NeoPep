@@ -465,20 +465,40 @@ sealed partial class Connect : Form {
     async Task TickRichCampaign(WhatsApp window,Guid connection) {
         // Em ambos os perfis, a fila rica exige opt-in local, JWT do ambiente e gate/allowlist do servidor.
         if(Value(local,"campaign_worker_enabled")!="1"||!deviceApproved||!SessionReady()||!window.CampaignSessionReady)return;
-        var lease=await RichCampaign("claim",new {originals_v1=true,image5_v1=true});
+        var lease=await RichCampaign("claim",new {originals_v1=true,image5_v1=true,album_v1=window.CampaignAlbumReady});
         if(lease==null)return;
         var id=Value(lease,"id");var fence=Value(lease,"fence");
         var started=false;
+        Dictionary<string,object> albumReceipt=null;
         var outcome=Tuple.Create("uncertain",(string)null);
         try {
-            var job=await RichCampaign("start",new {id=id,fence=fence,originals_v1=true,image5_v1=true});
+            var job=await RichCampaign("start",new {id=id,fence=fence,originals_v1=true,image5_v1=true,album_v1=window.CampaignAlbumReady});
             if(job==null)return;
             started=true;
             Guid request;
             if(whatsapp==window&&window.CampaignConnection==connection&&window.CampaignSessionReady
                 &&Guid.TryParse(fence,out request)){
                 var kind=Value(job,"kind");
-                if(kind=="image"||(kind=="product"&&!String.IsNullOrEmpty(Value(job,"media_path")))){
+                if(kind=="album"&&window.CampaignAlbumReady){
+                    object raw;
+                    var entries=job.TryGetValue("album_items",out raw)?raw as System.Collections.IList:null;
+                    if(entries==null||entries.Count<2||entries.Count>4)throw new InvalidOperationException();
+                    var images=new List<Tuple<byte[],string>>();
+                    long albumBytes=0;
+                    foreach(var entry in entries){
+                        var image=entry as Dictionary<string,object>;
+                        if(image==null)throw new InvalidOperationException();
+                        var bytes=await LoadRichCampaignJpeg("neo-campaign-images",Value(image,"media_path"));
+                        if((albumBytes+=bytes.Length)>10*1024*1024)throw new InvalidOperationException();
+                        images.Add(Tuple.Create(bytes,Value(image,"text")));
+                    }
+                    if(whatsapp==window&&window.CampaignConnection==connection&&window.CampaignAlbumReady&&deviceApproved&&SessionReady()&&Value(local,"campaign_worker_enabled")=="1"){
+                        albumReceipt=await window.DispatchCampaignAlbumAsync(request,Value(job,"group_jid"),images);
+                        var parent=Value(albumReceipt,"message_id");
+                        outcome=Value(albumReceipt,"status")=="accepted"&&!String.IsNullOrWhiteSpace(parent)
+                            ?Tuple.Create("accepted",parent):Tuple.Create("uncertain",(string)null);
+                    }
+                }else if(kind=="image"||(kind=="product"&&!String.IsNullOrEmpty(Value(job,"media_path")))){
                     var bytes=await LoadRichCampaignJpeg(Value(job,"media_bucket"),Value(job,"media_path"));
                     if(whatsapp==window&&window.CampaignConnection==connection&&window.CampaignSessionReady&&deviceApproved&&SessionReady()&&Value(local,"campaign_worker_enabled")=="1")
                         outcome=await window.DispatchCampaignImageAsync(request,Value(job,"group_jid"),Value(job,"text"),bytes);
@@ -493,8 +513,11 @@ sealed partial class Connect : Form {
             }
         }catch(Exception){Record("rich_campaign_uncertain");}
         // C# 5 / .NET Framework: nao usar await no bloco finally.
-        if(started)try{await RichCampaign("finish",new {id=id,fence=fence,
-            outcome=outcome.Item1,receipt_id=outcome.Item2});}
+        if(started)try{
+            if(albumReceipt==null)await RichCampaign("finish",new {id=id,fence=fence,outcome=outcome.Item1,receipt_id=outcome.Item2});
+            else await RichCampaign("finish",new {id=id,fence=fence,outcome=outcome.Item1,receipt_id=outcome.Item2,
+                album_receipt=albumReceipt});
+        }
         catch(Exception){Record("rich_campaign_finalization_uncertain");}
     }
     async Task TickCampaignDispatch() {

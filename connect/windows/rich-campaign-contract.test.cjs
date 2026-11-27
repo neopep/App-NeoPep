@@ -63,3 +63,14 @@ test('originais exigem transporte privado, opt-in e capacidade do cliente',()=>{
  assert.match(whatsapp,/DispatchCampaignFileAsync/);
  assert.match(whatsapp,/action="send_file"/);
 });
+
+test('álbum candidato passa capability independente e mantém o transporte desligado',()=>{
+ const worker=fs.readFileSync(path.join(__dirname,'Connect.cs'),'utf8');
+ const whatsapp=fs.readFileSync(path.join(__dirname,'WhatsApp.cs'),'utf8');
+ assert.match(whatsapp,/AlbumTransportApproved=false/);
+ assert.match(whatsapp,/action="send_album"/);
+ assert.match(whatsapp,/automatedAlbum\.TrySetResult\(result\)/);
+ assert.match(worker,/RichCampaign\("claim",new \{originals_v1=true,image5_v1=true,album_v1=window\.CampaignAlbumReady\}/);
+ assert.match(worker,/RichCampaign\("start",new \{id=id,fence=fence,originals_v1=true,image5_v1=true,album_v1=window\.CampaignAlbumReady\}/);
+ assert.match(worker,/album_receipt=albumReceipt/);
+});

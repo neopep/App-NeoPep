@@ -248,3 +248,10 @@ Leitura MCP preserva a ordem e o `album_id` sem expor caminhos. A edição `albu
 
 O ensaio PGlite usa RPC e objetos de Storage fictícios. Ele cobre quatro imagens, duas revisões manuais, consulta e revisão via adaptadores MCP, titularidade, contiguidade e recusa das filas, além de publicação individual legada. Ainda faltam criação MCP com mídia autorizada, lote, suporte ao álbum na fila, recibos duráveis, Windows, agendamento simulado e falha parcial através dessas camadas. Sem homologação ou deploy.
 - `84a1381` enviado ao GitHub. Build, check, geradores, web 571/571, MCP 37/37 e Windows/bridge/provider 26/26 aprovados localmente. O teste integrado termina no bloqueio do agendamento; não executa a entrega ou a recuperação de recibos. Nenhum deploy.
+
+## Executor Windows e recibos de álbum
+
+Base remota `583c850` preservada. Candidato C# ligado ao bridge `send_album`, com capability independente em claim/start e transporte bloqueado na build. A migração 012 registra o pai e filhos conhecidos na mesma linha da tentativa nativa, usando o finish autenticado e com fence. O estado aceito exige todos os recibos. Dados parciais permanecem incertos. Teste PGlite liga Baileys simulado com falha parcial ao finish e confirma que tentativa encerrada ou com lease vencido não volta ao claim. Usa uma linha pré-semeada, sem passar pelo agendamento nativo.
+
+Faltam criação da unidade de fila, validação de capability e lease no servidor, ensaio agendado com a resolução real de destinos, compilação física Windows, criação MCP e lotes 30/60. Nenhuma migração, publicação, execução de envio real ou ativação desta capacidade.
+- `add_publications` aceita blocos consecutivos de álbum a partir de IDs de JPEGs já armazenados. Caminhos são derivados do titular autenticado, com validação adicional da candidata 011 no Storage. Não há transferência de novos criativos. Guia e base gerada passam a 2026-11-27.8. Testes focais ligam criação e edição do rascunho em uma fixture, e transporte/recibos em outra. O teste obrigatório de ponta a ponta continua pendente.

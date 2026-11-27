@@ -132,7 +132,7 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
 }
 
 if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){
- const bridge=createBridge({emit:message=>process.stdout.write(JSON.stringify(message)+'\n')});
+ const bridge=createBridge({enableAlbums:process.env.NEO_CONNECT_ALBUM_V1==='1',emit:message=>process.stdout.write(JSON.stringify(message)+'\n')});
  const lines=createInterface({input:process.stdin,terminal:false});
  const stop=async()=>{try{await bridge.close()}finally{process.exit(0)}};
  lines.on('close',()=>{void stop()});

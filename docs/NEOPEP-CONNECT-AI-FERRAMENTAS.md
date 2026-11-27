@@ -113,7 +113,7 @@ Escopo `campaigns:read`.
     "type": "object",
     "properties": {
       "guide_version": {
-        "const": "2026-11-27.7"
+        "const": "2026-11-27.8"
       },
       "guide_receipt": {
         "type": [
@@ -1113,7 +1113,7 @@ Escopo `campaigns:read + campaigns:drafts`.
       },
       "guideVersion": {
         "type": "string",
-        "const": "2026-11-27.7",
+        "const": "2026-11-27.8",
         "description": "Versão retornada por get_publication_guide; consulte antes de escrever."
       },
       "guideReceipt": {
@@ -1160,7 +1160,7 @@ Escopo `campaigns:read + campaigns:drafts`.
 
 ## add_publications
 
-Adiciona até seis publicações textuais em rascunho. plannedLocal é sugestão de horário, não agenda. Retorna resultado individual; reutilize IDs em tentativas.
+Adiciona até seis publicações em rascunho. Álbum WhatsApp usa IDs de JPEGs privados já existentes e validados pelo servidor. plannedLocal é sugestão de horário, não agenda. Retorna resultado individual; reutilize IDs em tentativas.
 
 Escopo `campaigns:read + campaigns:drafts`.
 
@@ -1181,7 +1181,7 @@ Escopo `campaigns:read + campaigns:drafts`.
       },
       "guideVersion": {
         "type": "string",
-        "const": "2026-11-27.7",
+        "const": "2026-11-27.8",
         "description": "Versão retornada por get_publication_guide; consulte antes de escrever."
       },
       "guideReceipt": {
@@ -1214,23 +1214,50 @@ Escopo `campaigns:read + campaigns:drafts`.
               "minItems": 1,
               "maxItems": 6,
               "items": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "format": "uuid"
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2000
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "text"
+                    ],
+                    "additionalProperties": false
                   },
-                  "text": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 2000
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "albumId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "text": {
+                        "type": "string",
+                        "maxLength": 1000
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "albumId",
+                      "text"
+                    ],
+                    "additionalProperties": false
                   }
-                },
-                "required": [
-                  "id",
-                  "text"
-                ],
-                "additionalProperties": false
+                ]
               }
             },
             "plannedLocal": {
@@ -1333,7 +1360,7 @@ Escopo `campaigns:read + campaigns:drafts`.
       },
       "guideVersion": {
         "type": "string",
-        "const": "2026-11-27.7",
+        "const": "2026-11-27.8",
         "description": "Versão retornada por get_publication_guide; consulte antes de escrever."
       },
       "guideReceipt": {
