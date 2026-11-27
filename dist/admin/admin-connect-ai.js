@@ -1,4 +1,4 @@
-// Teste: reference panel only until the independent service is provisioned.
+// Teste: consentimento OAuth somente leitura e base de conhecimento preservada.
 window.NeoAdminConnectAI=(()=>{
  function mountKnowledge(dialog,source=window.NeoConnectAIKnowledge){
   const panel=dialog.querySelector('[data-connect-ai-knowledge]');
@@ -35,14 +35,38 @@ window.NeoAdminConnectAI=(()=>{
   section('Identidade visual, exemplos aprovados e histórico',d=>add(d,'p','Edição administrativa, aprovação de exemplos e histórico persistente ainda não habilitados. Nenhuma informação de membros é carregada.'));
  }
 
+ function mountConsent(dialog,cloud){
+  if(!cloud?.connectAIAvailable)return;
+  const current=new URL(window.location.href);
+  const query=current.searchParams.get('connectAiRequest');
+  if(!query)return;
+  const proof=current.searchParams.get('connectAiCsrf'),expires=current.searchParams.get('connectAiExpires');
+  const params=new URLSearchParams(query);
+  const panel=dialog.querySelector('[data-connect-ai-consent]');
+  const status=panel.querySelector('[role=status]'),approve=panel.querySelector('button');
+  panel.hidden=false;
+  panel.querySelector('[data-consent-client]').textContent=params.get('client_id')||'Cliente externo';
+  if(!proof||!expires||Number(expires)<=Date.now()||params.get('scope')!=='campaigns:read'){approve.disabled=true;status.textContent='Solicitação inválida, expirada ou fora do escopo de leitura. Reinicie pelo Codex.';dialog.showModal();return;}
+  approve.addEventListener('click',async()=>{
+   approve.disabled=true;
+   try{window.location.assign(await cloud.approveConnectAI(query,proof,expires));}
+   catch{status.textContent='A autorização falhou ou expirou. Reinicie pelo cliente.';}
+  });
+  dialog.addEventListener('close',()=>{
+   for(const key of ['connectAiRequest','connectAiCsrf','connectAiExpires'])current.searchParams.delete(key);
+   window.history.replaceState(window.history.state,'',current.href);
+   panel.hidden=true;
+  },{once:true});
+  dialog.showModal();
+ }
  function mount(root){
   const toolbar=root.querySelector('.neo-campaign-toolbar');
   if(!toolbar||root.querySelector('[data-connect-ai-open]'))return;
   toolbar.insertAdjacentHTML('beforebegin','<button type="button" class="secondary neo-connect-ai-entry" data-connect-ai-open aria-haspopup="dialog"><span aria-hidden="true">✦</span><span><strong>NeoPep Connect AI</strong><small>Base de conhecimento · Teste</small></span><span aria-hidden="true">›</span></button>');
   const trigger=root.querySelector('[data-connect-ai-open]');
   const dialog=document.createElement('dialog');dialog.className='card neo-connect-ai-dialog';dialog.setAttribute('aria-labelledby','neoConnectAITitle');
-  dialog.innerHTML='<h2 id="neoConnectAITitle">NeoPep Connect AI</h2><p role="status">Teste: base de conhecimento disponível para consulta. Conexão MCP e escrita ainda desativadas.</p><details data-connect-ai-knowledge open><summary>Base de conhecimento da IA</summary><div data-knowledge-content></div></details><form method="dialog"><button type="submit" class="secondary" autofocus>Voltar a Campanhas</button></form>';
-  toolbar.after(dialog);mountKnowledge(dialog);trigger.addEventListener('click',()=>{if(!dialog.open)dialog.showModal();});dialog.addEventListener('close',()=>{if(trigger.isConnected)trigger.focus({preventScroll:true});});
+  dialog.innerHTML='<h2 id="neoConnectAITitle">NeoPep Connect AI</h2><p role="status">Teste: base de conhecimento disponível. Conexão MCP somente leitura mediante autorização; escrita desativada.</p><section data-connect-ai-consent hidden aria-label="Autorizar integração"><h3>Autorizar integração</h3><p data-consent-client></p><p data-consent-description>Permitir que este cliente consulte campanhas no NeoPep Teste com a sua conta? Somente leitura. Não autoriza criação, edição, envio ou agendamento.</p><button type="button" class="primary">Autorizar leitura</button><p role="status"></p></section><details data-connect-ai-knowledge open><summary>Base de conhecimento da IA</summary><div data-knowledge-content></div></details><form method="dialog"><button type="submit" class="secondary" autofocus>Voltar a Campanhas</button></form>';
+  toolbar.after(dialog);mountKnowledge(dialog);mountConsent(dialog,window.NeoCloud);trigger.addEventListener('click',()=>{if(!dialog.open)dialog.showModal();});dialog.addEventListener('close',()=>{if(trigger.isConnected)trigger.focus({preventScroll:true});});
  }
  return {mount};
 })();

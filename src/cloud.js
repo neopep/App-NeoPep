@@ -25,7 +25,51 @@ const authStorage={
 };
 function chooseRemember(value){if(typeof value!=='boolean')return;const saved=rememberSession===value?null:AUTH_KEYS.map(key=>[key,authStorage.getItem(key)]);rememberSession=value;writeStore(browserStore('localStorage'),REMEMBER_KEY,String(value));if(saved){for(const [key] of saved)authStorage.removeItem(key);for(const [key,item] of saved)if(item!==null)authStorage.setItem(key,item)}}
 const clearAuthStorage=()=>AUTH_KEYS.forEach(key=>authStorage.removeItem(key));
+function connectAIHost(){
+ return location.origin==='https://teste.app.neopep.com.br'&&config.supabaseUrl==='https://qnuluspqfazdppciermw.supabase.co'?'https://connect-teste.neopep.com.br':null;
+}
+function validateConnectAIReturn(target, redirect) {
+ const fail=()=>{throw Error('Retorno de autorização inválido.');};
+ const expected=new URL(target.searchParams.get('redirect_uri')),actual=new URL(redirect);
+ const clientId=target.searchParams.get('client_id');
+ const native=clientId==='https://chatgpt.com/oauth/codex/client.json';
+ const local=native&&expected.protocol==='http:'&&['localhost','127.0.0.1'].includes(expected.hostname)&&Boolean(expected.port)&&expected.pathname==='/callback'&&!expected.search;
+ if(expected.username||expected.password||expected.hash||actual.username||actual.password||actual.hash||(!local&&expected.protocol!=='https:'))fail();
+ if(['code','state','iss'].some(key=>expected.searchParams.has(key)))fail();
+ if(actual.searchParams.getAll('code').length!==1||actual.searchParams.getAll('state').length!==1||actual.searchParams.getAll('iss').length>1)fail();
+ const code=actual.searchParams.get('code'),state=actual.searchParams.get('state'),iss=actual.searchParams.get('iss');
+ if(!/^[0-9a-f]{64}$/.test(code||'')||!state||state!==target.searchParams.get('state')||(iss!==null&&iss!==target.origin)||(native&&iss!==target.origin))fail();
+ for(const key of ['code','state','iss'])actual.searchParams.delete(key);
+ expected.search=expected.searchParams.toString();
+ if(actual.href!==expected.href)fail();
+ return redirect;
+}
 const api={configured,
+ get connectAIAvailable(){return Boolean(connectAIHost())},
+ async connectAIConnections(action,id=null){
+  if(!api.connectAIAvailable||!['list','revoke'].includes(action))throw Error('Operação indisponível.');
+  const version=identityVersion;
+  const result=ok(await need().rpc('neo_connect_ai_connections',{p_action:action,p_id:id}));
+  if(version!==identityVersion)throw Error('A conta mudou.');
+  return result;
+ },
+ async approveConnectAI(query,proof,expires,permission='approve'){
+  if(!api.connectAIAvailable)throw Error('Operação indisponível.');
+  const version=identityVersion,account=user?.id;
+  const {session}=ok(await need().auth.getSession());
+  if(version!==identityVersion||session?.user?.id!==account||!session?.access_token)throw Error('Entre novamente no NeoPep.');
+  const target=new URL('/oauth/authorize',connectAIHost());
+  target.search=query;
+  const wantsDrafts=target.searchParams.get('scope')==='campaigns:read campaigns:drafts';
+  if(permission!=='approve'||wantsDrafts||target.searchParams.get('scope')!=='campaigns:read')throw Error('Permissão não autorizada.');
+  const response=await fetch(target,{method:'POST',redirect:'error',credentials:'omit',referrerPolicy:'no-referrer',
+   headers:{Authorization:'Bearer '+session.access_token,'X-Neo-Consent':permission,'X-Neo-Csrf':proof,'X-Neo-Expires':expires}});
+  if(!response.ok||version!==identityVersion)throw Error('Não foi possível autorizar. Reinicie pelo cliente.');
+  const {redirect}=await response.json();
+  if(version!==identityVersion)throw Error('A conta mudou.');
+  return validateConnectAIReturn(target,redirect);
+ },
+
  async campaignImageURL(path){
   const result=ok(await need().storage.from('neo-campaign-images').createSignedUrl(path,120));
   return result.signedUrl;
