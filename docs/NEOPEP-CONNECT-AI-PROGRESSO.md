@@ -141,3 +141,9 @@ Ponto de corte: `docs/PONTO-DE-CORTE-20261126.md`. A publicação anterior de Te
 - Nenhuma migração aplicada ou configuração externa alterada. Os pushes servem para continuidade do desenvolvimento privado. Não houve instalação em Plus, Claude, Gemini, Codex ou Sites.
 - Rascunhos: o contrato textual preserva título, mídia, destinatários, agenda e configurações, a partir da revisão nativa. A ferramenta ainda não executa gravações. Etapas independentes de mídia, operações em massa, agendamento e métricas reais continuam pendentes.
 - Próxima ação exata: revisar a [implantação de Teste](NEOPEP-CONNECT-AI-IMPLANTACAO-TESTE.md), identificar um cliente com callback HTTPS registrável, validar os privilégios efetivos do login do broker e solicitar autorização para preparar os recursos privados de Teste. Executar o roteiro antes de ampliar escopo ou clientes.
+
+### Verificação final do incremento
+
+- `8569d0b` acrescenta broker, migração 003 e reversão. `8ccc5d3` registra os limites dos clientes e ajusta a verificação da versão do SDK no painel.
+- Suíte do aplicativo: 544 de 545 testes passaram. A falha de badges no tema escuro foi reproduzida isoladamente com os arquivos originais de `51c34f0`. O teste focal adicional confirma CSP exclusiva do painel Teste e inserção única da política de referrer em builds repetidos.
+- O dry-run do Wrangler 4.54.0 gerou o bundle com as duas flags em zero. A documentação oficial de Sites exige que o proprietário publique o Site para criar o plugin e limita compartilhamento direto em contas pessoais. O ensaio individual com Web e iPhone ainda depende de autorização para uma publicação privada e de elegibilidade da conta.

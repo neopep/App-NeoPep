@@ -43,6 +43,13 @@ test('staging installs at the root and keeps the former launch and worker routes
   assert.match(read('style.css'), /content:"TESTE";display:block/);
   assert.match(read('style.css'), /pointer-events:none/);
   assert.match(read('admin/index.html'), /href="\.\.\/style\.css(?:\?v=[a-z0-9-]+)?"/);
+  const admin = read('admin/index.html');
+  assert.match(admin, /connect-src 'self' https:\/\/qnuluspqfazdppciermw\.supabase\.co https:\/\/connect-teste\.neopep\.com\.br;/);
+  assert.equal([...admin.matchAll(/name="referrer" content="no-referrer"/g)].length, 1);
+  for (const file of ['index.html', 'excluir-conta/index.html']) {
+    assert.doesNotMatch(read(file), /connect-teste\.neopep\.com\.br/);
+  }
+  assert.doesNotMatch(fs.readFileSync('dist/admin/index.html', 'utf8'), /connect-teste\.neopep\.com\.br/);
   const manifest = JSON.parse(read('manifest.webmanifest'));
   assert.deepEqual([manifest.id, manifest.start_url, manifest.scope], ['/', '/', '/']);
   assert.equal(manifest.name, 'NeoPep Teste');

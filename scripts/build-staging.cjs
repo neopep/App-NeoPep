@@ -56,7 +56,7 @@ async function prepare() {
       .replaceAll('wss://*.supabase.co', staging.replace('https:', 'wss:'));
     const output = path === 'dist/admin/index.html' ? html
       .replace("connect-src 'self' "+staging+';', "connect-src 'self' "+staging+' https://connect-teste.neopep.com.br;')
-      .replace('<head>', '<head><meta name="referrer" content="no-referrer">') : html;
+      .replace(/<head>(?!<meta name="referrer" content="no-referrer">)/, '<head><meta name="referrer" content="no-referrer">') : html;
     fs.writeFileSync(path, output);
   }
   const style = 'dist/style.css';
