@@ -18,17 +18,20 @@ window.NeoAdminConnectAI=(()=>{
   const instructions=dialog.querySelector('[data-connect-ai-instructions]');
   const official=dialog.querySelector('[data-connect-ai-guide]');
   const state=dialog.querySelector('[data-connect-ai-install-state]');
+  const pack=dialog.querySelector('[data-connect-ai-package]');
   function render(){
    const client=clients[select.value]||clients.chatgpt;
    const isMobileOrWeb=surface.value==='web'||surface.value==='iphone';
-   instructions.textContent=select.value==='chatgpt'&&isMobileOrWeb
+   const supported=environment.value==='production'&&surface.value==='desktop'&&['codex','chatgpt'].includes(select.value);
+   pack.hidden=!supported;
+   instructions.textContent=supported?'Baixe o ZIP 1.0.5, importe como novo plugin na página Plugins do ChatGPT, abra no aplicativo desktop e autorize a leitura no NeoPep. Se estiver substituindo uma instalação antiga que não reconhece o MCP, desinstale o plugin anterior antes de importar.':select.value==='chatgpt'&&isMobileOrWeb
     ?'ChatGPT Sites pode ser avaliado como alternativa privada. Verifique a disponibilidade nesta conta e dispositivo.'
     :client.help;
    address.value=environment.value==='production'?'https://connect.neopep.com.br/mcp':'https://connect-teste.neopep.com.br/mcp';
    copyStatus.textContent='';
    official.href=client.url;
    state.textContent=(environment.value==='production'?'Produção':'Teste')+
-    ' · instalação e verificação pendentes de homologação.';
+    (supported?' · ZIP 1.0.5 homologado no Codex desktop (27/11/2026).':' · esta combinação ainda não foi homologada.');
   }
   select.addEventListener('change',render);
   environment.addEventListener('change',render);
@@ -111,7 +114,7 @@ window.NeoAdminConnectAI=(()=>{
   dialog.setAttribute('aria-labelledby','neoConnectAITitle');
   dialog.innerHTML=`<h2 id="neoConnectAITitle">NeoPep Connect AI</h2>
   <p>Integração externa com as campanhas do NeoPep.</p>
-  <p role="status">Servidor e conexões aguardam homologação.</p>
+  <p role="status">Produção: conexão e consulta de campanhas homologadas no Codex desktop. Somente leitura.</p>
   <section data-connect-ai-consent hidden aria-label="Autorizar integração">
    <h3>Autorizar integração</h3><p data-consent-client></p>
    <p>Permitir que este cliente consulte campanhas no NeoPep ${window.location?.origin==='https://app.neopep.com.br'?'Produção':'Teste'} com a sua conta?</p>
@@ -131,13 +134,12 @@ window.NeoAdminConnectAI=(()=>{
    <label>Endereço MCP candidato<input data-connect-ai-address readonly></label>
    <button type="button" class="secondary" data-connect-ai-copy>Copiar endereço MCP</button>
    <p role="status" data-connect-ai-copy-status></p>
-   <p>Versão instalada indisponível. Para atualizar o catálogo local, confira a revisão autorizada, regenere o pacote e reinicie o cliente.</p>
-   <button type="button" class="secondary" disabled>Baixar pacote homologado</button>
+   <section data-connect-ai-package hidden><h3>Plugin homologado · 1.0.5</h3><p>Produção · somente leitura · sem chaves ou senhas no ZIP.</p><a class="secondary" href="../assets/NeoPep_Connect_AI_Producao_1.0.5.zip" download="NeoPep_Connect_AI_Producao_1.0.5.zip">Baixar plugin ZIP 1.0.5</a><p><small>SHA-256: 30eb394710a4c13fcc8add7d719e1e8957cbfb13af3f5b768126e122ef9216fb</small></p></section>
    <button type="button" class="secondary" disabled>Verificar conexão</button>
   </details>
   <h3>Processamento</h3>
-  <dl><dt>Cloudflare</dt><dd>Aguardando homologação</dd>
-  <dt>Vercel</dt><dd>Planejado</dd>
+  <dl><dt>Cloudflare</dt><dd>Servidor MCP de produção conectado</dd>
+  <dt>Vercel</dt><dd>Interface administrativa</dd>
   <dt>NeoPep Connect Windows</dt><dd>Planejado como executor complementar</dd></dl>
   <form method="dialog"><button type="submit" class="secondary" autofocus>Voltar a Campanhas</button></form>`;
   toolbar.after(dialog);

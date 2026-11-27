@@ -3,21 +3,7 @@
   "mcpServers": {
     "neopep-connect-ai-producao": {
       "type": "streamable-http",
-      "url": "https://connect.neopep.com.br/mcp",
-      "extensions": {
-        "com.openai": {
-          "auth": {
-            "type": "oauth",
-            "client": {
-              "mode": "cimd"
-            },
-            "resource": "https://connect.neopep.com.br/mcp",
-            "baseScopes": [
-              "campaigns:read"
-            ]
-          }
-        }
-      }
+      "url": "https://connect.neopep.com.br/mcp"
     }
   }
 }

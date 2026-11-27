@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "neopep-connect-ai-producao",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "description": "Consulta administrativa de campanhas e publicações do NeoPep Produção, somente leitura.",
   "author": {
     "name": "Sunplus Solar Systems"
