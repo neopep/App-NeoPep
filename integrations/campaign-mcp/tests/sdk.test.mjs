@@ -14,7 +14,7 @@ test('cliente do SDK oficial inicializa e consulta o transporte HTTP em fixture'
  const client=new Client({name:'neo-test',version:'1.0.0'});
  try{
   await client.connect(transport);
-  assert.equal((await client.listTools()).tools.length,2);
+  assert.equal((await client.listTools()).tools.length,3);
   assert.equal((await client.callTool({name:'get_capabilities'})).structuredContent.environment,'test');
  }finally{await client.close();}
 });

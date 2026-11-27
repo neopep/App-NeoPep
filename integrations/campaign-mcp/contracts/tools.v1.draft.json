@@ -43,6 +43,25 @@
       "output_contract": "brand_version, approved_assets, colors, typography, editorial_rules, examples"
     },
     {
+      "name": "get_publication_guide",
+      "description": "Consultar primeiro, antes de preparar publicações: instruções operacionais atualizadas, exemplos de blocos e legendas, limites e disponibilidade por conexão. Somente leitura.",
+      "scope": "campaigns:read",
+      "phase": "read-only",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "output_contract": "guide_version, environment, available_tools, workflow, native_editor, examples, operations, guardrails"
+    },
+    {
       "name": "list_campaigns",
       "description": "Listar campanhas existentes acessíveis ao administrador, incluindo legadas identificadas separadamente.",
       "scope": "campaigns:read",

@@ -1,10 +1,12 @@
+import {publicationGuideSchema} from './publication-guide.mjs';
 import draft from '../contracts/tools.v1.draft.json' with {type:'json'};
 
 const environment={type:'string',enum:['test','production']};
 const strings={type:'array',items:{type:'string'}};
 const object=properties=>({type:'object',properties,required:Object.keys(properties),additionalProperties:false});
-export const version='1.0.0-preview.2';
+export const version='1.0.0-preview.3';
 const outputs={
+ get_publication_guide:publicationGuideSchema,
  get_capabilities:object({environment,contract_version:{const:version},enabled_tools:strings,restrictions:strings}),
  get_brand_context:object({brand_version:{type:'string'},name:{const:'NeoPep'},editorial_rules:strings})
 };

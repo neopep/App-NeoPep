@@ -13,7 +13,7 @@ test('PoC negocia protocolo e anuncia somente ferramentas operacionais',async()=
  const init=await (await invoke(handler,'initialize')).json();
  assert.equal(init.result.protocolVersion,'2025-11-25');
  const {result:{tools}}=await (await invoke(handler,'tools/list')).json();
- assert.deepEqual(tools.map(tool=>tool.name),['get_capabilities','get_brand_context']);
+ assert.deepEqual(tools.map(tool=>tool.name),['get_capabilities','get_brand_context','get_publication_guide']);
  for(const tool of tools){
   const response=await (await invoke(handler,'tools/call',{name:tool.name,arguments:{}})).json();
   assert.ok(response.result.structuredContent);
@@ -54,7 +54,7 @@ test('leitura nativa exige adaptação explícita, escopo e ambiente do principa
   return {items:[]};
  };
  const handler=createHandler({authorize:async()=>auth,readCampaign});
- assert.equal((await (await invoke(handler,'tools/list')).json()).result.tools.length,7);
+ assert.equal((await (await invoke(handler,'tools/list')).json()).result.tools.length,8);
  const params={name:'list_campaigns',arguments:{channel:'whatsapp'}};
  assert.deepEqual((await (await invoke(handler,'tools/call',params)).json()).result.structuredContent,{items:[]});
  await invoke(handler,'tools/call',{...params,arguments:{...params.arguments,owner:'other'}});
@@ -78,6 +78,12 @@ test('escrita anunciada somente com escopo novo, ambiente Teste e adaptador ativ
  assert.ok(!(await (await invoke(handler,'tools/list')).json()).result.tools.some(t=>t.name===params.name));
  assert.equal((await (await invoke(handler,'tools/call',params)).json()).error.code,-32602);
  principal={...auth,scopes:['campaigns:read','campaigns:drafts']};
+ assert.match((await (await invoke(handler,'tools/call',params)).json()).result.content[0].text,/GUIDE_REFRESH_REQUIRED/);
+ const guide=(await (await invoke(handler,'tools/call',{name:'get_publication_guide',arguments:{}})).json()).result.structuredContent;
+ assert.equal(guide.operations.find(o=>o.name==='criar_rascunhos').available,true);
+ assert.equal(guide.operations.find(o=>o.name==='agendar').available,false);
+ assert.equal(guide.examples[2].blocks[1].type,'text');
+ params.arguments.guideVersion=guide.guide_version;
  assert.ok((await (await invoke(handler,'tools/list')).json()).result.tools.some(t=>t.name===params.name));
  assert.equal((await (await invoke(handler,'tools/call',params)).json()).result.structuredContent.status,'draft_created_or_reused');
  const prod=createHandler({environment:'production',authorize:async()=>({...principal,environment:'production'}),writeDraft});

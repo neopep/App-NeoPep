@@ -1,7 +1,7 @@
 # NeoPep Connect AI — catálogo candidato de ferramentas
 
-Arquivo gerado pelo catálogo. Versão `1.0.0-preview.2`. O acesso depende de autorização a cada requisição.
-O catálogo descreve o código candidato, não a implantação ativa. O acesso depende do ambiente e das capacidades publicadas. As ferramentas de escrita são candidatas exclusivas de Teste e exigem consentimento campaigns:drafts; não estão implantadas.
+Arquivo gerado pelo catálogo. Versão `1.0.0-preview.3`. O acesso depende de autorização a cada requisição.
+Antes de preparar campanhas, consulte get_capabilities, get_publication_guide e get_brand_context. A escrita candidata exige guideVersion atual. A versão é verificada, não comprova compreensão pelo modelo. O catálogo descreve o código candidato, não a implantação ativa. O acesso depende do ambiente e das capacidades publicadas. As ferramentas de escrita são candidatas exclusivas de Teste e exigem consentimento campaigns:drafts; não estão implantadas.
 
 
 ## get_capabilities
@@ -29,7 +29,7 @@ Escopo `campaigns:read`.
         ]
       },
       "contract_version": {
-        "const": "1.0.0-preview.2"
+        "const": "1.0.0-preview.3"
       },
       "enabled_tools": {
         "type": "array",
@@ -89,6 +89,222 @@ Escopo `campaigns:read`.
       "brand_version",
       "name",
       "editorial_rules"
+    ],
+    "additionalProperties": false
+  }
+}
+```
+
+## get_publication_guide
+
+Consultar primeiro, antes de preparar publicações: instruções operacionais atualizadas, exemplos de blocos e legendas, limites e disponibilidade por conexão. Somente leitura.
+
+Escopo `campaigns:read`.
+
+```json
+{
+  "input": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "output": {
+    "type": "object",
+    "properties": {
+      "guide_version": {
+        "const": "2026-11-27.2"
+      },
+      "environment": {
+        "enum": [
+          "test",
+          "production"
+        ]
+      },
+      "available_tools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "workflow": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "native_editor": {
+        "type": "object",
+        "properties": {
+          "timezone": {
+            "const": "America/Sao_Paulo"
+          },
+          "block_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "whatsapp_blocks": {
+            "const": 6
+          },
+          "draft_blocks": {
+            "const": 32
+          },
+          "text_limit": {
+            "const": 2000
+          },
+          "caption_limit": {
+            "const": 1000
+          },
+          "link_caption_limit": {
+            "const": 160
+          },
+          "conservative_image_limit_bytes": {
+            "const": 1048576
+          },
+          "image_target_bytes": {
+            "const": 5242880
+          },
+          "original_file_limit_bytes": {
+            "const": 5242880
+          },
+          "group_limit": {
+            "const": 30
+          },
+          "caption_modes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "formatting": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "app_controls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "timezone",
+          "block_types",
+          "whatsapp_blocks",
+          "draft_blocks",
+          "text_limit",
+          "caption_limit",
+          "link_caption_limit",
+          "conservative_image_limit_bytes",
+          "image_target_bytes",
+          "original_file_limit_bytes",
+          "group_limit",
+          "caption_modes",
+          "formatting",
+          "app_controls"
+        ],
+        "additionalProperties": false
+      },
+      "examples": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "blocks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "image",
+                      "file",
+                      "text"
+                    ]
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "layout": {
+                    "enum": [
+                      "caption",
+                      "separate",
+                      "not_applicable"
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "text",
+                  "layout"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "name",
+            "blocks"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "operations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "requires": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "available": {
+              "type": "boolean"
+            },
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "name",
+            "requires",
+            "available",
+            "rules"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "guardrails": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "guide_version",
+      "environment",
+      "available_tools",
+      "workflow",
+      "native_editor",
+      "examples",
+      "operations",
+      "guardrails"
     ],
     "additionalProperties": false
   }
@@ -834,12 +1050,18 @@ Escopo `campaigns:read + campaigns:drafts`.
       "requestId": {
         "type": "string",
         "format": "uuid"
+      },
+      "guideVersion": {
+        "type": "string",
+        "const": "2026-11-27.2",
+        "description": "Versão retornada por get_publication_guide; consulte antes de escrever."
       }
     },
     "required": [
       "channel",
       "title",
-      "requestId"
+      "requestId",
+      "guideVersion"
     ],
     "additionalProperties": false
   },
@@ -890,6 +1112,11 @@ Escopo `campaigns:read + campaigns:drafts`.
       "campaignId": {
         "type": "string",
         "format": "uuid"
+      },
+      "guideVersion": {
+        "type": "string",
+        "const": "2026-11-27.2",
+        "description": "Versão retornada por get_publication_guide; consulte antes de escrever."
       },
       "items": {
         "type": "array",
@@ -953,6 +1180,7 @@ Escopo `campaigns:read + campaigns:drafts`.
     "required": [
       "channel",
       "campaignId",
+      "guideVersion",
       "items"
     ],
     "additionalProperties": false
@@ -1031,6 +1259,11 @@ Escopo `campaigns:read + campaigns:drafts`.
         "type": "string",
         "format": "uuid"
       },
+      "guideVersion": {
+        "type": "string",
+        "const": "2026-11-27.2",
+        "description": "Versão retornada por get_publication_guide; consulte antes de escrever."
+      },
       "items": {
         "type": "array",
         "minItems": 1,
@@ -1088,6 +1321,7 @@ Escopo `campaigns:read + campaigns:drafts`.
     "required": [
       "channel",
       "campaignId",
+      "guideVersion",
       "items"
     ],
     "additionalProperties": false

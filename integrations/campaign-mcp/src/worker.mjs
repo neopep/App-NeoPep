@@ -1,3 +1,4 @@
+import {getPublicationGuide,guideVersion} from './publication-guide.mjs';
 import {draftTools} from './draft-catalog.mjs';
 import {handleTokenRequest,makeDiscoveryHandler} from './oauth-issuer.mjs';
 import {campaignTools,scopeByTool,tools,version} from './catalog.mjs';
@@ -73,7 +74,7 @@ export function createHandler({authorize=async()=>null,environment='test',origin
   const {id,method,params}=input;
   const result=value=>json({jsonrpc:'2.0',id,result:value});
   if(method==='initialize')return result({protocolVersion:protocol,
-   capabilities:{tools:{}},serverInfo:{name:'neopep-connect-ai',version}});
+   capabilities:{tools:{}},instructions:'Antes de preparar campanhas, consulte get_capabilities, get_publication_guide e get_brand_context. Use o guia atual e apenas as ferramentas anunciadas.',serverInfo:{name:'neopep-connect-ai',version}});
   if(method==='ping')return result({});
   if(method==='tools/list')return result({tools:available});
   if(method!=='tools/call')return error(id,-32601,'Método indisponível.');
@@ -81,10 +82,12 @@ export function createHandler({authorize=async()=>null,environment='test',origin
   const args=params.arguments??{};
   const draft=writes.find(tool=>tool.name===params.name);
   if(draft){
+   if(args.guideVersion!==guideVersion)return result({isError:true,content:[{type:'text',text:'GUIDE_REFRESH_REQUIRED: consulte get_publication_guide e use guide_version como guideVersion.'}]});
    if(draft.inputSchema.required.some(k=>!Object.hasOwn(args,k))||Object.keys(args).some(k=>!Object.hasOwn(draft.inputSchema.properties,k))||!['app','whatsapp'].includes(args.channel)|| (args.items!==undefined&&(!Array.isArray(args.items)||args.items.length>6)))
     return error(id,-32602,'Parâmetros inválidos.');
    try{
-    const data=await writeDraft(principal,draft.name,args);
+    const {guideVersion:acknowledgedVersion,...payload}=args;
+    const data=await writeDraft(principal,draft.name,payload);
     return result({content:[{type:'text',text:JSON.stringify(data)}],structuredContent:data});
    }catch(err){
     const known=['INVALID_DRAFT','FORBIDDEN','AUTH_REQUIRED','NOT_FOUND_OR_FORBIDDEN','REVISION_CONFLICT','DRAFT_LOCKED','REQUEST_CONFLICT'];
@@ -107,7 +110,7 @@ export function createHandler({authorize=async()=>null,environment='test',origin
    }
   }
   if(!scopeByTool.has(params.name)||Object.keys(args).length)return error(id,-32602,'Ferramenta ou parâmetros inválidos.');
-  const value=params.name==='get_capabilities'
+  const value=params.name==='get_publication_guide'?getPublicationGuide(environment,available.map(t=>t.name)):params.name==='get_capabilities'
    ?{environment,contract_version:version,enabled_tools:available.map(t=>t.name),restrictions:writes.length?['Teste: leitura e criação/edição de rascunhos textuais.','Sem envio, agendamento, destinos ou exclusão.']:nativeReads.length?['Somente leitura nos canais habilitados: '+readChannels.join(', '),'Não criar, editar, enviar ou agendar publicações por este catálogo.']:['Somente leitura de contexto','Sem operações sobre campanhas nesta versão']}
    :{brand_version:'2026-11-27.1',name:'NeoPep',editorial_rules:['Use informações verificáveis e somente materiais autorizados pela Central.','Escreva em português claro; diferencie rascunho, agendamento, envio aceito e entrega confirmada.','Não invente preços, grupos, estoque, links, resultados clínicos ou depoimentos.','Preserve privacidade; não use dados, fotos ou informações de saúde de membros.','Não produza publicidade de medicamentos controlados ou experimentais, nem alegações médicas não fundamentadas.','Nunca agende ou publique a partir de uma proposta sem autorização verificável.']};
   return result({content:[{type:'text',text:JSON.stringify(value)}],structuredContent:value});
