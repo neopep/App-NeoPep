@@ -4,6 +4,15 @@ const loadModules=()=>Promise.all([import('@whiskeysockets/baileys'),import('pin
 // Conservative transport limit: base64 and JSON fit the 16 MiB Windows IPC envelope.
 export const CAMPAIGN_FILE_MAX=5*1024*1024;
 export const CAMPAIGN_IMAGE_MAX=5*1024*1024;
+export const ALBUM_MAX_IMAGES=4;
+export const ALBUM_MAX_BYTES=10*1024*1024;
+export function validAlbum(images){
+ return Array.isArray(images)&&images.length>=2&&images.length<=ALBUM_MAX_IMAGES&&images.every(item=>
+  Buffer.isBuffer(item?.image)&&item.image.length>=5&&item.image.length<=CAMPAIGN_IMAGE_MAX&&
+  item.image[0]===255&&item.image[1]===216&&item.image[2]===255&&
+  item.image.at(-2)===255&&item.image.at(-1)===217&&typeof item.caption==='string'&&item.caption.length<=1000
+ )&&images.reduce((total,item)=>total+item.image.length,0)<=ALBUM_MAX_BYTES;
+}
 export function validCampaignFile(bytes,mime,name){
  if(!Buffer.isBuffer(bytes)||bytes.length<8||bytes.length>CAMPAIGN_FILE_MAX||typeof name!=='string'||!name.trim()||name.length>160||/[\\/:*?"<>|\x00-\x1f\x7f]/.test(name))return false;
  if(mime==='application/pdf')return /\.pdf$/i.test(name)&&bytes.subarray(0,5).toString('ascii')==='%PDF-'&&bytes.subarray(Math.max(0,bytes.length-1024)).includes(Buffer.from('%%EOF'));
@@ -71,13 +80,18 @@ export async function createBaileysProvider(
    },code===DisconnectReason.restartRequired?250:Math.min(15000,1000*2**(retries-1)));
   });
  }
- async function sendToParticipatingGroup(groupJid,payload){
+ async function participatingSocket(groupJid){
   const current=socket;
   if(!connected||!current)throw Error('WhatsApp desconectado.');
   if(typeof groupJid!=='string'||!/^[0-9-]{1,64}@g\.us$/.test(groupJid))throw Error('Grupo inválido.');
   const groups=await current.groupFetchAllParticipating();
   if(!connected||socket!==current)throw Error('A sessão mudou.');
   if(!Object.values(groups).some(group=>group?.id===groupJid))throw Error('A conta não participa deste grupo.');
+  return current;
+ }
+ async function sendToParticipatingGroup(groupJid,payload){
+  const current=await participatingSocket(groupJid);
+  if(!connected||current!==socket)throw Error('A sessão mudou.');
   const receipt=await current.sendMessage(groupJid,payload);
   if(!receipt?.key?.id)throw Error('Não foi possível confirmar o aceite do envio.');
   return {messageId:String(receipt.key.id).slice(0,160)};
@@ -108,6 +122,30 @@ export async function createBaileysProvider(
    if(typeof caption!=='string'||caption.length>2000||!Buffer.isBuffer(image)||image.length<4||image.length>CAMPAIGN_IMAGE_MAX)
     throw Error('Imagem ou legenda inválida.');
    return sendToParticipatingGroup(groupJid,{image,caption:caption.trim(),mimetype:'image/jpeg'});
+  },
+  async sendAlbum(groupJid,images){
+   if(!validAlbum(images))throw Error('Álbum inválido.');
+   const current=await participatingSocket(groupJid);
+   const result={status:'uncertain',messageId:null,media:[]};
+   const active=()=>connected&&socket===current;
+   try{
+    if(!active())return result;
+    const parent=await current.sendMessage(groupJid,{album:{expectedImageCount:images.length,expectedVideoCount:0}});
+    if(typeof parent?.key?.id!=='string'||!parent.key.id)return result;
+    result.messageId=parent.key.id.slice(0,160);
+    for(const [index,item] of images.entries()){
+     if(!active())return result;
+     const child=await current.sendMessage(groupJid,{
+      image:item.image,mimetype:'image/jpeg',caption:item.caption,albumParentKey:parent.key
+     });
+     if(typeof child?.key?.id!=='string'||!child.key.id)return result;
+     result.media.push({index,messageId:child.key.id.slice(0,160)});
+    }
+    if(active())result.status='accepted';
+   }catch{
+    // Preserve known acceptances. A thrown call may have reached WhatsApp.
+   }
+   return result;
   },
   async sendFile(groupJid,caption,bytes,mime,name){
    if(typeof caption!=='string'||caption.length>1000||!validCampaignFile(bytes,mime,name))throw Error('Arquivo ou legenda inválido.');

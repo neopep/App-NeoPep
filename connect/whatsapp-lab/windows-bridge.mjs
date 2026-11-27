@@ -1,12 +1,13 @@
 // Protocolo privado por pipes herdados. Nenhuma porta HTTP é aberta.
 import {createInterface} from 'node:readline';
 import {fileURLToPath} from 'node:url';
-import {createBaileysProvider,validCampaignFile,CAMPAIGN_FILE_MAX,CAMPAIGN_IMAGE_MAX} from './whatsapp-provider.mjs';
+import {createBaileysProvider,validCampaignFile,CAMPAIGN_FILE_MAX,CAMPAIGN_IMAGE_MAX,ALBUM_MAX_IMAGES,ALBUM_MAX_BYTES,validAlbum} from './whatsapp-provider.mjs';
 
-export function createBridge({emit,providerFactory=createBaileysProvider,renderQr}){
+export function createBridge({emit,providerFactory=createBaileysProvider,renderQr,enableAlbums=false}){
  let current,generation=0,qrVersion=0,state='desconectado',checking=false,sending=false,closed=false;
  // Refuse replay of original-file request IDs during the runtime session, including uncertain sends.
  const fileAttempts=new Set();
+ const albumAttempts=new Set();
  const output=(type,value)=>{if(!closed)emit({type,value});};
  function update(next){state=next;++qrVersion;output('state',next);}
  return {
@@ -50,6 +51,35 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
       if(revision===generation&&state==='conectado')output('groups',rows.filter(row=>/^[0-9-]+@g\.us$/.test(row?.id))
        .map(row=>({id:row.id,name:String(row.name||'Sem nome').slice(0,120),members:Number.isSafeInteger(row.members)&&row.members>=0?row.members:null})));
      }finally{checking=false;}
+    }else if(message.action==='send_album'){
+     const requestId=message.request_id;
+     if(typeof requestId!=='string'||!/^[a-f0-9-]{36}$/i.test(requestId))return;
+     const report=(status,receipt={})=>output('send_result',{request_id:requestId,status,...receipt});
+     if(!enableAlbums||sending||state!=='conectado'||typeof current?.sendAlbum!=='function')return report('rejected');
+     if(albumAttempts.has(requestId)||albumAttempts.size>=4096)return report('uncertain');
+     if(typeof message.group_jid!=='string'||!/^[0-9-]{1,64}@g\.us$/.test(message.group_jid)||
+      !Array.isArray(message.images)||message.images.length<2||message.images.length>ALBUM_MAX_IMAGES)return report('rejected');
+     let encoded=0;
+     const images=[];
+     for(const item of message.images){
+      const value=item?.image;
+      if(typeof value!=='string'||value.length>Math.ceil(CAMPAIGN_IMAGE_MAX/3)*4||
+       (encoded+=value.length)>Math.ceil(ALBUM_MAX_BYTES/3)*4+4*ALBUM_MAX_IMAGES)return report('rejected');
+      const image=Buffer.from(value,'base64');
+      if(image.toString('base64')!==value)return report('rejected');
+      images.push({image,caption:item.caption});
+     }
+     if(!validAlbum(images))return report('rejected');
+     albumAttempts.add(requestId);
+     sending=true;
+     const revision=generation;
+     try{
+      const receipt=await current.sendAlbum(message.group_jid,images);
+      report(revision===generation&&state==='conectado'&&receipt.status==='accepted'?'accepted':'uncertain',{
+       message_id:receipt.messageId,media:receipt.media
+      });
+     }catch{report('uncertain');}
+     finally{sending=false;}
     }else if((message.action==='send_text'||message.action==='send_image'||message.action==='send_file')){
      const requestId=typeof message.request_id==='string'&&/^[a-f0-9-]{36}$/i.test(message.request_id)?message.request_id:null;
      if(!requestId)return;

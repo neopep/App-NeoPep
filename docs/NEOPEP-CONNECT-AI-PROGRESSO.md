@@ -219,3 +219,7 @@ Comprovante temporário assinado implementado: a consulta retorna guide_receipt 
 - O preflight de leitura da 009 encontrou os cinco marcadores esperados nos dois bancos, com duas ocorrências do limite JPEG, uma do limite de referência, uma da flag retornada e uma em cada condição de claim/start. Os hashes dos RPCs diferem entre os ambientes, ambos usam SECURITY DEFINER e search_path fixo. Nenhuma função ou flag foi alterada remotamente. A distribuição assinada da candidata Windows ainda é pré-requisito para habilitar 5 MiB.
 - Inventário real de Teste: sem tabela de ambiente, fila ou RPC de conexões. Cloudflare retornou somente o Worker Connect AI de Produção. O caminho cifrado e isolado de secrets e login do broker de Teste segue pendente.
 - Build e check passaram. Web 569/569, MCP 36/36, contratos Windows e bridge 21/21, geradores e pacotes reproduzíveis aprovados. A compilação Windows anterior foi informada no run 45993241414. Nenhum instalador assinado ou implantação foi produzido neste ciclo.
+
+## Álbum nativo WhatsApp — incremento de transporte
+
+Baileys rc14 confirmado no pacote npm. Implementados pai, associações dos filhos e recibos conhecidos, com interrupção em falha e bloqueio de repetição por ID na sessão do bridge. Máximo de quatro JPEGs, 5 MiB por item e 10 MiB por álbum. O ponto de entrada Windows não habilita o comando. Testes Windows/bridge/provider 26/26, sem rede WhatsApp. [Contrato e gates pendentes](../release/connect-ai/010-whatsapp-album-contract.md). Não houve ativação ou deploy.

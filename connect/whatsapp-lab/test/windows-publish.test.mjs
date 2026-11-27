@@ -70,3 +70,69 @@ test('provider verifica participação no grupo e evita enviar a destinos extern
  assert.deepEqual(sends,[['123@g.us',{text:'Alô'}]]);
  provider.close();
 });
+
+test('provider cria álbum nativo, associa cada imagem e preserva aceite parcial',async()=>{
+ const sends=[],events=new EventEmitter();
+ const parent={id:'album-parent',remoteJid:'123@g.us',fromMe:true};
+ const baileys={
+  BufferJSON:{},DisconnectReason:{},initAuthCreds:()=>({registered:true}),
+  default:()=>({
+   ev:events,end(){},
+   async groupFetchAllParticipating(){return {x:{id:'123@g.us'}};},
+   async sendMessage(jid,content){
+    sends.push(content);
+    if(sends.length===1)return {key:parent};
+    if(sends.length===2)return {key:{id:'first'}};
+    throw Error('simulated transport error');
+   }
+  })
+ };
+ const provider=await createBaileysProvider({onQr(){},onState(){}},{load:async()=>[baileys,{default:()=>({})}]});
+ provider.start();events.emit('connection.update',{connection:'open'});
+ const image=Buffer.from([255,216,255,255,217]);
+ const images=[{image,caption:'*Foto* _um_ 🌿\nhttps://example.invalid'},{image,caption:''},{image,caption:'Terceira'}];
+ await assert.rejects(provider.sendAlbum('456@g.us',images),/participa/);
+ assert.equal(sends.length,0);
+ assert.deepEqual(await provider.sendAlbum('123@g.us',images),{
+  status:'uncertain',messageId:'album-parent',media:[{index:0,messageId:'first'}]
+ });
+ assert.deepEqual(sends[0],{album:{expectedImageCount:3,expectedVideoCount:0}});
+ assert.equal(sends[1].albumParentKey,parent);
+ assert.equal(sends[1].caption,images[0].caption);
+ assert.equal(sends[2].albumParentKey,parent);
+ assert.equal(sends.length,3);
+ provider.close();
+});
+
+test('bridge exige opt-in, limita tamanho e bloqueia repetição mesmo após aceite parcial',async()=>{
+ const messages=[];let calls=0;
+ const create=enableAlbums=>createBridge({enableAlbums,emit:m=>messages.push(m),providerFactory:async o=>({
+  start(){o.onState('conectado');},close(){},
+  async sendAlbum(jid,images){
+   calls++;
+   assert.equal(jid,'123@g.us');
+   assert.equal(images[0].image.length,5242880);
+   return {status:'uncertain',messageId:'parent',media:[{index:0,messageId:'child'}]};
+  }
+ })});
+ const jpeg=Buffer.alloc(5242880);
+ jpeg.set([255,216,255]);jpeg.set([255,217],jpeg.length-2);
+ const item={image:jpeg.toString('base64'),caption:''};
+ const message={...req(),action:'send_album',images:[item,item]};
+ const disabled=create(false);
+ await disabled.receive({action:'connect'});
+ await disabled.receive(message);
+ assert.equal(messages.at(-1).value.status,'rejected');
+ await disabled.close();
+ const bridge=create(true);
+ await bridge.receive({action:'connect'});
+ await bridge.receive({...message,images:[item,item,{image:'AAAA',caption:''}]});
+ assert.equal(messages.at(-1).value.status,'rejected');
+ assert.equal(calls,0);
+ await bridge.receive(message);
+ assert.deepEqual(messages.at(-1).value.media,[{index:0,messageId:'child'}]);
+ await bridge.receive(message);
+ assert.equal(messages.at(-1).value.status,'uncertain');
+ assert.equal(calls,1);
+ await bridge.close();
+});
