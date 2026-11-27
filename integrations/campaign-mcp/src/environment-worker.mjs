@@ -26,7 +26,6 @@ function configuredClients(text){
 export async function environmentHandler(profile,env,request=fetch){
  if(env.NEO_CONNECT_AI_ENABLED!=='1')return createHandler({environment:profile.name});
  const {issuerOrigin,resource,approvalOrigin}=profile;
- const enableDrafts=profile.name==='test'&&env.NEO_CONNECT_AI_DRAFTS==='1';
  const broker=env.NEO_CONNECT_AI_BROKER;
  if(!broker?.fetch||!env.NEO_CONNECT_AI_CSRF_KEY||!env.NEO_CONNECT_AI_SIGNING_JWK||!env.NEO_CONNECT_AI_PUBLIC_JWK||
     !env.NEO_CONNECT_AI_KEY_ID||!env.NEO_CONNECT_AI_CLIENTS||!env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY)throw Error('CONNECT_AI_CONFIGURATION');
@@ -37,6 +36,8 @@ export async function environmentHandler(profile,env,request=fetch){
   if(!response.ok)throw Error('BROKER_UNAVAILABLE');
   return response.json();
  };
+ const wantsDrafts=profile.name==='test'&&env.NEO_CONNECT_AI_DRAFTS==='1';
+ const enableDrafts=wantsDrafts&&(await call('environment/drafts',{}))===true;
  const clients=configuredClients(env.NEO_CONNECT_AI_CLIENTS),privateJwk=JSON.parse(env.NEO_CONNECT_AI_SIGNING_JWK);
  const publicJwk=JSON.parse(env.NEO_CONNECT_AI_PUBLIC_JWK);
  if(!privateJwk.d||publicJwk.d||privateJwk.x!==publicJwk.x||privateJwk.y!==publicJwk.y||
@@ -77,7 +78,11 @@ export async function environmentHandler(profile,env,request=fetch){
   findConnection:id=>call('connection/read',{id}),
   isCampaignAdmin:async(ownerId,environment,id)=>Boolean(await activeSession(id,ownerId))});
  const readChannels=env.NEO_CONNECT_AI_READ_APP==='1'?['whatsapp','app']:['whatsapp'];
- const writeDraft=enableDrafts?createDraftWriter({publishableKey:env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY,sessionFor:activeSession,request,profile,enabled:true}):undefined;
+ const nativeWriter=enableDrafts?createDraftWriter({publishableKey:env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY,sessionFor:activeSession,request,profile,enabled:true}):undefined;
+ const writeDraft=nativeWriter?async(...args)=>{
+  if(await call('environment/drafts',{})!==true)throw Error('FORBIDDEN');
+  return nativeWriter(...args);
+ }:undefined;
  return createHandler({environment:profile.name,oauth,consent,authorize,readChannels,writeDraft,guideReceipts:enableDrafts?createGuideReceipts(csrfKey):undefined,readCampaign:createCampaignReader({
   publishableKey:env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY,sessionFor:activeSession,request,profile,channels:readChannels,appRecurrences:readChannels.includes('app')
  })});

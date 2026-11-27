@@ -17,6 +17,11 @@ export async function openSessionBroker(env,request=fetch,connect=postgres,profi
   const [row]=await sql`select project_ref from neo_private.connect_ai_environment`;
   if(row?.project_ref!==profile.project)throw Error('BROKER_ENVIRONMENT_MISMATCH');
  }
+ async function draftsAllowed(){
+  if(profile.name!=='test'||env.NEO_CONNECT_AI_DRAFTS!=='1')return false;
+  const [row]=await sql`select drafts_enabled from neo_private.connect_ai_environment where project_ref=${profile.project}`;
+  return row?.drafts_enabled===true;
+ }
  const verify=createNeoSession({publishableKey:env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY,request,profile});
  const aad=(id,ownerId)=>encoder.encode(JSON.stringify([id,ownerId]));
  async function getConnection(id){
@@ -34,13 +39,15 @@ export async function openSessionBroker(env,request=fetch,connect=postgres,profi
   return decoder.decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:unhex(row.iv),additionalData:aad(id,ownerId)},key,unhex(row.ciphertext)));
  }
  return {
-  verifyDatabase,
+  verifyDatabase,draftsAllowed,
   close:()=>sql.end({timeout:2}),
   async fetch(req){
    const p=new URL(req.url).pathname;
    const d=await req.json();
    let result=null;
-   if(p==='/consent/claim'){
+   if(p==='/environment/drafts'){
+    result=await draftsAllowed();
+   }else if(p==='/consent/claim'){
     const digest=hex(await crypto.subtle.digest('SHA-256',encoder.encode(d.proof)));
     await sql`delete from neo_private.connect_ai_consent_claims where expires_at<now()`;
     const rows=await sql`insert into neo_private.connect_ai_consent_claims (proof,expires_at)
@@ -62,7 +69,7 @@ export async function openSessionBroker(env,request=fetch,connect=postgres,profi
    }else if(p==='/connection/read'){
     const row=await getConnection(d.id);
     if(liveConnection(row))result={id:row.id,ownerId:row.owner_id,clientId:row.client_id,expiresAt:Date.parse(row.expires_at),
-     environment:profile.name,resource:profile.resource,scopes:row.scopes??['campaigns:read']};
+     environment:profile.name,resource:profile.resource,scopes:await draftsAllowed()?row.scopes??['campaigns:read']:['campaigns:read']};
    }else if(p==='/grant/register'){
     await sql`insert into neo_private.connect_ai_oauth_grants (digest,connection_id,kind,redirect_uri,challenge,expires_at)
      values (${d.digest},${d.connectionId},'code',${d.redirectUri},${d.challenge},${new Date(d.expiresAt)})`;
@@ -77,7 +84,7 @@ export async function openSessionBroker(env,request=fetch,connect=postgres,profi
     if(checked.ownerId!==row.owner_id||!checked.data||checked.data.revoked_at)return Response.json(null);
     const [query]=await sql`select neo_private.connect_ai_rotate_grant(
      ${d.digest},${d.kind},${d.clientId},${d.redirectUri},${d.challenge},${d.nextDigest}) as rotated`;
-    result=query.rotated?{...query.rotated,scopes:row.scopes??['campaigns:read']}:null;
+    result=query.rotated?{...query.rotated,scopes:await draftsAllowed()?row.scopes??['campaigns:read']:['campaigns:read']}:null;
    }else return new Response(null,{status:404});
    return Response.json(result);
   }

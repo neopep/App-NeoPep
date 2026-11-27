@@ -91,3 +91,23 @@ test('entry points reject the other environment before opening a broker',async()
   assert.equal((await worker.fetch(new Request(own.resource,{method:'POST'}),{})).status,401);
  }
 });
+
+test('database interlock gates advertised draft scope and fails closed',async()=>{
+ const {publicKey,privateKey}=await generateKeyPair('ES256',{extractable:true});
+ const env={NEO_CONNECT_AI_ENABLED:'1',NEO_CONNECT_AI_DRAFTS:'1',NEO_CONNECT_AI_CSRF_KEY:'11'.repeat(32),NEO_CONNECT_AI_KEY_ID:'fixture',
+  NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY:'fixture',NEO_CONNECT_AI_CLIENTS:JSON.stringify({client:['https://client.invalid/callback']}),
+  NEO_CONNECT_AI_SIGNING_JWK:JSON.stringify(await exportJWK(privateKey)),NEO_CONNECT_AI_PUBLIC_JWK:JSON.stringify(await exportJWK(publicKey))};
+ let gate=false,calls=0;
+ env.NEO_CONNECT_AI_BROKER={async fetch(req){assert.equal(new URL(req.url).pathname,'/environment/drafts');calls++;return Response.json(gate);}};
+ const metadata=async(profile)=>{const handle=await environmentHandler(profile,env);return (await handle(new Request(profile.issuerOrigin+'/.well-known/oauth-authorization-server'))).json();};
+ assert.deepEqual((await metadata(testProfile)).scopes_supported,['campaigns:read']);
+ gate=true;
+ assert.ok((await metadata(testProfile)).scopes_supported.includes('campaigns:drafts'));
+ gate='true';
+ assert.deepEqual((await metadata(testProfile)).scopes_supported,['campaigns:read']);
+ assert.equal(calls,3);
+ assert.deepEqual((await metadata(productionProfile)).scopes_supported,['campaigns:read']);
+ assert.equal(calls,3);
+ env.NEO_CONNECT_AI_BROKER={async fetch(){return new Response(null,{status:503});}};
+ await assert.rejects(environmentHandler(testProfile,env),/BROKER_UNAVAILABLE/);
+});
