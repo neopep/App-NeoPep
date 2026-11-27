@@ -21,7 +21,7 @@ Antes de alterar, consultar a ponta da branch desenvolvimento/connect-ai-especia
 5. Não habilitar envio real, publicação, agenda ou escrita em Produção; não contratar recursos sem autorização.
 
 ## Bloqueio atual
-Discovery OAuth real HTTP 200 confirmado pelo operador. Faltam JWKS, MCP sem token, consentimento e leitura autenticada. Não declarar OAuth integralmente homologado.
+Discovery HTTP 200, JWKS HTTP 200 e MCP sem token HTTP 401 confirmados. Próximo ponto: consentimento e leitura autenticada pelo Codex Desktop. Não declarar OAuth integralmente homologado.
 
 ## Atualização operacional — 27/11/2026
 - Proprietário implantou bundle 01c9181 via Wrangler; versão informada no terminal e219eb8a-c7c1-4927-9f8d-ed7d9c0f07e6. Cloudflare confirmou domínio e sete secrets preservados, Hyperdrive Teste correto.
@@ -31,3 +31,7 @@ Discovery OAuth real HTTP 200 confirmado pelo operador. Faltam JWKS, MCP sem tok
 ## Evidência HTTP real — 27/11/2026 14:46:27 UTC
 - Operador executou curl.exe -i https://connect-teste.neopep.com.br/.well-known/oauth-authorization-server e apresentou captura com HTTP/1.1 200 OK, JSON de discovery, issuer e endpoints exclusivos Teste, JWKS URI, PKCE S256, authorization_code/refresh_token, CIMD true e scopes_supported exclusivamente campaigns:read. Pelo fluxo do environment-worker, a verificação inicial do banco e configuração OAuth passou; não comprova consentimento, emissão de token ou leitura de campanhas.
 - Próximo gate: testar JWKS público e rejeição 401 do MCP sem token; depois autenticar Desktop apontado para Teste, consentimento e leitura real. DRAFTS=0 e READ_APP=0 mantidos. Não repetir deploy, domínio, Hyperdrive ou secrets.
+
+## Validação HTTP inicial concluída — 27/11/2026
+- Capturas do operador: discovery HTTP 200 às 14:46:27 UTC; JWKS HTTP 200 às 14:47:14 UTC com chave pública EC P-256 ES256, kid exclusivo Teste, sem componente privado; POST /mcp sem token HTTP 401 às 14:47:41 UTC, WWW-Authenticate Bearer apontando resource_metadata exclusivo Teste. Três gates HTTP iniciais aprovados.
+- Próximo gate único: autenticar Codex Desktop existente no endpoint https://connect-teste.neopep.com.br/mcp, confirmar consentimento no app Teste e executar leitura real. Não reinstalar plugin nem repetir deploy ou testes HTTP já aprovados. READ_APP e DRAFTS continuam zero; não enviar/publicar/agendar. Ainda não comprovados emissão de token, sessão autenticada ou leitura real.
