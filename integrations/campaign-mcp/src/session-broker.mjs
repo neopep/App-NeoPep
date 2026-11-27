@@ -2,6 +2,8 @@ import {testProfile} from './environments.mjs';
 import postgres from 'postgres';
 import {decodeJwt} from 'jose';
 import {createNeoSession} from './neo-session.mjs';
+import {createDraftWriter} from './draft-writer.mjs';
+import {createPrivateDraftJobExecutor} from './draft-job-broker.mjs';
 
 const encoder=new TextEncoder(),decoder=new TextDecoder();
 const hex=bytes=>Array.from(new Uint8Array(bytes),n=>n.toString(16).padStart(2,'0')).join('');
@@ -33,8 +35,22 @@ export async function openSessionBroker(env,request=fetch,connect=postgres,profi
   if(!row)return null;
   return decoder.decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:unhex(row.iv),additionalData:aad(id,ownerId)},key,unhex(row.ciphertext)));
  }
+ // No per-request session cache for jobs: check live connection, scope and administrative ACL every time.
+ async function freshDraftSession(id,ownerId){
+  const row=await getConnection(id);
+  if(!liveConnection(row)||row.owner_id!==ownerId||!row.scopes?.includes('campaigns:read')||!row.scopes.includes('campaigns:drafts'))return null;
+  const token=await readSession(id,ownerId);
+  if(!token)return null;
+  const checked=await verify(token,'inspect',{id});
+  if(checked.ownerId!==ownerId||checked.data?.id!==id||checked.data.revoked_at)return null;
+  return token;
+ }
+ const jobEnabled=profile.name==='test'&&env.NEO_CONNECT_AI_ENABLED==='1'&&env.NEO_CONNECT_AI_DRAFTS==='1'&&env.NEO_CONNECT_AI_DRAFT_JOBS==='1';
+ const runDraftJob=jobEnabled?createPrivateDraftJobExecutor({profile,env,sql,verifyDatabase,freshSession:freshDraftSession,
+  writeDraft:createDraftWriter({publishableKey:env.NEO_CONNECT_AI_SUPABASE_PUBLISHABLE_KEY,sessionFor:freshDraftSession,request,profile,enabled:true})}):undefined;
  return {
   verifyDatabase,
+  ...(runDraftJob?{runDraftJob}:{}),
   close:()=>sql.end({timeout:2}),
   async fetch(req){
    const p=new URL(req.url).pathname;
