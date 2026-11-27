@@ -494,7 +494,7 @@ sealed partial class Connect : Form {
         }catch(Exception){Record("rich_campaign_uncertain");}
         // C# 5 / .NET Framework: nao usar await no bloco finally.
         if(started)try{await RichCampaign("finish",new {id=id,fence=fence,
-            outcome=outcome.Item1,receipt_id=outcome.Item2});}
+            outcome=outcome.Item1,receipt_id=outcome.Item1=="accepted"?outcome.Item2:null,blocked_reason=outcome.Item1=="refused"&&outcome.Item2=="previous_421"?"previous_421":null});}
         catch(Exception){Record("rich_campaign_finalization_uncertain");}
     }
     async Task TickCampaignDispatch() {
@@ -531,7 +531,7 @@ sealed partial class Connect : Form {
             Guid idempotency;
             if(whatsapp==window&&window.CampaignConnection==connection&&Guid.TryParse(fence,out idempotency))
                 receipt=await window.DispatchCampaignTextAsync(idempotency,Value(job,"group_jid"),Value(job,"text"));
-            await CampaignDispatch("finish",new {id=id,fence=fence,outcome=receipt.Item1,receipt_id=receipt.Item2});
+            await CampaignDispatch("finish",new {id=id,fence=fence,outcome=receipt.Item1,receipt_id=receipt.Item1=="accepted"?receipt.Item2:null});
         }catch(Exception){Record("campaign_worker_unavailable");}
     }
     async Task Login() {
