@@ -103,7 +103,7 @@ if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){
  process.on('unhandledRejection',()=>{void stop()});
  let pending=Promise.resolve();
  lines.on('line',line=>{
-  if(line.length>16*1024*1024)return;
+  if(line.length>40*1024*1024)return;
   pending=pending.then(async()=>{try{await bridge.receive(JSON.parse(line));}catch{}});
  });
 }

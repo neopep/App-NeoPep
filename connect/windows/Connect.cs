@@ -455,20 +455,20 @@ sealed partial class Connect : Form {
             client.Headers["Authorization"]="Bearer "+access;
             client.Headers["apikey"]=profile.PublishableKey;
             var data=await client.DownloadDataTaskAsync(profile.Endpoint("/storage/v1/object/authenticated/"+bucket+"/"+path));
-            if(data==null||data.Length<8||data.Length>5*1024*1024)throw new InvalidOperationException();
+            if(data==null||data.Length<8||data.Length>(mime=="video/mp4"?25:5)*1024*1024)throw new InvalidOperationException();
             return data;
         }
     }
     async Task TickRichCampaign(WhatsApp window,Guid connection) {
         // Somente a versao nova conhece a fila rica. O servidor exige allowlist e gate de Teste.
         if(profile.IsProduction||!window.CampaignSessionReady)return;
-        var lease=await RichCampaign("claim",new {originals_v1=true});
+        var lease=await RichCampaign("claim",new {originals_v1=true,originals_25mb=true});
         if(lease==null)return;
         var id=Value(lease,"id");var fence=Value(lease,"fence");
         var started=false;
         var outcome=Tuple.Create("uncertain",(string)null);
         try {
-            var job=await RichCampaign("start",new {id=id,fence=fence,originals_v1=true});
+            var job=await RichCampaign("start",new {id=id,fence=fence,originals_v1=true,originals_25mb=true});
             if(job==null)return;
             started=true;
             Guid request;

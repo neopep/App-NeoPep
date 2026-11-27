@@ -44,3 +44,8 @@ test('editor so libera multi-blocos via gate rico e confirmacao',()=>{
   assert.match(cloud,/async campaignRich\(/);
   assert.match(cloud,/async campaignMediaUpload\(/);
 });
+
+test('worker permite MP4 de 25 MiB com capacidade negociada',()=>{
+ assert.match(connect,/data\.Length>\(mime=="video\/mp4"\?25:5\)\*1024\*1024/);
+ assert.match(connect,/originals_25mb=true/);
+});

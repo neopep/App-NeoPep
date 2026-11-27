@@ -1,0 +1,34 @@
+name: Campaign video 25 MB — independent CI
+on:
+  push:
+    branches: [desenvolvimento/videos-campanhas-25mb-teste-20261127]
+  pull_request:
+    branches: [desenvolvimento/loja-ofertas-etiquetas-teste-20261126]
+    paths:
+      - 'dist/admin/campaign-editor.js'
+      - 'dist/community.js'
+      - 'src/cloud.js'
+      - 'connect/windows/**'
+      - 'connect/whatsapp-lab/**'
+      - 'release/videos-campanhas-20261127/**'
+      - 'tests/campaign-video-25mb.test.cjs'
+      - '.github/workflows/campaign-video25-ci.yml'
+permissions:
+  contents: read
+jobs:
+  video-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm run build
+      - run: npm run check
+      - run: node --test tests/campaign-video-25mb.test.cjs tests/campaign-original-binary-upload.test.cjs tests/library-share-modes.test.cjs tests/library-campaign-share-policy.test.cjs connect/windows/rich-campaign-contract.test.cjs
+      - run: npm ci --prefix connect/whatsapp-lab --ignore-scripts
+      - run: npm test --prefix connect/whatsapp-lab
