@@ -10,9 +10,9 @@ import {createCampaignReader} from './campaign-reader.mjs';
 import {createDraftWriter} from './draft-writer.mjs';
 import {READ_SCOPE,DRAFT_SCOPE} from './scopes.mjs';
 
-function configuredClients(text){
+function configuredClients(text,{allowEmpty=false}={}){
  const parsed=JSON.parse(text);
- if(!parsed||typeof parsed!=='object'||Array.isArray(parsed)||!Object.keys(parsed).length)throw Error('CLIENT_CONFIG');
+ if(!parsed||typeof parsed!=='object'||Array.isArray(parsed)||(!allowEmpty&&!Object.keys(parsed).length))throw Error('CLIENT_CONFIG');
  for(const [id,redirects] of Object.entries(parsed)){
   if(!id||id.length>128||!Array.isArray(redirects)||!redirects.length)throw Error('CLIENT_CONFIG');
   for(const redirect of redirects){
@@ -37,7 +37,7 @@ export async function environmentHandler(profile,env,request=fetch){
   if(!response.ok)throw Error('BROKER_UNAVAILABLE');
   return response.json();
  };
- const clients=configuredClients(env.NEO_CONNECT_AI_CLIENTS),privateJwk=JSON.parse(env.NEO_CONNECT_AI_SIGNING_JWK);
+ const clients=configuredClients(env.NEO_CONNECT_AI_CLIENTS,{allowEmpty:profile.name==='test'}),privateJwk=JSON.parse(env.NEO_CONNECT_AI_SIGNING_JWK);
  const publicJwk=JSON.parse(env.NEO_CONNECT_AI_PUBLIC_JWK);
  if(!privateJwk.d||publicJwk.d||privateJwk.x!==publicJwk.x||privateJwk.y!==publicJwk.y||
     privateJwk.kty!=='EC'||privateJwk.crv!=='P-256'||publicJwk.kty!=='EC'||publicJwk.crv!=='P-256')
