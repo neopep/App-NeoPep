@@ -2,21 +2,24 @@
  'use strict';
  const e=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const states={eligible:'Elegível',stale:'Desatualizado',disconnected:'Desconectado',unavailable:'Indisponível'};
- const originalLimit=mime=>mime==='video/mp4'?25*1024*1024:5*1024*1024;
+ const videoOriginal=mime=>['video/mp4','video/quicktime'].includes(mime);
+ const originalLimit=mime=>videoOriginal(mime)?25*1024*1024:5*1024*1024;
+ const originalExt=mime=>mime==='application/pdf'?'.pdf':mime==='video/quicktime'?'.mov':'.mp4';
  // iOS Photos can label an MP4 as QuickTime, or return a real MOV. Inspect
- // the container before normalizing the MIME; never rename a real MOV to MP4.
+ // the container before normalizing the MIME; preserve QuickTime as MOV.
  async function selectedVideo(file){
   if(!file.size||file.size>originalLimit('video/mp4'))throw Error('O vídeo deve ter até 25 MB (arquivo selecionado: '+(file.size/1048576).toFixed(1)+' MB).');
   const bytes=await file.arrayBuffer(),head=new Uint8Array(bytes);
   const tag=offset=>String.fromCharCode(...head.subarray(offset,offset+4));
-  if(head.length<16||tag(4)!=='ftyp')throw Error('Formato de vídeo incompatível. Exporte o vídeo da fototeca como MP4 e selecione novamente.');
+  if(head.length<16||tag(4)!=='ftyp')throw Error('Formato de vídeo incompatível. Selecione um arquivo MP4 ou MOV válido.');
   const size=new DataView(bytes).getUint32(0);
   if(size<16||size>head.length)throw Error('O arquivo de vídeo está incompleto. Selecione novamente.');
   const major=tag(8),brands=[major];
   for(let i=16;i+4<=Math.min(size,256);i+=4)brands.push(tag(i));
-  if(major==='qt  '||!brands.some(x=>/^(isom|iso[2-9]|mp4[12]|avc1|M4V |MSNV|dash|cmfc|cmfs|hvc1|hev1)$/.test(x)))throw Error('A fototeca forneceu um vídeo MOV ou outro formato não MP4. Exporte como MP4 para enviar o original; apenas renomear o arquivo não converte o vídeo.');
-  const name=(file.name||'video').replace(/\.[^.]+$/,'').slice(0,110)+'.mp4';
-  return new File([bytes],name,{type:'video/mp4',lastModified:file.lastModified});
+  const mime=major==='qt  '?'video/quicktime':'video/mp4';
+  if(mime==='video/mp4'&&!brands.some(x=>/^(isom|iso[2-9]|mp4[12]|avc1|M4V |MSNV|dash|cmfc|cmfs|hvc1|hev1)$/.test(x)))throw Error('Formato incompatível. Escolha MP4 ou MOV.');
+  const name=(file.name||'video').replace(/\.[^.]+$/,'').slice(0,110)+originalExt(mime);
+  return new File([bytes],name,{type:mime,lastModified:file.lastModified});
  }
  const labels={text:'Texto',image:'Imagem',file:'Documento',link:'Link',product:'Produto',document:'Biblioteca',community:'Comunidade · referência interna'};
  let stopOpen;
@@ -231,9 +234,9 @@
     ${channel==='app'?pane('audience','Públicos, planos e exibição',advancedApp?appSettingsPane():testApp?'<p>Somente as contas de homologação autorizadas no servidor. Esta campanha não envia push.</p>':'<label>Público App<select name="audience"><option value="all">Todos</option><option value="free">Free</option><option value="premium">Premium</option></select></label><label class="check"><input name="push" type="checkbox"> Solicitar push App para contas com consentimento</label>'):
     pane('groups','Grupos sincronizados','<div class="inline-actions"><button type="button" class="secondary" data-editor="groups">Atualizar grupos e diagnóstico</button><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button></div><label class="central-search editor-search"><input name="group_search" type="search" aria-label="Pesquisar grupo ou conexão" placeholder="Pesquisar grupo ou conexão"><span class="search-decoration" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></span></label><p class="sub" data-editor-group-count></p><div data-editor-groups></div>')}
     ${pane('photo','Foto','<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">Escolha o modo de envio. O texto separado será uma mensagem independente. Salve e confira a prévia antes de publicar.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto</button>')}
-    ${pane('file','Documento','<label>Modo do anexo<select name="file_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><button type="button" class="secondary" data-editor="choose_document">Escolher PDF, MP4 ou TXT</button>')}
-    ${pane('video','Vídeo','<label>Modo do vídeo<select name="video_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><p class="sub">MP4 de até 25 MB. O arquivo será preservado integralmente, sem cortes ou conversão pelo NeoPep.</p><button type="button" class="secondary" data-editor="choose_video">Selecionar vídeo</button><p class="sub" data-video-select-status role="status" aria-live="polite"></p>')}
-    <input type="file" name="media" accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4,text/plain" hidden>
+    ${pane('file','Documento','<label>Modo do anexo<select name="file_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><button type="button" class="secondary" data-editor="choose_document">Escolher PDF, MP4, MOV ou TXT</button>')}
+    ${pane('video','Vídeo','<label>Modo do vídeo<select name="video_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><p class="sub">MP4 ou MOV de até 25 MB. O arquivo será preservado integralmente, sem cortes ou conversão pelo NeoPep.</p><button type="button" class="secondary" data-editor="choose_video">Selecionar vídeo</button><p class="sub" data-video-select-status role="status" aria-live="polite"></p>')}
+    <input type="file" name="media" accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4,video/quicktime,text/plain" hidden>
     ${pane('link','Link','<label>Link HTTPS<input name="link" type="url" maxlength="2000"></label><button type="button" class="secondary" data-editor="link">Adicionar link</button>')}
     ${pane('catalog','Referências','<div class="central-search editor-search"><input name="catalog_search" type="search" maxlength="100" aria-label="Buscar referências" placeholder="Buscar referências"><button type="button" class="structured-icon" data-editor="catalog_search" aria-label="Buscar referências" title="Buscar referências"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button></div><div class="structured-catalog-tools"><button type="button" class="secondary" data-editor="prepare_thumbs" hidden>Preparar miniaturas faltantes</button><p class="sub" data-catalog-thumb-status role="status"></p></div><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
     ${pane('community_share','Publicação da Comunidade','<div data-community-share-preview></div><div class="inline-actions"><button type="button" class="secondary" data-editor="community_reference">Manter referência à publicação</button><button type="button" class="primary" data-editor="community_import">Importar texto e imagem editáveis</button></div><p class="sub">Use a referência para manter o acesso restrito à Comunidade. Para republicar conteúdo a outro público, confirme a autorização do autor. Nenhuma mensagem será enviada nesta etapa.</p><p class="sub" role="status" data-community-share-status></p>')}
@@ -645,15 +648,15 @@
      if(!current()||version!==revision)return;
      if(!file){holder.textContent='Arquivo original indisponível neste dispositivo.';return;}
      const url=URL.createObjectURL(file);objectUrls.add(url);
-     const label=document.createElement('p');label.className='sub';label.textContent=(file.type==='application/pdf'?'PDF':file.type==='video/mp4'?'MP4':'TXT')+' · '+Math.ceil(file.size/1024)+' KB · '+(block.name||'Documento');
+     const label=document.createElement('p');label.className='sub';label.textContent=(file.type==='application/pdf'?'PDF':file.type==='video/mp4'?'MP4':file.type==='video/quicktime'?'MOV':'TXT')+' · '+Math.ceil(file.size/1024)+' KB · '+(block.name||'Documento');
      holder.replaceChildren(label);
      if(file.type==='application/pdf'&&window.NeoLibraryFiles?.pdfCover){
       try{const cover=await window.NeoLibraryFiles.pdfCover(file,previewAbort.signal);if(current()&&version===revision&&cover){const img=document.createElement('img');img.className='structured-document-cover';img.src=cover;img.alt='Primeira página do PDF';holder.append(img);}else if(current()&&version===revision){const note=document.createElement('p');note.className='sub';note.textContent='Não foi possível gerar a capa deste PDF. O arquivo continua disponível.';holder.append(note);}}catch{if(current()&&version===revision){const note=document.createElement('p');note.className='sub';note.textContent='Prévia do PDF indisponível. O arquivo foi preservado.';holder.append(note);}}
-     }else if(file.type==='video/mp4'){
+     }else if(videoOriginal(file.type)){
       const video=document.createElement('video');video.controls=true;video.preload='metadata';video.playsInline=true;video.setAttribute('playsinline','');video.style.width='100%';video.style.maxWidth='100%';video.style.minHeight='120px';
       const note=document.createElement('p');note.className='sub';note.setAttribute('role','status');note.textContent='Carregando vídeo…';
       video.addEventListener('loadedmetadata',()=>{if(current()&&version===revision)note.textContent='Vídeo anexado · toque para reproduzir.';},{once:true});
-      video.addEventListener('error',()=>{if(current()&&version===revision)note.textContent='O navegador não conseguiu reproduzir este vídeo. O arquivo MP4 original continua anexado.';},{once:true});
+      video.addEventListener('error',()=>{if(current()&&version===revision)note.textContent='O navegador não conseguiu reproduzir este vídeo. O arquivo original continua anexado.';},{once:true});
       if(block.name?.startsWith('previa-neopep-')){video.muted=true;video.loop=true;video.autoplay=!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;label.textContent='Prévia curta · '+Math.ceil(file.size/1024)+' KB';}
       holder.append(video,note);video.src=url;
      }else if(file.type==='text/plain'){
@@ -738,7 +741,7 @@
    const textOnly=draft.blocks.length>0&&draft.blocks.every(block=>block.type==='text'&&!/(https?:\/\/|www\.)/i.test(block.text||''));
    const richBlocks=draft.blocks.length>0&&draft.blocks.length<=6&&draft.blocks.every(block=>
     ['text','image','link','product','document','community','file'].includes(block.type)&&
-     (block.type!=='file'||(gates.whatsapp_rich?.originals_enabled===true&&Boolean(block.media_path)&&/\.(pdf|mp4)$/.test(block.media_path)))&&
+     (block.type!=='file'||(gates.whatsapp_rich?.originals_enabled===true&&Boolean(block.media_path)&&/\.(pdf|mp4|mov)$/.test(block.media_path)))&&
      (block.type!=='image'||Boolean(block.media_path))&&
      (block.type!=='link'||Boolean(validLink(block.url)))&&
      (!['product','document','community'].includes(block.type)||Boolean(block.ref))&&
@@ -753,7 +756,7 @@
    const appBlocks=draft.blocks.length>0&&draft.blocks.length<=12&&draft.blocks.every(b=>['text','image','file','link','product','document','community'].includes(b.type)
     &&(b.text||'').length<=2000&&!/(https?:\/\/|www\.)/i.test(b.text||'')
     &&(!['image','file'].includes(b.type)||Boolean(b.media_path))
-    &&(b.type!=='file'||/\.(pdf|mp4)$/.test(b.media_path||''))
+    &&(b.type!=='file'||/\.(pdf|mp4|mov)$/.test(b.media_path||''))
     &&(b.type!=='link'||Boolean(validLink(b.url)))
     &&(!['product','document','community'].includes(b.type)||Boolean(b.ref)));
    const allow=Boolean(!(publication&&state.dispatchConfirmed)&&!publication?.paused&&(!publication||channel==='app'||rich)&&enabled&&clean&&eligible&&pinned&&(appRich?appBlocks:rich?richBlocks:textOnly&&short));
@@ -951,8 +954,8 @@
     const file=await readDraftMedia(block.id);
     if(!file)throw Error('Anexe novamente o arquivo original antes de salvar.');
     if(file.type==='text/plain')continue; // TXT remains local, never dispatched as an original.
-    if(!['application/pdf','video/mp4'].includes(file.type)||typeof cloud.campaignOriginalUpload!=='function')throw Error('Atualize o aplicativo para guardar o arquivo original.');
-    const path=account+'/'+uuid()+(file.type==='application/pdf'?'.pdf':'.mp4');
+    if(!['application/pdf','video/mp4','video/quicktime'].includes(file.type)||typeof cloud.campaignOriginalUpload!=='function')throw Error('Atualize o aplicativo para guardar o arquivo original.');
+    const path=account+'/'+uuid()+originalExt(file.type);
     const stored=await cloud.campaignOriginalUpload(path,file);
     if(!current()||stored!==path)throw Error('Não foi possível confirmar o armazenamento privado.');
     block.media_path=stored;saveLocal();
@@ -1089,10 +1092,10 @@
     finally{input.value='';mediaSelectionBusy=false;if(select)select.disabled=false;}
    }else input.value='';
    const image=/^image\/(jpeg|png|webp|heic|heif|avif)$/.test(file.type)||/\.(heic|heif)$/i.test(file.name);
-   if((!image&&!['application/pdf','video/mp4','text/plain'].includes(file.type))||!file.size||file.size>(image?25*1024*1024:originalLimit(file.type))||draft.blocks.length>=32){
-    tell('Selecione foto ou vídeo MP4 de até 25 MB, ou PDF/TXT de até 5 MB, dentro do limite de blocos.');return;
+   if((!image&&!['application/pdf','video/mp4','video/quicktime','text/plain'].includes(file.type))||!file.size||file.size>(image?25*1024*1024:originalLimit(file.type))||draft.blocks.length>=32){
+    tell('Selecione foto ou vídeo MP4 ou MOV de até 25 MB, ou PDF/TXT de até 5 MB, dentro do limite de blocos.');return;
    }
-   const id=uuid(),layout=field(image?'layout':file.type==='video/mp4'&&sheet.dataset.activePane==='video'?'video_layout':'file_layout')?.value||'caption';
+   const id=uuid(),layout=field(image?'layout':videoOriginal(file.type)&&sheet.dataset.activePane==='video'?'video_layout':'file_layout')?.value||'caption';
    try{
     if(file.type==='application/pdf'&&(await file.slice(0,5).text())!=='%PDF-'){tell('PDF inválido.');return;}
     const asset=image?await prepareImage(file,field('photo_quality').value):file;
@@ -1103,7 +1106,7 @@
     if(draft.blocks.length>=32){void storeMedia('readwrite',store=>store.delete(mediaKey(id))).catch(()=>{});return;}
     if(videoPick){localMedia.clear();localMedia.set(id,asset);}
     draft.blocks.push({id,type:image?'image':'file',name:(image?file.name:file.name.replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g,'_')).slice(0,120),layout,text:''});
-    if(image||['application/pdf','video/mp4'].includes(file.type)){captionTarget=id;if(layout==='caption'&&!message.value.trim()&&!editing)editing=id;composeAction();}
+    if(image||['application/pdf','video/mp4','video/quicktime'].includes(file.type)){captionTarget=id;if(layout==='caption'&&!message.value.trim()&&!editing)editing=id;composeAction();}
     closeSheet();render();changed();if(videoPick){tell('Vídeo anexado. Confira a prévia na conversa.');preview.querySelector('[data-block-id="'+CSS.escape(id)+'"]')?.scrollIntoView({block:'nearest'});}
    }catch(error){if(current())tell('Não foi possível guardar o arquivo neste dispositivo: '+(error?.message||'tente novamente.'));}
   });
@@ -1253,14 +1256,14 @@
     if(s.policy?.can_manage===true){
      const panel=$('[data-library-share-policy]'),mode=$('[data-library-share-mode]');
      panel.hidden=false;mode.querySelector('[value="preview"]').disabled=!video;
-     mode.querySelector('[value="original"]').disabled=!['video/mp4','application/pdf'].includes(file.mime)||!(Number(file.size)>0&&Number(file.size)<=originalLimit(file.mime));
+     mode.querySelector('[value="original"]').disabled=!['video/mp4','video/quicktime','application/pdf'].includes(file.mime)||!(Number(file.size)>0&&Number(file.size)<=originalLimit(file.mime));
      mode.value=s.policy.mode;$('[data-library-member-download]').textContent='Download dos membros: '+(s.policy.member_download?'permitido':'desativado')+' (não será alterado).';
     }
     p.hidden=!video;
     const permitted=file.allow_download===true&&libraryFileDraftReady();
     const originalAllowed=s.policy?s.policy.original===true&&libraryFileDraftReady():permitted;
     const previewAllowed=s.policy?s.policy.preview===true&&libraryFileDraftReady():permitted;
-    o.disabled=!originalAllowed||!['video/mp4','application/pdf'].includes(file.mime)||!Number.isFinite(Number(file.size))||Number(file.size)<=0||Number(file.size)>originalLimit(file.mime);
+    o.disabled=!originalAllowed||!['video/mp4','video/quicktime','application/pdf'].includes(file.mime)||!Number.isFinite(Number(file.size))||Number(file.size)<=0||Number(file.size)>originalLimit(file.mime);
     if(video&&typeof cloud.libraryVideoPreview==='function'&&previewAllowed){
      try{s.preview=await cloud.libraryVideoPreview(row.id,file.path);}catch{}
     }
@@ -1269,7 +1272,7 @@
     if(s.preview?.state==='ready'&&s.preview.url){
      const v=document.createElement('video');v.src=s.preview.url;v.muted=true;v.playsInline=true;v.loop=true;v.autoplay=!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;v.controls=true;v.preload='metadata';v.style.maxWidth='100%';v.setAttribute('aria-label','Prévia curta sem áudio');$('[data-library-share-video]').append(v);
     }
-    status.textContent=!originalAllowed&&!previewAllowed&&file.allow_download!==true?'Download dos membros desativado. '+(s.policy?.can_manage?'Escolha acima uma autorização exclusiva para campanhas, se desejar.':'O responsável pelo arquivo pode autorizar o compartilhamento.'):!libraryFileDraftReady()?'Preparação de arquivos indisponível neste canal. Use capa + link.':video&&s.preview?.state!=='ready'?'Prévia curta ainda não disponível. Confira o processamento no NeoPep Connect e reabra este material.':o.disabled?'Original acima do limite (MP4 25 MB; PDF 5 MB) ou formato não suportado.':!libraryOriginalReady()?'Você pode adicionar o arquivo ou prévia ao rascunho. O envio continua desativado no servidor.':'Selecione como compartilhar.';
+    status.textContent=!originalAllowed&&!previewAllowed&&file.allow_download!==true?'Download dos membros desativado. '+(s.policy?.can_manage?'Escolha acima uma autorização exclusiva para campanhas, se desejar.':'O responsável pelo arquivo pode autorizar o compartilhamento.'):!libraryFileDraftReady()?'Preparação de arquivos indisponível neste canal. Use capa + link.':video&&s.preview?.state!=='ready'?'Prévia curta ainda não disponível. Confira o processamento no NeoPep Connect e reabra este material.':o.disabled?'Original acima do limite (MP4/MOV 25 MB; PDF 5 MB) ou formato não suportado.':!libraryOriginalReady()?'Você pode adicionar o arquivo ou prévia ao rascunho. O envio continua desativado no servidor.':'Selecione como compartilhar.';
    }catch{if(libraryShareActive(s))status.textContent='Não foi possível consultar o arquivo. Você pode tentar capa + link.';}
   }
   async function applyLibrarySharePermission(){
@@ -1288,7 +1291,7 @@
    const s=libraryShare;if(!s||!libraryShareActive(s)||s.busy)return;
    if(mode==='cover'){addCatalogReference(s.row);return;}
    const file=s.file,short=mode==='preview';
-   if(!file||(s.policy?(short?s.policy.preview!==true:s.policy.original!==true):file.allow_download!==true)||!libraryFileDraftReady()||short&&s.preview?.state!=='ready'||!short&&(!['video/mp4','application/pdf'].includes(file.mime)||!(Number(file.size)>0&&Number(file.size)<=originalLimit(file.mime))))return;
+   if(!file||(s.policy?(short?s.policy.preview!==true:s.policy.original!==true):file.allow_download!==true)||!libraryFileDraftReady()||short&&s.preview?.state!=='ready'||!short&&(!['video/mp4','video/quicktime','application/pdf'].includes(file.mime)||!(Number(file.size)>0&&Number(file.size)<=originalLimit(file.mime))))return;
    if(draft.blocks.length+(short?2:1)>32){tell('Limite de 32 blocos por rascunho.');return;}
    s.busy=true;const status=$('[data-library-share-status]');status.textContent='Preparando arquivo autorizado…';
    for(const b of sheet.querySelectorAll('[data-editor^="library_share_"]'))b.disabled=true;
@@ -1314,7 +1317,7 @@
     try{while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>limit||!libraryShareActive(s))throw Error('Arquivo acima do limite ou operação cancelada.');parts.push(value);}}finally{await reader.cancel().catch(()=>{});}
     if(!size||!libraryShareActive(s))return;
     const blob=new Blob(parts,{type:mime});
-    const id=uuid(),name=(short?'previa-neopep-':'')+String(s.row.label||'Material').replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g,'_').slice(0,88)+(mime==='application/pdf'?'.pdf':'.mp4');
+    const id=uuid(),name=(short?'previa-neopep-':'')+String(s.row.label||'Material').replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g,'_').slice(0,88)+originalExt(mime);
     await storeMedia('readwrite',store=>store.put(blob,mediaKey(id)));
     if(!libraryShareActive(s))return;
     if(draft.blocks.length+(short?2:1)>32)throw Error('Limite de 32 blocos por rascunho.');
@@ -1434,7 +1437,7 @@
    if(action==='choose_image'||action==='choose_document'||action==='choose_video'){
     if(mediaSelectionBusy)return;
     pickingVideo=action==='choose_video';
-    field('media').accept=action==='choose_image'?'image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,.heic,.heif':pickingVideo?'video/*,.mp4,.mov,.m4v':'application/pdf,video/mp4,text/plain';
+    field('media').accept=action==='choose_image'?'image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,.heic,.heif':pickingVideo?'video/*,.mp4,.mov,.m4v':'application/pdf,video/mp4,video/quicktime,text/plain';
     field('media').click();return;
    }
    if(action==='name_continue'){
