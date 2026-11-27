@@ -61,10 +61,10 @@ begin
  if (length(d)-length(replace(d,a,'')))/length(a)<>2 then raise exception 'worker_guard_changed';end if;
  d:=replace(d,$a$(o.metadata->>'size')::int between 8 and 5242880
          or (d.version='0.2.16' and p_data->'originals_25mb'='true'::jsonb and job.original_mime='video/mp4'$a$,$a$((o.metadata->>'size')::int between 8 and 5242880 and job.original_mime in ('application/pdf','video/mp4'))
-         or (d.version in ('0.2.16','0.2.17') and p_data->'originals_25mb'='true'::jsonb and (job.original_mime='video/mp4' or (job.original_mime='video/quicktime' and d.version='0.2.17' and p_data->'originals_mov'='true'::jsonb)))$a$);
+         or (d.version in ('0.2.16','0.2.17') and p_data->'originals_25mb'='true'::jsonb and (job.original_mime='video/mp4' or (job.original_mime='video/quicktime' and d.version='0.2.17' and p_data->'originals_mov'='true'::jsonb))$a$);
  d:=replace(d,$a$(o.metadata->>'size')::int between 8 and 5242880
       or (d.version='0.2.16' and p_data->'originals_25mb'='true'::jsonb and m.original_mime='video/mp4'$a$,$a$((o.metadata->>'size')::int between 8 and 5242880 and m.original_mime in ('application/pdf','video/mp4'))
-      or (d.version in ('0.2.16','0.2.17') and p_data->'originals_25mb'='true'::jsonb and (m.original_mime='video/mp4' or (m.original_mime='video/quicktime' and d.version='0.2.17' and p_data->'originals_mov'='true'::jsonb)))$a$);
+      or (d.version in ('0.2.16','0.2.17') and p_data->'originals_25mb'='true'::jsonb and (m.original_mime='video/mp4' or (m.original_mime='video/quicktime' and d.version='0.2.17' and p_data->'originals_mov'='true'::jsonb))$a$);
  if (length(d)-length(replace(d,'originals_mov','')))/length('originals_mov')<>2 then raise exception 'worker_mov_gate_changed';end if;
  execute d;
  update storage.buckets set allowed_mime_types=array_append(allowed_mime_types,'video/quicktime') where id='neo-campaign-originals' and not public and file_size_limit=26214400;
