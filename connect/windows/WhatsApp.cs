@@ -78,7 +78,10 @@ sealed partial class WhatsApp : Form {
         if(deliveryReceipts.TryGetValue(key,out latest)&&Object.ReferenceEquals(latest,row))deliveryReceipts.Remove(key);
     }
     Dictionary<string,object> localVault;
-    readonly JavaScriptSerializer json=new JavaScriptSerializer { MaxJsonLength=40*1024*1024 };
+    const string BridgeProtocolPrefix="NEO-WA/1 ";
+    const int BridgeProtocolMax=40*1024*1024;
+    bool bridgeNoiseRecorded;
+    readonly JavaScriptSerializer json=new JavaScriptSerializer { MaxJsonLength=BridgeProtocolMax };
     Process process;
     StreamWriter pipe;
     bool closing,forgetting,ready;
@@ -564,6 +567,7 @@ sealed partial class WhatsApp : Form {
             start.EnvironmentVariables.Remove("NODE_OPTIONS");start.EnvironmentVariables.Remove("NODE_PATH");
             var child=new Process{StartInfo=start,EnableRaisingEvents=true};
             int revision=++generation;
+            bridgeNoiseRecorded=false;
             child.OutputDataReceived+=delegate(object sender,DataReceivedEventArgs args){
                 if(args.Data!=null)Dispatch(delegate{if(revision==generation)Receive(args.Data);});
             };
@@ -603,12 +607,19 @@ sealed partial class WhatsApp : Form {
     }
     static string TextValue(Dictionary<string,object> values,string key){object value;return values.TryGetValue(key,out value)?Convert.ToString(value):"";}
     void Receive(string line){
-        if(closing||line.Length>16*1024*1024)return;
+        if(closing||String.IsNullOrEmpty(line))return;
+        // Unframed stdout is not an application message. Never log or parse its content.
+        if(!line.StartsWith(BridgeProtocolPrefix,StringComparison.Ordinal)){
+            if(!bridgeNoiseRecorded){bridgeNoiseRecorded=true;RecordSafeDiagnostic("IPC_RUIDO",new FormatException());}
+            return;
+        }
         string phase="ENVELOPE";
         try{
-            var message=json.Deserialize<Dictionary<string,object>>(line);
-            if(message==null)throw new InvalidOperationException();
+            if(line.Length-BridgeProtocolPrefix.Length>BridgeProtocolMax)throw new FormatException();
+            var message=json.Deserialize<Dictionary<string,object>>(line.Substring(BridgeProtocolPrefix.Length));
+            if(message==null||!message.ContainsKey("value")||!(message.ContainsKey("type")&&message["type"] is string))throw new InvalidOperationException();
             string type=TextValue(message,"type"),value=TextValue(message,"value");
+            if(type=="protocol_error")throw new FormatException();
             if(type=="vault"){
                 phase="CREDENCIAL";
                 if(message["value"]==null){if(!forgetting)ObserveStatus(ReportStatus("revoked"));WriteVault(null);}
