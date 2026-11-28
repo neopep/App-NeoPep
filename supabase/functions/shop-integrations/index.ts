@@ -1,7 +1,6 @@
 import {createClient} from 'npm:@supabase/supabase-js@2.80.0';
-import {syncInstallments} from './installment-sync.ts';
+import {syncInstallments,stagingInstallmentConfig} from './installment-sync.ts';
 import {normalizeInstallments} from './installments.ts';
-import {shopPaymentConfig} from '../_shared/shop-payment-config.ts';
 import {encryptKey,decryptKey} from '../_shared/agent-providers.ts';
 Deno.serve(async(req:Request)=>{
  const app=Deno.env.get('SHOP_APP_URL')||'',allowed=(Deno.env.get('ALLOWED_ORIGINS')||'').split(',').map(v=>v.trim()).filter(Boolean);try{allowed.push(new URL(app).origin)}catch{}const origin=req.headers.get('Origin')||'',permitted=origin==='https://teste.app.neopep.com.br';
@@ -25,7 +24,7 @@ Deno.serve(async(req:Request)=>{
   if(action==='installments'){
    const environment=body.environment,bin=String(body.bin||''),amount=Number(body.amount_cents);
    if(environment!=='test'||!/^[0-9]{8}$/.test(bin)||!Number.isSafeInteger(amount)||amount<1||amount>100000000)return out(400,{error:'installments_input'});
-   const config=await shopPaymentConfig(admin,false,environment);
+   const config=await stagingInstallmentConfig(admin);
    if(config.mode!==environment)return out(409,{error:'environment_mismatch'});
    const headers={Authorization:'Bearer '+config.access};
    const seller=await fetch('https://api.mercadopago.com/users/me',{headers,signal:AbortSignal.timeout(15000)});
