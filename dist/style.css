@@ -1213,3 +1213,8 @@ dialog.neo-structured-editor::backdrop{background:#192720}
 .neo-web-privacy .privacy-options-link{display:block;margin:.55rem auto 0}
 .neo-web-privacy .privacy-option{display:flex;align-items:center;justify-content:space-between;gap:.5rem}
 .neo-web-privacy-link{font-size:.78rem;color:var(--muted)}
+
+.neo-web-privacy-link{display:block;margin:.6rem auto;min-height:44px}
+[data-editor-pane=audience] fieldset{min-inline-size:0;max-width:100%;overflow-wrap:anywhere}
+[data-editor-pane=audience] fieldset .inline-actions{display:flex;flex-wrap:wrap;gap:.5rem}
+[data-editor-pane=audience] fieldset .inline-actions .check{flex:0 0 auto;max-width:100%}
