@@ -2,7 +2,7 @@
 (function(){
 'use strict';
 const key='neo_web_statistics_v1',maxAge=180*86400;
-let decision=null,box=null,preferences=false,active=null,busy=false;
+let decision=null,box=null,preferences=false,active=null,busy=false,pendingNativeAccount=null;
 try{const value=document.cookie.split(';').map(s=>s.trim()).find(s=>s.startsWith(key+'='))?.slice(key.length+1);if(value==='allow'||value==='deny')decision=value;}catch{}
 const allowed=()=>decision==='allow';
 const standalone=()=>navigator.standalone===true||window.matchMedia?.('(display-mode: standalone)').matches===true;
@@ -16,7 +16,7 @@ function show(detail=false){preferences=detail;box.hidden=false;paint();box.quer
 function save(value){
  decision=value;try{document.cookie=key+'='+value+'; Max-Age='+maxAge+'; Path=/; SameSite=Lax; Secure';}catch{}
  box.hidden=true;preferences=false;
- if(allowed())void observeCurrent();else active=null;
+ if(allowed())void observeCurrent();else {active=null;pendingNativeAccount=null;}
  window.dispatchEvent(new Event('neo-web-statistics-change'));
 }
 function mount(){
@@ -29,15 +29,17 @@ function mount(){
 }
 async function observeCurrent(native=false){
  const ctx=active;
+ if(native&&allowed()&&ctx?.cloud.user?.id===ctx?.account&&ctx)pendingNativeAccount=ctx.account;
  if(!allowed()||!ctx||busy||navigator.onLine===false||ctx.cloud.user?.id!==ctx.account)return;
  busy=true;
+ const nativeRequested=pendingNativeAccount===ctx.account;
  try{
-  const result=await ctx.cloud.audience('web_telemetry',{context:standalone()?'pwa':'browser',os:ctx.device.os,native_install:native===true});
-  if(result?.allowed!==true)active=null;
+  const result=await ctx.cloud.audience('web_telemetry',{context:standalone()?'pwa':'browser',os:ctx.device.os,native_install:pendingNativeAccount===ctx.account});
+  if(result?.allowed!==true){active=null;pendingNativeAccount=null;}else if(pendingNativeAccount===ctx.account&&nativeRequested)pendingNativeAccount=null;
  }catch{/* Before the coordinated migration, optional telemetry remains unavailable. */}
  finally{busy=false;}
 }
-window.NeoWebPrivacy={allowed,open(){mount();show(true);},observe(cloud,account,device){if(!allowed()||!account||cloud.user?.id!==account){active=null;return;}active={cloud,account,device};void observeCurrent();},clear(){active=null;}};
+window.NeoWebPrivacy={allowed,open(){mount();show(true);},observe(cloud,account,device){if(!allowed()||!account||cloud.user?.id!==account){active=null;pendingNativeAccount=null;return;}if(active?.account!==account)pendingNativeAccount=null;active={cloud,account,device};void observeCurrent();},clear(){active=null;pendingNativeAccount=null;},addLink(root){if(!root||root.querySelector('[data-web-privacy-open]'))return;const link=document.createElement('button');link.type='button';link.className='text-btn neo-web-privacy-link';link.setAttribute('data-web-privacy-open','');link.textContent='Preferências de cookies';root.append(link);}};
 window.addEventListener('appinstalled',()=>{if(allowed()&&active?.cloud.user?.id===active.account)void observeCurrent(true);});
 document.addEventListener('click',event=>{if(event.target.closest('[data-web-privacy-open]')){event.preventDefault();window.NeoWebPrivacy.open();}});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
