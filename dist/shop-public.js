@@ -61,8 +61,9 @@ window.NeoPublicShop=(()=>{
   mounted=true;
 
   function render(){
+   if(disposed)return;
+   if(!localPreviewRoute()){dispose();return;}
    const target=route(new URL(location.href));
-   if(!target){root.replaceChildren();return;}
    const product=products.find(item=>target.product===item.id);
    const registration=access==='visitor'?(enrolling?'<form data-commercial-register><h2>Cadastro comercial</h2><p>Simulação local com uma conta fictícia.</p><label><input type="checkbox" name="consent" required> Aceito participar da simulação</label><button class="primary" type="submit">Concluir cadastro fictício</button><button type="button" class="secondary" data-commercial="cancel">Cancelar</button></form>':'<button type="button" class="secondary" data-commercial="register">Simular cadastro comercial</button>'):'<button type="button" class="secondary" data-commercial="app">Conhecer o aplicativo</button>';
    const themeOptions=Object.entries(themes).map(([value,label])=>`<option value="${value}" ${window.NeoAppearance.value===value?'selected':''}>${label}</option>`).join('');
@@ -140,6 +141,7 @@ window.NeoPublicShop=(()=>{
    submitButton.disabled=true;
    try{
     const registered=await register();
+    if(disposed||!localPreviewRoute())return;
     if(context(registered)!=='commercial')throw new Error();
     accountID=registered.id;
     access='commercial';
@@ -159,21 +161,29 @@ window.NeoPublicShop=(()=>{
   }
 
   function pop(){photoIndex=0;render();}
-  root.addEventListener('click',click);
-  root.addEventListener('submit',submit);
-  root.addEventListener('change',change);
-  window.addEventListener('popstate',pop);
-  render();
-  return ()=>{
+  function dispose(){
    if(disposed)return;
    disposed=true;
+   mounted=false;
    root.removeEventListener('click',click);
    root.removeEventListener('submit',submit);
    root.removeEventListener('change',change);
    window.removeEventListener('popstate',pop);
+   window.removeEventListener('hashchange',pop);
    root.replaceChildren();
-   mounted=false;
-  };
+  }
+  try{
+   root.addEventListener('click',click);
+   root.addEventListener('submit',submit);
+   root.addEventListener('change',change);
+   window.addEventListener('popstate',pop);
+   window.addEventListener('hashchange',pop);
+   render();
+  }catch(error){
+   dispose();
+   throw error;
+  }
+  return dispose;
  }
  async function mountWithCloud(root,rows){
   const cloud=window.NeoCloud;
