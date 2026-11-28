@@ -162,7 +162,7 @@ test('IPC preserva bytes PDF e MP4, rejeita nomes, MIME e destinos inválidos, e
  const request={action:'send_file',request_id:'11111111-1111-4111-8111-111111111111',group_jid:'123@g.us',text:'Fixture',mime:'application/pdf',name:'fixture.pdf',file:pdf.toString('base64')};
  await bridge.receive(request);assert.equal(sent.length,0);
  await bridge.receive({action:'connect'});
- for(const invalid of [{...request,name:'../fixture.pdf'},{...request,mime:'video/mp4'},{...request,file:'AAAB'},{...request,group_jid:'123@s.whatsapp.net'},{...request,file:Buffer.alloc(5*1024*1024+1).toString('base64')}]){
+ for(const invalid of [{...request,name:'../fixture.pdf'},{...request,mime:'video/mp4'},{...request,file:'AAAB'},{...request,group_jid:'123@s.whatsapp.net'},{...request,file:Buffer.alloc(50*1024*1024+1).toString('base64')}]){
   await bridge.receive(invalid);assert.equal(messages.at(-1).value.status,'rejected');
  }
  assert.equal(sent.length,0);
