@@ -244,7 +244,7 @@
     ${pane('community_share','Publicação da Comunidade','<div data-community-share-preview></div><div class="inline-actions"><button type="button" class="secondary" data-editor="community_reference">Manter referência à publicação</button><button type="button" class="primary" data-editor="community_import">Importar texto e imagem editáveis</button></div><p class="sub">Use a referência para manter o acesso restrito à Comunidade. Para republicar conteúdo a outro público, confirme a autorização do autor. Nenhuma mensagem será enviada nesta etapa.</p><p class="sub" role="status" data-community-share-status></p>')}
     ${pane('library_share','Como deseja compartilhar?','<p class="sub" data-library-share-name></p><div class="inline-actions"><button type="button" class="secondary" data-editor="library_share_cover">Capa + link</button><button type="button" class="secondary" data-editor="library_share_preview" disabled>Prévia curta + link</button><button type="button" class="secondary" data-editor="library_share_original" disabled>Arquivo original</button></div><div data-library-share-policy hidden class="monitor-block"><strong>Compartilhamento em campanhas</strong><p class="sub" data-library-member-download></p><label>Autorização deste arquivo<select data-library-share-mode><option value="cover">Somente capa + link</option><option value="preview">Somente prévia curta + link</option><option value="original">Permitir arquivo completo</option></select></label><button type="button" class="secondary" data-editor="library_permission_apply">Salvar autorização</button><p class="sub">Esta opção não altera o download dos membros. Arquivos enviados ao WhatsApp podem ser salvos pelos destinatários.</p></div><div data-library-share-video></div><p class="sub" data-library-share-status role="status"></p>')}
     ${pane('file_help','Envio de arquivos','<p>O envio de arquivos originais e prévias em vídeo depende da liberação no servidor e de um NeoPep Connect compatível. O documento pode permanecer no rascunho sem ser enviado.</p><p>Use Capa + link para materiais disponíveis na Biblioteca. Para liberar a modalidade de arquivo, confira a configuração do canal e os dispositivos autorizados.</p><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button>')}
-    ${pane('schedule','Publicação e horário','<label>Horário planejado (São Paulo)<input name="planned_local" type="datetime-local" value="'+e(draft.planned_local)+'"></label><p data-editor-summary class="sub"></p><div class="inline-actions"><button type="button" class="secondary" data-editor="schedule" disabled>Programar</button><button type="button" class="secondary" data-editor="simulate">Ver prévia (sem enviar)</button></div><div class="structured-issues" data-editor-issues role="status"></div><p role="status" class="sub" data-editor-simulation></p><p class="sub">A prévia não envia mensagens. Para publicar, escolha os grupos e confirme o envio.</p><p class="sub" data-dispatch-gate></p>')}
+    ${pane('schedule','Publicação e horário','<label>Horário planejado (São Paulo)<input name="planned_local" type="datetime-local" value="'+e(draft.planned_local)+'"></label><p data-editor-summary class="sub"></p><div class="inline-actions"><button type="button" class="secondary" data-editor="schedule" disabled>Agendar</button><button type="button" class="secondary" data-editor="simulate">Ver prévia</button><button type="button" class="primary" data-editor="publish_now_panel">Publicar agora</button></div><div class="structured-issues" data-editor-issues role="status"></div><p role="status" class="sub" data-editor-simulation></p><p class="sub">A prévia não envia mensagens. '+(channel==='app'?'Confira público, exibição e horário antes de confirmar.':'Escolha os grupos autorizados e confirme o envio.')+'</p><p class="sub" data-dispatch-gate></p>')}
     ${pane('confirmation','Confirmar campanha','<p data-confirm-question></p><p class="sub" data-confirm-summary></p><p class="structured-confirm-content" data-confirm-content></p><button type="button" class="primary" data-editor="confirm_dispatch">Confirmar</button> <button type="button" class="secondary" data-editor="sheet_close">Voltar à composição</button>')}
     ${channel==='whatsapp'&&!testWA?pane('recurrence','Recorrência','<label>Ocorrências semanais<input name="weekly_count" type="number" min="1" max="6" step="1" value="1"></label>'):''}
     ${pane('format','Formatação do trecho selecionado','<div class="inline-actions"><button type="button" class="secondary" data-format="*" aria-label="Aplicar negrito">Negrito</button><button type="button" class="secondary" data-format="_" aria-label="Aplicar itálico">Itálico</button><button type="button" class="secondary" data-format="~">Riscado</button><button type="button" class="secondary" data-format="&#96;">Monoespaçado</button></div>')}
@@ -258,7 +258,7 @@
     <p class="sub">${officialWA?'Campanha oficial · WhatsApp · Prévia':'Simulação de campanha · '+(channel==='app'?'App':'WhatsApp')+(staging?' · TESTE':'')}</p></div>
     ${readOnly?(onEdit?iconButton('gear','Editar conteúdo','data-editor="edit_preview"'):''):iconButton('save','Registrar rascunho na Central','data-editor="save"')}
    </header>
-   <main class="neo-structured-scroll"><h3 class="structured-campaign-name" ${publication?'data-parent-campaign="'+e(publication.title)+'"':''} data-campaign-name>${e(draft.title)}</h3><div class="neo-structured-preview" aria-label="${channel==='app'?'Prévia da notificação no aplicativo':'Conversa simulada'}" data-editor-preview></div><div class="structured-live" data-editor-live hidden></div></main>
+   <main class="neo-structured-scroll"><h3 class="structured-campaign-name" ${publication?'data-parent-campaign="'+e(publication.title)+'"':''} data-campaign-name>${e(draft.title)}</h3><div class="neo-structured-preview" aria-label="${channel==='app'?'Prévia da notificação no aplicativo':'Conversa simulada'}" data-editor-preview></div>${readOnly?'':'<section class="structured-visual-review" data-visual-review hidden><p class="sub">Prévia visual · nenhuma publicação enviada</p><div class="inline-actions"><button type="button" class="secondary" data-editor="end_visual_review">Voltar à edição</button><button type="button" class="secondary" data-editor="review_schedule">Agendar</button><button type="button" class="primary" data-editor="review_publish">Publicar agora</button></div></section>'}<div class="structured-live" data-editor-live hidden></div></main>
    ${readOnly?`<footer>${previewModes?'<label class="structured-preview-mode">Modo da simulação<select name="preview_mode"><option value="web">Painel · compartilhamento manual</option><option value="connect">Connect · imagem com legenda</option></select></label>':''}<p class="sub">Simulação visual. A disponibilidade de envio depende do canal e dos anexos.</p></footer>`:`<footer>
     <div class="structured-issues structured-issues-compact" data-editor-issues-compact aria-label="Pendências da publicação"></div><p role="status" class="sub structured-compose-status" data-editor-status></p>
     <button type="button" class="text-btn structured-revert" data-editor="revert" hidden>Desfazer exclusão</button>
@@ -358,6 +358,14 @@
    action.title=editing?'Salvar legenda no mesmo bloco':'Adicionar texto à simulação';
   }
   composeAction();
+  function visualReview(open){
+   const panel=$('[data-visual-review]');if(!panel)return;
+   if(open&&(editing||message.value.trim())){tell('Confirme o texto ou legenda antes de abrir a prévia.');return;}
+   if(open)closeSheet(false);
+   dialog.classList.toggle('structured-visual-review-mode',open);panel.hidden=!open;
+   if(open){panel.querySelector('button').focus({preventScroll:true});preview.scrollIntoView({block:'nearest'});}
+   else $('[data-pane-open=schedule]')?.focus({preventScroll:true});
+  }
   function closeSheet(focus=true){
    if(!sheet||sheet.hidden)return;
    cancelCatalog();libraryShare=null;communityShare=null;$('[data-library-share-video]')?.replaceChildren();
@@ -727,6 +735,12 @@
    if(draft.blocks.some(b=>b.type==='file')&&!libraryOriginalReady())add('file','Envio de arquivos bloqueado neste canal','file_help','blocked');
    if(channel==='whatsapp'&&(!gates.whatsapp_rich?.ready&&richMode()))add('connect','Confira conexão e autorização','groups','blocked');
    if(testApp&&draft.app_settings?.popup_enabled===false)add('popup','Ative a exibição no App','audience');
+   if(channel==='app'){
+    if(testApp?!(testGate.enabled&&testGate.destinations>0&&testGate.destinations<=30&&testGate.audience_key):gates.app_enabled!==true)add('app_gate',testApp?'Homologação App não liberada ou sem contas autorizadas':'Publicação App desativada no servidor','schedule','blocked');
+    const richApp=testApp?testGate.rich_popup===true:gates.app_rich_popup===true;
+    if(!richApp&&draft.blocks.some(b=>b.type!=='text'))add('app_media','O canal ainda não aceita este conteúdo','menu','blocked');
+   }
+   if(scheduled&&draft.planned_local){const time=Date.parse(draft.planned_local+'-03:00');if(!Number.isFinite(time)||time<=Date.now())add('past','Escolha uma data e horário futuros','schedule');}
    return issues;
   }
   function paintIssues(){
@@ -764,7 +778,7 @@
     &&(!['product','document','community'].includes(b.type)||Boolean(b.ref)));
    const allow=Boolean(!(publication&&state.dispatchConfirmed)&&!publication?.paused&&(!publication||channel==='app'||rich)&&enabled&&clean&&eligible&&pinned&&(appRich?appBlocks:rich?richBlocks:textOnly&&short));
    dispatchReady.publish=Boolean(allow&&!(channel==='whatsapp'&&!testWA&&!gates.devices?.some(d=>d.ready)));
-   dispatchReady.schedule=Boolean(allow&&draft.planned_local&&!(testWA&&!(rich?gates.whatsapp_rich?.ready:gates.whatsapp_test?.schedule_ready)));
+   dispatchReady.schedule=Boolean(allow&&draft.planned_local&&Date.parse(draft.planned_local+'-03:00')>Date.now()&&!(testWA&&!(rich?gates.whatsapp_rich?.ready:gates.whatsapp_test?.schedule_ready)));
    $('[data-editor=publish]').disabled=dispatching||saving;
    $('[data-editor=schedule]').disabled=dispatching||saving;
    $('[data-editor-summary]').textContent=dispatchSummary(Boolean(draft.planned_local));
@@ -775,7 +789,7 @@
      ((rich?gates.whatsapp_rich?.ready:gates.whatsapp_test.schedule_ready)?'Agendamento disponível.':'Agendamento indisponível.'):
      (officialWA?'Produção aguardando confirmação do Connect e autorização do servidor.':'WhatsApp em simulação. Confira o Connect e o grupo autorizado.')):enabled?
     (appRich?'Notificações App com múltiplos conteúdos. Confira público, canais, frequência e horário.':'O despacho exige uma versão registrada, somente texto e destinos autorizados. Aceitação pelo cliente não confirma entrega.'):
-    'Envio e agendamento automáticos bloqueados. Somente texto no contrato de despacho.';
+    (channel==='app'?'Publicação e agendamento App desativados no servidor. Salvar e visualizar rascunhos continuam disponíveis.':'Despacho automático desativado no servidor.');
   }
   async function refreshGate(){
    if(testApp){
@@ -855,7 +869,7 @@
    const explain=text=>{$('[data-editor-simulation]').textContent=text;tell(text);};
    if(publication?.paused){explain('Campanha desligada. Volte à Central e reative antes de publicar.');return;}
    if(!draft.title.trim()){explain('Informe o nome da publicação em Ajustes.');return;}
-   if(scheduled&&!draft.planned_local){explain('Selecione a data e o horário do agendamento.');return;}
+   if(scheduled&&(!draft.planned_local||!(Date.parse(draft.planned_local+'-03:00')>Date.now()))){explain('Selecione uma data e um horário futuros para agendar. Para enviar agora, use Publicar agora.');return;}
    if(channel==='whatsapp'&&!draft.groups.length){explain('Selecione pelo menos um grupo sincronizado.');return;}
    if(editing||message.value.trim()){explain('Confirme o texto ou a legenda com a seta antes de continuar.');return;}
    if(!draft.blocks.length){explain('Adicione conteúdo antes de continuar.');return;}
@@ -866,9 +880,10 @@
     await saveRemote();
    }
    if(!current())return;
+   await refreshGate();if(!current())return;
    showGate();
    if(!dispatchReady[scheduled?'schedule':'publish']){
-    explain(!sameDraft(state.savedDraft,draft)?lastSaveError||'Não foi possível confirmar a versão salva. Confira a conexão e tente novamente.':'A publicação ainda não está liberada: confira os destinos, o tipo de conteúdo e a disponibilidade do canal.');
+    explain(!sameDraft(state.savedDraft,draft)?lastSaveError||'Não foi possível confirmar a versão salva. Confira a conexão e tente novamente.':(dispatchIssues(scheduled).map(i=>i.label).join(' · ')||'Publicação indisponível: confira conteúdo e autorização do canal.'));
     return;
    }
    pendingDispatch=scheduled;
@@ -1040,7 +1055,7 @@
   const stop=()=>{if(dialog.open)dialog.close();finish();};
   stopOpen=stop;
   dialog.addEventListener('close',finish,{once:true});
-  dialog.addEventListener('cancel',event=>{event.preventDefault();if(sheet&&!sheet.hidden)closeSheet();else close();});
+  dialog.addEventListener('cancel',event=>{event.preventDefault();if(dialog.classList.contains('structured-visual-review-mode'))visualReview(false);else if(sheet&&!sheet.hidden)closeSheet();else close();});
   window.addEventListener('pagehide',saveLocal);
   dialog.addEventListener('input',event=>{
    const name=event.target.name;
@@ -1402,7 +1417,7 @@
      const zoom=document.createElement('dialog');zoom.className='structured-image-zoom';zoom.setAttribute('aria-label','Imagem da campanha');
      const photo=image.cloneNode();for(const attr of ['data-editor-image','role','tabindex','aria-label'])photo.removeAttribute(attr);
      const exit=document.createElement('button');exit.type='button';exit.textContent='Fechar imagem';exit.onclick=()=>zoom.close();
-     if(!readOnly){
+     if(!readOnly&&!dialog.classList.contains('structured-visual-review-mode')){
       const select=document.createElement('button');select.type='button';select.textContent='Editar legenda';
       select.onclick=()=>{
 
@@ -1415,7 +1430,7 @@
      zoom.append(exit,photo);dialog.append(zoom);zoom.addEventListener('close',()=>zoom.remove(),{once:true});zoom.showModal();return;
     }
     const bubble=event.target.closest('[data-block-id]');
-    if(bubble&&!event.target.closest('details,a,video')){const item=draft.blocks.find(block=>block.id===bubble.dataset.blockId);if(!readOnly&&captionTypes.includes(item?.type)){captionTarget=item.id;composeAction();}const options=bubble.querySelector('details');if(options)options.open=!options.open;}
+    if(bubble&&!dialog.classList.contains('structured-visual-review-mode')&&!event.target.closest('details,a,video')){const item=draft.blocks.find(block=>block.id===bubble.dataset.blockId);if(!readOnly&&captionTypes.includes(item?.type)){captionTarget=item.id;composeAction();}const options=bubble.querySelector('details');if(options)options.open=!options.open;}
     return;
    }
    const target=control.dataset.paneOpen;
@@ -1474,16 +1489,16 @@
     message.focus({preventScroll:true});message.setSelectionRange(...selection);return;
    }
    if(action==='connect'&&close())onConnect?.();
-   if(action==='save')void saveRemote();
+   if(action==='save'&&!dialog.classList.contains('structured-visual-review-mode'))void saveRemote();
    if(action==='fresh'){
     if(!state.remoteId&&!window.confirm('Iniciar outro rascunho e substituir a cópia local ao editar?'))return;
     if(close())open({cloud,channel,trigger,onSaved,onConnect,fresh:true});
    }
    if(action==='groups'){await refreshGroups();void refreshGate();}
-   if(action==='simulate'){
-    const simulation=$('[data-editor-simulation]');
-    simulation.textContent='Prévia local (sem envio) · '+draft.title+' · '+dispatchSummary(Boolean(draft.planned_local))+'. Nenhuma mensagem foi enviada ou agendada.';
-   }
+   if(action==='simulate'){visualReview(true);return;}
+   if(action==='end_visual_review'){visualReview(false);return;}
+   if(action==='review_schedule'||action==='review_publish'){visualReview(false);void requestDispatch(action==='review_schedule',control);return;}
+   if(action==='publish_now_panel'){void requestDispatch(false,control);return;}
    if(action==='publish'||action==='schedule')void requestDispatch(action==='schedule',control);
    if(action==='confirm_dispatch'&&pendingDispatch!==null){
     const scheduled=pendingDispatch;closeSheet();void dispatch(scheduled);
