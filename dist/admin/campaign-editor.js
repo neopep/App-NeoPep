@@ -708,7 +708,66 @@
    if(draft.blocks.length>=32){tell('Limite de 32 blocos por rascunho.');return false;}
    const next=draft.blocks.slice();next.splice(block.type==='text'?(provisional??next.length):next.length,0,{id:uuid(),...block});if(albumDraftIssue(next)){tell('Não insira texto entre fotos de um álbum.');return false;}draft.blocks=next;if(block.type==='text')provisional=null;render();changed();return true;
   }
-  let groupIdentities=[];
+  let groupIdentities=[],groupViewEnabled=false,groupView=null;
+  const groupViewBytes=value=>Uint8Array.from(atob(value),ch=>ch.charCodeAt(0));
+  const groupViewBase64=value=>btoa(String.fromCharCode(...new Uint8Array(value)));
+  async function groupViewDecode(envelope,key,id,kind){
+   if(!envelope||typeof envelope.wrapped_key!=='string'||envelope.wrapped_key.length!==344||typeof envelope.iv!=='string'||envelope.iv.length!==16||typeof envelope.ciphertext!=='string'||envelope.ciphertext.length>1048576)throw Error('Resultado inválido.');
+   const raw=await crypto.subtle.decrypt({name:'RSA-OAEP'},key,groupViewBytes(envelope.wrapped_key));
+   if(raw.byteLength!==32)throw Error('Chave inválida.');
+   const aes=await crypto.subtle.importKey('raw',raw,{name:'AES-GCM'},false,['decrypt']);
+   const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:groupViewBytes(envelope.iv),additionalData:new TextEncoder().encode(id+':'+kind),tagLength:128},aes,groupViewBytes(envelope.ciphertext));
+   const value=JSON.parse(new TextDecoder().decode(plain));
+   if(value?.kind!==kind||!Array.isArray(value.rows)||value.rows.length>(kind==='members'?1024:50))throw Error('Resultado incompatível.');
+   return value.rows.map(row=>kind==='members'?{name:typeof row?.name==='string'?row.name.slice(0,120):'',phone:/^[0-9]{6,15}$/.test(row?.phone||'')?row.phone:'',role:['admin','superadmin','member'].includes(row?.role)?row.role:'unknown'}:{text:typeof row?.text==='string'?row.text.slice(0,500):''});
+  }
+  function closeGroupView(){
+   const view=groupView;groupView=null;if(!view)return;
+   clearTimeout(view.timer);clearTimeout(view.displayTimer);view.key=null;view.output.textContent='';
+   if(view.id&&current())void cloud.campaignGroupView('cancel',{id:view.id}).catch(()=>{});
+   if(view.dialog.open)view.dialog.close();view.dialog.remove();
+  }
+  async function openGroupView(row,kind){
+   if(!testWA||!groupViewEnabled||groupView||row.state!=='eligible'||!crypto.subtle||!current())return;
+   if(!window.confirm('Confirma que possui autorização para consultar '+(kind==='members'?'os participantes':'novas mensagens')+' deste grupo? A consulta será confirmada também no Windows.'))return;
+   const [connection_id,group_jid]=String(row.id).split(':');
+   if(!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(connection_id)||!/^[0-9-]{1,64}@g[.]us$/.test(group_jid))return;
+   const modal=document.createElement('dialog'),heading=document.createElement('h3'),status=document.createElement('p'),output=document.createElement('div'),exit=document.createElement('button');
+   heading.textContent=kind==='members'?'Participantes do grupo':'Novas mensagens do grupo';status.textContent='Preparando consulta protegida…';output.style.maxHeight='55vh';output.style.overflowY='auto';exit.type='button';exit.textContent='Fechar e limpar';exit.onclick=closeGroupView;
+   modal.append(heading,status,output,exit);modal.style.maxWidth='min(90vw,560px)';dialog.append(modal);
+   const view={dialog:modal,output,key:null,id:null,timer:null,displayTimer:null};groupView=view;
+   modal.addEventListener('close',()=>{if(groupView===view)closeGroupView();},{once:true});
+   modal.addEventListener('cancel',event=>{event.preventDefault();closeGroupView();});modal.showModal();
+   const valid=()=>groupView===view&&current();
+   try{
+    const keys=await crypto.subtle.generateKey({name:'RSA-OAEP',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},false,['encrypt','decrypt']);
+    if(!valid())return;view.key=keys.privateKey;
+    const browser_key=groupViewBase64(await crypto.subtle.exportKey('spki',keys.publicKey));
+    if(!valid())return;
+    const result=await cloud.campaignGroupView('request',{connection_id,group_jid,kind,browser_key,confirmed:true});
+    if(!valid()){if(result?.id&&current())void cloud.campaignGroupView('cancel',{id:result.id}).catch(()=>{});return;}
+    if(typeof result?.id!=='string'||result.state!=='waiting')throw Error('Consulta indisponível.');
+    view.id=result.id;const deadline=Math.min(Date.now()+240000,Date.parse(result.expires_at));
+    if(!Number.isFinite(deadline))throw Error('Validade inválida.');
+    status.textContent='Aguardando confirmação no Windows. A consulta expira em até quatro minutos.';
+    const poll=async()=>{
+     if(!valid()||Date.now()>=deadline){if(groupView===view)closeGroupView();return;}
+     try{
+      const state=await cloud.campaignGroupView('poll',{id:view.id});if(!valid())return;
+      if(state?.state==='ready'){
+       const rows=await groupViewDecode(state.result,view.key,view.id,kind);if(!valid())return;
+       view.key=null;view.id=null;status.textContent=rows.length+' registros. Resultado temporário; feche para limpar.';
+       const role={admin:'Administrador',superadmin:'Criador / admin',member:'Membro',unknown:'Função indisponível'};
+       for(const row of rows){const item=document.createElement('p');item.textContent=kind==='members'?(row.name||'Participante')+' · '+(row.phone?'+'+row.phone:'Número indisponível')+' · '+role[row.role]:row.text;output.append(item);}
+       view.displayTimer=setTimeout(()=>{if(groupView===view)closeGroupView();},120000);return;
+      }
+      if(!['waiting','claimed'].includes(state?.state)){view.key=null;view.id=null;status.textContent='Consulta indisponível ou recusada.';return;}
+      if(state.state==='claimed')status.textContent='Consulta solicitada ao Windows…';
+      view.timer=setTimeout(poll,4000);
+     }catch{if(valid()){view.key=null;status.textContent='Não foi possível concluir a consulta.';view.displayTimer=setTimeout(()=>{if(groupView===view)closeGroupView();},5000);}}
+    };await poll();
+   }catch{if(valid()){view.key=null;status.textContent='Consulta indisponível. Confira a conexão e a autorização.';view.displayTimer=setTimeout(()=>{if(groupView===view)closeGroupView();},5000);}}
+  }
   function groupConnectionLabel(row){const id=String(row.id||'').split(':')[0];const account=groupIdentities.find(a=>a.id===id);const name=account?.account_name||row.connection||'Conexão sem evidência';const number=String(account?.account_number||'');return /^[0-9]{6,15}$/.test(number)?name+' (+'+number+')':name;}
   function renderGroups(){
    const root=$('[data-editor-groups]');
@@ -719,11 +778,11 @@
    for(const row of groups)if(!testWA||!allowed||row.id===allowed)entries.set(row.id,row);
    root.innerHTML=[...entries.values()].filter(row=>`${row.name} ${groupConnectionLabel(row)}`.toLocaleLowerCase('pt-BR').includes(query)).map(row=>{
     const chosen=draft.groups.includes(row.id);
-    return `<label class="check"><input type="checkbox" data-editor-group="${e(row.id)}" ${chosen?'checked':''} ${!chosen&&(row.state!=='eligible'||testWA&&row.id!==allowed)?'disabled':''}>
+    return `<div><label class="check"><input type="checkbox" data-editor-group="${e(row.id)}" ${chosen?'checked':''} ${!chosen&&(row.state!=='eligible'||testWA&&row.id!==allowed)?'disabled':''}>
     <span><strong>${e(row.name)}</strong><small class="sub" style="display:block;font-size:11px;opacity:.82">${e(groupConnectionLabel(row))}</small>
     <small class="sub" style="display:block;font-size:11px">${e(states[row.state]||'Estado desconhecido')}
     ${row.participant_count==null?'':' · '+e(row.participant_count)+' participantes'}
-    ${row.last_synced_at?' · '+e(new Date(row.last_synced_at).toLocaleString('pt-BR')):''}</small></span></label>`;
+    ${row.last_synced_at?' · '+e(new Date(row.last_synced_at).toLocaleString('pt-BR')):''}</small></span></label>${testWA&&groupViewEnabled&&row.state==='eligible'?`<div class="row" style="margin:4px 0 8px"><button type="button" class="btn ghost" data-group-view="members" data-group-id="${e(row.id)}">Participantes</button><button type="button" class="btn ghost" data-group-view="messages" data-group-id="${e(row.id)}">Mensagens</button></div>`:''}</div>`;
    }).join('')||'<p class="sub">Nenhum grupo sincronizado no recorte.</p>';
    const selected=$('[data-selected-groups]');
    if(selected){
@@ -738,12 +797,12 @@
    const token=++loadToken;
    connection.textContent='Consultando grupos sincronizados…';
    try{
-    const [list,accounts]=await Promise.all([cloud.campaignWhatsAppSync('catalog'),cloud.campaignWhatsAppIdentities?.().catch(()=>[])||[]]);
+    const [list,accounts,viewGate]=await Promise.all([cloud.campaignWhatsAppSync('catalog'),cloud.campaignWhatsAppIdentities?.().catch(()=>[])||[],testWA?cloud.campaignGroupView?.('status').catch(()=>null):null]);
     if(!current()||token!==loadToken)return;
-    groups=list;groupIdentities=Array.isArray(accounts)?accounts:[];renderGroups();
+    groups=list;groupIdentities=Array.isArray(accounts)?accounts:[];groupViewEnabled=viewGate?.enabled===true;renderGroups();
     connection.textContent=groups.some(row=>row.state==='eligible')?'Grupos elegíveis encontrados. Despacho permanece bloqueado.':
      'Sem destino elegível na consulta atual. Despacho bloqueado.';
-   }catch{if(current()&&token===loadToken){groups=[];groupIdentities=[];renderGroups();connection.textContent='Diagnóstico indisponível. Despacho bloqueado.';}}
+   }catch{if(current()&&token===loadToken){groups=[];groupIdentities=[];groupViewEnabled=false;closeGroupView();renderGroups();connection.textContent='Diagnóstico indisponível. Despacho bloqueado.';}}
   }
   const richMode=()=>testWA&&(Boolean(publication)||draft.blocks.length!==1||draft.blocks.some(block=>block.type!=='text'||/(https?:\/\/|www\.)/i.test(block.text||''))||
    draft.blocks.map(block=>block.text||'').join('\n\n').trim().length>160);
@@ -1078,7 +1137,7 @@
    if(!active)return;
    if(stopOpen===stop)stopOpen=null;
    viewport?.removeEventListener('resize',resize);viewport?.removeEventListener('scroll',resize);window.removeEventListener('resize',resize);dialog.removeEventListener('focusin',resize);
-   active=false;cancelCatalog();previewAbort.abort();if(openedReference)window.NeoLibraryFiles?.close();clearTimeout(pending);clearTimeout(noticeTimer);window.removeEventListener('pagehide',saveLocal);
+   closeGroupView();active=false;cancelCatalog();previewAbort.abort();if(openedReference)window.NeoLibraryFiles?.close();clearTimeout(pending);clearTimeout(noticeTimer);window.removeEventListener('pagehide',saveLocal);
    for(const url of objectUrls)URL.revokeObjectURL(url);
    localMedia.clear();dialog.remove();onClosed?.();if(trigger?.isConnected)trigger.focus({preventScroll:true});
   }
@@ -1520,6 +1579,7 @@
   dialog.addEventListener('click',async event=>{
    if(!current())return;
    const control=event.target.closest('button');
+   if(control?.dataset.groupView){const row=groups.find(x=>x.id===control.dataset.groupId);if(row&&['members','messages'].includes(control.dataset.groupView))void openGroupView(row,control.dataset.groupView);return;}
    if(!control){
     const image=event.target.closest('[data-editor-image]');
     if(image&&!image.hidden){
