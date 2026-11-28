@@ -1,0 +1,41 @@
+{
+  "date": "2026-11-27",
+  "environment": "isolated Mercado Pago test seller credential validated against users/me; distinct from real seller",
+  "payment_executed": false,
+  "seller": {
+    "http": 201,
+    "expiration_time": "PT1H",
+    "requested": {
+      "max_installments": 6,
+      "installments": {
+        "interest_free": {
+          "type": "range",
+          "values": [
+            2,
+            6
+          ]
+        }
+      }
+    },
+    "confirmed": {
+      "max_installments": 6,
+      "installments": {
+        "interest_free": {
+          "type": "range",
+          "values": [
+            2,
+            6
+          ]
+        }
+      }
+    },
+    "cancel_http": 200,
+    "closed": true
+  },
+  "buyer": {
+    "http": 400,
+    "code": "unsupported_properties",
+    "field": "config.payment_method.installments_cost"
+  },
+  "note": "Creation and cancellation proven; buyer checkout display and fee settlement still unverified. Do not activate either policy until hosted checkout tested; no real payments."
+}
