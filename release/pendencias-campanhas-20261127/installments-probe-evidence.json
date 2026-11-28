@@ -1,0 +1,558 @@
+{
+  "observed_on": "2026-11-27",
+  "environment": "production",
+  "seller_verified": true,
+  "endpoint": "GET /v1/payment_methods/installments",
+  "queries": [
+    {
+      "amount_cents": 10000,
+      "method": "any",
+      "http": 400,
+      "issuer_count": 0,
+      "options": []
+    },
+    {
+      "amount_cents": 99700,
+      "method": "any",
+      "http": 400,
+      "issuer_count": 0,
+      "options": []
+    },
+    {
+      "amount_cents": 10000,
+      "method": "visa",
+      "http": 200,
+      "issuer_count": 9,
+      "options": [
+        {
+          "installments": 1,
+          "buyer_rate": 0,
+          "installment_cents": 10000,
+          "total_cents": 10000,
+          "issuer_count": 9
+        },
+        {
+          "installments": 2,
+          "buyer_rate": 9.64,
+          "installment_cents": 5482,
+          "total_cents": 10964,
+          "issuer_count": 5
+        },
+        {
+          "installments": 3,
+          "buyer_rate": 11.23,
+          "installment_cents": 3708,
+          "total_cents": 11123,
+          "issuer_count": 5
+        },
+        {
+          "installments": 4,
+          "buyer_rate": 11.36,
+          "installment_cents": 2784,
+          "total_cents": 11136,
+          "issuer_count": 5
+        },
+        {
+          "installments": 5,
+          "buyer_rate": 14.31,
+          "installment_cents": 2286,
+          "total_cents": 11431,
+          "issuer_count": 5
+        },
+        {
+          "installments": 6,
+          "buyer_rate": 14.32,
+          "installment_cents": 1905,
+          "total_cents": 11432,
+          "issuer_count": 5
+        },
+        {
+          "installments": 7,
+          "buyer_rate": 16.72,
+          "installment_cents": 1667,
+          "total_cents": 11672,
+          "issuer_count": 5
+        },
+        {
+          "installments": 8,
+          "buyer_rate": 16.73,
+          "installment_cents": 1459,
+          "total_cents": 11673,
+          "issuer_count": 5
+        },
+        {
+          "installments": 9,
+          "buyer_rate": 19.69,
+          "installment_cents": 1330,
+          "total_cents": 11969,
+          "issuer_count": 5
+        },
+        {
+          "installments": 10,
+          "buyer_rate": 20.65,
+          "installment_cents": 1207,
+          "total_cents": 12065,
+          "issuer_count": 5
+        },
+        {
+          "installments": 11,
+          "buyer_rate": 20.66,
+          "installment_cents": 1097,
+          "total_cents": 12066,
+          "issuer_count": 5
+        },
+        {
+          "installments": 12,
+          "buyer_rate": 22.11,
+          "installment_cents": 1018,
+          "total_cents": 12211,
+          "issuer_count": 5
+        },
+        {
+          "installments": 13,
+          "buyer_rate": 23.04,
+          "installment_cents": 946,
+          "total_cents": 12304,
+          "issuer_count": 5
+        },
+        {
+          "installments": 14,
+          "buyer_rate": 24.45,
+          "installment_cents": 889,
+          "total_cents": 12445,
+          "issuer_count": 5
+        },
+        {
+          "installments": 15,
+          "buyer_rate": 25.83,
+          "installment_cents": 839,
+          "total_cents": 12583,
+          "issuer_count": 5
+        },
+        {
+          "installments": 16,
+          "buyer_rate": 27.2,
+          "installment_cents": 795,
+          "total_cents": 12720,
+          "issuer_count": 5
+        },
+        {
+          "installments": 17,
+          "buyer_rate": 28.58,
+          "installment_cents": 756,
+          "total_cents": 12858,
+          "issuer_count": 5
+        },
+        {
+          "installments": 18,
+          "buyer_rate": 29.99,
+          "installment_cents": 722,
+          "total_cents": 12999,
+          "issuer_count": 5
+        }
+      ]
+    },
+    {
+      "amount_cents": 99700,
+      "method": "visa",
+      "http": 200,
+      "issuer_count": 9,
+      "options": [
+        {
+          "installments": 1,
+          "buyer_rate": 0,
+          "installment_cents": 99700,
+          "total_cents": 99700,
+          "issuer_count": 9
+        },
+        {
+          "installments": 2,
+          "buyer_rate": 9.64,
+          "installment_cents": 54655,
+          "total_cents": 109311,
+          "issuer_count": 5
+        },
+        {
+          "installments": 3,
+          "buyer_rate": 11.23,
+          "installment_cents": 36965,
+          "total_cents": 110896,
+          "issuer_count": 5
+        },
+        {
+          "installments": 4,
+          "buyer_rate": 11.36,
+          "installment_cents": 27757,
+          "total_cents": 111026,
+          "issuer_count": 5
+        },
+        {
+          "installments": 5,
+          "buyer_rate": 14.31,
+          "installment_cents": 22793,
+          "total_cents": 113967,
+          "issuer_count": 5
+        },
+        {
+          "installments": 6,
+          "buyer_rate": 14.32,
+          "installment_cents": 18996,
+          "total_cents": 113977,
+          "issuer_count": 5
+        },
+        {
+          "installments": 7,
+          "buyer_rate": 16.72,
+          "installment_cents": 16624,
+          "total_cents": 116370,
+          "issuer_count": 5
+        },
+        {
+          "installments": 8,
+          "buyer_rate": 16.73,
+          "installment_cents": 14548,
+          "total_cents": 116380,
+          "issuer_count": 5
+        },
+        {
+          "installments": 9,
+          "buyer_rate": 19.69,
+          "installment_cents": 13259,
+          "total_cents": 119331,
+          "issuer_count": 5
+        },
+        {
+          "installments": 10,
+          "buyer_rate": 20.65,
+          "installment_cents": 12029,
+          "total_cents": 120288,
+          "issuer_count": 5
+        },
+        {
+          "installments": 11,
+          "buyer_rate": 20.66,
+          "installment_cents": 10936,
+          "total_cents": 120298,
+          "issuer_count": 5
+        },
+        {
+          "installments": 12,
+          "buyer_rate": 22.11,
+          "installment_cents": 10145,
+          "total_cents": 121744,
+          "issuer_count": 5
+        },
+        {
+          "installments": 13,
+          "buyer_rate": 23.04,
+          "installment_cents": 9436,
+          "total_cents": 122671,
+          "issuer_count": 5
+        },
+        {
+          "installments": 14,
+          "buyer_rate": 24.45,
+          "installment_cents": 8863,
+          "total_cents": 124077,
+          "issuer_count": 5
+        },
+        {
+          "installments": 15,
+          "buyer_rate": 25.83,
+          "installment_cents": 8364,
+          "total_cents": 125453,
+          "issuer_count": 5
+        },
+        {
+          "installments": 16,
+          "buyer_rate": 27.2,
+          "installment_cents": 7926,
+          "total_cents": 126818,
+          "issuer_count": 5
+        },
+        {
+          "installments": 17,
+          "buyer_rate": 28.58,
+          "installment_cents": 7541,
+          "total_cents": 128194,
+          "issuer_count": 5
+        },
+        {
+          "installments": 18,
+          "buyer_rate": 29.99,
+          "installment_cents": 7200,
+          "total_cents": 129600,
+          "issuer_count": 5
+        }
+      ]
+    },
+    {
+      "amount_cents": 10000,
+      "method": "master",
+      "http": 200,
+      "issuer_count": 15,
+      "options": [
+        {
+          "installments": 1,
+          "buyer_rate": 0,
+          "installment_cents": 10000,
+          "total_cents": 10000,
+          "issuer_count": 15
+        },
+        {
+          "installments": 2,
+          "buyer_rate": 9.64,
+          "installment_cents": 5482,
+          "total_cents": 10964,
+          "issuer_count": 10
+        },
+        {
+          "installments": 3,
+          "buyer_rate": 11.23,
+          "installment_cents": 3708,
+          "total_cents": 11123,
+          "issuer_count": 10
+        },
+        {
+          "installments": 4,
+          "buyer_rate": 11.36,
+          "installment_cents": 2784,
+          "total_cents": 11136,
+          "issuer_count": 10
+        },
+        {
+          "installments": 5,
+          "buyer_rate": 14.31,
+          "installment_cents": 2286,
+          "total_cents": 11431,
+          "issuer_count": 10
+        },
+        {
+          "installments": 6,
+          "buyer_rate": 14.32,
+          "installment_cents": 1905,
+          "total_cents": 11432,
+          "issuer_count": 10
+        },
+        {
+          "installments": 7,
+          "buyer_rate": 16.72,
+          "installment_cents": 1667,
+          "total_cents": 11672,
+          "issuer_count": 10
+        },
+        {
+          "installments": 8,
+          "buyer_rate": 16.73,
+          "installment_cents": 1459,
+          "total_cents": 11673,
+          "issuer_count": 10
+        },
+        {
+          "installments": 9,
+          "buyer_rate": 19.69,
+          "installment_cents": 1330,
+          "total_cents": 11969,
+          "issuer_count": 10
+        },
+        {
+          "installments": 10,
+          "buyer_rate": 20.65,
+          "installment_cents": 1207,
+          "total_cents": 12065,
+          "issuer_count": 10
+        },
+        {
+          "installments": 11,
+          "buyer_rate": 20.66,
+          "installment_cents": 1097,
+          "total_cents": 12066,
+          "issuer_count": 9
+        },
+        {
+          "installments": 12,
+          "buyer_rate": 22.11,
+          "installment_cents": 1018,
+          "total_cents": 12211,
+          "issuer_count": 9
+        },
+        {
+          "installments": 13,
+          "buyer_rate": 23.04,
+          "installment_cents": 946,
+          "total_cents": 12304,
+          "issuer_count": 8
+        },
+        {
+          "installments": 14,
+          "buyer_rate": 24.45,
+          "installment_cents": 889,
+          "total_cents": 12445,
+          "issuer_count": 8
+        },
+        {
+          "installments": 15,
+          "buyer_rate": 25.83,
+          "installment_cents": 839,
+          "total_cents": 12583,
+          "issuer_count": 8
+        },
+        {
+          "installments": 16,
+          "buyer_rate": 27.2,
+          "installment_cents": 795,
+          "total_cents": 12720,
+          "issuer_count": 8
+        },
+        {
+          "installments": 17,
+          "buyer_rate": 28.58,
+          "installment_cents": 756,
+          "total_cents": 12858,
+          "issuer_count": 8
+        },
+        {
+          "installments": 18,
+          "buyer_rate": 29.99,
+          "installment_cents": 722,
+          "total_cents": 12999,
+          "issuer_count": 8
+        }
+      ]
+    },
+    {
+      "amount_cents": 99700,
+      "method": "master",
+      "http": 200,
+      "issuer_count": 15,
+      "options": [
+        {
+          "installments": 1,
+          "buyer_rate": 0,
+          "installment_cents": 99700,
+          "total_cents": 99700,
+          "issuer_count": 15
+        },
+        {
+          "installments": 2,
+          "buyer_rate": 9.64,
+          "installment_cents": 54655,
+          "total_cents": 109311,
+          "issuer_count": 10
+        },
+        {
+          "installments": 3,
+          "buyer_rate": 11.23,
+          "installment_cents": 36965,
+          "total_cents": 110896,
+          "issuer_count": 10
+        },
+        {
+          "installments": 4,
+          "buyer_rate": 11.36,
+          "installment_cents": 27757,
+          "total_cents": 111026,
+          "issuer_count": 10
+        },
+        {
+          "installments": 5,
+          "buyer_rate": 14.31,
+          "installment_cents": 22793,
+          "total_cents": 113967,
+          "issuer_count": 10
+        },
+        {
+          "installments": 6,
+          "buyer_rate": 14.32,
+          "installment_cents": 18996,
+          "total_cents": 113977,
+          "issuer_count": 10
+        },
+        {
+          "installments": 7,
+          "buyer_rate": 16.72,
+          "installment_cents": 16624,
+          "total_cents": 116370,
+          "issuer_count": 10
+        },
+        {
+          "installments": 8,
+          "buyer_rate": 16.73,
+          "installment_cents": 14548,
+          "total_cents": 116380,
+          "issuer_count": 10
+        },
+        {
+          "installments": 9,
+          "buyer_rate": 19.69,
+          "installment_cents": 13259,
+          "total_cents": 119331,
+          "issuer_count": 10
+        },
+        {
+          "installments": 10,
+          "buyer_rate": 20.65,
+          "installment_cents": 12029,
+          "total_cents": 120288,
+          "issuer_count": 10
+        },
+        {
+          "installments": 11,
+          "buyer_rate": 20.66,
+          "installment_cents": 10936,
+          "total_cents": 120298,
+          "issuer_count": 9
+        },
+        {
+          "installments": 12,
+          "buyer_rate": 22.11,
+          "installment_cents": 10145,
+          "total_cents": 121744,
+          "issuer_count": 9
+        },
+        {
+          "installments": 13,
+          "buyer_rate": 23.04,
+          "installment_cents": 9436,
+          "total_cents": 122671,
+          "issuer_count": 8
+        },
+        {
+          "installments": 14,
+          "buyer_rate": 24.45,
+          "installment_cents": 8863,
+          "total_cents": 124077,
+          "issuer_count": 8
+        },
+        {
+          "installments": 15,
+          "buyer_rate": 25.83,
+          "installment_cents": 8364,
+          "total_cents": 125453,
+          "issuer_count": 8
+        },
+        {
+          "installments": 16,
+          "buyer_rate": 27.2,
+          "installment_cents": 7926,
+          "total_cents": 126818,
+          "issuer_count": 8
+        },
+        {
+          "installments": 17,
+          "buyer_rate": 28.58,
+          "installment_cents": 7541,
+          "total_cents": 128194,
+          "issuer_count": 8
+        },
+        {
+          "installments": 18,
+          "buyer_rate": 29.99,
+          "installment_cents": 7200,
+          "total_cents": 129600,
+          "issuer_count": 8
+        }
+      ]
+    }
+  ]
+}
