@@ -150,6 +150,7 @@ const api={configured,
   if(['PGRST202','42883'].includes(response.error?.code))return null;
   return ok(response);
  },
+ async campaignWhatsAppIdentities(){const version=identityVersion;const result=ok(await need().rpc('neo_campaign_wa_admin_identities'));if(version!==identityVersion)throw Error('A conta mudou.');return result;},
  async campaignWhatsAppSync(action,id=null,data={}){return ok(await need().rpc('neo_campaign_wa_sync',{p_action:action,p_id:id,p_data:data}));},
  async campaignWhatsApp(action,id=null,data={}){return ok(await need().rpc('neo_campaign_wa',{p_action:action,p_id:id,p_data:data}));},
  async campaignAdmin(action,id=null,data={}){return ok(await need().rpc('neo_campaign_admin',{p_action:action,p_id:id,p_data:data}));},
