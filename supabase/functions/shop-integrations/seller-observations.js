@@ -30,3 +30,33 @@ export async function syncSellerObservations(admin,config,environment,fetcher=fe
  }
  return {status:rejected?'partial':'success',recorded,rejected};
 }
+
+// Released-money CSV: accepts explicit accounting columns only. Never treats net deductions as fees.
+// RFC 4180 subset; reject malformed files or unsupported delimiters, not silently guess.
+export function parseReleaseCsv(csv,orders){
+ if(typeof csv!=='string'||csv.length>8_000_000)throw Error('report_size');
+ const rows=[];let row=[],field='',quoted=false,closed=false;
+ for(let i=0;i<csv.length;i++){
+  const c=csv[i];if(quoted){if(c==='"'){if(csv[i+1]==='"'){field+='"';i++;}else{quoted=false;closed=true;}}else field+=c;continue;}
+  if(c==='"'&&!field&&!closed){quoted=true;continue;}
+  if(c===','||c==='\n'||c==='\r'){row.push(field);field='';closed=false;if(c!==','){if(c==='\r'&&csv[i+1]==='\n')i++;if(row.some(v=>v!==''))rows.push(row);row=[];}continue;}
+  if(c==='"'||closed)throw Error('report_csv');field+=c;
+ }
+ if(quoted)throw Error('report_csv');if(field||row.length){row.push(field);rows.push(row);}
+ const header=(rows.shift()||[]).map(x=>x.replace(/^\uFEFF/,'').trim());
+ const required=['SOURCE_ID','EXTERNAL_REFERENCE','RECORD_TYPE','DESCRIPTION','GROSS_AMOUNT','NET_CREDIT_AMOUNT','NET_DEBIT_AMOUNT','MP_FEE_AMOUNT','FINANCING_FEE_AMOUNT','INSTALLMENTS','PAYMENT_METHOD'];
+ if(new Set(header).size!==header.length||required.some(k=>!header.includes(k)))throw Error('report_columns');
+ const eligible=new Map(orders.map(o=>[o.payment_id,o])),found=new Map(),ambiguous=new Set();
+ const debit=v=>v.startsWith('-')?moneyCents(v.slice(1)):moneyCents(v)===0?0:null;
+ for(const values of rows){
+  if(values.length!==header.length)throw Error('report_csv');
+  const r=Object.fromEntries(header.map((k,i)=>[k,values[i]]));
+  const o=eligible.get(r.SOURCE_ID);if(!o||r.EXTERNAL_REFERENCE!==o.order_id)continue;
+  if(r.RECORD_TYPE!=='release'||r.DESCRIPTION!=='payment'){ambiguous.add(o.payment_id);continue;}
+  if(found.has(o.payment_id)){ambiguous.add(o.payment_id);continue;}
+  const gross=moneyCents(r.GROSS_AMOUNT),net=moneyCents(r.NET_CREDIT_AMOUNT),mp=debit(r.MP_FEE_AMOUNT),financing=debit(r.FINANCING_FEE_AMOUNT),installments=Number(r.INSTALLMENTS);
+  if(gross!==o.gross_cents||net!==o.net_cents||moneyCents(r.NET_DEBIT_AMOUNT)!==0||r.PAYMENT_METHOD!==o.method||installments!==o.installments||mp===null||financing===null||mp+financing>gross-net){ambiguous.add(o.payment_id);continue;}
+  found.set(o.payment_id,{payment_id:o.payment_id,order_id:o.order_id,mp_fee_cents:mp,financing_fee_cents:financing});
+ }
+ return [...found.values()].filter(x=>!ambiguous.has(x.payment_id));
+}
