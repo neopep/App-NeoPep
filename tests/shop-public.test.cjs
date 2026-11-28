@@ -153,3 +153,45 @@ test('Supabase adapter mounts only a commercial account and delegates handoff wi
  close();
  assert.equal(b.install.blocking,true);
 });
+
+test('local preview adapter never reads a session outside an eligible loopback route',async()=>{
+ for(const url of ['https://app.neopep.com.br/?loja=1#loja','http://localhost/?loja=1#perfil']){
+  const b=boot(url);
+  let reads=0;
+  b.window.NeoCloud={commercialPreview:true,commercialAccount:async()=>{reads++;throw Error('Unexpected session read');}};
+  assert.equal(await b.shop.mountWithCloud(b.root,data),null);
+  assert.equal(reads,0);
+ }
+});
+
+test('local preview adapter discards a pending session response after context changes',async()=>{
+ for(const change of [
+  b=>{b.location.hash='perfil';},
+  b=>{b.window.NeoCloud={commercialPreview:true};},
+  b=>{b.window.NeoCloud.commercialPreview=false;}
+ ]){
+  const b=boot();
+  let resolve;
+  b.window.NeoCloud={commercialPreview:true,commercialAccount:()=>new Promise(r=>{resolve=r;})};
+  const pending=b.shop.mountWithCloud(b.root,data);
+  change(b);
+  resolve({id:'synthetic-cloud',commercialComplete:true,onboardingComplete:false});
+  assert.equal(await pending,null);
+  assert.equal(b.shop.active,false);
+  assert.equal(b.root.textContent,'');
+ }
+});
+
+test('local onboarding does not redirect after leaving the preview destination',async()=>{
+ const b=boot();
+ const account={id:'synthetic',commercialComplete:true,onboardingComplete:false};
+ let resolve;
+ const close=b.mount({account,readAccount:()=>new Promise(r=>{resolve=r;})});
+ b.click('[data-commercial=app]');
+ b.location.hash='perfil';
+ b.window.dispatchEvent(new b.window.Event('popstate'));
+ resolve(account);
+ await new Promise(setImmediate);
+ assert.equal(b.transitions(),0);
+ close();
+});
