@@ -79,7 +79,7 @@ sealed partial class WhatsApp : Form {
     }
     Dictionary<string,object> localVault;
     const string BridgeProtocolPrefix="NEO-WA/1 ";
-    const int BridgeProtocolMax=40*1024*1024;
+    const int BridgeProtocolMax=72*1024*1024;
     bool bridgeNoiseRecorded;
     readonly JavaScriptSerializer json=new JavaScriptSerializer { MaxJsonLength=BridgeProtocolMax };
     Process process;
@@ -469,7 +469,7 @@ sealed partial class WhatsApp : Form {
     // Candidate transport; no production or unapproved destination can reach this method.
     public async Task<Tuple<string,string>> DispatchCampaignFileAsync(Guid request,string group,string caption,byte[] bytes,string mime,string name) {
         if(!CampaignSessionReady||pendingSend!=Guid.Empty||automatedSend!=null||!selected.Contains(group)
-            ||caption==null||caption.Length>1000||bytes==null||bytes.Length<8||bytes.Length>(mime=="application/pdf"?5:25)*1024*1024
+            ||caption==null||caption.Length>1000||bytes==null||bytes.Length<8||bytes.Length>50*1024*1024
             ||request==Guid.Empty||String.IsNullOrWhiteSpace(name)||name.Length>160
             ||name.IndexOfAny(System.IO.Path.GetInvalidFileNameChars())>=0
             ||(mime!="application/pdf"&&mime!="video/mp4")
@@ -483,7 +483,7 @@ sealed partial class WhatsApp : Form {
         try {
             pipe.WriteLine(json.Serialize(new {action="send_file",request_id=request.ToString(),
                 group_jid=group,text=caption,file=Convert.ToBase64String(bytes),mime=mime,name=name,track_delivery=true}));
-            return await Task.WhenAny(completion.Task,Task.Delay(TimeSpan.FromSeconds(mime!="application/pdf"&&bytes.Length>5*1024*1024?80:40)))==completion.Task
+            return await Task.WhenAny(completion.Task,Task.Delay(TimeSpan.FromSeconds(bytes.Length>5*1024*1024?80:40)))==completion.Task
                 ? await completion.Task : Tuple.Create("uncertain",(string)null);
         }catch{return Tuple.Create("uncertain",(string)null);}
         finally{automatedSend=null;automatedRequest=Guid.Empty;sendingText=false;UpdateComposer();}
