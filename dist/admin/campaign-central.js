@@ -35,7 +35,7 @@
   return 'cancelled';
  }
  // WhatsApp acceptance is not a recipient delivery/read receipt.
- const waLabels={delivered:'Entrega confirmada',server_ack:'Recebido pelo WhatsApp',send_error:'Falha informada pelo WhatsApp',accepted:'Entrega não confirmada',scheduled:'Agendada',waiting:'Aguardando envio',in_progress:'Enviando',refused:'Falha no envio',uncertain:'Envio não confirmado',cancelled:'Cancelada',partial:'Envio parcial',draft:'Rascunho',legacy:'Manual legado',unknown:'Estado não registrado'};
+ const waLabels={video_conversion_failed:'Vídeo não enviado: falha na conversão',paused_previous_421:'Envio pausado por rejeição anterior',delivered:'Entrega confirmada',server_ack:'Recebido pelo WhatsApp',send_error:'Falha informada pelo WhatsApp',accepted:'Entrega não confirmada',scheduled:'Agendada',waiting:'Aguardando envio',in_progress:'Enviando',refused:'Falha no envio',uncertain:'Envio não confirmado',cancelled:'Cancelada',partial:'Envio parcial',draft:'Rascunho',legacy:'Manual legado',unknown:'Estado não registrado'};
  const originLabels={publish:'Manual',schedule:'Agendamento único',recurring:'Recorrente'};
  const kindLabels={file:'Arquivo',document:'Material da Biblioteca',product:'Produto da Loja',text:'Texto',image:'Imagem',video:'Vídeo',link:'Link'};
  function waBatchState(batch,now=Date.now()){
@@ -45,6 +45,8 @@
   if(states.includes('uncertain'))return 'uncertain';
   if(states.includes('leased')||states.includes('started'))return 'in_progress';
   if(states.includes('waiting'))return Date.parse(batch.due_at)>now?'scheduled':'waiting';
+  if(Number(batch.video_conversion_count||0)>0&&!states.includes('accepted'))return 'video_conversion_failed';
+  if(Number(batch.blocked_count||0)>0&&!states.includes('accepted'))return 'paused_previous_421';
   if(states.every(s=>s==='accepted')){
    const total=Number(batch.message_count||states.length);
    if(Number(batch.send_error_count||0)>0)return Number(batch.delivery_count||0)>0?'partial':'send_error';
@@ -63,7 +65,7 @@
   const rows=(occurrences||[]).map(o=>{const pub=publications.find(p=>p.id===o.publication_id),batch=pub?.batches?.find(b=>b.id===o.batch_id);
    return {...o,pub,batch,state:waBatchState(batch,now),pending:waNeedsAttention(batch),history:waHistory(batch)};});
   const sent=rows.filter(r=>r.state==='delivered').length,pending=rows.filter(r=>r.pending).length,cancelled=rows.filter(r=>r.state==='cancelled').length;
-  const failed=rows.filter(r=>['refused','uncertain','send_error','partial','unknown'].includes(r.state)).length;
+  const failed=rows.filter(r=>['refused','uncertain','send_error','partial','unknown','paused_previous_421','video_conversion_failed'].includes(r.state)).length;
   const next=rows.filter(r=>waActive(r.batch)).sort((a,b)=>a.local_time.localeCompare(b.local_time))[0];
   return {rows,sent,pending,cancelled,failed,next,total:rows.length};
  }
@@ -78,7 +80,7 @@
  }
  function deliveryLine(batch){
   const count=batch?.message_count||batch?.states?.length||0,delivered=Number(batch?.delivery_count||0),server=Number(batch?.server_ack_count||0);
-  if(!batch)return '';if(!batch.states?.includes('accepted'))return ['refused','uncertain','unknown'].includes(waBatchState(batch))?'<p class="sub">Envio não confirmado. Confira o histórico antes de tentar novamente.</p>':'';
+  if(!batch)return '';if(Number(batch.video_conversion_count||0)>0)return '<p class="sub">'+escape(batch.video_conversion_count+' vídeo(s) não enviado(s). Confira o conversor no NeoPep Connect. Nenhum documento substituto foi enviado.')+'</p>';if(Number(batch.blocked_count||0)>0)return '<p class="sub">'+escape(batch.blocked_count+' envio(s) pausado(s) por rejeição anterior. Não reenviar automaticamente.')+'</p>';if(!batch.states?.includes('accepted'))return ['refused','uncertain','unknown'].includes(waBatchState(batch))?'<p class="sub">Envio não confirmado. Confira o histórico antes de tentar novamente.</p>':'';
   if(batch?.send_error_count)return '<p class="sub">Falha informada pelo WhatsApp'+escape(batch.send_error_codes?.length?' · Código '+batch.send_error_codes.join(', '):'')+'. Não reenviar automaticamente.</p>';
   if(count&&delivered===count)return '<p class="sub">Entrega confirmada a pelo menos um destinatário por mensagem.</p>';
   return '<p class="sub">'+escape(delivered?delivered+' de '+count+' mensagens com entrega confirmada (ao menos um destinatário).':server?'Recebimento pelo servidor WhatsApp confirmado; entrega ao grupo não confirmada.':'Envio solicitado; entrega ao grupo não confirmada.')+'</p>';
@@ -87,12 +89,12 @@
   if(!Array.isArray(batch?.group_results)||!batch.group_results.length)return '';
   const rows=batch.group_results;
   const count=rows.filter(r=>waBatchState({...r,due_at:batch.due_at})==='delivered').length;
-  const failed=rows.filter(r=>['send_error','refused','uncertain','partial'].includes(waBatchState({...r,due_at:batch.due_at}))).length;
+  const failed=rows.filter(r=>['send_error','refused','uncertain','partial','paused_previous_421','video_conversion_failed'].includes(waBatchState({...r,due_at:batch.due_at}))).length;
   const pending=rows.length-count-failed-rows.filter(r=>waBatchState({...r,due_at:batch.due_at})==='cancelled').length;
   return '<div class="central-group-results"><p class="sub central-group-summary"><strong>Resultado por grupo</strong> · '+count+' confirmado(s)'+(failed?' · '+failed+' com falha ou parcial':'')+(pending?' · '+pending+' pendente(s)':'')+'</p>'+rows.map(r=>{
    const state=waBatchState({...r,due_at:batch.due_at});
-   const color=state==='delivered'?'accepted':['send_error','refused','uncertain','partial'].includes(state)?'refused':state==='cancelled'?'cancelled':'waiting';
-   const info=[r.delivery_count?Number(r.delivery_count)+' de '+Number(r.message_count)+' mensagem(ns) com entrega confirmada':'',r.send_error_codes?.length?'Código '+r.send_error_codes.join(', '):'',r.delivered_at?'Entrega: '+date(r.delivered_at):'',r.failed_at?'Falha: '+date(r.failed_at):''].filter(Boolean).join(' · ');
+   const color=state==='delivered'?'accepted':['send_error','refused','uncertain','partial','paused_previous_421','video_conversion_failed'].includes(state)?'refused':state==='cancelled'?'cancelled':'waiting';
+   const info=[r.video_conversion_count?'Confira o conversor no NeoPep Connect':'',r.blocked_count?'Pausa local: rejeição anterior':'',r.delivery_count?Number(r.delivery_count)+' de '+Number(r.message_count)+' mensagem(ns) com entrega confirmada':'',r.send_error_codes?.length?'Código '+r.send_error_codes.join(', '):'',r.delivered_at?'Entrega: '+date(r.delivered_at):'',r.failed_at?'Falha: '+date(r.failed_at):''].filter(Boolean).join(' · ');
    return '<div class="central-group-result"><strong>'+escape(r.name||'Grupo sem nome registrado')+'</strong><span class="campaign-state central-status-'+color+'">'+escape(waLabels[state]||waLabels.unknown)+'</span>'+(info?'<small class="sub">'+escape(info)+'</small>':'')+'</div>';
   }).join('')+'</div>';
  }
@@ -312,19 +314,24 @@
     const p=all.find(p=>p.id===o.publication_id);return p?.batches?.length===1&&p.batches[0].id===o.batch_id&&!p.deleted_at;
    }).map(o=>o.publication_id)):[]);
    const items=isApp?(view==='history'?all:all.filter(pub=>!pub.deleted_at)):all.filter(pub=>!grouped.has(pub.id)&&
-    (view==='history'?pub.deleted_at||pub.legacy_dispatch||pub.batches.some(waHistory):!pub.deleted_at&&!pub.legacy_dispatch&&(!pub.batches.length||pub.edit_pending||waNeedsAttention(pub.batches[0]))));
-   const ordered=[...items].sort((a,b)=>(a.batches[0]?.due_at||a.planned_local||'').localeCompare(b.batches[0]?.due_at||b.planned_local||''));
-   const undated=ordered.filter(pub=>!pub.planned_local&&(!pub.batches.length||pub.edit_pending));
-   const dated=ordered.filter(pub=>!undated.includes(pub));
-   const recent=!isApp&&view==='agenda'?all.filter(p=>!p.deleted_at&&!grouped.has(p.id)&&!p.edit_pending&&!items.includes(p)&&p.batches.some(b=>b.due_at&&saoPauloDay(new Date(b.due_at))===saoPauloDay(new Date())&&waBatchState(b)==='delivered')):[];
+    (view==='history'?pub.deleted_at||pub.legacy_dispatch||pub.batches.some(waHistory):!pub.deleted_at&&!pub.legacy_dispatch));
+   const draftOnly=pub=>!pub.deleted_at&&!pub.legacy_dispatch&&(!pub.batches.length||pub.edit_pending);
+   const stamp=pub=>pub.edit_pending?pub.planned_local||'':pub.batches[0]?.due_at||pub.planned_local||'';
+   const timeKey=pub=>{const value=stamp(pub);const n=Date.parse(/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}$/.test(value)?value+'-03:00':value);return Number.isFinite(n)?n:0;};
+   const ordered=[...items].sort((a,b)=>timeKey(b)-timeKey(a)||String(a.id).localeCompare(String(b.id)));
+   const undated=ordered.filter(pub=>draftOnly(pub)&&!pub.planned_local);
+   const datedDrafts=ordered.filter(pub=>draftOnly(pub)&&Boolean(pub.planned_local));
+   const dated=ordered.filter(pub=>!draftOnly(pub));
    const cards=(entries,historyCard=false)=>entries.map(pub=>{
     const batch=pub.edit_pending&&view==='agenda'&&!historyCard?null:pub.batches[0],waState=pub.deleted_at?'cancelled':batch?waBatchState(batch):'draft',locked=Boolean(pub.deleted_at)||pub.legacy_dispatch||Boolean(batch&&(batch.cancelled_at==null||batch.states?.some(value=>value!=='cancelled')));
-    return `<article class="monitor-block central-publication" data-central-publication="${escape(pub.id)}" data-day="${escape(batch?.due_at?saoPauloDay(new Date(batch.due_at)):(pub.planned_local||'').slice(0,10))}"><div class="central-date-badge">${dateBadge(batch?pub:{...pub,batches:[]})}</div><div class="central-publication-body"><div class="central-publication-title"><strong>${escape(pub.title)}</strong><span class="campaign-state ${!isApp?'central-status-'+(paused&&waActive(batch)?'paused':(['send_error','refused','uncertain','partial'].includes(waState)?'refused':waState==='delivered'?'accepted':waState==='server_ack'||waState==='accepted'?'waiting':waState)):''}">${pub.deleted_at?'Excluída':paused&&['waiting','scheduled','draft'].includes(state(pub))?'Pausada':status(pub)}</span></div>
+    const cardState=pub.deleted_at?'cancelled':paused&&(isApp?['waiting','scheduled','draft'].includes(state(pub)):waActive(batch))?'paused':isApp?state(pub):waState;
+    const tone=['delivered','accepted','completed'].includes(cardState)&&(!isApp?cardState==='delivered':true)?'success':['send_error','refused','uncertain','partial','paused_previous_421','video_conversion_failed'].includes(cardState)?'failure':['accepted','server_ack','unknown'].includes(cardState)?'unconfirmed':['scheduled','waiting','in_progress','paused','active'].includes(cardState)?'pending':'neutral';
+    return `<article class="monitor-block central-publication" data-card-tone="${tone}" data-central-publication="${escape(pub.id)}" data-day="${escape(batch?.due_at?saoPauloDay(new Date(batch.due_at)):(pub.planned_local||'').slice(0,10))}"><div class="central-date-badge">${dateBadge(batch?pub:{...pub,batches:[]})}</div><div class="central-publication-body"><div class="central-publication-title"><strong>${escape(pub.title)}</strong><span class="campaign-state central-status-tone-${tone}">${pub.deleted_at?'Excluída':paused&&['waiting','scheduled','draft'].includes(state(pub))?'Pausada':status(pub)}</span></div>
      ${!isApp&&batch?'<div class="central-origin"><span class="campaign-state">'+escape(originLabels[batch.origin]||'Origem não registrada')+'</span></div><p class="sub central-timestamps">Configurado: '+escape(date(batch.configured_at)||'Não registrado')+'<br>Previsto: '+escape(date(batch.due_at)||'Não registrado')+(batch.sent_at?'<br>Solicitação de envio: '+escape(date(batch.sent_at)):'')+'</p>':''}
      <p class="sub">${pub.kinds?.length||0} ${isApp?'bloco(s)':'mensagem(ns)'}${pub.kinds?.length?' · '+escape(pub.kinds.map(k=>kindLabels[k]||k).join(', ')):''}</p>
      ${!isApp?(groupResults(batch)||groupLine(pub,batch)+deliveryLine(batch)):''}
      ${localRows.some(r=>r.id===pub.id)?'<p class="sub">Alterações locais não salvas</p><div class="inline-actions">'+button('resume','Recuperar alterações',pub.id)+button('discard','Descartar alterações locais',pub.id)+'</div>':''}
-     ${view==='agenda'&&!historyCard&&editable&&!paused&&pub.planned_local&&!locked?`<label class="check"><input type="checkbox" name="selected-publication" value="${escape(pub.id)}" aria-label="Selecionar para agendar"> Agendar</label>`:''}
+     ${view==='agenda'&&!historyCard&&editable&&!paused&&pub.planned_local&&!locked?`<label class="check"><input type="checkbox" name="selected-publication" value="${escape(pub.id)}" aria-label="Selecionar para agendamento em lote"> Selecionar para agendamento</label><div class="inline-actions">${button('edit','Abrir para agendar ou publicar',pub.id)}</div>`:''}
      <details class="central-action-menu"><summary aria-label="Opções da publicação">⋯</summary><div class="central-action-popover">${!isApp&&editable&&canEditScheduled(pub)?button('edit_scheduled','Editar agendamento',pub.id):button('edit',locked||!editable?'Ver publicação':'Editar publicação',pub.id)}
      ${!isApp&&reviewReady&&editable&&!paused&&!locked?button('request_review','Solicitar aprovação de outro admin',pub.id):''}
      ${!isApp&&editable&&canRepublish(pub)?button('republish_edit','Editar e republicar',pub.id):''}
@@ -352,9 +359,9 @@
     ${paused?'<p class="central-pause-notice" role="status">Campanha desligada. As publicações pendentes não serão despachadas. Conteúdo e histórico preservados.</p>':''}<p class="sub">${channelLabel} ·  ${all.filter(pub=>!pub.deleted_at).length} publicação(ões)${editable?'':' · Arquivada'}${detail.origin_channel?' · Criada no '+(detail.origin_channel==='app'?'App':'WhatsApp'):''}</p>
     ${detail.copied_rules?.length?`<details class="space"><summary>Recorrências da campanha de origem · ${detail.copied_rules.length}</summary><p class="sub">Datas copiadas como rascunhos. As regras originais são referência e não estão ativas neste canal.</p>${detail.copied_rules.map(r=>`<p class="sub">${escape((r.dates||[]).map(local).join(' · '))}</p>`).join('')}</details>`:''}
     <div class="inline-actions">${button('agenda','Agenda','',view==='agenda'?'primary':'secondary')}${button('history','Histórico','',view==='history'?'primary':'secondary')}${button('refresh_status','Atualizar estados')}</div>
-    ${view==='agenda'? `<div class="central-publication-head"><h3>Publicações</h3><div class="central-publication-tools">${editable&&!getLocal(pointer())?button('add','+ Adicionar publicação','','primary'):''}<details class="central-filter-menu"><summary class="secondary central-icon" aria-label="Filtrar por data" title="Filtrar por data">${icon('filter')}${dateFilter?'<span class="central-filter-dot" aria-hidden="true"></span>':''}</summary><div class="central-action-popover"><label>A partir de<input type="date" data-central-date value="${escape(dateFilter)}"></label>${button('clear_date','Limpar filtro')}</div></details></div></div><div data-central-date-list>${cards(dated)+(!isApp?seriesCards():'')||'<p>Sem publicações com data.</p>'}</div>
-      ${recent.length?'<h3>Resultados de hoje</h3>'+cards(recent,true):''}
-     <h3>Rascunhos sem data</h3>${cards(undated)||'<p>Sem rascunhos sem data.</p>'}${editable&&localRows.some(r=>!all.some(p=>p.id===r.id))?'<h3>Rascunhos neste dispositivo</h3>'+localDraftCards(localRows.filter(r=>!all.some(p=>p.id===r.id))):''}
+    ${view==='agenda'? `<div class="central-publication-head"><h3>Publicações</h3><div class="central-publication-tools">${editable&&!getLocal(pointer())?button('add','+ Adicionar publicação','','primary'):''}<details class="central-filter-menu"><summary class="secondary central-icon" aria-label="Filtrar por data" title="Filtrar por data">${icon('filter')}${dateFilter?'<span class="central-filter-dot" aria-hidden="true"></span>':''}</summary><div class="central-action-popover"><label>A partir de<input type="date" data-central-date value="${escape(dateFilter)}"></label>${button('clear_date','Limpar filtro')}</div></details></div></div><h3>Rascunhos sem data</h3>${cards(undated)||'<p class="sub">Sem rascunhos sem data.</p>'}${editable&&localRows.some(r=>!all.some(p=>p.id===r.id))?'<h3>Rascunhos neste dispositivo</h3>'+localDraftCards(localRows.filter(r=>!all.some(p=>p.id===r.id))):''}
+     ${datedDrafts.length?'<h3>Rascunhos com data</h3>'+cards(datedDrafts):''}
+     <h3>Publicações e resultados</h3><div data-central-date-list>${cards(dated)+(!isApp?seriesCards():'')||'<p>Sem publicações com data.</p>'}</div>
      ${isApp&&appSeries.length?`<h3>Séries de rascunhos App</h3>${appSeries.map(item=>`<article class="monitor-block"><strong>${escape(items.find(pub=>pub.id===item.publication_id)?.title||'Publicação de origem')}</strong><p class="sub">${escape(item.dates.map(local).join(' · '))}</p><p class="sub">${item.state==='cancelled'?'Cancelada':item.state==='replaced'?'Substituída':'Confira o estado de cada ocorrência na agenda acima.'}</p>${editable&&item.state==='drafts'?'<div class="inline-actions">'+button('app_repeat_edit','Editar próximas datas',item.id)+button('app_repeat_cancel','Cancelar próximas ocorrências',item.id)+'</div>':''}</article>`).join('')}`:''}
       ${weekly.some(item=>isApp||!item.occurrences?.length)?`<h3>Repetições programadas</h3>${weekly.filter(item=>isApp||!item.occurrences?.length).map(item=>`<article class="monitor-block">
       <strong>${escape(items.find(pub=>pub.id===item.publication_id)?.title||'Publicação')}</strong>
@@ -362,8 +369,8 @@
       <div class="inline-actions">${editable&&item.state!=='cancelled'?(!paused?button('weekly_edit','Editar datas',item.id):'')+
        (item.state==='scheduled'?button('weekly_pause','Pausar',item.id):'')+button('weekly_cancel','Cancelar repetição',item.id):''}</div></article>`).join('')}`:''}
      ${editable?`<div class="inline-actions">
-      ${!paused&&dated.length?button('schedule_selected','Revisar e agendar selecionadas'):''}</div>`:''}`:
-     ` ${cards(isApp?ordered:[...ordered].reverse())+(!isApp?seriesCards():'')||'<p>Sem publicações registradas.</p>'}<h3>Eventos da campanha</h3><ul>${detail.events.map(event=>`<li>${date(event.recorded_at)} · ${({created:'Campanha criada',save:'Versão salva',duplicate:'Duplicada',schedule:'Agendada',publish:'Publicação solicitada',cancel:'Cancelamento solicitado',edit_scheduled:'Agendamento suspenso para edição',archived:'Arquivada',renamed:'Campanha renomeada'})[event.event]||escape(event.event)}${event.revision?' · versão '+escape(event.revision):''}</li>`).join('')}</ul>`}`);
+      ${!paused&&datedDrafts.length?button('schedule_selected','Revisar e agendar selecionadas'):''}</div>`:''}`:
+     ` ${cards(ordered)+(!isApp?seriesCards():'')||'<p>Sem publicações registradas.</p>'}<h3>Eventos da campanha</h3><ul>${detail.events.map(event=>`<li>${date(event.recorded_at)} · ${({created:'Campanha criada',save:'Versão salva',duplicate:'Duplicada',schedule:'Agendada',publish:'Publicação solicitada',cancel:'Cancelamento solicitado',edit_scheduled:'Agendamento suspenso para edição',archived:'Arquivada',renamed:'Campanha renomeada'})[event.event]||escape(event.event)}${event.revision?' · versão '+escape(event.revision):''}</li>`).join('')}</ul>`}`);
    if(view==='agenda')root.querySelectorAll('[data-central-date-list] > article').forEach(node=>{node.hidden=Boolean(dateFilter&&node.dataset.day<dateFilter);});
    scheduleStatusPoll();
   }

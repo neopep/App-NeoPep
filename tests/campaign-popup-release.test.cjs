@@ -34,7 +34,7 @@ test('official popup and central have independent preconditions and preserve dis
 });
 test('web assets invalidate previous campaign cache and permit video preview',()=>{
  assert.match(read('dist/admin/index.html'),/media-src 'self' blob:/);
- assert.match(read('dist/admin/index.html'),/campaign-editor\.js\?v=campanhas-central-19/);
- assert.match(read('scripts/build-staging.cjs'),/pwa-v67-agenda/);
+ assert.match(read('dist/admin/index.html'),/campaign-editor\.js\?v=campanhas-estatisticas-1/);
+ assert.match(read('scripts/build-staging.cjs'),/pwa-v72-etiquetas-pagamento/);
  assert.equal(JSON.parse(read('vercel.json')).git.deploymentEnabled['fix/gps-cidade-estado-teste-20261125'],false);
 });

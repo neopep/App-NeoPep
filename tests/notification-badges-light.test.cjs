@@ -23,7 +23,7 @@ test('indicadores numéricos do tema claro são padronizados em azul-marinho',()
 });
 test('a alteração de badges não modifica status nem regras do tema escuro',()=>{
  const start=css.indexOf(marker);
- const added=css.slice(start);
+ const added=css.slice(start,css.indexOf('/* Campanhas: organização compacta',start));
  assert.ok(!added.includes('[data-theme=dark]'));
  for(const forbidden of ['.status-pill','.shop-deal-badge','.library-featured-badge','.agent-inbox-badge']){
   assert.ok(!added.includes(' '+forbidden+',')&&!added.includes('\n '+forbidden+','));

@@ -1,6 +1,6 @@
 /* Cache limité à l'interface statique : aucune API, photo ou session. */
-const CACHE='neopeptideos-shell-20261127-entrega-edicao-teste-2';
-const ASSETS=['./','index.html','style.css','appearance.js','core.js','cloud.js','captcha.js','push.js','community-alerts.js','notification-center.js','shop-core.js','shop-promotions.js','vendor/qr/qrcode.js','vendor/qr/jsQR.js','shop-order-qr.js','shop.js','support.js','media-links.js','pdf-reader.js','library-video.js','library-files.js','library-shelf.js','vendor/pdfjs/pdf.mjs','vendor/pdfjs/pdf.worker.mjs','community.js','library.js','gestures.js','arrival.js','install.js','app.js','admin/agent.js','admin/campaign-editor.js','admin/campaign-central.js','config.js','manifest.webmanifest','assets/background.svg','assets/background-gold.svg','assets/brands/mercadopago.svg','assets/photo-example-1.png','assets/photo-example-2.png','assets/logo-neopep.png','assets/favicon-32.png','assets/icon-maskable-512.png','assets/icon-192.png','assets/icon-512.png','assets/apple-touch-icon.png'];
+const CACHE='neopeptideos-shell-20261127-campanhas-estatisticas-teste-6-produto-link-1-finance-1';
+const ASSETS=['./','index.html','style.css','appearance.js','core.js','cloud.js','captcha.js','push.js','community-alerts.js','notification-center.js','shop-core.js','shop-promotions.js','vendor/qr/qrcode.js','vendor/qr/jsQR.js','shop-order-qr.js','shop.js','support.js','media-links.js','pdf-reader.js','library-video.js','library-files.js','library-shelf.js','vendor/pdfjs/pdf.mjs','vendor/pdfjs/pdf.worker.mjs','community.js','library.js','gestures.js','arrival.js','install.js','web-privacy.js','app.js','admin/agent.js','admin/campaign-editor.js','admin/campaign-central.js','config.js','manifest.webmanifest','assets/background.svg','assets/background-gold.svg','assets/brands/mercadopago.svg','assets/photo-example-1.png','assets/photo-example-2.png','assets/logo-neopep.png','assets/favicon-32.png','assets/icon-maskable-512.png','assets/icon-192.png','assets/icon-512.png','assets/apple-touch-icon.png'];
 const urls=new Set(ASSETS.map(p=>new URL(p,self.registration.scope).href));
 self.addEventListener('install',e=>e.waitUntil((async()=>{
  const cache=await caches.open(CACHE);
@@ -29,16 +29,18 @@ const privatePushMessages={
  shop:'Seu pedido recebeu uma atualização.'
 };
 self.addEventListener('push',event=>{
- let tag='neo-reminder',kind='reminder';
+ let tag='neo-reminder',kind='reminder',title='NeoPep',body;
  try{
   const data=event.data?.json();
   if(/^[a-f0-9-]{36}$/.test(data?.tag))tag=data.tag;
   if(['community','support','library','shop','campaign'].includes(data?.kind))kind=data.kind;
+  if(kind==='shop'&&data?.notice==='payment_confirmed'){title='Compra confirmada';body='Seu pagamento foi aprovado. Acompanhe seu pedido no NeoPep.';}
+  else if(kind==='shop'&&data?.notice==='payment_pending'){title='Pagamento pendente';body='Confira o prazo e os detalhes da sua compra no NeoPep.';}
  }catch{}
- event.waitUntil(self.registration.showNotification('NeoPep',{
-  body:privatePushMessages[kind],tag,
+ event.waitUntil(self.registration.showNotification(title,{
+  body:body||privatePushMessages[kind],tag,
   icon:new URL('assets/icon-192.png',self.registration.scope).href,
   badge:new URL('assets/icon-192.png',self.registration.scope).href,data:{target:kind}
  }));
 });
-self.addEventListener('notificationclick',event=>{event.notification.close();event.waitUntil((async()=>{const scope=new URL(self.registration.scope),target=event.notification.data?.target||'reminder',community=['community','support','library'].includes(target),shop=target==='shop';for(const client of await self.clients.matchAll({type:'window',includeUncontrolled:true})){const url=new URL(client.url);if(url.origin===scope.origin&&url.pathname.startsWith(scope.pathname)){await client.focus();if(target==='campaign')client.postMessage({type:'NEO_OPEN_CAMPAIGNS'});else if(shop)client.postMessage({type:'NEO_OPEN_SHOP_ORDERS'});else client.postMessage({type:community?'NEO_OPEN_COMMUNITY':'NEO_OPEN_REMINDERS',direct:target==='support',library:target==='library'});return}}await self.clients.openWindow(new URL(target==='campaign'?'#inicio':shop?'#loja':target==='support'?'?conversa=1#comunidade':community?'#comunidade':'#lembretes',scope).href)})())});
+self.addEventListener('notificationclick',event=>{event.notification.close();event.waitUntil((async()=>{const scope=new URL(self.registration.scope),target=event.notification.data?.target||'reminder',community=['community','support','library'].includes(target),shop=target==='shop';for(const client of await self.clients.matchAll({type:'window',includeUncontrolled:true})){const url=new URL(client.url);if(url.origin===scope.origin&&url.pathname.startsWith(scope.pathname)){await client.focus();if(target==='campaign')client.postMessage({type:'NEO_OPEN_CAMPAIGNS'});else if(shop)client.postMessage({type:'NEO_OPEN_SHOP_ORDERS'});else client.postMessage({type:community?'NEO_OPEN_COMMUNITY':'NEO_OPEN_REMINDERS',direct:target==='support',library:target==='library'});return}}await self.clients.openWindow(new URL(target==='campaign'?'#inicio':shop?'?meus_pedidos=1#loja':target==='support'?'?conversa=1#comunidade':community?'#comunidade':'#lembretes',scope).href)})())});

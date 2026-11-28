@@ -3,14 +3,14 @@
  const e=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const states={eligible:'Elegível',stale:'Desatualizado',disconnected:'Desconectado',unavailable:'Indisponível'};
  const videoOriginal=mime=>['video/mp4','video/quicktime'].includes(mime);
- const originalLimit=mime=>videoOriginal(mime)?25*1024*1024:5*1024*1024;
+ const originalLimit=mime=>mime==='text/plain'?5*1024*1024:50*1024*1024;
  const stableDraft=value=>JSON.stringify(value,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
  const sameDraft=(saved,draft)=>{try{return stableDraft(typeof saved==='string'?JSON.parse(saved):saved)===stableDraft(draft);}catch{return false;}};
  const originalExt=mime=>mime==='application/pdf'?'.pdf':mime==='video/quicktime'?'.mov':'.mp4';
  // iOS Photos can label an MP4 as QuickTime, or return a real MOV. Inspect
  // the container before normalizing the MIME; preserve QuickTime as MOV.
  async function selectedVideo(file){
-  if(!file.size||file.size>originalLimit('video/mp4'))throw Error('O vídeo deve ter até 25 MB (arquivo selecionado: '+(file.size/1048576).toFixed(1)+' MB).');
+  if(!file.size||file.size>originalLimit('video/mp4'))throw Error('O vídeo deve ter até 50 MB (arquivo selecionado: '+(file.size/1048576).toFixed(1)+' MB).');
   const bytes=await file.arrayBuffer(),head=new Uint8Array(bytes);
   const tag=offset=>String.fromCharCode(...head.subarray(offset,offset+4));
   if(head.length<16||tag(4)!=='ftyp')throw Error('Formato de vídeo incompatível. Selecione um arquivo MP4 ou MOV válido.');
@@ -28,6 +28,31 @@
  const uuid=()=>crypto.randomUUID();
  const groupIdentity=id=>String(id).split(':').at(-1);
  const endpoint=(cloud,action,payload={})=>cloud.campaignEditor(action,payload);
+
+ // Native album draft contract. No dispatch or automatic decomposition until the transport is homologated.
+ function albumDraftIssue(blocks){
+  const groups=new Map(),ids=new Set();
+  for(const [i,b] of blocks.entries()){
+   if(Object.prototype.hasOwnProperty.call(b,'album_id')){
+    if(b.type!=='image'||!/^([a-f0-9]{8})(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(b.album_id||'')||
+     !/^([a-f0-9]{8})(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(b.id||'')||String(b.text||'').length>1000)return 'INVALID_ALBUM';
+    const rows=groups.get(b.album_id)||[];rows.push(i);groups.set(b.album_id,rows);ids.add(b.id);
+   }
+  }
+  for(const id of ids)if(blocks.filter(b=>b.id===id).length!==1)return 'INVALID_ALBUM';
+  for(const rows of groups.values())if(rows.length<2||rows.length>4||rows.at(-1)-rows[0]+1!==rows.length)return 'INVALID_ALBUM';
+  return null;
+ }
+ function hasNativeAlbum(blocks){return blocks.some(b=>Object.prototype.hasOwnProperty.call(b,'album_id'));}
+ function moveAlbumBlock(blocks,index,direction){
+  const to=index+direction;if(!blocks[index]||!blocks[to])return null;
+  const a=blocks[index],b=blocks[to],next=blocks.slice();
+  if(a.album_id&&a.album_id===b.album_id){[next[index],next[to]]=[next[to],next[index]];return next;}
+  const range=i=>{const id=blocks[i].album_id;if(!id)return [i,i];let start=i,end=i;while(start>0&&blocks[start-1].album_id===id)start--;while(end+1<blocks.length&&blocks[end+1].album_id===id)end++;return [start,end];};
+  const ar=range(index),br=range(to),left=ar[0]<br[0]?ar:br,right=ar[0]<br[0]?br:ar;
+  next.splice(left[0],right[1]-left[0]+1,...blocks.slice(right[0],right[1]+1),...blocks.slice(left[0],left[1]+1));
+  return albumDraftIssue(next)?null:next;
+ }
 
  function formatted(text){
   const syntax=/(\`\`\`[^\`]+\`\`\`|\*[^*\n]+\*|_[^_\n]+_|~[^~\n]+~)/g;
@@ -231,16 +256,16 @@
      <div class="inline-actions">${publication?'':'<button type="button" class="secondary" data-editor="fresh">Novo rascunho</button>'}${channel==='whatsapp'&&!publication?'<button type="button" class="secondary" data-editor="cross">Criar versão App</button>':''}</div>`)}
     ${channel==='app'?pane('audience','Públicos, planos e exibição',advancedApp?appSettingsPane():testApp?'<p>Somente as contas de homologação autorizadas no servidor. Esta campanha não envia push.</p>':'<label>Público App<select name="audience"><option value="all">Todos</option><option value="free">Free</option><option value="premium">Premium</option></select></label><label class="check"><input name="push" type="checkbox"> Solicitar push App para contas com consentimento</label>'):
     pane('groups','Grupos sincronizados','<div class="inline-actions"><button type="button" class="secondary" data-editor="groups">Atualizar grupos e diagnóstico</button><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button></div><label class="central-search editor-search"><input name="group_search" type="search" aria-label="Pesquisar grupo ou conexão" placeholder="Pesquisar grupo ou conexão"><span class="search-decoration" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></span></label><p class="sub" data-editor-group-count></p><div data-editor-groups></div>')}
-    ${pane('photo','Foto','<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">Escolha o modo de envio. O texto separado será uma mensagem independente. Salve e confira a prévia antes de publicar.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto</button>')}
-    ${pane('file','Documento','<label>Modo do anexo<select name="file_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><button type="button" class="secondary" data-editor="choose_document">Escolher PDF, MP4, MOV ou TXT</button>')}
-    ${pane('video','Vídeo','<label>Modo do vídeo<select name="video_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><p class="sub">MP4 ou MOV de até 25 MB. O arquivo será preservado integralmente, sem cortes ou conversão pelo NeoPep.</p><button type="button" class="secondary" data-editor="choose_video">Selecionar vídeo</button><p class="sub" data-video-select-status role="status" aria-live="polite"></p>')}
+    ${pane('photo','Foto','<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">Escolha o modo de envio. O texto separado será uma mensagem independente. Salve e confira a prévia antes de publicar.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto</button>'+ (channel==='whatsapp'?'<button type="button" class="secondary" data-editor="choose_album">Selecionar álbum (2–4 fotos)</button><p class="sub">Álbum nativo: preparação e prévia. Envio ainda bloqueado até homologação do Connect.</p>':''))}
+    ${pane('file','Documento','<label>Modo do anexo<select name="file_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><button type="button" class="secondary" data-editor="choose_document">Escolher PDF ou TXT</button>')}
+    ${pane('video','Vídeo','<label>Modo do vídeo<select name="video_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><p class="sub">MP4 ou MOV de até 50 MB. O original será preservado. No WhatsApp, o Connect prepara uma cópia MP4 para reprodução nativa, sem cortes. Se não for possível, o vídeo não será enviado como documento.</p><button type="button" class="secondary" data-editor="choose_video">Selecionar vídeo</button><p class="sub" data-video-select-status role="status" aria-live="polite"></p>')}
     <input type="file" name="media" accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4,video/quicktime,text/plain" hidden>
     ${pane('link','Link','<label>Link HTTPS<input name="link" type="url" maxlength="2000"></label><button type="button" class="secondary" data-editor="link">Adicionar link</button>')}
     ${pane('catalog','Referências','<div class="central-search editor-search"><input name="catalog_search" type="search" maxlength="100" aria-label="Buscar referências" placeholder="Buscar referências"><button type="button" class="structured-icon" data-editor="catalog_search" aria-label="Buscar referências" title="Buscar referências"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button></div><div class="structured-catalog-tools"><button type="button" class="secondary" data-editor="prepare_thumbs" hidden>Preparar miniaturas faltantes</button><p class="sub" data-catalog-thumb-status role="status"></p></div><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
     ${pane('community_share','Publicação da Comunidade','<div data-community-share-preview></div><div class="inline-actions"><button type="button" class="secondary" data-editor="community_reference">Manter referência à publicação</button><button type="button" class="primary" data-editor="community_import">Importar texto e imagem editáveis</button></div><p class="sub">Use a referência para manter o acesso restrito à Comunidade. Para republicar conteúdo a outro público, confirme a autorização do autor. Nenhuma mensagem será enviada nesta etapa.</p><p class="sub" role="status" data-community-share-status></p>')}
     ${pane('library_share','Como deseja compartilhar?','<p class="sub" data-library-share-name></p><div class="inline-actions"><button type="button" class="secondary" data-editor="library_share_cover">Capa + link</button><button type="button" class="secondary" data-editor="library_share_preview" disabled>Prévia curta + link</button><button type="button" class="secondary" data-editor="library_share_original" disabled>Arquivo original</button></div><div data-library-share-policy hidden class="monitor-block"><strong>Compartilhamento em campanhas</strong><p class="sub" data-library-member-download></p><label>Autorização deste arquivo<select data-library-share-mode><option value="cover">Somente capa + link</option><option value="preview">Somente prévia curta + link</option><option value="original">Permitir arquivo completo</option></select></label><button type="button" class="secondary" data-editor="library_permission_apply">Salvar autorização</button><p class="sub">Esta opção não altera o download dos membros. Arquivos enviados ao WhatsApp podem ser salvos pelos destinatários.</p></div><div data-library-share-video></div><p class="sub" data-library-share-status role="status"></p>')}
     ${pane('file_help','Envio de arquivos','<p>O envio de arquivos originais e prévias em vídeo depende da liberação no servidor e de um NeoPep Connect compatível. O documento pode permanecer no rascunho sem ser enviado.</p><p>Use Capa + link para materiais disponíveis na Biblioteca. Para liberar a modalidade de arquivo, confira a configuração do canal e os dispositivos autorizados.</p><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button>')}
-    ${pane('schedule','Publicação e horário','<label>Horário planejado (São Paulo)<input name="planned_local" type="datetime-local" value="'+e(draft.planned_local)+'"></label><p data-editor-summary class="sub"></p><div class="inline-actions"><button type="button" class="secondary" data-editor="schedule" disabled>Programar</button><button type="button" class="secondary" data-editor="simulate">Ver prévia (sem enviar)</button></div><div class="structured-issues" data-editor-issues role="status"></div><p role="status" class="sub" data-editor-simulation></p><p class="sub">A prévia não envia mensagens. Para publicar, escolha os grupos e confirme o envio.</p><p class="sub" data-dispatch-gate></p>')}
+    ${pane('schedule','Publicação e horário','<label>Horário planejado (São Paulo)<input name="planned_local" type="datetime-local" value="'+e(draft.planned_local)+'"></label><p data-editor-summary class="sub"></p><div class="inline-actions"><button type="button" class="secondary" data-editor="schedule" disabled>Agendar</button><button type="button" class="secondary" data-editor="simulate">Ver prévia</button><button type="button" class="primary" data-editor="publish_now_panel">Publicar agora</button></div><div class="structured-issues" data-editor-issues role="status"></div><p role="status" class="sub" data-editor-simulation></p><p class="sub">A prévia não envia mensagens. '+(channel==='app'?'Confira público, exibição e horário antes de confirmar.':'Escolha os grupos autorizados e confirme o envio.')+'</p><p class="sub" data-dispatch-gate></p>')}
     ${pane('confirmation','Confirmar campanha','<p data-confirm-question></p><p class="sub" data-confirm-summary></p><p class="structured-confirm-content" data-confirm-content></p><button type="button" class="primary" data-editor="confirm_dispatch">Confirmar</button> <button type="button" class="secondary" data-editor="sheet_close">Voltar à composição</button>')}
     ${channel==='whatsapp'&&!testWA?pane('recurrence','Recorrência','<label>Ocorrências semanais<input name="weekly_count" type="number" min="1" max="6" step="1" value="1"></label>'):''}
     ${pane('format','Formatação do trecho selecionado','<div class="inline-actions"><button type="button" class="secondary" data-format="*" aria-label="Aplicar negrito">Negrito</button><button type="button" class="secondary" data-format="_" aria-label="Aplicar itálico">Itálico</button><button type="button" class="secondary" data-format="~">Riscado</button><button type="button" class="secondary" data-format="&#96;">Monoespaçado</button></div>')}
@@ -254,7 +279,7 @@
     <p class="sub">Simulação de campanha · ${channel==='app'?'App':'WhatsApp'}${window.NEO_CONFIG?.appDisplayName==='NeoPep Teste'?' · TESTE':''}</p></div>
     ${readOnly?(onEdit?iconButton('gear','Editar conteúdo','data-editor="edit_preview"'):''):iconButton('save','Registrar rascunho na Central','data-editor="save"')}
    </header>
-   <main class="neo-structured-scroll"><h3 class="structured-campaign-name" ${publication?'data-parent-campaign="'+e(publication.title)+'"':''} data-campaign-name>${e(draft.title)}</h3><div class="neo-structured-preview" aria-label="${channel==='app'?'Prévia da notificação no aplicativo':'Conversa simulada'}" data-editor-preview></div><div class="structured-live" data-editor-live hidden></div></main>
+   <main class="neo-structured-scroll"><h3 class="structured-campaign-name" ${publication?'data-parent-campaign="'+e(publication.title)+'"':''} data-campaign-name>${e(draft.title)}</h3><div class="neo-structured-preview" aria-label="${channel==='app'?'Prévia da notificação no aplicativo':'Conversa simulada'}" data-editor-preview></div>${readOnly?'':'<section class="structured-visual-review" data-visual-review hidden><p class="sub">Prévia visual · nenhuma publicação enviada</p><div class="inline-actions"><button type="button" class="secondary" data-editor="end_visual_review">Voltar à edição</button><button type="button" class="secondary" data-editor="review_schedule">Agendar</button><button type="button" class="primary" data-editor="review_publish">Publicar agora</button></div></section>'}<div class="structured-live" data-editor-live hidden></div></main>
    ${readOnly?`<footer>${previewModes?'<label class="structured-preview-mode">Modo da simulação<select name="preview_mode"><option value="web">Painel · compartilhamento manual</option><option value="connect">Connect · imagem com legenda</option></select></label>':''}<p class="sub">Simulação visual. A disponibilidade de envio depende do canal e dos anexos.</p></footer>`:`<footer>
     <div class="structured-issues structured-issues-compact" data-editor-issues-compact aria-label="Pendências da publicação"></div><p role="status" class="sub structured-compose-status" data-editor-status></p>
     <button type="button" class="text-btn structured-revert" data-editor="revert" hidden>Desfazer exclusão</button>
@@ -279,7 +304,7 @@
   const status=$('[data-editor-status]'),message=field('message')||document.createElement('textarea');
   const live=$('[data-editor-live]');
   const preview=$('[data-editor-preview]'),connection=$('[data-structured-connection]');
-  const objectUrls=new Set(),localMedia=new Map(),sheet=$('[data-editor-sheet]');let pickingVideo=false,mediaSelectionBusy=false;
+  const objectUrls=new Set(),localMedia=new Map(),sheet=$('[data-editor-sheet]');let pickingVideo=false,pickingAlbum=false,mediaSelectionBusy=false;
   let sheetTrigger=null,catalogKind='document',captionTarget=state.captionTarget||null,pendingDispatch=null;
   const products=new Map(),contentPreviews=new Map(),previewAbort=new AbortController();let shopCatalog,communityFeed,openedReference=false;
   let testGate={};
@@ -354,6 +379,14 @@
    action.title=editing?'Salvar legenda no mesmo bloco':'Adicionar texto à simulação';
   }
   composeAction();
+  function visualReview(open){
+   const panel=$('[data-visual-review]');if(!panel)return;
+   if(open&&(editing||message.value.trim())){tell('Confirme o texto ou legenda antes de abrir a prévia.');return;}
+   if(open)closeSheet(false);
+   dialog.classList.toggle('structured-visual-review-mode',open);panel.hidden=!open;
+   if(open){panel.querySelector('button').focus({preventScroll:true});preview.scrollIntoView({block:'nearest'});}
+   else $('[data-pane-open=schedule]')?.focus({preventScroll:true});
+  }
   function closeSheet(focus=true){
    if(!sheet||sheet.hidden)return;
    cancelCatalog();libraryShare=null;communityShare=null;$('[data-library-share-video]')?.replaceChildren();
@@ -605,6 +638,7 @@
    preview.innerHTML=draft.blocks.map((block,index)=>{
     const link=linkFor(block);
     return `<article class="neo-structured-bubble" data-block-id="${e(block.id)}">
+     ${block.album_id?'<p class="sub"><strong>Álbum nativo</strong> · '+(draft.blocks.filter(b=>b.album_id===block.album_id).findIndex(b=>b.id===block.id)+1)+' de '+draft.blocks.filter(b=>b.album_id===block.album_id).length+'</p>':''}
      ${block.type==='image'?'<img data-editor-image="'+e(block.id)+'" alt="Imagem da campanha" role="button" tabindex="0" aria-label="Ampliar imagem da campanha" hidden>':''}
      ${block.type==='image'?'<p class="sub" data-editor-media-status="'+e(block.id)+'" hidden></p>':''}
      ${block.type!=='product'&&(block.label||block.type==='file'&&block.name)?`<strong>${e(block.label||'Documento')}</strong>`:''}
@@ -617,6 +651,7 @@
      <div class="neo-structured-text" data-block-text>${formatted(block.text)}</div>
      ${link?`<span class="neo-wa-link">${e(link)}</span>`:''}
      ${readOnly?'':`<details class="structured-bubble-actions"><summary aria-label="Opções da mensagem">⋯</summary><div class="inline-actions">
+      ${block.album_id?`<button type="button" class="text-btn" data-editor="disband_album" data-index="${index}">Converter em fotos individuais</button>`:''}
       ${['text','image','product','document','community','file','link'].includes(block.type)?`<button type="button" class="text-btn" data-editor="edit" data-index="${index}">${block.type==='text'?'Editar texto':'Editar legenda'}</button>`:''}
       ${['image','file'].includes(block.type)?`<button type="button" class="text-btn" data-editor="caption_split" data-index="${index}">${block.text?'Separar legenda em outra mensagem':'Manter sem legenda'}</button>${draft.blocks[index+1]?.type==='text'?'<button type="button" class="text-btn" data-editor="caption_join" data-index="'+index+'">Usar texto seguinte como legenda</button>':''}`:''}
       ${['duplicate','up','down','delete'].map((a,i)=>`<button type="button" class="text-btn" data-editor="${a}" data-index="${index}" ${a==='up'&&!index||a==='down'&&index===draft.blocks.length-1?'disabled':''}>${['Duplicar','Subir','Descer','Excluir'][i]}</button>`).join('')}
@@ -671,8 +706,69 @@
   }
   function add(block){
    if(draft.blocks.length>=32){tell('Limite de 32 blocos por rascunho.');return false;}
-   draft.blocks.splice(block.type==='text'?(provisional??draft.blocks.length):draft.blocks.length,0,{id:uuid(),...block});if(block.type==='text')provisional=null;render();changed();return true;
+   const next=draft.blocks.slice();next.splice(block.type==='text'?(provisional??next.length):next.length,0,{id:uuid(),...block});if(albumDraftIssue(next)){tell('Não insira texto entre fotos de um álbum.');return false;}draft.blocks=next;if(block.type==='text')provisional=null;render();changed();return true;
   }
+  let groupIdentities=[],groupViewEnabled=false,groupView=null;
+  const groupViewBytes=value=>Uint8Array.from(atob(value),ch=>ch.charCodeAt(0));
+  const groupViewBase64=value=>btoa(String.fromCharCode(...new Uint8Array(value)));
+  async function groupViewDecode(envelope,key,id,kind){
+   if(!envelope||typeof envelope.wrapped_key!=='string'||envelope.wrapped_key.length!==344||typeof envelope.iv!=='string'||envelope.iv.length!==16||typeof envelope.ciphertext!=='string'||envelope.ciphertext.length>1048576)throw Error('Resultado inválido.');
+   const raw=await crypto.subtle.decrypt({name:'RSA-OAEP'},key,groupViewBytes(envelope.wrapped_key));
+   if(raw.byteLength!==32)throw Error('Chave inválida.');
+   const aes=await crypto.subtle.importKey('raw',raw,{name:'AES-GCM'},false,['decrypt']);
+   const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:groupViewBytes(envelope.iv),additionalData:new TextEncoder().encode(id+':'+kind),tagLength:128},aes,groupViewBytes(envelope.ciphertext));
+   const value=JSON.parse(new TextDecoder().decode(plain));
+   if(value?.kind!==kind||!Array.isArray(value.rows)||value.rows.length>(kind==='members'?1024:50))throw Error('Resultado incompatível.');
+   return value.rows.map(row=>kind==='members'?{name:typeof row?.name==='string'?row.name.slice(0,120):'',phone:/^[0-9]{6,15}$/.test(row?.phone||'')?row.phone:'',role:['admin','superadmin','member'].includes(row?.role)?row.role:'unknown'}:{text:typeof row?.text==='string'?row.text.slice(0,500):''});
+  }
+  function closeGroupView(){
+   const view=groupView;groupView=null;if(!view)return;
+   clearTimeout(view.timer);clearTimeout(view.displayTimer);view.key=null;view.output.textContent='';
+   if(view.id&&current())void cloud.campaignGroupView('cancel',{id:view.id}).catch(()=>{});
+   if(view.dialog.open)view.dialog.close();view.dialog.remove();
+  }
+  async function openGroupView(row,kind){
+   if(!testWA||!groupViewEnabled||groupView||row.state!=='eligible'||!crypto.subtle||!current())return;
+   if(!window.confirm('Confirma que possui autorização para consultar '+(kind==='members'?'os participantes':'novas mensagens')+' deste grupo? A consulta será confirmada também no Windows.'))return;
+   const [connection_id,group_jid]=String(row.id).split(':');
+   if(!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(connection_id)||!/^[0-9-]{1,64}@g[.]us$/.test(group_jid))return;
+   const modal=document.createElement('dialog'),heading=document.createElement('h3'),status=document.createElement('p'),output=document.createElement('div'),exit=document.createElement('button');
+   heading.textContent=kind==='members'?'Participantes do grupo':'Novas mensagens do grupo';status.textContent='Preparando consulta protegida…';output.style.maxHeight='55vh';output.style.overflowY='auto';exit.type='button';exit.textContent='Fechar e limpar';exit.onclick=closeGroupView;
+   modal.append(heading,status,output,exit);modal.style.maxWidth='min(90vw,560px)';dialog.append(modal);
+   const view={dialog:modal,output,key:null,id:null,timer:null,displayTimer:null};groupView=view;
+   modal.addEventListener('close',()=>{if(groupView===view)closeGroupView();},{once:true});
+   modal.addEventListener('cancel',event=>{event.preventDefault();closeGroupView();});modal.showModal();
+   const valid=()=>groupView===view&&current();
+   try{
+    const keys=await crypto.subtle.generateKey({name:'RSA-OAEP',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},false,['encrypt','decrypt']);
+    if(!valid())return;view.key=keys.privateKey;
+    const browser_key=groupViewBase64(await crypto.subtle.exportKey('spki',keys.publicKey));
+    if(!valid())return;
+    const result=await cloud.campaignGroupView('request',{connection_id,group_jid,kind,browser_key,confirmed:true});
+    if(!valid()){if(result?.id&&current())void cloud.campaignGroupView('cancel',{id:result.id}).catch(()=>{});return;}
+    if(typeof result?.id!=='string'||result.state!=='waiting')throw Error('Consulta indisponível.');
+    view.id=result.id;const deadline=Math.min(Date.now()+240000,Date.parse(result.expires_at));
+    if(!Number.isFinite(deadline))throw Error('Validade inválida.');
+    status.textContent='Aguardando confirmação no Windows. A consulta expira em até quatro minutos.';
+    const poll=async()=>{
+     if(!valid()||Date.now()>=deadline){if(groupView===view)closeGroupView();return;}
+     try{
+      const state=await cloud.campaignGroupView('poll',{id:view.id});if(!valid())return;
+      if(state?.state==='ready'){
+       const rows=await groupViewDecode(state.result,view.key,view.id,kind);if(!valid())return;
+       view.key=null;view.id=null;status.textContent=rows.length+' registros. Resultado temporário; feche para limpar.';
+       const role={admin:'Administrador',superadmin:'Criador / admin',member:'Membro',unknown:'Função indisponível'};
+       for(const row of rows){const item=document.createElement('p');item.textContent=kind==='members'?(row.name||'Participante')+' · '+(row.phone?'+'+row.phone:'Número indisponível')+' · '+role[row.role]:row.text;output.append(item);}
+       view.displayTimer=setTimeout(()=>{if(groupView===view)closeGroupView();},120000);return;
+      }
+      if(!['waiting','claimed'].includes(state?.state)){view.key=null;view.id=null;status.textContent='Consulta indisponível ou recusada.';return;}
+      if(state.state==='claimed')status.textContent='Consulta solicitada ao Windows…';
+      view.timer=setTimeout(poll,4000);
+     }catch{if(valid()){view.key=null;status.textContent='Não foi possível concluir a consulta.';view.displayTimer=setTimeout(()=>{if(groupView===view)closeGroupView();},5000);}}
+    };await poll();
+   }catch{if(valid()){view.key=null;status.textContent='Consulta indisponível. Confira a conexão e a autorização.';view.displayTimer=setTimeout(()=>{if(groupView===view)closeGroupView();},5000);}}
+  }
+  function groupConnectionLabel(row){const id=String(row.id||'').split(':')[0];const account=groupIdentities.find(a=>a.id===id);const name=account?.account_name||row.connection||'Conexão sem evidência';const number=String(account?.account_number||'');return /^[0-9]{6,15}$/.test(number)?name+' (+'+number+')':name;}
   function renderGroups(){
    const root=$('[data-editor-groups]');
    if(!root)return;
@@ -680,13 +776,13 @@
    const entries=new Map(draft.groups.map(id=>[id,{id,name:'Grupo anteriormente selecionado',state:'unavailable'}]));
    const allowed=gates.whatsapp_test?.destination;
    for(const row of groups)if(!testWA||!allowed||row.id===allowed)entries.set(row.id,row);
-   root.innerHTML=[...entries.values()].filter(row=>`${row.name} ${row.connection||''}`.toLocaleLowerCase('pt-BR').includes(query)).map(row=>{
+   root.innerHTML=[...entries.values()].filter(row=>`${row.name} ${groupConnectionLabel(row)}`.toLocaleLowerCase('pt-BR').includes(query)).map(row=>{
     const chosen=draft.groups.includes(row.id);
-    return `<label class="check"><input type="checkbox" data-editor-group="${e(row.id)}" ${chosen?'checked':''} ${!chosen&&(row.state!=='eligible'||testWA&&row.id!==allowed)?'disabled':''}>
-    <span><strong>${e(row.name)}</strong><small class="sub" style="display:block;font-size:11px;opacity:.82">${e(row.connection||'Conexão sem evidência')}</small>
+    return `<div><label class="check"><input type="checkbox" data-editor-group="${e(row.id)}" ${chosen?'checked':''} ${!chosen&&(row.state!=='eligible'||testWA&&row.id!==allowed)?'disabled':''}>
+    <span><strong>${e(row.name)}</strong><small class="sub" style="display:block;font-size:11px;opacity:.82">${e(groupConnectionLabel(row))}</small>
     <small class="sub" style="display:block;font-size:11px">${e(states[row.state]||'Estado desconhecido')}
     ${row.participant_count==null?'':' · '+e(row.participant_count)+' participantes'}
-    ${row.last_synced_at?' · '+e(new Date(row.last_synced_at).toLocaleString('pt-BR')):''}</small></span></label>`;
+    ${row.last_synced_at?' · '+e(new Date(row.last_synced_at).toLocaleString('pt-BR')):''}</small></span></label>${testWA&&groupViewEnabled&&row.state==='eligible'?`<div class="row" style="margin:4px 0 8px"><button type="button" class="btn ghost" data-group-view="members" data-group-id="${e(row.id)}">Participantes</button><button type="button" class="btn ghost" data-group-view="messages" data-group-id="${e(row.id)}">Mensagens</button></div>`:''}</div>`;
    }).join('')||'<p class="sub">Nenhum grupo sincronizado no recorte.</p>';
    const selected=$('[data-selected-groups]');
    if(selected){
@@ -701,12 +797,12 @@
    const token=++loadToken;
    connection.textContent='Consultando grupos sincronizados…';
    try{
-    const list=await cloud.campaignWhatsAppSync('catalog');
+    const [list,accounts,viewGate]=await Promise.all([cloud.campaignWhatsAppSync('catalog'),cloud.campaignWhatsAppIdentities?.().catch(()=>[])||[],testWA?cloud.campaignGroupView?.('status').catch(()=>null):null]);
     if(!current()||token!==loadToken)return;
-    groups=list;renderGroups();
+    groups=list;groupIdentities=Array.isArray(accounts)?accounts:[];groupViewEnabled=viewGate?.enabled===true;renderGroups();
     connection.textContent=groups.some(row=>row.state==='eligible')?'Grupos elegíveis encontrados. Despacho permanece bloqueado.':
      'Sem destino elegível na consulta atual. Despacho bloqueado.';
-   }catch{if(current()&&token===loadToken){groups=[];renderGroups();connection.textContent='Diagnóstico indisponível. Despacho bloqueado.';}}
+   }catch{if(current()&&token===loadToken){groups=[];groupIdentities=[];groupViewEnabled=false;closeGroupView();renderGroups();connection.textContent='Diagnóstico indisponível. Despacho bloqueado.';}}
   }
   const richMode=()=>testWA&&(Boolean(publication)||draft.blocks.length!==1||draft.blocks.some(block=>block.type!=='text'||/(https?:\/\/|www\.)/i.test(block.text||''))||
    draft.blocks.map(block=>block.text||'').join('\n\n').trim().length>160);
@@ -719,10 +815,17 @@
    if(scheduled&&!draft.planned_local)add('time','Defina data e horário','schedule');
    if(editing||message.value.trim())add('text','Confirme o texto ou legenda','compose');
    if(!draft.blocks.length)add('content','Adicione conteúdo','menu');
+   if(hasNativeAlbum(draft.blocks))add('album','Álbum nativo ainda não homologado; envio e agendamento bloqueados','photo','blocked');
    if(channel==='whatsapp'&&draft.blocks.length>6)add('limit','Limite de 6 blocos por grupo','menu');
    if(draft.blocks.some(b=>b.type==='file')&&!libraryOriginalReady())add('file','Envio de arquivos bloqueado neste canal','file_help','blocked');
    if(channel==='whatsapp'&&(!gates.whatsapp_rich?.ready&&richMode()))add('connect','Confira conexão e autorização','groups','blocked');
    if(testApp&&draft.app_settings?.popup_enabled===false)add('popup','Ative a exibição no App','audience');
+   if(channel==='app'){
+    if(testApp?!(testGate.enabled&&testGate.destinations>0&&testGate.destinations<=30&&testGate.audience_key):gates.app_enabled!==true)add('app_gate',testApp?'Homologação App não liberada ou sem contas autorizadas':'Publicação App desativada no servidor','schedule','blocked');
+    const richApp=testApp?testGate.rich_popup===true:gates.app_rich_popup===true;
+    if(!richApp&&draft.blocks.some(b=>b.type!=='text'))add('app_media','O canal ainda não aceita este conteúdo','menu','blocked');
+   }
+   if(scheduled&&draft.planned_local){const time=Date.parse(draft.planned_local+'-03:00');if(!Number.isFinite(time)||time<=Date.now())add('past','Escolha uma data e horário futuros','schedule');}
    return issues;
   }
   function paintIssues(){
@@ -757,9 +860,9 @@
     &&(b.type!=='file'||/\.(pdf|mp4|mov)$/.test(b.media_path||''))
     &&(b.type!=='link'||Boolean(validLink(b.url)))
     &&(!['product','document','community'].includes(b.type)||Boolean(b.ref)));
-   const allow=Boolean(!(publication&&state.dispatchConfirmed)&&!publication?.paused&&(!publication||channel==='app'||rich)&&enabled&&clean&&eligible&&pinned&&(appRich?appBlocks:rich?richBlocks:textOnly&&short));
+   const allow=Boolean(!hasNativeAlbum(draft.blocks)&&!(publication&&state.dispatchConfirmed)&&!publication?.paused&&(!publication||channel==='app'||rich)&&enabled&&clean&&eligible&&pinned&&(appRich?appBlocks:rich?richBlocks:textOnly&&short));
    dispatchReady.publish=Boolean(allow&&!(channel==='whatsapp'&&!testWA&&!gates.devices?.some(d=>d.ready)));
-   dispatchReady.schedule=Boolean(allow&&draft.planned_local&&!(testWA&&!(rich?gates.whatsapp_rich?.ready:gates.whatsapp_test?.schedule_ready)));
+   dispatchReady.schedule=Boolean(allow&&draft.planned_local&&Date.parse(draft.planned_local+'-03:00')>Date.now()&&!(testWA&&!(rich?gates.whatsapp_rich?.ready:gates.whatsapp_test?.schedule_ready)));
    $('[data-editor=publish]').disabled=dispatching||saving;
    $('[data-editor=schedule]').disabled=dispatching||saving;
    $('[data-editor-summary]').textContent=dispatchSummary(Boolean(draft.planned_local));
@@ -770,7 +873,7 @@
      ((rich?gates.whatsapp_rich?.ready:gates.whatsapp_test.schedule_ready)?'Agendamento disponível.':'Agendamento indisponível.'):
      'WhatsApp em simulação. Confira o Connect e o grupo autorizado.'):enabled?
     (appRich?'Notificações App com múltiplos conteúdos. Confira público, canais, frequência e horário.':'O despacho exige uma versão registrada, somente texto e destinos autorizados. Aceitação pelo cliente não confirma entrega.'):
-    'Envio e agendamento automáticos bloqueados. Somente texto no contrato de despacho.';
+    (channel==='app'?'Publicação e agendamento App desativados no servidor. Salvar e visualizar rascunhos continuam disponíveis.':'Despacho automático desativado no servidor.');
   }
   async function refreshGate(){
    if(testApp){
@@ -784,7 +887,7 @@
     const result=await cloud.campaignDispatch('diagnostics',{});
     if(!current())return;
     gates=result||{};
-    if(testWA&&typeof cloud.campaignRich==='function'){
+    if(channel==='whatsapp'&&typeof cloud.campaignRich==='function'){
      try{gates.whatsapp_rich=await cloud.campaignRich('diagnostics');}
      catch{gates.whatsapp_rich={ready:false};}
      if(!current())return;
@@ -796,7 +899,7 @@
    }catch{if(current())gates={};}
    if(current()){if(testWA)renderGroups();showGate();}
   }
-  const outcomes={waiting:'Aguardando',leased:'Em preparação',started:'Em processamento',accepted:'Aceito pelo cliente',
+  const outcomes={video_conversion_failed:'Vídeo não enviado: falha na conversão',paused_previous_421:'Envio pausado por rejeição anterior',rejected:'Rejeitado pelo WhatsApp',delivered:'Entrega confirmada',server_ack:'Recebido pelo WhatsApp',awaiting_confirmation:'Aguardando confirmação',refused:'Envio recusado',waiting:'Aguardando',leased:'Em preparação',started:'Em processamento',accepted:'Aceito pelo cliente',
    uncertain:'Resultado incerto · revisar',failed:'Falhou',cancelled:'Cancelado'};
   async function showDispatch(){
    const root=$('[data-dispatch-results]');
@@ -824,8 +927,8 @@
      return;
     }
     const richHtml=richRows.map(row=>`<article class="monitor-block">
-     <strong>Bloco ${e(row.sequence)} · ${e(labels[row.kind]||row.kind)} · ${e(outcomes[row.dispatch_state]||row.dispatch_state)}</strong>
-     <p class="sub">Programado: ${e(new Date(row.scheduled_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}))} · ${e(row.dispatch_attempts)} tentativa(s) · ${row.has_receipt?'Recibo registrado':'Sem recibo'}</p>
+     <strong>Bloco ${e(row.sequence)} · ${e(labels[row.kind]||row.kind)} · ${e(outcomes[row.delivery_state||row.dispatch_state]||row.delivery_state||row.dispatch_state)}</strong>
+     <p class="sub">Programado: ${e(new Date(row.scheduled_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}))} · ${e(row.dispatch_attempts)} tentativa(s) · ${row.has_local_receipt||row.has_receipt?'Identificador local registrado':'Sem identificador local'}${row.blocked_reason==='previous_421'?' · Não transmitido':row.blocked_reason==='video_conversion'?' · Verifique o conversor':row.send_error_code?' · Código '+e(row.send_error_code):''}</p>
      ${row.dispatch_state==='waiting'?'<button type="button" class="secondary" data-editor="rich_cancel_batch" data-batch="'+e(row.batch_id)+'">Cancelar blocos pendentes</button>':''}</article>`).join('');
     root.innerHTML=richHtml+rows.map(row=>`<article class="monitor-block">
      <strong>${e(row.dispatch_jid)} · ${e(outcomes[row.dispatch_state]||row.dispatch_state)}</strong>
@@ -850,10 +953,11 @@
    const explain=text=>{$('[data-editor-simulation]').textContent=text;tell(text);};
    if(publication?.paused){explain('Campanha desligada. Volte à Central e reative antes de publicar.');return;}
    if(!draft.title.trim()){explain('Informe o nome da publicação em Ajustes.');return;}
-   if(scheduled&&!draft.planned_local){explain('Selecione a data e o horário do agendamento.');return;}
+   if(scheduled&&(!draft.planned_local||!(Date.parse(draft.planned_local+'-03:00')>Date.now()))){explain('Selecione uma data e um horário futuros para agendar. Para enviar agora, use Publicar agora.');return;}
    if(channel==='whatsapp'&&!draft.groups.length){explain('Selecione pelo menos um grupo sincronizado.');return;}
    if(editing||message.value.trim()){explain('Confirme o texto ou a legenda com a seta antes de continuar.');return;}
    if(!draft.blocks.length){explain('Adicione conteúdo antes de continuar.');return;}
+   if(hasNativeAlbum(draft.blocks)){explain('Álbum nativo ainda em homologação. Salve o rascunho; não haverá envio ou conversão automática.');return;}
    if(testApp&&draft.app_settings?.popup_enabled===false){explain('Em Teste, somente o pop-up está disponível. Marque a exibição interna para homologar.');return;}
    if(draft.blocks.some(b=>b.type==='file')&&!libraryOriginalReady()){explain('Envio de arquivo original desativado no servidor. O rascunho foi preservado; use Capa + link quando disponível.');return;}
    if(!state.remoteId||!sameDraft(state.savedDraft,draft)){
@@ -861,9 +965,10 @@
     await saveRemote();
    }
    if(!current())return;
+   await refreshGate();if(!current())return;
    showGate();
    if(!dispatchReady[scheduled?'schedule':'publish']){
-    explain(!sameDraft(state.savedDraft,draft)?lastSaveError||'Não foi possível confirmar a versão salva. Confira a conexão e tente novamente.':'A publicação ainda não está liberada: confira os destinos, o tipo de conteúdo e a disponibilidade do canal.');
+    explain(!sameDraft(state.savedDraft,draft)?lastSaveError||'Não foi possível confirmar a versão salva. Confira a conexão e tente novamente.':(dispatchIssues(scheduled).map(i=>i.label).join(' · ')||'Publicação indisponível: confira conteúdo e autorização do canal.'));
     return;
    }
    pendingDispatch=scheduled;
@@ -874,6 +979,7 @@
   }
   async function dispatch(scheduled){
    if(dispatching||saving||!current()||state.dispatchConfirmed&&publication)return;
+   if(hasNativeAlbum(draft.blocks)){tell('Envio nativo de álbum ainda não homologado.');return;}
    showGate();if(!dispatchReady[scheduled?'schedule':'publish']){tell('A versão ou a autorização mudou. Confira antes de confirmar.');return;}
    const rich=testWA&&richMode();
    if(publication&&channel==='whatsapp'&&!rich){tell('O envio desta publicação exige Connect compatível e destino Teste autorizado.');return;}
@@ -933,6 +1039,7 @@
     // O SDK oficial e regenerado a partir de src/cloud.js. Aceitar tambem o
     // uploader legado enquanto abas PWA com um bundle antigo estiverem abertas.
     let stored;
+    if(block.album_id&&typeof cloud.campaignMediaUpload!=='function')throw Error('Atualize o aplicativo para guardar álbum privado.');
     if(typeof cloud.campaignMediaUpload==='function'){
      stored=await cloud.campaignMediaUpload(path,jpeg);
     }else if(typeof cloud.uploadCampaignImage==='function'){
@@ -943,6 +1050,7 @@
     if(!current())throw Error('Sua conta mudou durante o upload.');
     if(typeof stored!=='string'||!new RegExp('^[a-f0-9-]{36}/[a-f0-9-]{36}\\.jpg$').test(stored)
       ||stored.split('/')[0]!==account)throw Error('O upload não retornou um caminho privado válido.');
+    if(block.album_id&&stored!==path)throw Error('O caminho do álbum não foi confirmado.');
     block.media_path=stored;saveLocal();
    }
   }
@@ -961,7 +1069,7 @@
   }
   let lastSaveError='';
   async function saveRemote(){
-   if(saving||dispatching||!current())return;
+   if(saving||dispatching||mediaSelectionBusy||!current())return;
    if(publication&&state.dispatchConfirmed){tell('Esta publicação já foi registrada. Volte à Central para editar e republicar.');return;}
    lastSaveError='';
    const editingBlock=editing&&draft.blocks.find(block=>block.id===editing);
@@ -974,8 +1082,14 @@
    }
    if(editing||message.value.trim()){tell('Conclua o bloco de texto em edição antes de registrar a versão.');return;}
    if(!draft.title.trim()){tell('Informe o título do rascunho.');return;}
+   if(hasNativeAlbum(draft.blocks)){
+    if(channel!=='whatsapp'||albumDraftIssue(draft.blocks)){saveLocal();tell('Álbum inválido: mantenha de 2 a 4 fotos contíguas.');return;}
+    saving=true;let capability;try{capability=await endpoint(cloud,'album_draft_capabilities');}catch{}finally{saving=false;}
+    if(!current())return;
+    if(capability?.album_drafts!==true){saveLocal();tell('Álbum salvo neste dispositivo. Registro remoto aguarda atualização do servidor.');return;}
+   }
    if(advancedApp&&draft.app_settings){const a=draft.app_settings;if((!a.popup_enabled&&!a.push_requested)||(a.audience!=='all'&&!a.targets.length)||!a.weekdays.length||!a.opens_at||a.opens_at>=a.closes_at||!Number.isInteger(a.frequency_hours)||a.frequency_hours<1||a.frequency_hours>8760||!Number.isInteger(a.max_views)||a.max_views<1||a.max_views>100||!Number.isInteger(a.priority)||a.priority<0||a.priority>100){tell('Confira público, dias, horário, canais e limites de exibição.');return;}}
-   if((testWA||testApp||channel==='app'&&gates.app_rich_popup===true)&&draft.blocks.some(b=>['image','document'].includes(b.type)&&!b.media_path)){
+   if((hasNativeAlbum(draft.blocks)||testWA||testApp||channel==='app'&&gates.app_rich_popup===true)&&draft.blocks.some(b=>['image','document'].includes(b.type)&&!b.media_path)){
     saveLocal();saving=true;tell('Preparando mídia privada para homologação…');
     try{await uploadRichImages();}catch(error){if(current()){saveLocal();tell(/^(Load failed|Failed to fetch|NetworkError)$/i.test(error.message||'')?'Falha ao preparar ou enviar a capa. Seu rascunho foi mantido. Tente novamente.':error.message||'Não foi possível preparar a imagem. Seu rascunho foi mantido.');}saving=false;return;}
     saving=false;
@@ -1023,19 +1137,19 @@
    if(!active)return;
    if(stopOpen===stop)stopOpen=null;
    viewport?.removeEventListener('resize',resize);viewport?.removeEventListener('scroll',resize);window.removeEventListener('resize',resize);dialog.removeEventListener('focusin',resize);
-   active=false;cancelCatalog();previewAbort.abort();if(openedReference)window.NeoLibraryFiles?.close();clearTimeout(pending);clearTimeout(noticeTimer);window.removeEventListener('pagehide',saveLocal);
+   closeGroupView();active=false;cancelCatalog();previewAbort.abort();if(openedReference)window.NeoLibraryFiles?.close();clearTimeout(pending);clearTimeout(noticeTimer);window.removeEventListener('pagehide',saveLocal);
    for(const url of objectUrls)URL.revokeObjectURL(url);
    localMedia.clear();dialog.remove();onClosed?.();if(trigger?.isConnected)trigger.focus({preventScroll:true});
   }
   function close(){
-   if(saving||dispatching){tell('Aguarde a confirmação do registro.');return false;}
+   if(saving||dispatching||mediaSelectionBusy){tell('Aguarde a confirmação do registro ou a preparação das fotos.');return false;}
    if(!saveLocal()&&!window.confirm('O rascunho não foi salvo. Sair mesmo assim?'))return false;
    dialog.close();return true;
   }
   const stop=()=>{if(dialog.open)dialog.close();finish();};
   stopOpen=stop;
   dialog.addEventListener('close',finish,{once:true});
-  dialog.addEventListener('cancel',event=>{event.preventDefault();if(sheet&&!sheet.hidden)closeSheet();else close();});
+  dialog.addEventListener('cancel',event=>{event.preventDefault();if(dialog.classList.contains('structured-visual-review-mode'))visualReview(false);else if(sheet&&!sheet.hidden)closeSheet();else close();});
   window.addEventListener('pagehide',saveLocal);
   dialog.addEventListener('input',event=>{
    const name=event.target.name;
@@ -1081,6 +1195,20 @@
    if(input.name!=='media')return;
    let file=input.files?.[0];
    if(!file||mediaSelectionBusy)return;
+   if(pickingAlbum){
+    const files=Array.from(input.files||[]);input.value='';input.multiple=false;pickingAlbum=false;
+    if(channel!=='whatsapp'||editing||message.value.trim()||files.length<2||files.length>4||draft.blocks.length+files.length>32||files.some(f=>!f.size||f.size>50*1024*1024||!(/^image\/(jpeg|png|webp|heic|heif|avif)$/.test(f.type)||/\.(heic|heif)$/i.test(f.name)))){tell('Conclua a edição e escolha de 2 a 4 fotos válidas, dentro do limite de 32 blocos.');return;}
+    mediaSelectionBusy=true;const album=uuid(),prepared=[];
+    try{
+     for(const file of files){const image=await prepareImage(file,field('photo_quality').value);if(!current())return;const jpeg=await jpegForDispatch(image);if(!current())return;prepared.push({id:uuid(),jpeg,name:String(file.name||'Foto').slice(0,120)});}
+     if(!current()||draft.blocks.length+prepared.length>32)return;
+     await storeMedia('readwrite',store=>{for(const row of prepared)store.put(row.jpeg,mediaKey(row.id));});
+     if(!current()||draft.blocks.length+prepared.length>32){await storeMedia('readwrite',store=>{for(const row of prepared)store.delete(mediaKey(row.id));}).catch(()=>{});return;}
+     draft.blocks.push(...prepared.map(row=>({id:row.id,type:'image',album_id:album,name:row.name,layout:'caption',text:''})));captionTarget=prepared[0].id;composeAction();closeSheet();render();changed();saveLocal();tell('Álbum preparado. Edite as legendas e a ordem. Nenhum envio será realizado.');
+    }catch{if(current())tell('Não foi possível preparar todas as fotos. O rascunho anterior foi mantido.');}
+    finally{mediaSelectionBusy=false;}
+    return;
+   }
    const videoPick=pickingVideo||file.type.startsWith('video/')||/\.(mp4|mov|m4v)$/i.test(file.name);
    if(videoPick){
     mediaSelectionBusy=true;const select=$('[data-editor=choose_video]');if(select)select.disabled=true;
@@ -1090,8 +1218,8 @@
     finally{input.value='';mediaSelectionBusy=false;if(select)select.disabled=false;}
    }else input.value='';
    const image=/^image\/(jpeg|png|webp|heic|heif|avif)$/.test(file.type)||/\.(heic|heif)$/i.test(file.name);
-   if((!image&&!['application/pdf','video/mp4','video/quicktime','text/plain'].includes(file.type))||!file.size||file.size>(image?25*1024*1024:originalLimit(file.type))||draft.blocks.length>=32){
-    tell('Selecione foto ou vídeo MP4 ou MOV de até 25 MB, ou PDF/TXT de até 5 MB, dentro do limite de blocos.');return;
+   if((!image&&!['application/pdf','video/mp4','video/quicktime','text/plain'].includes(file.type))||!file.size||file.size>(image?50*1024*1024:originalLimit(file.type))||draft.blocks.length>=32){
+    tell('Selecione foto, PDF ou vídeo MP4/MOV de até 50 MB, ou TXT de até 5 MB, dentro do limite de blocos.');return;
    }
    const id=uuid(),layout=field(image?'layout':videoOriginal(file.type)&&sheet.dataset.activePane==='video'?'video_layout':'file_layout')?.value||'caption';
    try{
@@ -1232,8 +1360,68 @@
      session.busy=false;if(communityShareActive(session))button.disabled=false;
     }
    }
-   async function chooseLibraryShare(row,trigger){
+   async function chooseProductOffer(row,trigger){
+   const token=catalogToken,signal=catalogController?.signal;
+   const valid=()=>signal&&catalogCurrent(token,signal);
+   if(!valid()||trigger.disabled)return;
+   trigger.disabled=true;let mediaId=null,committed=false;
+   try{
+    const item=await endpoint(cloud,'public_offer',{id:row.id});
+    if(!valid())return;
+    if(!item||item.id!==row.id){tell('Produto indisponível. Atualize as referências.');return;}
+    const offer=item.offer,base=Number(item.price_cents),sale=Number(offer?.price_cents);
+    const expiry=offer?.valid_until?Date.parse(offer.valid_until):null;
+    if(!offer||!Number.isSafeInteger(base)||!Number.isSafeInteger(sale)||sale<1||sale>=base||Number(offer.original_price_cents)!==base||(expiry!==null&&(!Number.isFinite(expiry)||expiry<=Date.now()))||!item.photo_path){
+     addCatalogReference(row);return;
+    }
+    const percent=Math.floor((base-sale)*10000/base)/100;
+    if(percent<=0){addCatalogReference(row);return;}
+    const pct=percent.toLocaleString('pt-BR',{maximumFractionDigits:2});
+    if(!window.confirm('Incluir o selo da oferta pública atual na imagem da campanha? Será criada uma cópia estática; confira a validade antes de publicar ou agendar. Cancelar mantém apenas a referência normal ao produto.')){if(valid())addCatalogReference(row);return;}
+    if(!valid())return;
+    const planned=draft.planned_local?Date.parse(draft.planned_local+'-03:00'):null;
+    if(expiry!==null&&planned!==null&&planned>=expiry)throw Error('A oferta termina antes do horário planejado. Altere a data ou adicione a referência normal.');
+    if(draft.blocks.length+2>32)throw Error('São necessários dois blocos para a imagem e a referência.');
+    const url=new URL(await cloud.shopPhotoURL(item.photo_path));
+    if(!valid())return;
+    if(url.protocol!=='https:'||url.origin!==new URL(window.NEO_CONFIG.supabaseUrl).origin||url.username||url.password||!url.pathname.startsWith('/storage/v1/object/sign/neo-shop-products/'))throw Error('Origem da imagem não autorizada.');
+    const response=await fetch(url.href,{signal,cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer',redirect:'error'});
+    if(!response.ok||Number(response.headers.get('content-length'))>10*1024*1024)throw Error('Imagem indisponível.');
+    const source=await response.blob();
+    if(!/^image\/(jpeg|png|webp)$/.test(source.type)||!source.size||source.size>10*1024*1024)throw Error('Imagem inválida.');
+    const local=URL.createObjectURL(source);
+    let rendered;
+    try{
+     const img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=local;});
+     if(!valid())return;
+     if(!img.naturalWidth||!img.naturalHeight||img.naturalWidth*img.naturalHeight>40000000)throw Error('Resolução inválida.');
+     const scale=Math.min(1,1280/Math.max(img.naturalWidth,img.naturalHeight)),canvas=document.createElement('canvas');
+     canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
+     const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);
+     const edge=Math.min(canvas.width,canvas.height),diameter=edge*.22,r=diameter/2,margin=edge*.03,x=margin+r,y=margin+r;
+     ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle='#161616';ctx.fill();ctx.lineWidth=Math.max(1,diameter*.025);ctx.strokeStyle='#ffdb37';ctx.stroke();
+     ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#ffdb37';ctx.font='bold '+Math.max(5,diameter*.15)+'px sans-serif';ctx.fillText('OFERTA',x,y-r*.28,diameter*.83);
+     ctx.fillStyle='#fff';ctx.font='bold '+Math.max(7,diameter*.25)+'px sans-serif';ctx.fillText('-'+pct+'%',x,y+r*.28,diameter*.85);
+     rendered=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error('Imagem indisponível.')),'image/jpeg',.9));
+    }finally{URL.revokeObjectURL(local);}
+    if(!valid())return;
+    const jpeg=await jpegForDispatch(rendered);if(!valid())return;
+    if(expiry!==null&&expiry<=Date.now())throw Error('A oferta expirou durante a preparação.');
+    if(editing&&!commitEdit())throw Error('Confirme o texto em edição.');
+    if(draft.blocks.length+2>32)throw Error('Limite de 32 blocos por rascunho.');
+    mediaId=uuid();await storeMedia('readwrite',store=>store.put(jpeg,mediaKey(mediaId)));
+    if(!valid())return;
+    const date=new Date().toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
+    const caption='Oferta consultada em '+date+'. '+(expiry!==null?'Validade informada: '+new Date(expiry).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'})+'. ':'')+'Confira as condições atuais no aplicativo.';
+    const target=new URL('/?produto='+encodeURIComponent(row.id)+'#loja',window.NEO_CONFIG?.campaignPublicOrigin||location.origin).href;
+    draft.blocks.push({id:mediaId,type:'image',layout:'caption',text:caption,name:'imagem-oferta.jpg'},{id:uuid(),type:'link',url:target,text:'Consultar produto e condições atuais'});
+    committed=true;render();changed();closeSheet();saveLocal();tell('Imagem com selo e link adicionados ao rascunho. Confira a validade antes de publicar. Nenhum envio realizado.');
+   }catch(error){if(valid())tell(error.message||'Não foi possível preparar o selo. Seu rascunho foi preservado.');}
+   finally{if(mediaId&&!committed)await storeMedia('readwrite',store=>store.delete(mediaKey(mediaId))).catch(()=>{});if(valid())trigger.disabled=false;}
+  }
+  async function chooseLibraryShare(row,trigger){
     if(row.kind==='community'){await chooseCommunityShare(row,trigger);return;}
+    if(row.kind==='product'){await chooseProductOffer(row,trigger);return;}
    if(row.kind!=='document'||typeof cloud.library!=='function'){addCatalogReference(row);return;}
    openPane('library_share',trigger);
    const s=libraryShare={row,file:null,preview:null,policy:null,busy:false};
@@ -1248,7 +1436,7 @@
     if(!material)throw Error('Material indisponível.');
     const file=material.attachments?.find(f=>f.mime==='application/pdf'||f.mime?.startsWith('video/'))||material.attachments?.[0];
     if(!file||(!file.mime?.startsWith('video/')&&file.mime!=='application/pdf')){addCatalogReference(row);return;}
-    s.file=file;const video=file.mime.startsWith('video/');
+    s.file=file;const video=file.mime.startsWith('video/');o.textContent=video&&channel==='whatsapp'?'Vídeo completo (nativo)':'Arquivo original';
     if(typeof cloud.libraryCampaignShare==='function')s.policy=await cloud.libraryCampaignShare('get',row.id,file.path);
     if(!libraryShareActive(s))return;
     if(s.policy?.can_manage===true){
@@ -1270,7 +1458,7 @@
     if(s.preview?.state==='ready'&&s.preview.url){
      const v=document.createElement('video');v.src=s.preview.url;v.muted=true;v.playsInline=true;v.loop=true;v.autoplay=!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;v.controls=true;v.preload='metadata';v.style.maxWidth='100%';v.setAttribute('aria-label','Prévia curta sem áudio');$('[data-library-share-video]').append(v);
     }
-    status.textContent=!originalAllowed&&!previewAllowed&&!s.policy?.original&&!s.policy?.preview?'Uso de arquivo em campanhas não autorizado. '+(s.policy?.can_manage?'Escolha acima uma autorização exclusiva para campanhas, se desejar.':'O responsável pelo arquivo pode autorizar o compartilhamento.'):!libraryFileDraftReady()?'Preparação de arquivos indisponível neste canal. Use capa + link.':video&&s.preview?.state!=='ready'?'Prévia curta ainda não disponível. Confira o processamento no NeoPep Connect e reabra este material.':o.disabled?'Original acima do limite (MP4/MOV 25 MB; PDF 5 MB) ou formato não suportado.':!libraryOriginalReady()?'Você pode adicionar o arquivo ou prévia ao rascunho. O envio continua desativado no servidor.':'Selecione como compartilhar.';
+    status.textContent=!originalAllowed&&!previewAllowed&&!s.policy?.original&&!s.policy?.preview?'Uso de arquivo em campanhas não autorizado. '+(s.policy?.can_manage?'Escolha acima uma autorização exclusiva para campanhas, se desejar.':'O responsável pelo arquivo pode autorizar o compartilhamento.'):!libraryFileDraftReady()?'Preparação de arquivos indisponível neste canal. Use capa + link.':video&&s.preview?.state!=='ready'?'Prévia curta ainda não disponível. Confira o processamento no NeoPep Connect e reabra este material.':o.disabled?'Original acima do limite (MP4/MOV/PDF 50 MB) ou formato não suportado.':!libraryOriginalReady()?'Você pode adicionar o arquivo ou prévia ao rascunho. O envio continua desativado no servidor.':'Selecione como compartilhar.';
    }catch{if(libraryShareActive(s))status.textContent='Não foi possível consultar o arquivo. Você pode tentar capa + link.';}
   }
   async function applyLibrarySharePermission(){
@@ -1391,13 +1579,14 @@
   dialog.addEventListener('click',async event=>{
    if(!current())return;
    const control=event.target.closest('button');
+   if(control?.dataset.groupView){const row=groups.find(x=>x.id===control.dataset.groupId);if(row&&['members','messages'].includes(control.dataset.groupView))void openGroupView(row,control.dataset.groupView);return;}
    if(!control){
     const image=event.target.closest('[data-editor-image]');
     if(image&&!image.hidden){
      const zoom=document.createElement('dialog');zoom.className='structured-image-zoom';zoom.setAttribute('aria-label','Imagem da campanha');
      const photo=image.cloneNode();for(const attr of ['data-editor-image','role','tabindex','aria-label'])photo.removeAttribute(attr);
      const exit=document.createElement('button');exit.type='button';exit.textContent='Fechar imagem';exit.onclick=()=>zoom.close();
-     if(!readOnly){
+     if(!readOnly&&!dialog.classList.contains('structured-visual-review-mode')){
       const select=document.createElement('button');select.type='button';select.textContent='Editar legenda';
       select.onclick=()=>{
 
@@ -1410,7 +1599,7 @@
      zoom.append(exit,photo);dialog.append(zoom);zoom.addEventListener('close',()=>zoom.remove(),{once:true});zoom.showModal();return;
     }
     const bubble=event.target.closest('[data-block-id]');
-    if(bubble&&!event.target.closest('details,a,video')){const item=draft.blocks.find(block=>block.id===bubble.dataset.blockId);if(!readOnly&&captionTypes.includes(item?.type)){captionTarget=item.id;composeAction();}const options=bubble.querySelector('details');if(options)options.open=!options.open;}
+    if(bubble&&!dialog.classList.contains('structured-visual-review-mode')&&!event.target.closest('details,a,video')){const item=draft.blocks.find(block=>block.id===bubble.dataset.blockId);if(!readOnly&&captionTypes.includes(item?.type)){captionTarget=item.id;composeAction();}const options=bubble.querySelector('details');if(options)options.open=!options.open;}
     return;
    }
    const target=control.dataset.paneOpen;
@@ -1432,10 +1621,11 @@
     if(item&&window.NeoLibraryFiles){openedReference=true;void window.NeoLibraryFiles.open(item,control).catch(()=>tell('Não foi possível abrir o material.'));}
    }
    if(readOnly){if(action==='edit_preview'&&close())onEdit?.();return;}
-   if(action==='choose_image'||action==='choose_document'||action==='choose_video'){
+   if(action==='choose_image'||action==='choose_album'||action==='choose_document'||action==='choose_video'){
     if(mediaSelectionBusy)return;
-    pickingVideo=action==='choose_video';
-    field('media').accept=action==='choose_image'?'image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,.heic,.heif':pickingVideo?'video/*,.mp4,.mov,.m4v':'application/pdf,video/mp4,video/quicktime,text/plain';
+    pickingVideo=action==='choose_video';pickingAlbum=action==='choose_album'&&channel==='whatsapp';
+    field('media').multiple=pickingAlbum;
+    field('media').accept=(action==='choose_image'||pickingAlbum)?'image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,.heic,.heif':pickingVideo?'video/mp4,video/quicktime,.mp4,.mov,.m4v':'application/pdf,text/plain';
     field('media').click();return;
    }
    if(action==='name_continue'){
@@ -1469,16 +1659,16 @@
     message.focus({preventScroll:true});message.setSelectionRange(...selection);return;
    }
    if(action==='connect'&&close())onConnect?.();
-   if(action==='save')void saveRemote();
+   if(action==='save'&&!dialog.classList.contains('structured-visual-review-mode'))void saveRemote();
    if(action==='fresh'){
     if(!state.remoteId&&!window.confirm('Iniciar outro rascunho e substituir a cópia local ao editar?'))return;
     if(close())open({cloud,channel,trigger,onSaved,onConnect,fresh:true});
    }
    if(action==='groups'){await refreshGroups();void refreshGate();}
-   if(action==='simulate'){
-    const simulation=$('[data-editor-simulation]');
-    simulation.textContent='Prévia local (sem envio) · '+draft.title+' · '+dispatchSummary(Boolean(draft.planned_local))+'. Nenhuma mensagem foi enviada ou agendada.';
-   }
+   if(action==='simulate'){visualReview(true);return;}
+   if(action==='end_visual_review'){visualReview(false);return;}
+   if(action==='review_schedule'||action==='review_publish'){visualReview(false);void requestDispatch(action==='review_schedule',control);return;}
+   if(action==='publish_now_panel'){void requestDispatch(false,control);return;}
    if(action==='publish'||action==='schedule')void requestDispatch(action==='schedule',control);
    if(action==='confirm_dispatch'&&pendingDispatch!==null){
     const scheduled=pendingDispatch;closeSheet();void dispatch(scheduled);
@@ -1539,7 +1729,9 @@
     }else if(!add({type:'text',text}))return;
     message.value='';paintLive();message.focus({preventScroll:true});
    }
+   if(action==='disband_album'&&block?.album_id){if(!window.confirm('Converter este álbum em fotos individuais? O envio futuro será separado.'))return;const group=block.album_id;for(const b of draft.blocks)if(b.album_id===group)delete b.album_id;render();changed();return;}
    if(['caption_split','caption_join'].includes(action)&&block){
+    if(block.album_id){tell('Álbuns preservam legendas por foto. Adicione texto separado antes ou depois do álbum.');return;}
     if(editing||message.value.trim()){tell('Confirme o texto ou a legenda em edição antes de mudar o modo.');return;}
     const problem=mediaCaptionMode(draft.blocks,index,action==='caption_split'?'separate':'join',uuid);
     if(problem){tell(({BLOCK_LIMIT:'Limite de 32 blocos por rascunho.',CAPTION_LIMIT:'A legenda pode ter até 1.000 caracteres.',NO_TEXT:'Não há texto seguinte para usar como legenda.'})[problem]||'Modo indisponível.');return;}
@@ -1552,6 +1744,7 @@
     composeAction();message.focus({preventScroll:true});changed();
    }
    if(action==='duplicate'&&block){
+    if(block.album_id){tell('Para duplicar fotos do álbum, converta primeiro em fotos individuais.');return;}
     if(draft.blocks.length>=32){tell('Limite de 32 blocos por rascunho.');return;}
     const copy={...block,id:uuid()};
     if(['image','file'].includes(block.type)){
@@ -1565,10 +1758,10 @@
    }
    if(['up','down'].includes(action)&&block){
     const to=index+(action==='up'?-1:1);
-    if(to>=0&&to<draft.blocks.length){[draft.blocks[index],draft.blocks[to]]=[draft.blocks[to],draft.blocks[index]];render();changed();}
+    if(to>=0&&to<draft.blocks.length){const next=moveAlbumBlock(draft.blocks,index,action==='up'?-1:1);if(next){draft.blocks=next;render();changed();}}
    }
-   if(action==='delete'&&block){if(captionTarget===block.id){captionTarget=null;composeAction();}removed={block,index};draft.blocks.splice(index,1);if(editing===block.id){editing=null;message.value='';composeAction();}render();changed();}
-   if(action==='revert'&&removed&&draft.blocks.length<32){draft.blocks.splice(removed.index,0,removed.block);removed=null;render();changed();}
+   if(action==='delete'&&block){if(block.album_id&&draft.blocks.filter(b=>b.album_id===block.album_id).length<=2){tell('Álbum precisa de duas fotos. Converta em fotos individuais antes de remover.');return;}if(captionTarget===block.id){captionTarget=null;composeAction();}removed={block,index};draft.blocks.splice(index,1);if(editing===block.id){editing=null;message.value='';composeAction();}render();changed();}
+   if(action==='revert'&&removed&&draft.blocks.length<32){const next=draft.blocks.slice();next.splice(removed.index,0,removed.block);if(albumDraftIssue(next)){tell('Não é possível restaurar nessa posição sem separar o álbum.');return;}draft.blocks=next;removed=null;render();changed();}
   });
   if(remote&&!state.savedDraft&&state.revision===remote.revision)state.savedDraft=JSON.stringify(remote.draft);
   render();if(!readOnly)renderGroups();dialog.showModal();$('[data-editor=close]').focus();
