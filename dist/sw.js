@@ -1,5 +1,5 @@
 /* Cache limité à l'interface statique : aucune API, photo ou session. */
-const CACHE='neopeptideos-shell-20261127-campanhas-estatisticas-teste-3';
+const CACHE='neopeptideos-shell-20261127-campanhas-estatisticas-teste-4';
 const ASSETS=['./','index.html','style.css','appearance.js','core.js','cloud.js','captcha.js','push.js','community-alerts.js','notification-center.js','shop-core.js','shop-promotions.js','vendor/qr/qrcode.js','vendor/qr/jsQR.js','shop-order-qr.js','shop.js','support.js','media-links.js','pdf-reader.js','library-video.js','library-files.js','library-shelf.js','vendor/pdfjs/pdf.mjs','vendor/pdfjs/pdf.worker.mjs','community.js','library.js','gestures.js','arrival.js','install.js','web-privacy.js','app.js','admin/agent.js','admin/campaign-editor.js','admin/campaign-central.js','config.js','manifest.webmanifest','assets/background.svg','assets/background-gold.svg','assets/brands/mercadopago.svg','assets/photo-example-1.png','assets/photo-example-2.png','assets/logo-neopep.png','assets/favicon-32.png','assets/icon-maskable-512.png','assets/icon-192.png','assets/icon-512.png','assets/apple-touch-icon.png'];
 const urls=new Set(ASSETS.map(p=>new URL(p,self.registration.scope).href));
 self.addEventListener('install',e=>e.waitUntil((async()=>{
@@ -29,14 +29,16 @@ const privatePushMessages={
  shop:'Seu pedido recebeu uma atualização.'
 };
 self.addEventListener('push',event=>{
- let tag='neo-reminder',kind='reminder';
+ let tag='neo-reminder',kind='reminder',title='NeoPep',body;
  try{
   const data=event.data?.json();
   if(/^[a-f0-9-]{36}$/.test(data?.tag))tag=data.tag;
   if(['community','support','library','shop','campaign'].includes(data?.kind))kind=data.kind;
+  if(kind==='shop'&&data?.notice==='payment_confirmed'){title='Compra confirmada';body='Seu pagamento foi aprovado. Acompanhe seu pedido no NeoPep.';}
+  else if(kind==='shop'&&data?.notice==='payment_pending'){title='Pagamento pendente';body='Confira o prazo e os detalhes da sua compra no NeoPep.';}
  }catch{}
- event.waitUntil(self.registration.showNotification('NeoPep',{
-  body:privatePushMessages[kind],tag,
+ event.waitUntil(self.registration.showNotification(title,{
+  body:body||privatePushMessages[kind],tag,
   icon:new URL('assets/icon-192.png',self.registration.scope).href,
   badge:new URL('assets/icon-192.png',self.registration.scope).href,data:{target:kind}
  }));
