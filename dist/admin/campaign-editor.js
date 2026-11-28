@@ -3,14 +3,14 @@
  const e=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const states={eligible:'Elegível',stale:'Desatualizado',disconnected:'Desconectado',unavailable:'Indisponível'};
  const videoOriginal=mime=>['video/mp4','video/quicktime'].includes(mime);
- const originalLimit=mime=>videoOriginal(mime)?25*1024*1024:5*1024*1024;
+ const originalLimit=mime=>mime==='text/plain'?5*1024*1024:50*1024*1024;
  const stableDraft=value=>JSON.stringify(value,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
  const sameDraft=(saved,draft)=>{try{return stableDraft(typeof saved==='string'?JSON.parse(saved):saved)===stableDraft(draft);}catch{return false;}};
  const originalExt=mime=>mime==='application/pdf'?'.pdf':mime==='video/quicktime'?'.mov':'.mp4';
  // iOS Photos can label an MP4 as QuickTime, or return a real MOV. Inspect
  // the container before normalizing the MIME; preserve QuickTime as MOV.
  async function selectedVideo(file){
-  if(!file.size||file.size>originalLimit('video/mp4'))throw Error('O vídeo deve ter até 25 MB (arquivo selecionado: '+(file.size/1048576).toFixed(1)+' MB).');
+  if(!file.size||file.size>originalLimit('video/mp4'))throw Error('O vídeo deve ter até 50 MB (arquivo selecionado: '+(file.size/1048576).toFixed(1)+' MB).');
   const bytes=await file.arrayBuffer(),head=new Uint8Array(bytes);
   const tag=offset=>String.fromCharCode(...head.subarray(offset,offset+4));
   if(head.length<16||tag(4)!=='ftyp')throw Error('Formato de vídeo incompatível. Selecione um arquivo MP4 ou MOV válido.');
@@ -237,7 +237,7 @@
     pane('groups','Grupos sincronizados','<div class="inline-actions"><button type="button" class="secondary" data-editor="groups">Atualizar grupos e diagnóstico</button><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button></div><label class="central-search editor-search"><input name="group_search" type="search" aria-label="Pesquisar grupo ou conexão" placeholder="Pesquisar grupo ou conexão"><span class="search-decoration" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></span></label><p class="sub" data-editor-group-count></p><div data-editor-groups></div>')}
     ${pane('photo','Foto','<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">Escolha o modo de envio. O texto separado será uma mensagem independente. Salve e confira a prévia antes de publicar.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto</button>')}
     ${pane('file','Documento','<label>Modo do anexo<select name="file_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><button type="button" class="secondary" data-editor="choose_document">Escolher PDF ou TXT</button>')}
-    ${pane('video','Vídeo','<label>Modo do vídeo<select name="video_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><p class="sub">MP4 ou MOV de até 25 MB. O original será preservado. No WhatsApp, o Connect prepara uma cópia MP4 para reprodução nativa, sem cortes. Se não for possível, o vídeo não será enviado como documento.</p><button type="button" class="secondary" data-editor="choose_video">Selecionar vídeo</button><p class="sub" data-video-select-status role="status" aria-live="polite"></p>')}
+    ${pane('video','Vídeo','<label>Modo do vídeo<select name="video_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><p class="sub">MP4 ou MOV de até 50 MB. O original será preservado. No WhatsApp, o Connect prepara uma cópia MP4 para reprodução nativa, sem cortes. Se não for possível, o vídeo não será enviado como documento.</p><button type="button" class="secondary" data-editor="choose_video">Selecionar vídeo</button><p class="sub" data-video-select-status role="status" aria-live="polite"></p>')}
     <input type="file" name="media" accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4,video/quicktime,text/plain" hidden>
     ${pane('link','Link','<label>Link HTTPS<input name="link" type="url" maxlength="2000"></label><button type="button" class="secondary" data-editor="link">Adicionar link</button>')}
     ${pane('catalog','Referências','<div class="central-search editor-search"><input name="catalog_search" type="search" maxlength="100" aria-label="Buscar referências" placeholder="Buscar referências"><button type="button" class="structured-icon" data-editor="catalog_search" aria-label="Buscar referências" title="Buscar referências"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></button></div><div class="structured-catalog-tools"><button type="button" class="secondary" data-editor="prepare_thumbs" hidden>Preparar miniaturas faltantes</button><p class="sub" data-catalog-thumb-status role="status"></p></div><div data-editor-catalog></div><p class="sub">As referências preservam as permissões de acesso e consentimento.</p>')}
@@ -1110,8 +1110,8 @@
     finally{input.value='';mediaSelectionBusy=false;if(select)select.disabled=false;}
    }else input.value='';
    const image=/^image\/(jpeg|png|webp|heic|heif|avif)$/.test(file.type)||/\.(heic|heif)$/i.test(file.name);
-   if((!image&&!['application/pdf','video/mp4','video/quicktime','text/plain'].includes(file.type))||!file.size||file.size>(image?25*1024*1024:originalLimit(file.type))||draft.blocks.length>=32){
-    tell('Selecione foto ou vídeo MP4 ou MOV de até 25 MB, ou PDF/TXT de até 5 MB, dentro do limite de blocos.');return;
+   if((!image&&!['application/pdf','video/mp4','video/quicktime','text/plain'].includes(file.type))||!file.size||file.size>(image?50*1024*1024:originalLimit(file.type))||draft.blocks.length>=32){
+    tell('Selecione foto, PDF ou vídeo MP4/MOV de até 50 MB, ou TXT de até 5 MB, dentro do limite de blocos.');return;
    }
    const id=uuid(),layout=field(image?'layout':videoOriginal(file.type)&&sheet.dataset.activePane==='video'?'video_layout':'file_layout')?.value||'caption';
    try{
@@ -1290,7 +1290,7 @@
     if(s.preview?.state==='ready'&&s.preview.url){
      const v=document.createElement('video');v.src=s.preview.url;v.muted=true;v.playsInline=true;v.loop=true;v.autoplay=!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;v.controls=true;v.preload='metadata';v.style.maxWidth='100%';v.setAttribute('aria-label','Prévia curta sem áudio');$('[data-library-share-video]').append(v);
     }
-    status.textContent=!originalAllowed&&!previewAllowed&&!s.policy?.original&&!s.policy?.preview?'Uso de arquivo em campanhas não autorizado. '+(s.policy?.can_manage?'Escolha acima uma autorização exclusiva para campanhas, se desejar.':'O responsável pelo arquivo pode autorizar o compartilhamento.'):!libraryFileDraftReady()?'Preparação de arquivos indisponível neste canal. Use capa + link.':video&&s.preview?.state!=='ready'?'Prévia curta ainda não disponível. Confira o processamento no NeoPep Connect e reabra este material.':o.disabled?'Original acima do limite (MP4/MOV 25 MB; PDF 5 MB) ou formato não suportado.':!libraryOriginalReady()?'Você pode adicionar o arquivo ou prévia ao rascunho. O envio continua desativado no servidor.':'Selecione como compartilhar.';
+    status.textContent=!originalAllowed&&!previewAllowed&&!s.policy?.original&&!s.policy?.preview?'Uso de arquivo em campanhas não autorizado. '+(s.policy?.can_manage?'Escolha acima uma autorização exclusiva para campanhas, se desejar.':'O responsável pelo arquivo pode autorizar o compartilhamento.'):!libraryFileDraftReady()?'Preparação de arquivos indisponível neste canal. Use capa + link.':video&&s.preview?.state!=='ready'?'Prévia curta ainda não disponível. Confira o processamento no NeoPep Connect e reabra este material.':o.disabled?'Original acima do limite (MP4/MOV/PDF 50 MB) ou formato não suportado.':!libraryOriginalReady()?'Você pode adicionar o arquivo ou prévia ao rascunho. O envio continua desativado no servidor.':'Selecione como compartilhar.';
    }catch{if(libraryShareActive(s))status.textContent='Não foi possível consultar o arquivo. Você pode tentar capa + link.';}
   }
   async function applyLibrarySharePermission(){
