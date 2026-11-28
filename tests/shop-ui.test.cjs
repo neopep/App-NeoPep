@@ -91,6 +91,8 @@ test('payment return trusts server order state across simulated provider outcome
   ['rejected','approved','Pagamento não aprovado',false],
   ['expired','approved','Pedido expirado',false],
   ['cancelled','approved','Pagamento cancelado',false],
+  ['refunded','approved','Pagamento reembolsado',false],
+  ['charged_back','approved','Pagamento contestado',false],
   ['paid','rejected','Pagamento aprovado',true],
   ['test_paid','approved','Teste aprovado',true]
  ];
@@ -105,4 +107,28 @@ test('payment return trusts server order state across simulated provider outcome
   assert.deepEqual(s.navigation,[]);
   assert.equal(new URL(s.window.location.href).searchParams.has('status'),false);
  }
+});
+
+test('unmatched payment callback never confirms a different paid order',async()=>{
+ const unrelated='10000000-0000-4000-8000-000000000099';
+ const s=setup({orderStatus:'paid',url:'https://app.test/neo/?order='+unrelated+'&status=approved&collection_status=approved&payment_id=999&external_reference='+O+'#loja'});
+ await s.ui.load();
+ const main=s.document.querySelector('main');
+ assert.doesNotMatch(main.textContent,/Pagamento confirmado/);
+ assert.ok(s.calls.some(([action])=>action==='orders'));
+ assert.equal(s.calls.some(([action])=>['order','cart'].includes(action)),false);
+ assert.deepEqual(s.navigation,[]);
+ for(const key of ['order','status','collection_status','payment_id','external_reference']){
+  assert.equal(new URL(s.window.location.href).searchParams.has(key),false,key);
+ }
+});
+
+test('unverified payment callback cannot confirm a missing order',async()=>{
+ const s=setup({url:'https://app.test/neo/?order='+O+'&status=approved&payment_id=999#loja'});
+ const original=s.window.NeoCloud.shop;
+ s.window.NeoCloud.shop=async(action,payload)=>action==='orders'?[]:original(action,payload);
+ await s.ui.load();
+ assert.doesNotMatch(s.document.querySelector('main').textContent,/Pagamento confirmado|Pagamento aprovado/);
+ assert.deepEqual(s.navigation,[]);
+ assert.equal(s.calls.some(([action])=>['order','cart'].includes(action)),false);
 });
