@@ -208,7 +208,7 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
 
 // Only application-owned frames reach the inherited protocol pipe.
 export const PROTOCOL_PREFIX='NEO-WA/1 ';
-export const PROTOCOL_MAX=40*1024*1024;
+export const PROTOCOL_MAX=72*1024*1024;
 export function isolateProtocolOutput(stdout){
  const protocolWrite=stdout.write.bind(stdout);
  const discard=new Writable({write(_chunk,_encoding,done){done();}});
@@ -231,7 +231,7 @@ if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){
  process.on('unhandledRejection',()=>{void stop()});
  let pending=Promise.resolve();
  lines.on('line',line=>{
-  if(line.length>40*1024*1024)return;
+  if(line.length>PROTOCOL_MAX)return;
   pending=pending.then(async()=>{try{await bridge.receive(JSON.parse(line));}catch{}});
  });
 }
