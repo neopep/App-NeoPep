@@ -89,7 +89,7 @@ test('pacote UX: orientacao da seringa e acompanhamento de frasco no diario',()=
 test('pacote UX: autorizar notificacoes apenas com escolha explicita e registrar push',()=>{
  const app=fs.readFileSync('dist/app.js','utf8');
  assert.match(app,/data-privacy-select-none/);
- assert.match(app,/Revise as opções/);
+ assert.match(app,/Confira e confirme/);
  assert.match(app,/initial\?'OK'/);
  assert.match(app,/name="skip" class="text-btn full" disabled>Agora não/);
  assert.match(app,/const nativeNotice=wantsCampaigns\?Promise\.resolve\(window\.NeoPush\?\.enable\?\.\(\)\)/);
@@ -102,6 +102,6 @@ test('pacote UX: player neutro e links completos para referencias, sem enviar na
  assert.match(styles,/\.library-video-shell\{--video-gold:#edf0f2\}/);
  assert.match(styles,/\[data-theme=light\] \.privacy-option input::after/);
  assert.match(editor,/new URL\('\/\?material='\+encodeURIComponent\(block\.ref\)\+'#comunidade',location\.origin\)\.href/);
- assert.match(editor,/Ver prévia \(sem enviar\)/);
+ assert.match(editor,/data-editor="simulate">Ver prévia/);
  assert.match(editor,/A prévia não envia mensagens/);
 });

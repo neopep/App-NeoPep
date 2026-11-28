@@ -1,0 +1,3 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
+const editor=fs.readFileSync('dist/admin/campaign-editor.js','utf8'),cloud=fs.readFileSync('src/cloud.js','utf8');
+test('Produção preserva identidade no rótulo sincronizado existente, sem depender da RPC 013',()=>{assert.ok(editor.includes("e(row.connection||'Conexão sem evidência')"));assert.ok(editor.includes("row.name} ${row.connection||''}"));assert.ok(editor.includes("cloud.campaignWhatsAppSync('catalog')"));assert.ok(!editor.includes('campaignWhatsAppIdentities'));assert.ok(!cloud.includes('neo_campaign_wa_admin_identities'));});

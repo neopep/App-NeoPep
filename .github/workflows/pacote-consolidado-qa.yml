@@ -1,0 +1,23 @@
+name: NeoPep pacote consolidado QA
+on:
+  pull_request:
+    branches:
+      - desenvolvimento/campanhas-entrega-edicao-20261127
+      - desenvolvimento/campanhas-entrega-edicao-teste-20261127
+permissions:
+  contents: read
+jobs:
+  web-qa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm run build
+      - run: npm run check
+      - run: npm test

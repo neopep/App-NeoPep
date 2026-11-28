@@ -150,12 +150,12 @@ const api={configured,connectTestEnabled:connectEnabled,
   const sdk=need(),version=identityVersion,owner=user?.id;
   const mime=file?.type;
   if(!owner||typeof path!=='string'||!/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.(pdf|mp4|mov)$/.test(path)||path.split('/')[0]!==owner||
-   !['application/pdf','video/mp4','video/quicktime'].includes(mime)||!file.size||file.size>(mime==='application/pdf'?5242880:26214400)||!path.endsWith(mime==='application/pdf'?'.pdf':mime==='video/quicktime'?'.mov':'.mp4'))throw Error('Arquivo original inválido. PDF de até 5 MB ou MP4 ou MOV de até 25 MB.');
+   !['application/pdf','video/mp4','video/quicktime'].includes(mime)||!file.size||file.size>52428800||!path.endsWith(mime==='application/pdf'?'.pdf':mime==='video/quicktime'?'.mov':'.mp4'))throw Error('Arquivo original inválido. PDF, MP4 ou MOV de até 50 MB.');
   // Safari/iOS may send an empty multipart body for Blob/File recovered from IndexedDB.
   // Materialize bytes first; the SDK uploads ArrayBuffer as a binary request.
   const bytes=await file.arrayBuffer();
   if(version!==identityVersion||user?.id!==owner)throw Error('A conta mudou durante o envio.');
-  if(bytes.byteLength!==file.size||!bytes.byteLength||bytes.byteLength>(mime==='application/pdf'?5242880:26214400))throw Error('Não foi possível ler o arquivo completo. Selecione novamente o documento.');
+  if(bytes.byteLength!==file.size||!bytes.byteLength||bytes.byteLength>52428800)throw Error('Não foi possível ler o arquivo completo. Selecione novamente o documento.');
   const result=ok(await sdk.storage.from('neo-campaign-originals').upload(path,bytes,{contentType:mime,upsert:false,cacheControl:'0'}));
   if(version!==identityVersion||user?.id!==owner)throw Error('A conta mudou durante o envio.');
   return result.path;
@@ -172,7 +172,7 @@ const api={configured,connectTestEnabled:connectEnabled,
   if(!owner||typeof path!=='string'||!/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.(pdf|mp4|mov)$/.test(path)||path.split('/')[0]!==owner)throw Error('Arquivo indisponível.');
   const file=ok(await sdk.storage.from('neo-campaign-originals').download(path));
   if(version!==identityVersion||user?.id!==owner)throw Error('A conta mudou.');
-  if(!file||file.size>(path.endsWith('.pdf')?5242880:26214400))throw Error('Arquivo inválido.');
+  if(!file||file.size>52428800)throw Error('Arquivo inválido.');
   return file;
  },
  async campaignMediaUpload(path,jpeg){
@@ -233,6 +233,15 @@ const api={configured,connectTestEnabled:connectEnabled,
  async shopPhotoURL(path){need();return ok(await client.storage.from('neo-shop-products').createSignedUrl(path,600)).signedUrl},
  async uploadShopPhoto(blob){need();if(blob.type!=='image/jpeg'||blob.size>5242880)throw Error('Foto inválida.');const version=identityVersion;const reserved=await api.shop('reserve_photo');ok(await client.storage.from('neo-shop-products').upload(reserved.path,blob,{contentType:'image/jpeg',upsert:false}));if(version!==identityVersion)throw Error('A conta mudou.');return reserved.path},
  async shopPayment(orderId){need();const version=identityVersion;const response=await client.functions.invoke('mercadopago-create',{body:{order_id:orderId}});if(response.error){let message='Pagamento ainda indisponível. Confira a configuração do Mercado Pago.';try{const detail=await response.error.context.json();if(typeof detail.error==='string')message=detail.error}catch{}throw Error(message)}const result=response.data;if(version!==identityVersion)throw Error('A conta mudou.');return result},
+ // BEGIN isolated administrative quote adapter
+ async adminInstallmentRequest(action,payload={}){need();if(!official||location.origin!=='https://app.neopep.com.br'||payload.environment!=='production'||!['status','save','sync'].includes(action))throw Error('Ambiente incompatível.');const version=identityVersion;const result=action==='sync'?await client.functions.invoke('shop-installment-admin',{body:{action:'sync',environment:'production'}}):await client.rpc('neo_shop_installments_v1',{p_action:action,p_payload:payload});if(version!==identityVersion)throw Error('A conta mudou.');if(result.error)throw Error('Não foi possível consultar as taxas administrativas.');return result.data},
+ // END isolated administrative quote adapter
+ // BEGIN isolated customer quote adapter
+ async shopInstallmentQuotes(payload={}){need();if(!official||location.origin!=='https://app.neopep.com.br')throw Error('Ambiente incompatível.');const version=identityVersion;const r=await client.rpc('neo_shop_installments_v1',{p_action:'read',p_payload:payload});if(version!==identityVersion)throw Error('A conta mudou.');return ok(r)},
+ // END isolated customer quote adapter
+ // BEGIN isolated seller tariff adapter
+ async sellerTariffs(action,payload={}){need();const version=identityVersion;if(!['status','save'].includes(action))throw Error('Operação inválida.');const r=await client.rpc('neo_shop_seller_tariffs_v1',{p_action:action,p_payload:payload});if(version!==identityVersion)throw Error('A conta mudou.');return ok(r)},
+ // END isolated seller tariff adapter
  async shopPaymentIntegration(action='status',payload={}){need();const version=identityVersion,result=await client.functions.invoke('shop-integrations',{body:{...payload,action}});if(version!==identityVersion)throw Error('A conta mudou.');if(result.error){let code='failed';try{code=(await result.error.context?.json())?.error||code}catch{}const messages={access_token:'Informe um Access Token válido.',webhook_secret:'Informe a assinatura secreta do webhook.',provider_key_invalid:'O Mercado Pago recusou o Access Token.',environment_mismatch:'O Access Token não corresponde ao ambiente escolhido.',configuration_pending:'Salve o Access Token e a assinatura do webhook antes de testar.',forbidden:'Apenas o administrador pode configurar pagamentos.'};throw Error(messages[code]||'Não foi possível configurar o Mercado Pago.')}return result.data},
  async shopVisibilityRevision(){
   need();const version=identityVersion;
