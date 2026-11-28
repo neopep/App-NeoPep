@@ -15,7 +15,7 @@ Deno.serve(async(req:Request)=>{
  if(!permitted)return out(403,{error:'origin'});if(req.method==='OPTIONS')return new Response(null,{status:204,headers});if(req.method!=='POST')return out(405,{error:'method'});
  const token=req.headers.get('Authorization')?.replace(/^Bearer /i,'');if(!token)return out(401,{error:'auth'});
  const admin=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false,autoRefreshToken:false}}),auth=await admin.auth.getUser(token);if(auth.error||!auth.data.user)return out(401,{error:'auth'});
- try{const body=await req.json(),action=String(body.action||'status');await admin.rpc('neo_integration_admin',{p_actor:auth.data.user.id}).then((r:any)=>{if(r.error)throw Error('forbidden')});
+ try{const body=await req.json(),action=String(body.action||'status');const financialAdmin=await admin.rpc('neo_shop_financial_admin_v1',{p_actor:auth.data.user.id});if(financialAdmin.error||financialAdmin.data!==true)throw Error('forbidden');
   if(action==='status'){const r=await admin.rpc('neo_shop_payment_integration',{p_actor:auth.data.user.id,p_action:'status',p_payload:{}});if(r.error)throw r.error;return out(200,{...r.data,webhook_url:new URL('/functions/v1/mercadopago-webhook',Deno.env.get('SUPABASE_URL')).href})}
   if(action==='installment_sync'){
    const environment=body.environment;if(!['test','production'].includes(environment))return out(400,{error:'environment'});
