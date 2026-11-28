@@ -1221,3 +1221,26 @@ dialog.neo-structured-editor::backdrop{background:#192720}
 
 .neo-web-privacy [data-web-privacy=accept]{width:100%;min-height:48px;font-weight:700}
 .neo-web-privacy .privacy-options-link{min-height:44px;font-size:.85rem}
+
+/* Candidate: aligned shop rows and compact management controls. */
+.shop-products{align-items:stretch;grid-auto-rows:auto}
+.shop-products>.shop-product{display:flex;flex-direction:column;min-width:0;height:auto;align-self:stretch}
+.shop-products .shop-product-visual{flex:0 0 auto;aspect-ratio:1/1;min-width:0;width:100%}
+.shop-products .shop-product-copy{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
+.shop-products .shop-product-copy h3{overflow-wrap:anywhere}
+.shop-products .shop-product-actions{margin-top:auto;padding-top:4px;display:grid;grid-template-columns:1fr;gap:6px}
+.shop-products .shop-product-actions button{width:100%;min-width:0;min-height:44px}
+.shop-offer-badge{top:6px;left:6px;width:clamp(43px,12vw,60px);height:clamp(43px,12vw,60px);border-width:1.5px;padding:2px;gap:1px;font-size:clamp(7px,1.8vw,9px)}
+.shop-offer-badge b{font-size:clamp(10px,2.8vw,15px)}
+.shop-promotion-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}
+.shop-promotion-actions .shop-promotion-delete{margin-inline-start:auto;width:44px;height:44px;display:grid;place-items:center;color:#a94955}
+[data-theme=dark] .shop-promotion-actions .shop-promotion-delete{color:#f5a6af}
+.shop-orders-head{display:flex;flex-direction:column;align-items:stretch;gap:.7rem;margin:1.1rem 0 .6rem}
+.shop-orders-head h2{margin:0;white-space:normal}
+.shop-orders-tools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.45rem;width:100%}
+.shop-orders-tools button{min-width:0;min-height:44px;width:100%;padding:.55rem .35rem;font-size:.85rem;white-space:normal;line-height:1.3}
+.shop-orders-scan{display:flex;align-items:center;justify-content:center;gap:.25rem}
+.shop-orders-scan svg{width:17px;height:17px;flex:0 0 auto}
+.shop-order-environments{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.45rem}
+.shop-order-environments button{width:100%;min-width:0;min-height:48px;padding:.55rem .3rem;font-size:.78rem;white-space:normal;line-height:1.3}
+@media(max-width:340px){.shop-orders-scan{flex-direction:column}.shop-order-environments button{font-size:.72rem}}
