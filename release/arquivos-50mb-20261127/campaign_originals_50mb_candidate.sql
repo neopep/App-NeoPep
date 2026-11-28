@@ -42,10 +42,10 @@ begin
  d:=pg_get_functiondef(f);
  -- Existing 5 MiB PDF and 25 MiB video clients remain compatible; only .28 with explicit capability can receive bigger originals.
  foreach k in array array['job','m'] loop
-  a:='and (o.metadata->>''size'')::int between 8 and 26214400)';
-  if (length(d)-length(replace(d,a,'')))/length(a)<>(case when k='job' then 2 else 1 end) then raise exception 'device_size_contract_changed';end if;
-  -- Replace exactly one occurrence in order, preserving all surrounding checks.
-  b:='and (o.metadata->>''size'')::int between 8 and (case when d.version=''0.2.28'' and p_data->''originals_50mb''=''true''::jsonb and '||k||'.original_mime in (''video/mp4'',''video/quicktime'') then 52428800 else 26214400 end)) or (d.version=''0.2.28'' and p_data->''originals_50mb''=''true''::jsonb and '||k||'.original_mime=''application/pdf'' and (o.metadata->>''size'')::int between 8 and 52428800)';
+  a:='and (o.metadata->>''size'')::int between 8 and 26214400)'||chr(10)||(case when k='job' then '         ' else '      ' end)||'else false end';
+  if (length(d)-length(replace(d,a,'')))/length(a)<>1 then raise exception 'device_size_contract_changed';end if;
+  -- Keep the previous size branch unchanged, adding a new alternative inside the existing CASE.
+  b:=split_part(a,chr(10),1)||' or (d.version=''0.2.28'' and p_data->''originals_50mb''=''true''::jsonb and '||k||'.original_mime in (''application/pdf'',''video/mp4'',''video/quicktime'') and (o.metadata->>''size'')::int between 8 and 52428800)'||chr(10)||(case when k='job' then '         ' else '      ' end)||'else false end';
   d:=overlay(d placing b from strpos(d,a) for length(a));
  end loop;
  -- The generic allowlist extension also extends the native-video version lists.
