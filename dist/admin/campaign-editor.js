@@ -29,6 +29,31 @@
  const groupIdentity=id=>String(id).split(':').at(-1);
  const endpoint=(cloud,action,payload={})=>cloud.campaignEditor(action,payload);
 
+ // Native album draft contract. No dispatch or automatic decomposition until the transport is homologated.
+ function albumDraftIssue(blocks){
+  const groups=new Map(),ids=new Set();
+  for(const [i,b] of blocks.entries()){
+   if(Object.prototype.hasOwnProperty.call(b,'album_id')){
+    if(b.type!=='image'||!/^([a-f0-9]{8})(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(b.album_id||'')||
+     !/^([a-f0-9]{8})(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(b.id||'')||String(b.text||'').length>1000)return 'INVALID_ALBUM';
+    const rows=groups.get(b.album_id)||[];rows.push(i);groups.set(b.album_id,rows);ids.add(b.id);
+   }
+  }
+  for(const id of ids)if(blocks.filter(b=>b.id===id).length!==1)return 'INVALID_ALBUM';
+  for(const rows of groups.values())if(rows.length<2||rows.length>4||rows.at(-1)-rows[0]+1!==rows.length)return 'INVALID_ALBUM';
+  return null;
+ }
+ function hasNativeAlbum(blocks){return blocks.some(b=>Object.prototype.hasOwnProperty.call(b,'album_id'));}
+ function moveAlbumBlock(blocks,index,direction){
+  const to=index+direction;if(!blocks[index]||!blocks[to])return null;
+  const a=blocks[index],b=blocks[to],next=blocks.slice();
+  if(a.album_id&&a.album_id===b.album_id){[next[index],next[to]]=[next[to],next[index]];return next;}
+  const range=i=>{const id=blocks[i].album_id;if(!id)return [i,i];let start=i,end=i;while(start>0&&blocks[start-1].album_id===id)start--;while(end+1<blocks.length&&blocks[end+1].album_id===id)end++;return [start,end];};
+  const ar=range(index),br=range(to),left=ar[0]<br[0]?ar:br,right=ar[0]<br[0]?br:ar;
+  next.splice(left[0],right[1]-left[0]+1,...blocks.slice(right[0],right[1]+1),...blocks.slice(left[0],left[1]+1));
+  return albumDraftIssue(next)?null:next;
+ }
+
  function formatted(text){
   const syntax=/(\`\`\`[^\`]+\`\`\`|\*[^*\n]+\*|_[^_\n]+_|~[^~\n]+~)/g;
   return String(text||'').split(syntax).map(part=>{
@@ -231,7 +256,7 @@
      <div class="inline-actions">${publication?'':'<button type="button" class="secondary" data-editor="fresh">Novo rascunho</button>'}${channel==='whatsapp'&&!publication?'<button type="button" class="secondary" data-editor="cross">Criar versão App</button>':''}</div>`)}
     ${channel==='app'?pane('audience','Públicos, planos e exibição',advancedApp?appSettingsPane():testApp?'<p>Somente as contas de homologação autorizadas no servidor. Esta campanha não envia push.</p>':'<label>Público App<select name="audience"><option value="all">Todos</option><option value="free">Free</option><option value="premium">Premium</option></select></label><label class="check"><input name="push" type="checkbox"> Solicitar push App para contas com consentimento</label>'):
     pane('groups','Grupos sincronizados','<div class="inline-actions"><button type="button" class="secondary" data-editor="groups">Atualizar grupos e diagnóstico</button><button type="button" class="secondary" data-editor="connect">Abrir NeoPep Connect</button></div><label class="central-search editor-search"><input name="group_search" type="search" aria-label="Pesquisar grupo ou conexão" placeholder="Pesquisar grupo ou conexão"><span class="search-decoration" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></span></label><p class="sub" data-editor-group-count></p><div data-editor-groups></div>')}
-    ${pane('photo','Foto','<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">Escolha o modo de envio. O texto separado será uma mensagem independente. Salve e confira a prévia antes de publicar.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto</button>')}
+    ${pane('photo','Foto','<label>Modo da imagem<select name="layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><label>Qualidade local<select name="photo_quality"><option value="optimized">Otimizada</option><option value="hd">HD</option><option value="original">Original (quando legível)</option></select></label><button type="button" class="secondary" data-editor="hd" aria-label="Alternar qualidade da foto">HD</button><p class="sub">Escolha o modo de envio. O texto separado será uma mensagem independente. Salve e confira a prévia antes de publicar.</p><button type="button" class="secondary" data-editor="choose_image">Selecionar foto</button>'+ (channel==='whatsapp'?'<button type="button" class="secondary" data-editor="choose_album">Selecionar álbum (2–4 fotos)</button><p class="sub">Álbum nativo: preparação e prévia. Envio ainda bloqueado até homologação do Connect.</p>':''))}
     ${pane('file','Documento','<label>Modo do anexo<select name="file_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><button type="button" class="secondary" data-editor="choose_document">Escolher PDF ou TXT</button>')}
     ${pane('video','Vídeo','<label>Modo do vídeo<select name="video_layout"><option value="caption">Com legenda</option><option value="separate">Sem legenda / texto em outra mensagem</option></select></label><p class="sub">MP4 ou MOV de até 50 MB. O original será preservado. No WhatsApp, o Connect prepara uma cópia MP4 para reprodução nativa, sem cortes. Se não for possível, o vídeo não será enviado como documento.</p><button type="button" class="secondary" data-editor="choose_video">Selecionar vídeo</button><p class="sub" data-video-select-status role="status" aria-live="polite"></p>')}
     <input type="file" name="media" accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4,video/quicktime,text/plain" hidden>
@@ -279,7 +304,7 @@
   const status=$('[data-editor-status]'),message=field('message')||document.createElement('textarea');
   const live=$('[data-editor-live]');
   const preview=$('[data-editor-preview]'),connection=$('[data-structured-connection]');
-  const objectUrls=new Set(),localMedia=new Map(),sheet=$('[data-editor-sheet]');let pickingVideo=false,mediaSelectionBusy=false;
+  const objectUrls=new Set(),localMedia=new Map(),sheet=$('[data-editor-sheet]');let pickingVideo=false,pickingAlbum=false,mediaSelectionBusy=false;
   let sheetTrigger=null,catalogKind='document',captionTarget=state.captionTarget||null,pendingDispatch=null;
   const products=new Map(),contentPreviews=new Map(),previewAbort=new AbortController();let shopCatalog,communityFeed,openedReference=false;
   let testGate={};
@@ -613,6 +638,7 @@
    preview.innerHTML=draft.blocks.map((block,index)=>{
     const link=linkFor(block);
     return `<article class="neo-structured-bubble" data-block-id="${e(block.id)}">
+     ${block.album_id?'<p class="sub"><strong>Álbum nativo</strong> · '+(draft.blocks.filter(b=>b.album_id===block.album_id).findIndex(b=>b.id===block.id)+1)+' de '+draft.blocks.filter(b=>b.album_id===block.album_id).length+'</p>':''}
      ${block.type==='image'?'<img data-editor-image="'+e(block.id)+'" alt="Imagem da campanha" role="button" tabindex="0" aria-label="Ampliar imagem da campanha" hidden>':''}
      ${block.type==='image'?'<p class="sub" data-editor-media-status="'+e(block.id)+'" hidden></p>':''}
      ${block.type!=='product'&&(block.label||block.type==='file'&&block.name)?`<strong>${e(block.label||'Documento')}</strong>`:''}
@@ -625,6 +651,7 @@
      <div class="neo-structured-text" data-block-text>${formatted(block.text)}</div>
      ${link?`<span class="neo-wa-link">${e(link)}</span>`:''}
      ${readOnly?'':`<details class="structured-bubble-actions"><summary aria-label="Opções da mensagem">⋯</summary><div class="inline-actions">
+      ${block.album_id?`<button type="button" class="text-btn" data-editor="disband_album" data-index="${index}">Converter em fotos individuais</button>`:''}
       ${['text','image','product','document','community','file','link'].includes(block.type)?`<button type="button" class="text-btn" data-editor="edit" data-index="${index}">${block.type==='text'?'Editar texto':'Editar legenda'}</button>`:''}
       ${['image','file'].includes(block.type)?`<button type="button" class="text-btn" data-editor="caption_split" data-index="${index}">${block.text?'Separar legenda em outra mensagem':'Manter sem legenda'}</button>${draft.blocks[index+1]?.type==='text'?'<button type="button" class="text-btn" data-editor="caption_join" data-index="'+index+'">Usar texto seguinte como legenda</button>':''}`:''}
       ${['duplicate','up','down','delete'].map((a,i)=>`<button type="button" class="text-btn" data-editor="${a}" data-index="${index}" ${a==='up'&&!index||a==='down'&&index===draft.blocks.length-1?'disabled':''}>${['Duplicar','Subir','Descer','Excluir'][i]}</button>`).join('')}
@@ -679,7 +706,7 @@
   }
   function add(block){
    if(draft.blocks.length>=32){tell('Limite de 32 blocos por rascunho.');return false;}
-   draft.blocks.splice(block.type==='text'?(provisional??draft.blocks.length):draft.blocks.length,0,{id:uuid(),...block});if(block.type==='text')provisional=null;render();changed();return true;
+   const next=draft.blocks.slice();next.splice(block.type==='text'?(provisional??next.length):next.length,0,{id:uuid(),...block});if(albumDraftIssue(next)){tell('Não insira texto entre fotos de um álbum.');return false;}draft.blocks=next;if(block.type==='text')provisional=null;render();changed();return true;
   }
   function renderGroups(){
    const root=$('[data-editor-groups]');
@@ -727,6 +754,7 @@
    if(scheduled&&!draft.planned_local)add('time','Defina data e horário','schedule');
    if(editing||message.value.trim())add('text','Confirme o texto ou legenda','compose');
    if(!draft.blocks.length)add('content','Adicione conteúdo','menu');
+   if(hasNativeAlbum(draft.blocks))add('album','Álbum nativo ainda não homologado; envio e agendamento bloqueados','photo','blocked');
    if(channel==='whatsapp'&&draft.blocks.length>6)add('limit','Limite de 6 blocos por grupo','menu');
    if(draft.blocks.some(b=>b.type==='file')&&!libraryOriginalReady())add('file','Envio de arquivos bloqueado neste canal','file_help','blocked');
    if(channel==='whatsapp'&&(!gates.whatsapp_rich?.ready&&richMode()))add('connect','Confira conexão e autorização','groups','blocked');
@@ -771,7 +799,7 @@
     &&(b.type!=='file'||/\.(pdf|mp4|mov)$/.test(b.media_path||''))
     &&(b.type!=='link'||Boolean(validLink(b.url)))
     &&(!['product','document','community'].includes(b.type)||Boolean(b.ref)));
-   const allow=Boolean(!(publication&&state.dispatchConfirmed)&&!publication?.paused&&(!publication||channel==='app'||rich)&&enabled&&clean&&eligible&&pinned&&(appRich?appBlocks:rich?richBlocks:textOnly&&short));
+   const allow=Boolean(!hasNativeAlbum(draft.blocks)&&!(publication&&state.dispatchConfirmed)&&!publication?.paused&&(!publication||channel==='app'||rich)&&enabled&&clean&&eligible&&pinned&&(appRich?appBlocks:rich?richBlocks:textOnly&&short));
    dispatchReady.publish=Boolean(allow&&!(channel==='whatsapp'&&!testWA&&!gates.devices?.some(d=>d.ready)));
    dispatchReady.schedule=Boolean(allow&&draft.planned_local&&Date.parse(draft.planned_local+'-03:00')>Date.now()&&!(testWA&&!(rich?gates.whatsapp_rich?.ready:gates.whatsapp_test?.schedule_ready)));
    $('[data-editor=publish]').disabled=dispatching||saving;
@@ -868,6 +896,7 @@
    if(channel==='whatsapp'&&!draft.groups.length){explain('Selecione pelo menos um grupo sincronizado.');return;}
    if(editing||message.value.trim()){explain('Confirme o texto ou a legenda com a seta antes de continuar.');return;}
    if(!draft.blocks.length){explain('Adicione conteúdo antes de continuar.');return;}
+   if(hasNativeAlbum(draft.blocks)){explain('Álbum nativo ainda em homologação. Salve o rascunho; não haverá envio ou conversão automática.');return;}
    if(testApp&&draft.app_settings?.popup_enabled===false){explain('Em Teste, somente o pop-up está disponível. Marque a exibição interna para homologar.');return;}
    if(draft.blocks.some(b=>b.type==='file')&&!libraryOriginalReady()){explain('Envio de arquivo original desativado no servidor. O rascunho foi preservado; use Capa + link quando disponível.');return;}
    if(!state.remoteId||!sameDraft(state.savedDraft,draft)){
@@ -889,6 +918,7 @@
   }
   async function dispatch(scheduled){
    if(dispatching||saving||!current()||state.dispatchConfirmed&&publication)return;
+   if(hasNativeAlbum(draft.blocks)){tell('Envio nativo de álbum ainda não homologado.');return;}
    showGate();if(!dispatchReady[scheduled?'schedule':'publish']){tell('A versão ou a autorização mudou. Confira antes de confirmar.');return;}
    const rich=testWA&&richMode();
    if(publication&&channel==='whatsapp'&&!rich){tell('O envio desta publicação exige Connect compatível e destino Teste autorizado.');return;}
@@ -948,6 +978,7 @@
     // O SDK oficial e regenerado a partir de src/cloud.js. Aceitar tambem o
     // uploader legado enquanto abas PWA com um bundle antigo estiverem abertas.
     let stored;
+    if(block.album_id&&typeof cloud.campaignMediaUpload!=='function')throw Error('Atualize o aplicativo para guardar álbum privado.');
     if(typeof cloud.campaignMediaUpload==='function'){
      stored=await cloud.campaignMediaUpload(path,jpeg);
     }else if(typeof cloud.uploadCampaignImage==='function'){
@@ -958,6 +989,7 @@
     if(!current())throw Error('Sua conta mudou durante o upload.');
     if(typeof stored!=='string'||!new RegExp('^[a-f0-9-]{36}/[a-f0-9-]{36}\\.jpg$').test(stored)
       ||stored.split('/')[0]!==account)throw Error('O upload não retornou um caminho privado válido.');
+    if(block.album_id&&stored!==path)throw Error('O caminho do álbum não foi confirmado.');
     block.media_path=stored;saveLocal();
    }
   }
@@ -976,7 +1008,7 @@
   }
   let lastSaveError='';
   async function saveRemote(){
-   if(saving||dispatching||!current())return;
+   if(saving||dispatching||mediaSelectionBusy||!current())return;
    if(publication&&state.dispatchConfirmed){tell('Esta publicação já foi registrada. Volte à Central para editar e republicar.');return;}
    lastSaveError='';
    const editingBlock=editing&&draft.blocks.find(block=>block.id===editing);
@@ -989,8 +1021,14 @@
    }
    if(editing||message.value.trim()){tell('Conclua o bloco de texto em edição antes de registrar a versão.');return;}
    if(!draft.title.trim()){tell('Informe o título do rascunho.');return;}
+   if(hasNativeAlbum(draft.blocks)){
+    if(channel!=='whatsapp'||albumDraftIssue(draft.blocks)){saveLocal();tell('Álbum inválido: mantenha de 2 a 4 fotos contíguas.');return;}
+    saving=true;let capability;try{capability=await endpoint(cloud,'album_draft_capabilities');}catch{}finally{saving=false;}
+    if(!current())return;
+    if(capability?.album_drafts!==true){saveLocal();tell('Álbum salvo neste dispositivo. Registro remoto aguarda atualização do servidor.');return;}
+   }
    if(advancedApp&&draft.app_settings){const a=draft.app_settings;if((!a.popup_enabled&&!a.push_requested)||(a.audience!=='all'&&!a.targets.length)||!a.weekdays.length||!a.opens_at||a.opens_at>=a.closes_at||!Number.isInteger(a.frequency_hours)||a.frequency_hours<1||a.frequency_hours>8760||!Number.isInteger(a.max_views)||a.max_views<1||a.max_views>100||!Number.isInteger(a.priority)||a.priority<0||a.priority>100){tell('Confira público, dias, horário, canais e limites de exibição.');return;}}
-   if((testWA||testApp||channel==='app'&&gates.app_rich_popup===true)&&draft.blocks.some(b=>['image','document'].includes(b.type)&&!b.media_path)){
+   if((hasNativeAlbum(draft.blocks)||testWA||testApp||channel==='app'&&gates.app_rich_popup===true)&&draft.blocks.some(b=>['image','document'].includes(b.type)&&!b.media_path)){
     saveLocal();saving=true;tell('Preparando mídia privada para homologação…');
     try{await uploadRichImages();}catch(error){if(current()){saveLocal();tell(/^(Load failed|Failed to fetch|NetworkError)$/i.test(error.message||'')?'Falha ao preparar ou enviar a capa. Seu rascunho foi mantido. Tente novamente.':error.message||'Não foi possível preparar a imagem. Seu rascunho foi mantido.');}saving=false;return;}
     saving=false;
@@ -1043,7 +1081,7 @@
    localMedia.clear();dialog.remove();onClosed?.();if(trigger?.isConnected)trigger.focus({preventScroll:true});
   }
   function close(){
-   if(saving||dispatching){tell('Aguarde a confirmação do registro.');return false;}
+   if(saving||dispatching||mediaSelectionBusy){tell('Aguarde a confirmação do registro ou a preparação das fotos.');return false;}
    if(!saveLocal()&&!window.confirm('O rascunho não foi salvo. Sair mesmo assim?'))return false;
    dialog.close();return true;
   }
@@ -1096,6 +1134,20 @@
    if(input.name!=='media')return;
    let file=input.files?.[0];
    if(!file||mediaSelectionBusy)return;
+   if(pickingAlbum){
+    const files=Array.from(input.files||[]);input.value='';input.multiple=false;pickingAlbum=false;
+    if(channel!=='whatsapp'||editing||message.value.trim()||files.length<2||files.length>4||draft.blocks.length+files.length>32||files.some(f=>!f.size||f.size>50*1024*1024||!(/^image\/(jpeg|png|webp|heic|heif|avif)$/.test(f.type)||/\.(heic|heif)$/i.test(f.name)))){tell('Conclua a edição e escolha de 2 a 4 fotos válidas, dentro do limite de 32 blocos.');return;}
+    mediaSelectionBusy=true;const album=uuid(),prepared=[];
+    try{
+     for(const file of files){const image=await prepareImage(file,field('photo_quality').value);if(!current())return;const jpeg=await jpegForDispatch(image);if(!current())return;prepared.push({id:uuid(),jpeg,name:String(file.name||'Foto').slice(0,120)});}
+     if(!current()||draft.blocks.length+prepared.length>32)return;
+     await storeMedia('readwrite',store=>{for(const row of prepared)store.put(row.jpeg,mediaKey(row.id));});
+     if(!current()||draft.blocks.length+prepared.length>32){await storeMedia('readwrite',store=>{for(const row of prepared)store.delete(mediaKey(row.id));}).catch(()=>{});return;}
+     draft.blocks.push(...prepared.map(row=>({id:row.id,type:'image',album_id:album,name:row.name,layout:'caption',text:''})));captionTarget=prepared[0].id;composeAction();closeSheet();render();changed();saveLocal();tell('Álbum preparado. Edite as legendas e a ordem. Nenhum envio será realizado.');
+    }catch{if(current())tell('Não foi possível preparar todas as fotos. O rascunho anterior foi mantido.');}
+    finally{mediaSelectionBusy=false;}
+    return;
+   }
    const videoPick=pickingVideo||file.type.startsWith('video/')||/\.(mp4|mov|m4v)$/i.test(file.name);
    if(videoPick){
     mediaSelectionBusy=true;const select=$('[data-editor=choose_video]');if(select)select.disabled=true;
@@ -1507,10 +1559,11 @@
     if(item&&window.NeoLibraryFiles){openedReference=true;void window.NeoLibraryFiles.open(item,control).catch(()=>tell('Não foi possível abrir o material.'));}
    }
    if(readOnly){if(action==='edit_preview'&&close())onEdit?.();return;}
-   if(action==='choose_image'||action==='choose_document'||action==='choose_video'){
+   if(action==='choose_image'||action==='choose_album'||action==='choose_document'||action==='choose_video'){
     if(mediaSelectionBusy)return;
-    pickingVideo=action==='choose_video';
-    field('media').accept=action==='choose_image'?'image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,.heic,.heif':pickingVideo?'video/mp4,video/quicktime,.mp4,.mov,.m4v':'application/pdf,text/plain';
+    pickingVideo=action==='choose_video';pickingAlbum=action==='choose_album'&&channel==='whatsapp';
+    field('media').multiple=pickingAlbum;
+    field('media').accept=(action==='choose_image'||pickingAlbum)?'image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,.heic,.heif':pickingVideo?'video/mp4,video/quicktime,.mp4,.mov,.m4v':'application/pdf,text/plain';
     field('media').click();return;
    }
    if(action==='name_continue'){
@@ -1614,7 +1667,9 @@
     }else if(!add({type:'text',text}))return;
     message.value='';paintLive();message.focus({preventScroll:true});
    }
+   if(action==='disband_album'&&block?.album_id){if(!window.confirm('Converter este álbum em fotos individuais? O envio futuro será separado.'))return;const group=block.album_id;for(const b of draft.blocks)if(b.album_id===group)delete b.album_id;render();changed();return;}
    if(['caption_split','caption_join'].includes(action)&&block){
+    if(block.album_id){tell('Álbuns preservam legendas por foto. Adicione texto separado antes ou depois do álbum.');return;}
     if(editing||message.value.trim()){tell('Confirme o texto ou a legenda em edição antes de mudar o modo.');return;}
     const problem=mediaCaptionMode(draft.blocks,index,action==='caption_split'?'separate':'join',uuid);
     if(problem){tell(({BLOCK_LIMIT:'Limite de 32 blocos por rascunho.',CAPTION_LIMIT:'A legenda pode ter até 1.000 caracteres.',NO_TEXT:'Não há texto seguinte para usar como legenda.'})[problem]||'Modo indisponível.');return;}
@@ -1627,6 +1682,7 @@
     composeAction();message.focus({preventScroll:true});changed();
    }
    if(action==='duplicate'&&block){
+    if(block.album_id){tell('Para duplicar fotos do álbum, converta primeiro em fotos individuais.');return;}
     if(draft.blocks.length>=32){tell('Limite de 32 blocos por rascunho.');return;}
     const copy={...block,id:uuid()};
     if(['image','file'].includes(block.type)){
@@ -1640,10 +1696,10 @@
    }
    if(['up','down'].includes(action)&&block){
     const to=index+(action==='up'?-1:1);
-    if(to>=0&&to<draft.blocks.length){[draft.blocks[index],draft.blocks[to]]=[draft.blocks[to],draft.blocks[index]];render();changed();}
+    if(to>=0&&to<draft.blocks.length){const next=moveAlbumBlock(draft.blocks,index,action==='up'?-1:1);if(next){draft.blocks=next;render();changed();}}
    }
-   if(action==='delete'&&block){if(captionTarget===block.id){captionTarget=null;composeAction();}removed={block,index};draft.blocks.splice(index,1);if(editing===block.id){editing=null;message.value='';composeAction();}render();changed();}
-   if(action==='revert'&&removed&&draft.blocks.length<32){draft.blocks.splice(removed.index,0,removed.block);removed=null;render();changed();}
+   if(action==='delete'&&block){if(block.album_id&&draft.blocks.filter(b=>b.album_id===block.album_id).length<=2){tell('Álbum precisa de duas fotos. Converta em fotos individuais antes de remover.');return;}if(captionTarget===block.id){captionTarget=null;composeAction();}removed={block,index};draft.blocks.splice(index,1);if(editing===block.id){editing=null;message.value='';composeAction();}render();changed();}
+   if(action==='revert'&&removed&&draft.blocks.length<32){const next=draft.blocks.slice();next.splice(removed.index,0,removed.block);if(albumDraftIssue(next)){tell('Não é possível restaurar nessa posição sem separar o álbum.');return;}draft.blocks=next;removed=null;render();changed();}
   });
   if(remote&&!state.savedDraft&&state.revision===remote.revision)state.savedDraft=JSON.stringify(remote.draft);
   render();if(!readOnly)renderGroups();dialog.showModal();$('[data-editor=close]').focus();
