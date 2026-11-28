@@ -15,6 +15,7 @@ Deno.serve(async(req:Request)=>{
  try{
  webpush.setVapidDetails(subject,publicKey,privateKey);
  const client=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false,autoRefreshToken:false}});
+ const gate=await client.rpc('neo_staging_push_dispatch_enabled_v1');if(gate.error)return out(503,{error:'gate_unavailable'});if(gate.data!==true)return out(200,{sent:0,failed:0,disabled:true});
  const batch=await client.rpc('neo_push_claim');if(batch.error)throw Error('claim');
  const community=await client.rpc('neo_community_push_claim'); // An unavailable community queue must not stop personal reminders.
  const support=await client.rpc('neo_support_push_claim');
