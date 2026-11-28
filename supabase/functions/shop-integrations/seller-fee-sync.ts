@@ -24,12 +24,12 @@ export async function syncSellerFees(admin:any,environment:string,getConfig:()=>
  const claim=await call('claim');if(claim.status!=='claimed')return claim;
  const rows:any[]=[];let result='success';
  try{
-  if(!claim.orders.length)return await call('finish',{lease:claim.lease,rows,result:'no_evidence'});
   const config=await getConfig();if(config.mode!==environment)throw Error('environment');
   const headers={Authorization:'Bearer '+config.access};
   const seller=await fetcher('https://api.mercadopago.com/users/me',{headers,signal:AbortSignal.timeout(8000)});
   if(seller.status===429)result='rate_limited';
   else if(!seller.ok||String((await seller.json()).id)!==config.collector)result='provider_error';
+  else if(!claim.orders.length)result='no_evidence';
   else for(const order of claim.orders){
    const url=new URL('https://api.mercadopago.com/v1/payments/search');url.searchParams.set('external_reference',order.id);url.searchParams.set('limit','50');
    const response=await fetcher(url,{headers,signal:AbortSignal.timeout(8000)});
