@@ -122,7 +122,7 @@ window.NeoShop=(()=>{
   const {rows,estimated}=installmentRows(amount,installmentState.quotes);
   const plans=rows.filter(r=>r.installments>1).sort((a,b)=>b.installments-a.installments||a.total_cents-b.total_cents);
   if(!plans.length)return '<small class="sub shop-installment-hint">Consulte o parcelamento no Mercado Pago</small>';
-  const best=plans[0],summary=(estimated?'Simulação: ':'')+'até '+best.installments+'x de '+C.money(best.installment_cents);
+  const best=plans[0],summary='Simulação: até '+best.installments+'x de '+C.money(best.installment_cents);
   const note='Visa/Mastercard · sujeito ao cartão e emissor. Confirme as condições no Mercado Pago.';
   if(!expanded)return '<small class="shop-installment-hint">'+e(summary)+'</small><small class="sub">'+e(note)+'</small>';
   return '<details class="shop-installment-details"><summary>'+e(summary)+' · Ver parcelas</summary><div class="shop-installment-table"><table><thead><tr><th>Cartão</th><th>Parcelas</th><th>Acréscimo</th><th>Total</th></tr></thead><tbody>'+plans.map(r=>'<tr><td>'+e(r.method==='visa'?'Visa':'Mastercard')+'</td><td>'+e(r.installments)+'x '+e(C.money(r.installment_cents))+'</td><td>'+e(r.buyer_rate.toLocaleString('pt-BR'))+'%</td><td>'+e(C.money(r.total_cents))+'</td></tr>').join('')+'</tbody></table></div><p class="sub">'+e(note)+(estimated?' Estimativa a partir da tabela sincronizada; arredondamento pode variar.':' Valores consultados para este total.')+'</p></details>';
