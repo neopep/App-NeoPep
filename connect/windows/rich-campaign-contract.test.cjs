@@ -59,7 +59,7 @@ test('originais exigem transporte privado, opt-in e capacidade do cliente',()=>{
  assert.match(connect,/LoadRichCampaignOriginal/);
  assert.match(connect,/neo-campaign-originals/);
  assert.match(connect,/originals_v1=true/);
- assert.match(connect,/data\.Length>\(mime=="application\/pdf"\?5:25\)\*1024\*1024/);
+ assert.match(connect,/data\.Length>50\*1024\*1024/);
  assert.match(whatsapp,/DispatchCampaignFileAsync/);
  assert.match(whatsapp,/action="send_file"/);
 });
