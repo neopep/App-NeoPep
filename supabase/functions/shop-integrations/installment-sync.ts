@@ -1,5 +1,16 @@
 import {normalizeInstallments} from './installments.ts';
-import {shopPaymentConfig} from '../_shared/shop-payment-config.ts';
+import {decryptKey} from '../_shared/agent-providers.ts';
+// Teste only: use validated credentials from the same Teste database as checkout.
+// No environment-variable fallback, even if legacy MP_MODE defaults to test.
+export async function stagingInstallmentConfig(admin:any){
+ if(Deno.env.get('SUPABASE_URL')!=='https://qnuluspqfazdppciermw.supabase.co')throw Error('configuration_pending');
+ const row=await admin.rpc('neo_shop_payment_credentials',{p_environment:'test'});
+ const data=row.data;
+ if(row.error||data?.environment!=='test'||!data.encrypted_access||!data.validated_at||!/^[0-9]{1,30}$/.test(String(data.collector_id??'')))throw Error('configuration_pending');
+ const access=await decryptKey(data.encrypted_access,'mercadopago:access');
+ if(typeof access!=='string'||access.length<20)throw Error('configuration_pending');
+ return {access,collector:String(data.collector_id),mode:'test'};
+}
 // The ordinary installments endpoint is a quotation API, not a confirmed universal seller-rate table.
 // Never infer a formula or substitute a fixed BIN. Probe authenticated brand-specific quotes without BIN; generic amount-only calls are unsupported.
 export function retrySeconds(value:string|null,now=Date.now()){
@@ -13,8 +24,8 @@ export async function syncInstallments(admin:any,environment:'test'|'production'
  const quotes:any[]=[];let result='success',retry=1800;
  try{
   // Use the exact credentials the hosted checkout uses. Never cross environments.
-  const envAccess=Deno.env.get('MP_ACCESS_TOKEN'),envCollector=Deno.env.get('MP_COLLECTOR_ID'),envMode=Deno.env.get('MP_MODE')||'test';
-  const config=envAccess&&envCollector&&envMode===environment?{access:envAccess,collector:envCollector,mode:envMode}:await shopPaymentConfig(admin,false,environment);
+  if(environment!=='test')throw Error('configuration_pending');
+  const config=await stagingInstallmentConfig(admin);
   if(config.mode!==environment||config.collector!==String(claim.collector))throw Error('configuration_pending');
   const headers={Authorization:'Bearer '+config.access};
   const seller=await fetcher('https://api.mercadopago.com/users/me',{headers,signal:AbortSignal.timeout(10000)});
