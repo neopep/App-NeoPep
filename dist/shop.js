@@ -98,25 +98,14 @@ window.NeoShop=(()=>{
   return {base,sale,percent:percent.toLocaleString('pt-BR',{maximumFractionDigits:2})};
  }
  const displayPrice=p=>activeOffer(p)?.sale??p.price_cents;
- // Provider quotes are authoritative only at the exact amount. Stable rates across the two reference values support explicitly labelled estimates.
+ // Provider quotes are authoritative only at the exact amount. No estimates or inferred rates are shown.
  function installmentRows(amount,quotes,now=Date.now()){
   if(!Number.isSafeInteger(amount)||amount<1)return {rows:[],estimated:false};
   const fresh=(Array.isArray(quotes)?quotes:[]).filter(q=>Date.parse(q.expires_at)>now&&Array.isArray(q.rows));
   const valid=r=>['visa','master'].includes(r.method)&&Number.isInteger(r.installments)&&r.installments>=1&&r.installments<=24&&Number.isFinite(r.buyer_rate)&&r.buyer_rate>=0&&r.buyer_rate<=1000&&Number.isSafeInteger(r.installment_cents)&&r.installment_cents>0&&Number.isSafeInteger(r.total_cents)&&r.total_cents>0;
   const exact=fresh.find(q=>q.amount_cents===amount);
   if(exact)return {rows:exact.rows.filter(valid),estimated:false};
-  const lo=fresh.find(q=>q.amount_cents===10000),hi=fresh.find(q=>q.amount_cents===99700);
-  if(!lo||!hi||amount<10000||amount>99700)return {rows:[],estimated:false};
-  const out=[];
-  for(const method of ['visa','master'])for(let n=1;n<=24;n++){
-   const a=lo.rows.filter(r=>valid(r)&&r.method===method&&r.installments===n),b=hi.rows.filter(r=>valid(r)&&r.method===method&&r.installments===n);
-   if(!a.length||!b.length)continue;
-   const rates=[...new Set([...a,...b].map(r=>r.buyer_rate))];if(rates.length!==1)continue;
-   const rate=rates[0],total=Math.round(amount*(1+rate/100));
-   if(!a.every(r=>Math.abs(r.total_cents-Math.round(10000*(1+rate/100)))<=1)||!b.every(r=>Math.abs(r.total_cents-Math.round(99700*(1+rate/100)))<=1))continue;
-   out.push({method,installments:n,buyer_rate:rate,total_cents:total,installment_cents:Math.round(total/n)});
-  }
-  return {rows:out,estimated:true};
+  return {rows:[],estimated:false};
  }
  let installmentState=null,installmentRequest=0,installmentAdmin=null,installmentAdminBusy=false,installmentAdminMessage='';
  async function readInstallments(products=data?.products||[]){
@@ -1110,10 +1099,9 @@ window.NeoShop=(()=>{
  function installmentSyncPanel(){
   const c=installmentAdmin?.environment===mpSelected?installmentAdmin:null;
   if(!c)return '<section class="card space"><h3>Sincronização de parcelamento</h3><p class="sub">Configuração ainda indisponível neste ambiente.</p></section>';
-  const ref=(c.quotes||[]).find(q=>q.amount_cents===99700&&Date.parse(q.expires_at)>Date.now());
-  const rows=ref?.rows||[],last=c.last_success?new Date(c.last_success).toLocaleString('pt-BR'):'Ainda não sincronizado';
+  const rows=(c.quotes||[]).filter(q=>Date.parse(q.expires_at)>Date.now()).flatMap(q=>(q.rows||[]).map(r=>({...r,amount_cents:q.amount_cents}))),last=c.last_success?new Date(c.last_success).toLocaleString('pt-BR'):'Ainda não sincronizado';
   const labels={not_synced:'Aguardando primeira atualização',success:'Atualizado',partial:'Atualização parcial',rate_limited:'Limite da API · aguarde',unsupported:'Consulta indisponível',provider_error:'Falha no provedor',configuration_pending:'Credencial pendente',running:'Sincronizando',no_options:'Sem opções',no_products:'Sem produtos'};
-  return `<section class="card space"><h3>Taxas de parcelamento · Mercado Pago</h3><p class="sub">Tabela de referência Visa/Mastercard. Atualização automática padrão 24h; valores finais sujeitos ao emissor e ao checkout.</p><form data-shop-installment-config class="space"><label><input type="checkbox" name="show" ${c.show_enabled?'checked':''}> Exibir parcelamento nos produtos</label><label><input type="checkbox" name="auto" ${c.auto_enabled?'checked':''}> Sincronização automática</label><label>Frequência<select name="hours">${[6,12,24].map(h=>'<option value="'+h+'" '+(c.frequency_hours===h?'selected':'')+'>'+h+' horas</option>').join('')}</select></label><button type="submit" class="secondary" ${installmentAdminBusy?'disabled':''}>Salvar</button></form><p>Última atualização: ${e(last)}</p><p class="sub">${e(labels[c.last_result]||c.last_result||'')} ${e(installmentAdminMessage)}</p><div class="shop-admin-actions"><button type="button" class="primary" data-installment-sync ${installmentAdminBusy||!c.configured?'disabled':''}>Sincronizar agora</button><button type="button" class="secondary" data-installment-verify ${installmentAdminBusy||!rows.length?'disabled':''}>${c.checkout_verified?'Suspender exibição':'Confirmar conferência no checkout'}</button></div><p class="sub">${c.checkout_verified?'Exibição de valores habilitada.':'Confira as condições no checkout antes de liberar valores na vitrine.'}</p>${rows.length?'<div class="shop-installment-table"><table><thead><tr><th>Bandeira</th><th>Parcelas</th><th>Taxa</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+e(r.method==='visa'?'Visa':'Mastercard')+'</td><td>'+e(r.installments)+'x</td><td>'+e(Number(r.buyer_rate).toLocaleString('pt-BR'))+'%</td></tr>').join('')+'</tbody></table></div>':'<p class="sub">A tabela será preenchida com dados do provedor após sincronizar.</p>'}</section>`;
+  return `<section class="card space"><h3>Taxas de parcelamento · Mercado Pago</h3><p class="sub">Cotações reais por valor · Visa/Mastercard. Atualização automática padrão 24h; valores finais sujeitos ao emissor e ao checkout.</p><form data-shop-installment-config class="space"><label><input type="checkbox" name="show" ${c.show_enabled?'checked':''}> Exibir parcelamento nos produtos</label><label><input type="checkbox" name="auto" ${c.auto_enabled?'checked':''}> Sincronização automática</label><label>Frequência<select name="hours">${[6,12,24].map(h=>'<option value="'+h+'" '+(c.frequency_hours===h?'selected':'')+'>'+h+' horas</option>').join('')}</select></label><button type="submit" class="secondary" ${installmentAdminBusy?'disabled':''}>Salvar</button></form><p>Última atualização: ${e(last)}</p><p class="sub">${e(labels[c.last_result]||c.last_result||'')} ${e(installmentAdminMessage)}</p><div class="shop-admin-actions"><button type="button" class="primary" data-installment-sync ${installmentAdminBusy||!c.configured?'disabled':''}>Sincronizar agora</button><button type="button" class="secondary" data-installment-verify ${installmentAdminBusy||!rows.length?'disabled':''}>${c.checkout_verified?'Suspender exibição':'Confirmar conferência no checkout'}</button></div><p class="sub">${c.checkout_verified?'Exibição de valores habilitada.':'Confira as condições no checkout antes de liberar valores na vitrine.'}</p>${rows.length?'<div class="shop-installment-table"><table><thead><tr><th>Valor</th><th>Bandeira</th><th>Parcelas</th><th>Taxa</th><th>Total</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+e(C.money(r.amount_cents))+'</td><td>'+e(r.method==='visa'?'Visa':'Mastercard')+'</td><td>'+e(r.installments)+'x</td><td>'+e(Number(r.buyer_rate).toLocaleString('pt-BR'))+'%</td><td>'+e(C.money(r.total_cents))+'</td></tr>').join('')+'</tbody></table></div>':'<p class="sub">As cotações por valor serão preenchidas após sincronizar.</p>'}</section>`;
  }
  async function readInstallmentAdmin(){const token=generation,env=mpSelected;try{const c=await window.NeoCloud.shopInstallments('status',{environment:env});if(token===generation&&env===mpSelected)installmentAdmin=c;}catch{if(token===generation&&env===mpSelected)installmentAdmin=null;}}
  async function changeInstallmentAdmin(action,payload={}){
