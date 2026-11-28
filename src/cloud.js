@@ -17,10 +17,12 @@ function connectAIHost(){
 const connectTestEnabled=config.connectTestEnabled===true&&!official;
 const connectEnabled=connectTestEnabled||(official&&config.connectEnabled===true);
 const campaignsEnabled=!official||config.campaignActivationEnabled===true;
+// BEGIN local commercial account configuration
 const loopback=/^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::[0-9]+)?$/;
 const commercialPreview=config.commercialPreview===true&&loopback.test(location.origin)&&loopback.test(config.supabaseUrl);
 const commercialIntentKey='neo-commercial-onboarding';
 let commercialLoadedVersion=-1;
+// END local commercial account configuration
 const configured=(commercialPreview||/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(config.supabaseUrl||''))&&C.isPublicSupabaseKey(config.supabasePublishableKey);
 const ok=r=>{if(r.error){const source=r.error,emailLimit=source.code==='over_email_send_rate_limit'||/email rate limit exceeded/i.test(source.message||'');const error=new Error(emailLimit?'O limite de envio de e-mails foi atingido. Aguarde antes de tentar novamente. Se o problema continuar, entre em contato com o responsável pelo aplicativo.':source.message||'Não foi possível acessar a nuvem.');error.code=source.code||null;error.status=source.status||null;throw error}return r.data};
 const needsHealth=()=>{need();if(!api.hasConsent('health')||!api.hasConsent('terms'))throw Error('Conclua o cadastro inicial e os consentimentos antes de gravar na conta.');};
@@ -358,6 +360,7 @@ const api={configured,commercialPreview,connectTestEnabled:connectEnabled,
  async library(action='read',payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_library',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou. Reabra a biblioteca.');if(action==='read'&&data?.can_manage===true)data.upload_limits=await api.libraryUploadLimits();if(version!==identityVersion)throw Error('A conta mudou.');return data},
  async community(action,payload={}){need();const version=identityVersion;const data=ok(await client.rpc("neo_community",{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error("A conta mudou. Reabra a comunidade.");return data},get user(){return user},get validated(){return config.cloudValidated===true},get admin(){return isAdmin},get onboardingComplete(){return onboarded},get consents(){return consents.map(c=>({...c}))},hasConsent(purpose){return consents.some(c=>c.purpose===purpose&&c.version==='2026-11-v1'&&c.granted)},
  async init(onChange){listener=onChange;if(!configured)return null;client=createClient(config.supabaseUrl,config.supabasePublishableKey,{auth:{flowType:'pkce',persistSession:true,storage:authStorage,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'neo-auth'}});client.auth.onAuthStateChange((event,session)=>{const nextUser=session?.user||null;if(nextUser?.id!==user?.id){identityVersion++;profileRevision=null;consents=[];isAdmin=false;onboarded=false}user=nextUser;setTimeout(()=>listener?.(event,user),0)});if(typeof client.auth.initialize==='function'){const initialized=await client.auth.initialize();if(initialized.error)throw initialized.error}const sessionResult=await client.auth.getSession();if(sessionResult.error)throw sessionResult.error;if(!sessionResult.data.session)return null;const data=ok(await client.auth.getUser());user=data.user;return user},
+ // BEGIN local commercial account adapter
  async commercialAccount(){
   if(!commercialPreview)throw Error('Prévia comercial indisponível.');
   if(!user)return null;
@@ -393,6 +396,7 @@ const api={configured,commercialPreview,connectTestEnabled:connectEnabled,
   const account=await api.commercialAccount().catch(()=>null);
   return account?.id===expected&&account.commercialComplete===true&&account.onboardingComplete===false;
  },
+ // END local commercial account adapter
  async oauth(provider,options={}){if(!configured||!config.providers?.[provider])throw Error('Este provedor ainda não foi configurado.');chooseRemember(options.remember);const redirectTo=authRedirect();ok(await client.auth.signInWithOAuth({provider,options:{redirectTo:redirectTo.href,scopes:provider==='apple'?'name email':'email profile'}}))},
  async email(mode,email,password,name,options={}){
   if(!configured||!config.providers?.email)throw Error('Login por e-mail ainda não configurado.');
