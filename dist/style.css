@@ -1268,3 +1268,6 @@ dialog.neo-structured-editor::backdrop{background:#192720}
 [data-editor-pane=audience] fieldset{min-inline-size:0;max-width:100%;overflow-wrap:anywhere}
 [data-editor-pane=audience] fieldset .inline-actions{display:flex;flex-wrap:wrap;gap:.5rem}
 [data-editor-pane=audience] fieldset .inline-actions .check{flex:0 0 auto;max-width:100%}
+
+.neo-web-privacy [data-web-privacy=accept]{width:100%;min-height:48px;font-weight:700}
+.neo-web-privacy .privacy-options-link{min-height:44px;font-size:.85rem}
