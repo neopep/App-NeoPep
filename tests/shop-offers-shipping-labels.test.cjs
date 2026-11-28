@@ -25,7 +25,7 @@ function verify(source,css,sql){
  const scope=new Function('orders','orderEnvironment',get(' const operationalOrders=',' function newOrderCount(){')+'return {operationalOrders,orderStats};');
  const all=[real,{...real,id:'test',environment:'test',status:'test_paid'}];check(scope([...all,{...all[1],id:'archived',test_archived:true}],'archived').operationalOrders()[0].id==='archived','archive isolated');
  check(scope(all,'production').orderStats().total===1&&scope(all,'test').operationalOrders()[0].id==='test','test history isolated');
- for(const f of ['catalogue','detail','home']){const l=source.split('\n').find(x=>x.includes('function '+f+'('));check(l.includes('${offerBadge(p)}')&&l.includes('${offerPrice(p)}'),'offer rendered '+f);}
+ for(const f of ['renderCatalogue','renderDetail','home']){const l=source.split('\n').find(x=>x.includes('function '+f+'('));check(l.includes('${offerBadge(p)}')&&l.includes('${offerPrice(p)}'),'offer rendered '+f);}
  check(css.includes('size:100mm 150mm')&&css.includes('body:has(.shop-label-dialog[open])'),'print size and isolation');
  for(const q of ["code is null","payment_method='any'","min_quantity<=1","min_subtotal_cents<=p.price_cents","shop_discount_plan(items","shop_product_blocked(p_actor,p.id)","revoke all on function","p_action in (''catalog'',''featured'')"])check(sql.includes(q),'database guard '+q);
  check(!/\b(?:update|delete from|insert into)\s+neo_private\.shop_orders/i.test(sql),'orders must not be modified');
