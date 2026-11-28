@@ -1,10 +1,10 @@
 // Adaptador experimental, restrito a pareamento e metadados de grupos.
 const loadModules=()=>Promise.all([import('@whiskeysockets/baileys'),import('pino')]);
 
-// 25 MiB MP4/MOV, 5 MiB PDF; base64 and JSON fit the 40 MiB Windows IPC envelope.
-export const CAMPAIGN_FILE_MAX=25*1024*1024;
+// Up to 50 MiB originals; native video output stays limited to 16 MiB. Base64 fits 72 MiB IPC.
+export const CAMPAIGN_FILE_MAX=50*1024*1024;
 export function validCampaignFile(bytes,mime,name){
- if(!Buffer.isBuffer(bytes)||bytes.length<8||bytes.length>(mime==='application/pdf'?5*1024*1024:CAMPAIGN_FILE_MAX)||typeof name!=='string'||!name.trim()||name.length>160||/[\\/:*?"<>|\x00-\x1f\x7f]/.test(name))return false;
+ if(!Buffer.isBuffer(bytes)||bytes.length<8||bytes.length>CAMPAIGN_FILE_MAX||typeof name!=='string'||!name.trim()||name.length>160||/[\\/:*?"<>|\x00-\x1f\x7f]/.test(name))return false;
  if(mime==='application/pdf')return /\.pdf$/i.test(name)&&bytes.subarray(0,5).toString('ascii')==='%PDF-'&&bytes.subarray(Math.max(0,bytes.length-1024)).includes(Buffer.from('%%EOF'));
  if(mime==='video/quicktime')return /\.mov$/i.test(name)&&bytes.length>=16&&bytes.subarray(4,8).toString('ascii')==='ftyp'&&bytes.subarray(8,12).toString('ascii')==='qt  '&&bytes.readUInt32BE(0)>=16&&bytes.readUInt32BE(0)<=bytes.length;
  if(mime==='video/mp4')return /\.mp4$/i.test(name)&&bytes.length>=16&&bytes.subarray(4,8).toString('ascii')==='ftyp'&&bytes.readUInt32BE(0)>=8&&bytes.readUInt32BE(0)<=bytes.length;
