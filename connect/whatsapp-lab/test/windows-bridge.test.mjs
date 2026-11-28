@@ -203,3 +203,15 @@ test('protocol frames are isolated from third-party stdout, without retaining ra
  emit({type:'vault',value:'x'.repeat(PROTOCOL_MAX)});
  assert.deepEqual(JSON.parse(writes[2].slice(PROTOCOL_PREFIX.length)),{type:'protocol_error',value:'envelope_too_large'});
 });
+
+test('50 MiB original bound is explicit, and base64 fits framed IPC',async()=>{
+ const {validCampaignFile,CAMPAIGN_FILE_MAX}=await import('../whatsapp-provider.mjs');
+ assert.equal(CAMPAIGN_FILE_MAX,50*1024*1024);
+ const bytes=Buffer.alloc(CAMPAIGN_FILE_MAX);
+ bytes.write('%PDF-',0);bytes.write('%%EOF',bytes.length-5);
+ assert.equal(validCampaignFile(bytes,'application/pdf','test.pdf'),true);
+ assert.equal(validCampaignFile(Buffer.concat([bytes,Buffer.alloc(1)]),'application/pdf','test.pdf'),false);
+ bytes.fill(0,0,16);bytes.writeUInt32BE(16,0);bytes.write('ftyp',4);
+ assert.equal(validCampaignFile(bytes,'video/mp4','test.mp4'),true);
+ assert.ok(Math.ceil(CAMPAIGN_FILE_MAX/3)*4+4096<PROTOCOL_MAX);
+});
