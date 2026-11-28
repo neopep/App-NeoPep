@@ -1254,7 +1254,7 @@ dialog.neo-structured-editor::backdrop{background:#192720}
 .structured-visual-review-mode>footer,.structured-visual-review-mode [data-editor=save],.structured-visual-review-mode [data-editor-live],.structured-visual-review-mode .structured-bubble-actions,.structured-visual-review-mode [data-pane-open]{display:none!important}
 .structured-visual-review{margin:1rem 0;padding:.8rem;border:1px solid var(--border);border-radius:14px;background:var(--soft)}
 .structured-visual-review .inline-actions{flex-wrap:wrap}
-.neo-web-privacy{position:fixed;z-index:10001;bottom:max(12px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(calc(100% - 24px),420px);max-height:calc(100dvh - 24px);overflow:auto;box-sizing:border-box;border:1px solid var(--border);border-radius:18px;background:var(--card);color:var(--ink);padding:1rem;box-shadow:0 12px 36px #0003;font-family:inherit}
+.neo-web-privacy{position:fixed;z-index:10001;bottom:max(12px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(calc(100% - 24px),420px);max-height:calc(100dvh - 24px);overflow:auto;box-sizing:border-box;border:1px solid var(--border);border-radius:18px;background:var(--solid);color:var(--ink);padding:1rem;box-shadow:0 12px 36px #0003;font-family:inherit}
 .neo-web-privacy[hidden],.neo-web-privacy [hidden]{display:none!important}
 .neo-web-privacy h2{font-size:1.12rem;margin:0 0 .4rem}
 .neo-web-privacy p{font-size:.88rem;line-height:1.5;margin:.4rem 0 .8rem}
