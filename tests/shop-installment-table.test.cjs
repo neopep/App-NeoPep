@@ -18,7 +18,14 @@ test('vitrine destaca somente parcelas e ordena número de parcelas crescente se
  const render=new Function('C','e','data','installmentState','installmentRows',s.slice(s.indexOf(' function installmentDisplay('),s.indexOf('\n }',s.indexOf(' function installmentDisplay('))+3)+';return installmentDisplay')(c,e,{}, {enabled:true,quotes:[]},()=>({rows:opts}));
  const card=render(10000),detail=render(10000,true);
  assert.match(card,/Até 6x a partir de 20.00/);
- assert.doesNotMatch(card,/Simulação|Visa|Mastercard|Confirme|%/);
+ const summary=card.slice(card.indexOf('<summary'),card.indexOf('</summary>'));
+ assert.doesNotMatch(summary,/Simulação|Visa|Mastercard|Confirme|%/);
+ assert.match(card,/<details class="shop-installment-popover">/);
+ assert.match(card,/shop-installment-chevron/);
+ assert.match(card,/shop-installment-bubble/);
+ assert.doesNotMatch(card,/data-shop=|Acréscimo|Visa|Mastercard|<th>Total|%/);
+ assert.ok(card.indexOf('2x</td>')<card.indexOf('3x</td>'));
+ assert.ok(card.indexOf('3x</td>')<card.indexOf('6x</td>'));
  assert.doesNotMatch(detail,/Acréscimo|Visa|Mastercard|<th>Total|%/);
  assert.match(detail,/<th>Parcelas<\/th><th>Valor da parcela<\/th>/);
  assert.ok(detail.indexOf('2x</td>')<detail.indexOf('3x</td>'));

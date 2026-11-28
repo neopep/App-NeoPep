@@ -131,9 +131,19 @@ window.NeoShop=(()=>{
   if(!plans.length)return '<span class="shop-installment-hint shop-installment-unavailable">Consulte o parcelamento no Mercado Pago</span>';
   const best=plans.reduce((a,b)=>b.installments>a.installments?b:a);
   const summary='Até '+best.installments+'x '+(best.min!==best.max?'a partir de ':'de ')+C.money(best.min);
-  if(!expanded)return '<span class="shop-installment-hint shop-installment-highlight">'+e(summary)+'</span>';
-  return '<details class="shop-installment-details"><summary><span class="shop-installment-highlight">'+e(summary)+'</span><span class="shop-installment-expand">Ver parcelas</span></summary><div class="shop-installment-table"><table aria-label="Opções de parcelamento"><thead><tr><th>Parcelas</th><th>Valor da parcela</th></tr></thead><tbody>'+plans.map(r=>'<tr><td>'+e(r.installments)+'x</td><td>'+(r.min!==r.max?'<small>a partir de </small>':'')+e(C.money(r.min))+'</td></tr>').join('')+'</tbody></table></div><p class="sub shop-installment-note">Valores indicativos. Confirme as condições no Mercado Pago.</p></details>';
+  const table='<div class="shop-installment-table"><table aria-label="Opções de parcelamento"><thead><tr><th>Parcelas</th><th>Valor da parcela</th></tr></thead><tbody>'+plans.map(r=>'<tr><td>'+e(r.installments)+'x</td><td>'+(r.min!==r.max?'<small>a partir de </small>':'')+e(C.money(r.min))+'</td></tr>').join('')+'</tbody></table></div><p class="sub shop-installment-note">Valores indicativos. Confirme as condições no Mercado Pago.</p>';
+  if(!expanded)return '<details class="shop-installment-popover"><summary aria-label="'+e(summary+' — Ver parcelas')+'"><span class="shop-installment-hint shop-installment-highlight">'+e(summary)+'</span><span class="shop-installment-chevron" aria-hidden="true"></span></summary><div class="shop-installment-bubble">'+table+'</div></details>';
+  return '<details class="shop-installment-details"><summary><span class="shop-installment-highlight">'+e(summary)+'</span><span class="shop-installment-expand">Ver parcelas</span></summary>'+table+'</details>';
  }
+ document.addEventListener('click',event=>{
+  const current=event.target.closest?.('.shop-installment-popover');
+  for(const open of document.querySelectorAll('.shop-installment-popover[open]'))if(open!==current)open.open=false;
+ });
+ document.addEventListener('keydown',event=>{
+  if(event.key!=='Escape')return;
+  const open=document.querySelector('.shop-installment-popover[open]');
+  if(open){open.open=false;open.querySelector('summary')?.focus();}
+ });
 
  const offerBadge=p=>{const o=activeOffer(p);return o?`<span class="shop-offer-badge" aria-label="Oferta de ${e(o.percent)} por cento"><span>OFERTA</span><b>-${e(o.percent)}%</b></span>`:''};
  function offerPrice(p){const o=activeOffer(p);return o?`<div class="shop-offer-prices"><div class="shop-offer-original"><del>${C.money(o.base)}</del><span>-${e(o.percent)}%</span></div><strong class="shop-price">${C.money(o.sale)}</strong><small class="shop-offer-note">Oferta para 1 un. · confira no carrinho</small></div>`:`<strong class="shop-price">${C.money(p.price_cents)}</strong>`;}
