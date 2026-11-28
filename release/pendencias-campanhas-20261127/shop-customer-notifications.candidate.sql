@@ -91,11 +91,15 @@ begin
   oid:=split_part(j.event_key,':',2)::uuid;
   select * into o from neo_private.shop_orders where id=oid;
   select user_id into device_user from neo_private.push_devices where id=j.device_id;
-  if not found or device_user is distinct from o.user_id or not neo_private.shop_reminder_eligible_v1(o) then return '{"send":false}'::jsonb;end if;
+  if o.id is null or device_user is distinct from o.user_id or not neo_private.shop_reminder_eligible_v1(o) then return '{"send":false}'::jsonb;end if;
   ttl:=least(60,floor(extract(epoch from o.expires_at-clock_timestamp()))::int);
   if ttl<1 then return '{"send":false}'::jsonb;end if;
   return jsonb_build_object('send',true,'notice','payment_pending','ttl',ttl);
  elsif j.event_key ~ '^shop:[0-9a-f-]{36}:status:(paid|test_paid)$' then
+  oid:=split_part(j.event_key,':',2)::uuid;
+  select * into o from neo_private.shop_orders where id=oid;
+  select user_id into device_user from neo_private.push_devices where id=j.device_id;
+  if o.id is null or device_user is distinct from o.user_id then return '{"send":false}'::jsonb;end if;
   return '{"send":true,"notice":"payment_confirmed","ttl":300}'::jsonb;
  end if;
  return '{"send":true,"ttl":300}'::jsonb;
