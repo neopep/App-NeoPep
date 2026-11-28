@@ -75,7 +75,7 @@ begin
   from neo_private.shop_installment_cache_v1 c where c.environment=env and c.account_revision=rev and c.amount_cents=any(amounts) and c.expires_at>now();
   return jsonb_build_object('enabled',true,'environment',env,'quotes',result);
  end if;
- if not public.neo_admin_access() then raise exception 'Acesso administrativo obrigatório.' using errcode='42501';end if;
+ if not exists(select 1 from neo_private.admin_members where user_id=u) then raise exception 'Acesso administrativo obrigatório.' using errcode='42501';end if;
  env:=p_payload->>'environment';
  if env not in ('test','production') or env is null then raise exception 'Ambiente inválido.';end if;
  rev:=neo_private.shop_installment_revision_v1(env);
