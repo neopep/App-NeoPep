@@ -154,7 +154,7 @@ window.NeoShop=(()=>{
      for(const word of words){if(row&&ctx.measureText(row+' '+word).width>maxWidth){rows.push(row);row='';}for(const char of (row?' ':'')+word){if(row&&ctx.measureText(row+char).width>maxWidth){rows.push(row);row='';}row+=char;}}if(row)rows.push(row);
      for(const part of rows){if(cursor+size+1>layout.height-pad)throw Error('Os dados não cabem na etiqueta. Aumente a altura ou a largura.');ctx.fillText(part,pad,cursor);cursor+=size+1;}
     }
-    const qr=window.NeoOrderQR.svg(o.id),img=new Image(),url=URL.createObjectURL(new Blob([qr],{type:'image/svg+xml'}));try{img.src=url;await img.decode();ctx.drawImage(img,layout.width-pad-23,pad,23,23);}finally{URL.revokeObjectURL(url);}
+    const qr=window.NeoOrderQR.svg(o.id).replace('<svg ','<svg width="256" height="256" '),img=new Image(),url=URL.createObjectURL(new Blob([qr],{type:'image/svg+xml'}));try{img.src=url;await img.decode();ctx.drawImage(img,layout.width-pad-23,pad,23,23);}finally{URL.revokeObjectURL(url);}
     line('NEOPEP',5,true,w-25);line('ETIQUETA DE ENVIO',2.8,true,w-25);line('Pedido '+o.id.slice(0,8).toUpperCase(),3,false,w-25);cursor=Math.max(cursor,pad+25);
     line('DESTINATÁRIO',3,true);line(a.name,4,true);line(a.street+', '+a.number+(a.complement?' · '+a.complement:''));line('Bairro: '+a.district);line(a.city+' / '+a.state+' · Brasil');line('CEP '+formatCEP(a.postal_code),4,true);if(a.phone)line('Telefone: '+a.phone);
     cursor+=2;line('REMETENTE',3,true);line(settings.seller_name,3.5,true);line(settings.business_address);cursor+=2;line(o.tracking?'Rastreio: '+o.tracking:'Identificação interna · sem código de postagem',2.6);ctx.restore();
