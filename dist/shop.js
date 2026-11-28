@@ -111,12 +111,11 @@ window.NeoShop=(()=>{
  }
  let installmentState=null,installmentRequest=0,installmentAdmin=null,installmentAdminBusy=false,installmentAdminMessage='';
  async function readInstallments(products=data?.products||[]){
-  if(!newFinancialFeatures)return;
-  if(typeof window.NeoCloud?.shopInstallments!=='function')return;
+  if(typeof window.NeoCloud?.shopInstallmentQuotes!=='function')return;
   const token=generation,request=++installmentRequest;
   const visible=products.filter(p=>p.active!==false&&p.shop_store_hidden!==true&&p.stock>0).slice(0,99);
   const amounts=[...new Set([...visible.map(displayPrice),...(Number.isSafeInteger(quote?.total_cents)?[quote.total_cents]:[])])].filter(n=>Number.isSafeInteger(n)&&n>0).slice(0,100);
-  try{const state=await window.NeoCloud.shopInstallments('read',{amounts,product_ids:visible.map(p=>p.id)});
+  try{const state=await window.NeoCloud.shopInstallmentQuotes({amounts,product_ids:visible.map(p=>p.id)});
    if(token===generation&&request===installmentRequest)installmentState=state;
   }catch{if(token===generation&&request===installmentRequest)installmentState=null;}
  }
@@ -125,7 +124,7 @@ window.NeoShop=(()=>{
   const {rows,estimated}=installmentRows(amount,installmentState.quotes);
   const plans=rows.filter(r=>r.installments>1).sort((a,b)=>b.installments-a.installments||a.total_cents-b.total_cents);
   if(!plans.length)return '<small class="sub shop-installment-hint">Consulte o parcelamento no Mercado Pago</small>';
-  const best=plans[0],summary=(estimated?'Simulação: ':'')+'até '+best.installments+'x de '+C.money(best.installment_cents);
+  const best=plans[0],summary='Simulação: até '+best.installments+'x de '+C.money(best.installment_cents);
   const note='Visa/Mastercard · sujeito ao cartão e emissor. Confirme as condições no Mercado Pago.';
   if(!expanded)return '<small class="shop-installment-hint">'+e(summary)+'</small><small class="sub">'+e(note)+'</small>';
   return '<details class="shop-installment-details"><summary>'+e(summary)+' · Ver parcelas</summary><div class="shop-installment-table"><table><thead><tr><th>Cartão</th><th>Parcelas</th><th>Acréscimo</th><th>Total</th></tr></thead><tbody>'+plans.map(r=>'<tr><td>'+e(r.method==='visa'?'Visa':'Mastercard')+'</td><td>'+e(r.installments)+'x '+e(C.money(r.installment_cents))+'</td><td>'+e(r.buyer_rate.toLocaleString('pt-BR'))+'%</td><td>'+e(C.money(r.total_cents))+'</td></tr>').join('')+'</tbody></table></div><p class="sub">'+e(note)+(estimated?' Estimativa a partir da tabela sincronizada; arredondamento pode variar.':' Valores consultados para este total.')+'</p></details>';
@@ -1071,13 +1070,13 @@ window.NeoShop=(()=>{
   }catch{if(token===generation){productInstallmentPolicies.clear();cartInstallmentPolicy=null;}}
  }
  function productPaymentHint(p,expanded=false){
-  if(!newFinancialFeatures)return '';
+  if(!newFinancialFeatures)return installmentDisplay(displayPrice(p),expanded);
   const policy=productInstallmentPolicies.get(p.id);
   if(policy?.enabled&&policy.mode==='seller')return '<small class="shop-installment-hint">Até '+e(policy.free)+'x sem juros · sujeito à disponibilidade do cartão no Mercado Pago.</small>';
   return installmentDisplay(displayPrice(p),expanded);
  }
  function cartPaymentHint(amount){
-  if(!newFinancialFeatures)return '';
+  if(!newFinancialFeatures)return installmentDisplay(amount,true);
   const c=cartInstallmentPolicy;
   if(c?.enabled&&c.mode==='seller')return '<p class="shop-installment-hint">Até '+e(c.free)+'x sem juros neste pedido · confirme no Mercado Pago.</p>';
   const msg=c?.enabled&&c.mixed?'<p class="notice">O carrinho combina condições diferentes. Para aproveitar parcelas sem juros, compre os produtos elegíveis separadamente.</p>':'';
