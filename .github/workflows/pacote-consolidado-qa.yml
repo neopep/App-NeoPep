@@ -55,7 +55,9 @@ jobs:
           if ($LASTEXITCODE) { throw 'QA de participantes falhou' }
           node candidate/release/pendencias-campanhas-20261127/qa-group-messages-windows-028.cjs baseline
           if ($LASTEXITCODE) { throw 'QA de mensagens falhou' }
-          node candidate/release/pendencias-campanhas-20261127/apply-group-messages-windows-028.cjs baseline
+          node candidate/release/pendencias-campanhas-20261127/qa-group-view-broker-windows-028.cjs baseline candidate
+          if ($LASTEXITCODE) { throw 'QA consulta web cifrada falhou' }
+          node candidate/release/pendencias-campanhas-20261127/apply-group-view-broker-windows-028.cjs baseline
           if ($LASTEXITCODE) { throw 'Patch combinado falhou' }
           node --check baseline/connect/whatsapp-lab/whatsapp-provider.mjs
           if ($LASTEXITCODE) { throw 'Sintaxe provider invalida' }
