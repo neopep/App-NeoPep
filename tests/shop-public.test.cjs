@@ -195,3 +195,41 @@ test('local onboarding does not redirect after leaving the preview destination',
  assert.equal(b.transitions(),0);
  close();
 });
+
+test('leaving the local preview restores PWA behavior and permits a clean remount',()=>{
+ for(const event of ['popstate','hashchange']){
+  const b=boot();
+  const close=b.mount();
+  assert.equal(b.install.blocking,false);
+  b.location.hash='perfil';
+  b.window.dispatchEvent(new b.window.Event(event));
+  assert.equal(b.shop.active,false);
+  assert.equal(b.install.blocking,true);
+  assert.equal(b.root.textContent,'');
+  b.location.hash='loja';
+  const next=b.mount();
+  assert.equal(typeof next,'function');
+  close();
+  assert.equal(b.shop.active,true);
+  next();
+  assert.equal(b.install.blocking,true);
+ }
+});
+
+test('late simulated registration cannot remount the local preview after navigation',async()=>{
+ const b=boot();
+ let resolve;
+ const close=b.mount({register:()=>new Promise(r=>{resolve=r;})});
+ b.click('[data-commercial=register]');
+ const form=b.root.querySelector('[data-commercial-register]');
+ form.querySelector('[name=consent]').checked=true;
+ form.dispatchEvent(new b.window.Event('submit',{bubbles:true,cancelable:true}));
+ b.location.hash='perfil';
+ b.window.dispatchEvent(new b.window.Event('hashchange'));
+ resolve({id:'synthetic',commercialComplete:true,onboardingComplete:false});
+ await new Promise(setImmediate);
+ assert.equal(b.shop.active,false);
+ assert.equal(b.root.textContent,'');
+ assert.equal(b.install.blocking,true);
+ close();
+});
