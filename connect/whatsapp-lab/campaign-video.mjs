@@ -26,7 +26,7 @@ export function verifyNativeVideo(output,plan,size){
 export async function convertCampaignVideo(work,{ffmpeg,ffprobe,signal}={}){
  if(!isAbsolute(work)||!isAbsolute(ffmpeg||'')||!isAbsolute(ffprobe||''))throw Error('video_tools_unavailable');
  const inputPath=join(work,'source.media'),outputPath=join(work,'native.mp4');
- const info=await stat(inputPath);if(!info.isFile()||info.size<8||info.size>25*1024*1024)throw Error('video_source_size');
+ const info=await stat(inputPath);if(!info.isFile()||info.size<8||info.size>50*1024*1024)throw Error('video_source_size');
  const run=async(bin,args)=>{signal?.throwIfAborted();return exec(bin,args,{cwd:work,shell:false,windowsHide:true,timeout:60000,maxBuffer:1024*1024,signal});};
  const probe=async(path)=>JSON.parse((await run(ffprobe,['-v','error','-protocol_whitelist','file,pipe','-show_entries','format=format_name,duration:stream=codec_type,codec_name,width,height,pix_fmt,avg_frame_rate:stream_disposition=attached_pic','-of','json',path])).stdout);
  const plan=planNativeVideo(await probe(inputPath));
