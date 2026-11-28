@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>NeoPep — Prévia de cadastro fictício</title>
+<style>
+:root{color-scheme:light dark;font:16px system-ui,sans-serif;--accent:#183c65}*{box-sizing:border-box}body{margin:0;background:Canvas;color:CanvasText;min-height:100vh;display:grid;place-items:center;padding:24px}main{width:min(100%,420px);border:1px solid color-mix(in srgb,CanvasText 18%,transparent);padding:24px;border-radius:20px}h1{font-size:1.5rem;margin:0 0 10px}p{line-height:1.5;font-size:.9rem}form{display:grid;gap:12px}label{font-size:.9rem}input:not([type=checkbox]){display:block;width:100%;padding:12px;border:1px solid color-mix(in srgb,CanvasText 30%,transparent);border-radius:10px;background:Canvas;color:CanvasText;margin-top:5px}button{font:inherit;cursor:pointer;padding:12px;border-radius:10px;border:1px solid transparent}button[type=submit]{background:var(--accent);color:white;font-weight:600}button[type=button]{background:transparent;color:CanvasText;border-color:color-mix(in srgb,CanvasText 20%,transparent)}.check{display:flex;align-items:flex-start;gap:8px}.check input{margin-top:3px}.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.actions button{flex:1}small{font-size:.75rem}#status{min-height:2.5em}[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+<small>NEOPEP · PRÉVIA LOCAL</small>
+<h1 id="heading">Crie sua conta</h1>
+<p>Simulação visual com dados fictícios predefinidos. Não cria contas, não envia e-mails e não armazena credenciais.</p>
+<form id="account-form" autocomplete="off" novalidate>
+<label id="name-row">Nome completo<input id="name" value="Pessoa Exemplo" readonly></label>
+<label>E-mail<input id="email" type="email" value="exemplo@example.test" readonly></label>
+<div id="password-row"><label>Senha fictícia<input id="password" type="password" value="Exemplo123!" readonly></label><button id="reveal" type="button" aria-pressed="false">Mostrar senha fictícia</button></div>
+<label id="terms-row" class="check"><input id="terms" type="checkbox">Aceito os termos fictícios e a política de privacidade da simulação.</label>
+<label class="check"><input id="captcha" type="checkbox">Simular verificação de segurança (CAPTCHA)</label>
+<button id="submit" type="submit">Simular cadastro</button>
+</form>
+<p id="status" role="status" aria-live="polite"></p>
+<div class="actions"><button id="signup" type="button">Criar conta</button><button id="login" type="button">Entrar</button><button id="reset" type="button">Recuperar senha</button></div>
+</main>
+<script>
+(()=>{
+'use strict';
+const local=['localhost','127.0.0.1','[::1]'].includes(location.hostname)&&['http:','https:'].includes(location.protocol);
+const get=id=>document.getElementById(id);
+const form=get('account-form'),status=get('status');
+if(!local){form.hidden=true;document.querySelector('.actions').hidden=true;status.textContent='Prévia disponível apenas no computador local.';return;}
+let mode='signup';
+const messages={signup:['Crie sua conta','Simular cadastro'],login:['Entre na sua conta','Simular entrada'],reset:['Recuperar senha','Simular recuperação']};
+function select(next){
+ mode=next;
+ get('heading').textContent=messages[next][0];
+ get('submit').textContent=messages[next][1];
+ get('name-row').hidden=next!=='signup';
+ get('terms-row').hidden=next!=='signup';
+ get('password-row').hidden=next==='reset';
+ get('terms').checked=false;get('captcha').checked=false;
+ get('password').type='password';get('reveal').textContent='Mostrar senha fictícia';get('reveal').setAttribute('aria-pressed','false');
+ status.textContent='';
+}
+for(const key of Object.keys(messages))get(key).addEventListener('click',()=>select(key));
+get('reveal').addEventListener('click',()=>{
+ const show=get('password').type==='password';
+ get('password').type=show?'text':'password';get('reveal').textContent=show?'Ocultar senha fictícia':'Mostrar senha fictícia';get('reveal').setAttribute('aria-pressed',String(show));
+});
+form.addEventListener('submit',event=>{
+ event.preventDefault();
+ if(mode==='signup'&&!get('terms').checked){status.textContent='Confirme os termos fictícios.';return;}
+ if(!get('captcha').checked){status.textContent='Conclua a verificação simulada.';return;}
+ status.textContent=mode==='signup'?'Cadastro fictício concluído. Nenhuma conta foi criada.':mode==='login'?'Entrada fictícia concluída. Nenhuma sessão foi criada.':'Recuperação simulada. Nenhum e-mail foi enviado.';
+ get('captcha').checked=false;
+});
+select('signup');
+})();
+</script>
+</body>
+</html>
