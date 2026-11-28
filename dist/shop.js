@@ -119,13 +119,20 @@ window.NeoShop=(()=>{
  }
  function installmentDisplay(amount,expanded=false){
   if(installmentState?.enabled!==true||data?.settings?.payment_environment&&installmentState.environment&&data.settings.payment_environment!==installmentState.environment)return '';
-  const {rows,estimated}=installmentRows(amount,installmentState.quotes);
-  const plans=rows.filter(r=>r.installments>1).sort((a,b)=>b.installments-a.installments||a.total_cents-b.total_cents);
-  if(!plans.length)return '<small class="sub shop-installment-hint">Consulte o parcelamento no Mercado Pago</small>';
-  const best=plans[0],summary='Simulação: até '+best.installments+'x de '+C.money(best.installment_cents);
-  const note='Visa/Mastercard · sujeito ao cartão e emissor. Confirme as condições no Mercado Pago.';
-  if(!expanded)return '<small class="shop-installment-hint">'+e(summary)+'</small><small class="sub">'+e(note)+'</small>';
-  return '<details class="shop-installment-details"><summary>'+e(summary)+' · Ver parcelas</summary><div class="shop-installment-table"><table><thead><tr><th>Cartão</th><th>Parcelas</th><th>Acréscimo</th><th>Total</th></tr></thead><tbody>'+plans.map(r=>'<tr><td>'+e(r.method==='visa'?'Visa':'Mastercard')+'</td><td>'+e(r.installments)+'x '+e(C.money(r.installment_cents))+'</td><td>'+e(r.buyer_rate.toLocaleString('pt-BR'))+'%</td><td>'+e(C.money(r.total_cents))+'</td></tr>').join('')+'</tbody></table></div><p class="sub">'+e(note)+(estimated?' Estimativa a partir da tabela sincronizada; arredondamento pode variar.':' Valores consultados para este total.')+'</p></details>';
+  const {rows}=installmentRows(amount,installmentState.quotes);
+  const grouped=new Map();
+  for(const r of rows){
+   if(r.installments<2)continue;
+   const prev=grouped.get(r.installments);
+   if(!prev)grouped.set(r.installments,{installments:r.installments,min:r.installment_cents,max:r.installment_cents});
+   else{prev.min=Math.min(prev.min,r.installment_cents);prev.max=Math.max(prev.max,r.installment_cents);}
+  }
+  const plans=[...grouped.values()].sort((a,b)=>a.installments-b.installments);
+  if(!plans.length)return '<span class="shop-installment-hint shop-installment-unavailable">Consulte o parcelamento no Mercado Pago</span>';
+  const best=plans.reduce((a,b)=>b.installments>a.installments?b:a);
+  const summary='Até '+best.installments+'x '+(best.min!==best.max?'a partir de ':'de ')+C.money(best.min);
+  if(!expanded)return '<span class="shop-installment-hint shop-installment-highlight">'+e(summary)+'</span>';
+  return '<details class="shop-installment-details"><summary><span class="shop-installment-highlight">'+e(summary)+'</span><span class="shop-installment-expand">Ver parcelas</span></summary><div class="shop-installment-table"><table aria-label="Opções de parcelamento"><thead><tr><th>Parcelas</th><th>Valor da parcela</th></tr></thead><tbody>'+plans.map(r=>'<tr><td>'+e(r.installments)+'x</td><td>'+(r.min!==r.max?'<small>a partir de </small>':'')+e(C.money(r.min))+'</td></tr>').join('')+'</tbody></table></div><p class="sub shop-installment-note">Valores indicativos. Confirme as condições no Mercado Pago.</p></details>';
  }
 
  const offerBadge=p=>{const o=activeOffer(p);return o?`<span class="shop-offer-badge" aria-label="Oferta de ${e(o.percent)} por cento"><span>OFERTA</span><b>-${e(o.percent)}%</b></span>`:''};
