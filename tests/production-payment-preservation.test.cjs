@@ -17,4 +17,4 @@ test('release de Produção preserva o cliente financeiro ativo e bloqueia novas
 
 test('isolated admin adapter has no payment mutation',()=>{const a=cloud.slice(cloud.indexOf('// BEGIN isolated administrative quote adapter'),cloud.indexOf('// END isolated administrative quote adapter'));assert.match(a,/shop-installment-admin/);assert.match(a,/payload.environment!=='production'/);assert.doesNotMatch(a,/mercadopago-create|mercadopago-webhook|shopPaymentIntegration/);});
 
-test('customer quote path is read-only and keeps other financial gates closed',()=>{assert.match(cloud,/p_action:'read',p_payload:payload/);assert.match(shop,/if\(!newFinancialFeatures\)return installmentDisplay/);assert.match(shop,/Simulação: até/);});
+test('customer quote path is read-only and keeps other financial gates closed',()=>{assert.match(cloud,/p_action:'read',p_payload:payload/);assert.match(shop,/if\(!newFinancialFeatures\)return installmentDisplay/);assert.match(shop,/shop-installment-highlight/);});
