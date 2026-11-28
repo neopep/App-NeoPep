@@ -14,7 +14,7 @@ test('campaign UX: local drafts are scoped by account, channel and campaign',()=
  const changed={draft:{title:'PDF',blocks:[{}]},savedDraft:'old'};
  const saved={draft:{title:'Saved',blocks:[]}};saved.savedDraft=JSON.stringify(saved.draft);
  const values=new Map([[prefix+'changed',JSON.stringify(changed)],[prefix+'saved',JSON.stringify(saved)],['neo-campaign-editor:other:whatsapp:group:foreign',JSON.stringify(changed)],['neo-campaign-editor:owner:app:group:wrong',JSON.stringify(changed)]]);
- const fn=central.slice(central.indexOf('  function localDrafts(){'),central.indexOf('  function localDraftCards(){'));
+ const fn=central.slice(central.indexOf(' function stableDraft('),central.indexOf(' function canEditScheduled('))+'\n'+central.slice(central.indexOf('  function localDrafts(){'),central.indexOf('  function localDraftCards('));
  const result=vm.runInNewContext(fn+';localDrafts()', {account:'owner',channel:'whatsapp',current:'group',localStorage:{length:values.size,key:i=>[...values.keys()][i],getItem:k=>values.get(k)},getLocal:()=>null,pointer:()=>''});
  assert.deepEqual(Array.from(result,r=>r.id),['changed']);
 });
@@ -24,7 +24,7 @@ test('campaign UX: file preparation, local PDF bytes, date filter and switch con
  assert.match(central,/legacy_set_enabled/);
  assert.match(central,/dateFilter/);
  assert.match(editor,/function libraryFileDraftReady/);
- assert.match(editor,/latest\.allow_download!==true/);
+ assert.match(editor,/short\?policy\.preview!==true:policy\.original!==true/);assert.match(editor,/libraryCampaignShare\('authorize'/);assert.match(editor,/libraryCampaignOriginalURL\(s\.row\.id,latest\)/);
  assert.match(editor,/function paintIssues/);
  assert.match(editor,/pdfCover\(file,/);
  assert.match(library,/Uint8Array/);
