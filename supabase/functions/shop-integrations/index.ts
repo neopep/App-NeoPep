@@ -24,7 +24,7 @@ Deno.serve(async(req:Request)=>{
   const secret=Deno.env.get('NEO_INSTALLMENT_CRON_SECRET')||'',provided=req.headers.get('x-neo-installment-cron')||'';
   if(secret.length<32||provided!==secret)return out(403,{error:'forbidden'});
   const admin=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false,autoRefreshToken:false}});
-  try{const active=await admin.rpc('neo_shop_installment_active_environment_v1');if(active.error||active.data!=='test')return out(200,{status:'disabled'});return out(200,await syncInstallments(admin,active.data,false));}catch{return out(503,{error:'sync_failed'});}
+  try{const active=await admin.rpc('neo_shop_installment_active_environment_v1');if(active.error||active.data!=='test')return out(200,{status:'disabled'});const quotes=await syncInstallments(admin,active.data,false);let fees;try{fees=await syncSellerFees(admin,'test',()=>stagingInstallmentConfig(admin));}catch{fees={status:'fee_sync_unavailable'}}return out(200,{...quotes,seller_fees:fees});}catch{return out(503,{error:'sync_failed'});}
  }
  if(!permitted)return out(403,{error:'origin'});if(req.method==='OPTIONS')return new Response(null,{status:204,headers});if(req.method!=='POST')return out(405,{error:'method'});
  const token=req.headers.get('Authorization')?.replace(/^Bearer /i,'');if(!token)return out(401,{error:'auth'});
