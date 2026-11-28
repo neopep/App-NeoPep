@@ -462,21 +462,21 @@ sealed partial class Connect : Form {
             client.Headers["Authorization"]="Bearer "+access;
             client.Headers["apikey"]=profile.PublishableKey;
             var data=await client.DownloadDataTaskAsync(profile.Endpoint("/storage/v1/object/authenticated/"+bucket+"/"+path));
-            if(data==null||data.Length<8||data.Length>(mime=="application/pdf"?5:25)*1024*1024)throw new InvalidOperationException();
+            if(data==null||data.Length<8||data.Length>50*1024*1024)throw new InvalidOperationException();
             return data;
         }
     }
     async Task TickRichCampaign(WhatsApp window,Guid connection) {
         // Em ambos os perfis, a fila rica exige opt-in local, JWT do ambiente e gate/allowlist do servidor.
         if(Value(local,"campaign_worker_enabled")!="1"||!deviceApproved||!SessionReady()||!window.CampaignSessionReady)return;
-        var lease=await RichCampaign("claim",new {originals_v1=true,originals_25mb=true,originals_mov=true,native_video_v1=true});
+        var lease=await RichCampaign("claim",new {originals_v1=true,originals_25mb=true,originals_mov=true,native_video_v1=true,originals_50mb=true});
         if(lease==null)return;
         var id=Value(lease,"id");var fence=Value(lease,"fence");
         var started=false;
         var dispatchClock=System.Diagnostics.Stopwatch.StartNew();
         var outcome=Tuple.Create("uncertain",(string)null);
         try {
-            var job=await RichCampaign("start",new {id=id,fence=fence,originals_v1=true,originals_25mb=true,originals_mov=true,native_video_v1=true});
+            var job=await RichCampaign("start",new {id=id,fence=fence,originals_v1=true,originals_25mb=true,originals_mov=true,native_video_v1=true,originals_50mb=true});
             if(job==null)return;
             started=true;
             Guid request;
