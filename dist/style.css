@@ -1302,3 +1302,41 @@ dialog.neo-structured-editor::backdrop{background:#192720}
 .shop-home-image .shop-offer-badge{width:18%;max-width:54px;padding:1.5%;font-size:clamp(5px,2.5cqi,8px)}
 .shop-home-image .shop-offer-badge b{font-size:clamp(7px,3.8cqi,12px)}
 .shop-detail-photo .shop-offer-badge{width:18%;max-width:76px}
+
+
+/* Etiquetas ajustáveis em milímetros e leitura de QR em tela inteira. */
+.shop-label-config{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px}
+.shop-label-config label{min-width:0}.shop-label-config input,.shop-label-config select{width:100%}
+.shop-label-dialog[data-shop-label-dialog]{width:min(96vw,600px)}
+.shop-label-sheet{display:grid;grid-template-columns:repeat(var(--label-cols),var(--label-width));grid-auto-rows:var(--label-height);gap:var(--label-gap);padding:var(--label-margin);width:var(--label-paper-width);box-sizing:border-box;background:white;justify-content:start;align-content:start}
+.shop-label-sheet .shop-label-print{box-sizing:border-box;width:var(--label-width);max-width:none;min-height:0;height:var(--label-height);margin:0;padding:4mm;font:12px/1.25 Arial,sans-serif;border:1px solid #222;overflow-wrap:anywhere;break-inside:avoid}
+.shop-label-sheet .shop-label-print header{grid-template-columns:minmax(0,1fr) 23mm;padding-bottom:2mm}
+.shop-label-sheet .shop-label-print header strong{font-size:19px}
+.shop-label-sheet .shop-label-print .shop-label-qr{width:23mm;height:23mm}
+.shop-label-sheet .shop-label-print section{padding:2mm 0}
+.shop-label-sheet .shop-label-print h3{margin-bottom:1mm}
+.shop-label-sheet .shop-label-print p{margin:.7mm 0}
+.shop-label-sheet .shop-label-print .shop-label-name{font-size:15px}
+.shop-label-sheet .shop-label-print .shop-label-cep{font-size:17px;margin:1mm 0}
+.shop-label-sheet .shop-label-print footer{margin-top:2mm}
+.shop-label-pages{overflow:auto;max-width:100%}
+[data-shop-scanner].shop-scanner-full{position:fixed;inset:0;width:100%;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;border-radius:0;background:#08090b;color:white;overflow:hidden}
+[data-shop-scanner] .shop-scan-stage{position:absolute;inset:0;display:grid;place-items:center}
+[data-shop-scanner] video{width:100%;height:100%;max-height:none;object-fit:cover;border-radius:0}
+.shop-scan-target{position:absolute;width:min(70vw,55vh,320px);aspect-ratio:1;border:2px solid #fff;border-radius:18px;box-shadow:0 0 0 100vmax #0004;pointer-events:none}
+.shop-scan-top,.shop-scan-bottom{position:absolute;left:0;right:0;z-index:2;padding:16px;color:white;background:#0009}
+.shop-scan-top{top:0;padding-top:max(16px,env(safe-area-inset-top))}
+.shop-scan-bottom{bottom:0;padding-bottom:max(16px,env(safe-area-inset-bottom))}
+.shop-scan-bottom .sub{color:#fff}.shop-scan-bottom details input{background:#fff;color:#111}
+.shop-scan-bottom .shop-label-actions{justify-content:center}
+.shop-scan-top .icon-btn{color:#fff}
+@media print{
+ body:has([data-shop-label-dialog][open])> :not([data-shop-label-dialog]){display:none!important}
+ body:has([data-shop-label-dialog][open])::before{display:none!important}
+ [data-shop-label-dialog][open]{width:var(--label-paper-width)!important;max-width:none!important;position:static!important;margin:0!important;padding:0!important;overflow:visible!important}
+ .shop-label-config,[data-label-status],.shop-label-actions,.shop-label-instruction{display:none!important}
+ [data-shop-label-dialog] .shop-label-pages{overflow:visible!important;display:block!important}
+ [data-shop-label-dialog] .shop-label-sheet{page:neo-custom-label;break-after:page;page-break-after:always;height:var(--label-paper-height);overflow:visible!important;print-color-adjust:exact}
+ [data-shop-label-dialog] .shop-label-sheet:last-child{break-after:auto;page-break-after:auto}
+ [data-shop-label-dialog] .shop-label-sheet .shop-label-print{page:auto;width:var(--label-width)!important;max-width:none!important;height:var(--label-height)!important;min-height:0!important;border:1px solid #222!important;break-after:auto!important;page-break-after:auto!important}
+}
