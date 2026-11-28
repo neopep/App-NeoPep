@@ -1,3 +1,25 @@
+# Estado reconciliado com os ambientes ativos — 27/11/2026
+
+Esta seção prevalece sobre as anotações históricas abaixo. Antes de qualquer publicação, conferir novamente o catálogo e o artefato efetivamente ativo. Não reaplicar scripts já instalados.
+
+| Item | Produção | Teste | Ação restante |
+|---|---|---|---|
+| Windows 0.2.28 | aprovado, heartbeat observado | aprovado, heartbeat observado | homologação real de envio, não reinstalar |
+| Originais 50 MiB | bucket e capacidade instalados | bucket e capacidade instalados | envio real com recibo, não reaplicar SQL |
+| Nome/número WhatsApp | rótulo com telefone confirmado na conexão ativa | Windows suporta rótulo, nenhuma conexão ativa na consulta | sincronizar conta existente quando desejado; não criar novo instalador |
+| Exclusão lógica de promoções | coluna e ação RPC existentes | coluna e ação RPC existentes | não reaplicar SQL, não alterar pagamentos |
+| Oferta pública nas campanhas | função e ação RPC existentes | função e ação RPC existentes | não reaplicar SQL |
+| Telemetria web/PWA | colunas e RPC existentes | colunas e RPC existentes | não reaplicar SQL |
+| 011/012 álbuns | não instaladas, ensaio rollback passou | instaladas com bloqueio de despacho | fila/transportador nativo e homologação separados |
+| 013 identidade estruturada | candidata não instalada | instalada, nenhuma identidade estruturada reportada | opcional, NÃO é requisito para exibir rótulo já existente; não modificar Windows só por isso |
+| Mercado Pago | integração ativa preservada | novas funções sandbox instaladas, gates fechados | homologação isolada; NÃO implantar mudanças financeiras em Produção |
+
+Evidência 013: fonte Windows 8b2430a já recebe account{name,number}, sanitiza e compõe accountLabel, SyncWhatsAppGroups transmite p_label=GroupAccountLabel; catálogo SQL lê c.label; editor web das referências c0827d4 (Produção) e d154be9 (Teste) já exibe row.connection abaixo do grupo e pesquisa pelo rótulo. Consulta agregada: 1 conexão ativa em Produção com telefone no rótulo; Teste com uma desconectada e uma revogada. Não registrar números reais no Git. CI web 46099334085 e 46099334405 aprovada. Connect AI continua separado.
+
+**Regra de publicação:** não substituir mercadopago-create v16, mercadopago-webhook v11, shop-integrations v9 nem funções/configuração financeira atual de Produção; não executar candidatas financeiras. Sem deploy automático; nenhum envio real ou ativação sem autorização. A publicação web deve ter revisão de compatibilidade e separar recursos financeiros não homologados, mesmo que estejam presentes nas branches candidatas.
+
+---
+
 # Pacote consolidado — Campanhas e estatísticas — 27/11/2026
 Status: candidato; NÃO PUBLICAR até autorização explícita. Connect AI fora do escopo.
 Bases: Produção 55dabf5387cb944e4b0eb86287f97ff0b7b17ddb e Teste 2ac4ea3a6d2d4ed5bfdb78fc5e6681dd15e6eba0 (já incluem vídeo nativo/documentos, pausa, recibos e falhas web pendentes). Não sobrescrever as branches operacionais ou a versão Windows 0.2.27.
