@@ -54,3 +54,31 @@ test('vitrine mostra texto aprovado e um único atalho ao atendimento interno, c
 });
 
 test('preferência antiga é normalizada sem perder cupom',async()=>{const s=setup({promotions:true,initialMethod:'pix',initialCoupon:'ORIGEM'});await s.ui.load();s.document.querySelector('[data-shop=buy]').click();await tick();const update=s.calls.find(c=>c[0]==='discount_options');assert.equal(update[1].payment_method,'any');assert.equal(update[1].coupon_code,'ORIGEM');const form=s.document.querySelector('[data-shop-form=discount_options]');assert.equal(form.querySelector('[name=coupon_code]').value,'ORIGEM');assert.deepEqual(Array.from(form.querySelectorAll('select[name=payment_method] option'),option=>option.value),['any']);assert.equal(s.navigation.length,0);});
+
+test('commercial enrollment form is limited to an administrator in the local preview',async()=>{
+ const outside=setup({admin:true});
+ await outside.ui.load();
+ outside.document.querySelector('[data-shop=manage]').click();
+ await tick();
+ assert.equal(outside.document.querySelector('[data-shop-commercial-enrollment]'),null);
+ const s=setup({admin:true});
+ const cloud=s.window.NeoCloud;
+ Object.assign(cloud,{commercialPreview:true,admin:true,
+  manageCommercialAccount:async(...args)=>s.calls.push(['commercialAccount',...args])});
+ await s.ui.load();
+ s.document.querySelector('[data-shop=manage]').click();
+ await tick();
+ const form=s.document.querySelector('[data-shop-commercial-enrollment]');
+ assert.ok(form);
+ form.querySelector('[name=account]').value=P;
+ form.querySelector('[value=enroll]').setAttribute('selected','');
+ form.reportValidity=()=>true;
+ cloud.admin=false;
+ form.dispatchEvent(new s.window.Event('submit',{bubbles:true,cancelable:true}));
+ assert.equal(s.calls.some(([action])=>action==='commercialAccount'),false);
+ cloud.admin=true;
+ form.dispatchEvent(new s.window.Event('submit',{bubbles:true,cancelable:true}));
+ await tick();
+ assert.deepEqual(s.calls.find(([action])=>action==='commercialAccount'),['commercialAccount',P,true]);
+ assert.match(form.querySelector('[role=status]').textContent,/atualizado/);
+});

@@ -133,3 +133,23 @@ test('voluntary onboarding rejects a changed account and ignores duplicate click
  assert.match(b.root.querySelector('[role=status]').textContent,/mesma conta/);
  assert.equal(b.install.blocking,false);
 });
+
+test('Supabase adapter mounts only a commercial account and delegates handoff with the same identity',async()=>{
+ const b=boot();
+ const calls=[];
+ const account={id:'synthetic-cloud',commercialComplete:true,onboardingComplete:false};
+ b.window.NeoCloud={commercialPreview:false,commercialAccount:async()=>{calls.push('read');return account;},
+  openCommercialOnboarding:async id=>calls.push(id)};
+ assert.equal(await b.shop.mountWithCloud(b.root,data),null);
+ assert.deepEqual(calls,[]);
+ b.window.NeoCloud.commercialPreview=true;
+ const close=await b.shop.mountWithCloud(b.root,data);
+ assert.equal(typeof close,'function');
+ assert.equal(b.root.querySelector('[data-commercial=register]'),null);
+ assert.equal(b.install.blocking,false);
+ b.click('[data-commercial=app]');
+ await new Promise(setImmediate);
+ assert.deepEqual(calls,['read','read',account.id]);
+ close();
+ assert.equal(b.install.blocking,true);
+});

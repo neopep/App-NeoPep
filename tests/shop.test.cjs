@@ -200,3 +200,35 @@ test('visibilidade por produto protege a compra e duplicação preserva listas e
   assert.equal((await shop('orders')).find(row=>row.id===order.id).items[0].product_id,unchanged);
  }finally{await db.close();}
 });
+
+test('commercial enrollment is private, admin managed and separate from full onboarding',async()=>{
+ const db=await setup();
+ try{
+  await db.query('insert into auth.users(id) values($1),($2)',[A,B]);
+  await db.exec('set role anon');
+  await assert.rejects(db.query('select neo_commercial_account()'),/permission/);
+  await assert.rejects(db.query('select neo_manage_commercial_account($1,true)',[B]),/permission/);
+  await as(db,B);
+  await assert.rejects(db.query('select * from neo_private.shop_commercial_accounts'),/permission/);
+  await assert.rejects(db.query('select neo_manage_commercial_account($1,true)',[B]),/Autorização/);
+  const read=async()=> (await db.query('select neo_commercial_account() as account')).rows[0].account;
+  assert.deepEqual(await read(),{id:B,commercialComplete:false});
+  await db.exec('reset role');
+  await db.query('insert into neo_private.admin_members(user_id) values($1)',[A]);
+  await as(db,A);
+  await db.query('select neo_manage_commercial_account($1,true)',[B]);
+  await db.query('select neo_manage_commercial_account($1,true)',[B]);
+  assert.deepEqual(await read(),{id:A,commercialComplete:false});
+  await as(db,B);
+  assert.deepEqual(await read(),{id:B,commercialComplete:true});
+  assert.equal((await db.query('select neo_admin_access() as admin')).rows[0].admin,false);
+  assert.equal((await db.query("select neo_has_consent('health') as health")).rows[0].health,false);
+  await onboard(db);
+  assert.deepEqual(await read(),{id:B,commercialComplete:true});
+  await as(db,A);
+  await db.query('select neo_manage_commercial_account($1,false)',[B]);
+  await as(db,B);
+  assert.deepEqual(await read(),{id:B,commercialComplete:false});
+  assert.equal((await db.query("select neo_has_consent('health') as health")).rows[0].health,true);
+ }finally{await db.close();}
+});

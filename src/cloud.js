@@ -17,7 +17,11 @@ function connectAIHost(){
 const connectTestEnabled=config.connectTestEnabled===true&&!official;
 const connectEnabled=connectTestEnabled||(official&&config.connectEnabled===true);
 const campaignsEnabled=!official||config.campaignActivationEnabled===true;
-const configured=/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(config.supabaseUrl||'')&&C.isPublicSupabaseKey(config.supabasePublishableKey);
+const loopback=/^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::[0-9]+)?$/;
+const commercialPreview=config.commercialPreview===true&&loopback.test(location.origin)&&loopback.test(config.supabaseUrl);
+const commercialIntentKey='neo-commercial-onboarding';
+let commercialLoadedVersion=-1;
+const configured=(commercialPreview||/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(config.supabaseUrl||''))&&C.isPublicSupabaseKey(config.supabasePublishableKey);
 const ok=r=>{if(r.error){const source=r.error,emailLimit=source.code==='over_email_send_rate_limit'||/email rate limit exceeded/i.test(source.message||'');const error=new Error(emailLimit?'O limite de envio de e-mails foi atingido. Aguarde antes de tentar novamente. Se o problema continuar, entre em contato com o responsável pelo aplicativo.':source.message||'Não foi possível acessar a nuvem.');error.code=source.code||null;error.status=source.status||null;throw error}return r.data};
 const needsHealth=()=>{need();if(!api.hasConsent('health')||!api.hasConsent('terms'))throw Error('Conclua o cadastro inicial e os consentimentos antes de gravar na conta.');};
 const need=()=>{if(!client||!user)throw Error('Entre na sua conta para continuar.');return client};
@@ -53,7 +57,7 @@ function validateConnectAIReturn(target, redirect) {
  if(actual.href!==expected.href)fail();
  return redirect;
 }
-const api={configured,connectTestEnabled:connectEnabled,
+const api={configured,commercialPreview,connectTestEnabled:connectEnabled,
  get connectAIAvailable(){return Boolean(connectAIHost())},
  async connectAIConnections(action,id=null){
   if(!api.connectAIAvailable||!['list','revoke'].includes(action))throw Error('Operação indisponível.');
@@ -354,6 +358,41 @@ const api={configured,connectTestEnabled:connectEnabled,
  async library(action='read',payload={}){need();const version=identityVersion;const data=ok(await client.rpc('neo_library',{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error('A conta mudou. Reabra a biblioteca.');if(action==='read'&&data?.can_manage===true)data.upload_limits=await api.libraryUploadLimits();if(version!==identityVersion)throw Error('A conta mudou.');return data},
  async community(action,payload={}){need();const version=identityVersion;const data=ok(await client.rpc("neo_community",{p_action:action,p_payload:payload}));if(version!==identityVersion)throw Error("A conta mudou. Reabra a comunidade.");return data},get user(){return user},get validated(){return config.cloudValidated===true},get admin(){return isAdmin},get onboardingComplete(){return onboarded},get consents(){return consents.map(c=>({...c}))},hasConsent(purpose){return consents.some(c=>c.purpose===purpose&&c.version==='2026-11-v1'&&c.granted)},
  async init(onChange){listener=onChange;if(!configured)return null;client=createClient(config.supabaseUrl,config.supabasePublishableKey,{auth:{flowType:'pkce',persistSession:true,storage:authStorage,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'neo-auth'}});client.auth.onAuthStateChange((event,session)=>{const nextUser=session?.user||null;if(nextUser?.id!==user?.id){identityVersion++;profileRevision=null;consents=[];isAdmin=false;onboarded=false}user=nextUser;setTimeout(()=>listener?.(event,user),0)});if(typeof client.auth.initialize==='function'){const initialized=await client.auth.initialize();if(initialized.error)throw initialized.error}const sessionResult=await client.auth.getSession();if(sessionResult.error)throw sessionResult.error;if(!sessionResult.data.session)return null;const data=ok(await client.auth.getUser());user=data.user;return user},
+ async commercialAccount(){
+  if(!commercialPreview)throw Error('Prévia comercial indisponível.');
+  if(!user)return null;
+  const account=user.id,version=identityVersion;
+  if(commercialLoadedVersion!==version)throw Error('Aguarde a verificação da conta.');
+  const result=ok(await need().rpc('neo_commercial_account'));
+  if(identityVersion!==version||user?.id!==account||result?.id!==account)throw Error('A conta mudou.');
+  return {id:account,commercialComplete:result.commercialComplete===true,onboardingComplete:onboarded};
+ },
+ async manageCommercialAccount(account,enrolled){
+  if(!commercialPreview||!isAdmin)throw Error('Autorização administrativa obrigatória.');
+  if(typeof enrolled!=='boolean')throw Error('Estado comercial inválido.');
+  const version=identityVersion;
+  ok(await need().rpc('neo_manage_commercial_account',{p_user:account,p_enrolled:enrolled}));
+  if(identityVersion!==version)throw Error('A conta mudou.');
+ },
+ async openCommercialOnboarding(expected){
+  const account=await api.commercialAccount();
+  if(account?.id!==expected||account.commercialComplete!==true||account.onboardingComplete!==false)throw Error('A conta mudou.');
+  sessionStorage.setItem(commercialIntentKey,account.id);
+  const url=new URL('/',location.origin);
+  url.hash='onboarding';
+  location.assign(url.href);
+ },
+ async consumeCommercialOnboarding(){
+  if(!commercialPreview||location.hash!=='#onboarding')return false;
+  let expected;
+  try{
+   expected=sessionStorage.getItem(commercialIntentKey);
+   sessionStorage.removeItem(commercialIntentKey);
+  }catch{return false;}
+  if(!expected||user?.id!==expected||onboarded)return false;
+  const account=await api.commercialAccount().catch(()=>null);
+  return account?.id===expected&&account.commercialComplete===true&&account.onboardingComplete===false;
+ },
  async oauth(provider,options={}){if(!configured||!config.providers?.[provider])throw Error('Este provedor ainda não foi configurado.');chooseRemember(options.remember);const redirectTo=authRedirect();ok(await client.auth.signInWithOAuth({provider,options:{redirectTo:redirectTo.href,scopes:provider==='apple'?'name email':'email profile'}}))},
  async email(mode,email,password,name,options={}){
   if(!configured||!config.providers?.email)throw Error('Login por e-mail ainda não configurado.');
@@ -388,7 +427,9 @@ const api={configured,connectTestEnabled:connectEnabled,
   if(s.vialDiaryStatus==='ready')s.vialDiary=diary;
   const p=ok(pr);consents=ok(cr)||[];isAdmin=ok(ar)===true;profileRevision=p?.revision??null;
   if(p?.data){s.profile=C.profile(p.data.profile);s.settings=C.validateBackup({settings:p.data.settings}).settings}else s.profile.name=String(user.user_metadata?.full_name||user.user_metadata?.name||'').slice(0,100);
-  onboarded=!!p&&!!s.profile.height&&!!s.profile.initialWeight&&!!s.profile.goal&&api.hasConsent('health')&&api.hasConsent('terms');return s;
+  onboarded=!!p&&!!s.profile.height&&!!s.profile.initialWeight&&!!s.profile.goal&&api.hasConsent('health')&&api.hasConsent('terms');
+  if(commercialPreview)commercialLoadedVersion=version;
+  return s;
  },
  async onboard(profile,settings,health,terms){need();if(health!==true||terms!==true)throw Error('Confirme os consentimentos específicos.');const p=C.profile(profile);if(!p.height||!p.initialWeight||!p.goal)throw Error('Informe altura, peso inicial e meta.');ok(await client.rpc('neo_complete_onboarding',{p_profile:{...p,initialRecordDate:C.today()},p_settings:C.validateBackup({settings}).settings,p_health:health,p_terms:terms}))},
  async setConsent(purpose,granted){need();if(!['health','terms','photos'].includes(purpose)||typeof granted!=='boolean')throw Error('Consentimento inválido.');const sessionVersion=identityVersion;ok(await client.rpc('neo_set_consent',{p_purpose:purpose,p_granted:granted}));if(sessionVersion!==identityVersion)throw Error('A conta mudou. Confirme a autorização novamente.');consents=consents.filter(c=>c.purpose!==purpose);consents.push({purpose,version:'2026-11-v1',granted});if(!granted&&['health','terms'].includes(purpose))onboarded=false},

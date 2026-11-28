@@ -832,7 +832,39 @@ window.NeoShop=(()=>{
   toggleRuleFields();
   void run('Consultando produtos…',()=>list(1));
  }
- function manager(){const fresh=newOrderCount();return `<div class="shop-admin-head"><h2>Gerenciar loja</h2><div class="shop-admin-actions">${button('new','＋ Adicionar produto','','primary')}${button('bulk','Gerenciamento em massa')}${data.can_manage_orders===false?'':button('manage_orders',`Pedidos${fresh?` (${fresh} novos)`:''}`)+button('settings','Entrega e condições')+button('promotions','Promoções',data.promotions_ready?'':'disabled')+button('coupons','Cupons e origem',data.promotions_ready?'':'disabled')}</div></div>${!data.shop_extensions?.gallery?'<p class="sub">Atualize a estrutura da loja no Supabase para ativar várias fotos e exclusão de produtos.</p>':''}${!data.promotions_ready?'<p class="sub">Promoções e cupons precisam da atualização de descontos no Supabase.</p>':''}${orderDashboard(false)}<div class="shop-manage-list">${data.products.map(p=>`<div class="card shop-manage-row">${p.photo_url?`<img class="shop-manage-photo" src="${e(p.photo_url)}" alt="" width="64" height="64">`:''}<div class="shop-manage-copy"><strong>${e(p.name)}</strong><p class="sub">${C.money(p.price_cents)} · ${p.stock} disponíveis · ${p.active?'Publicado':'Rascunho'}</p></div><div class="shop-manage-tools">${button('edit','Editar',`data-id="${e(p.id)}"`)}${productLinkButton(p)}${data.shop_extensions?.duplicate_product?button('duplicate_product',duplicateIcon,`data-id="${e(p.id)}" aria-label="Duplicar produto" title="Duplicar produto"`,'icon-btn'):''}${button('delete_product',trash,`data-id="${e(p.id)}" aria-label="Excluir ${e(p.name)}" title="Excluir produto" ${data.shop_extensions?.delete_product?'':'disabled'}`,'icon-btn shop-delete-product')}</div></div>`).join('')||empty('Cadastre seu primeiro produto','Adicione fotos, descrição, preço e estoque para publicar.')}</div>`}
+ function canManageCommercialEnrollment(){
+  const cloud=window.NeoCloud;
+  return data?.can_manage===true&&cloud?.commercialPreview===true&&cloud.admin===true;
+ }
+ function commercialEnrollmentPanel(){
+  if(!canManageCommercialEnrollment())return '';
+  return `<section class="card space"><h3>Cadastro comercial local</h3>
+   <form data-shop-commercial-enrollment>
+    <label>Identificador da conta<input name="account" required pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"></label>
+    <label>Cadastro comercial<select name="enrollment"><option value="enroll">Habilitar</option><option value="revoke">Revogar</option></select></label>
+    <button type="submit" class="secondary space">Salvar estado comercial</button>
+    <p role="status" data-enrollment-status></p>
+   </form></section>`;
+ }
+ document.addEventListener('submit',async event=>{
+  const form=event.target;
+  if(!form.matches('[data-shop-commercial-enrollment]'))return;
+  event.preventDefault();
+  if(!canManageCommercialEnrollment()||!form.reportValidity())return;
+  const submit=form.querySelector('button');
+  if(submit.disabled)return;
+  const values=new FormData(form),status=form.querySelector('[data-enrollment-status]');
+  const enrollment=values.get('enrollment');
+  if(!['enroll','revoke'].includes(enrollment))return;
+  submit.disabled=true;
+  try{
+   await window.NeoCloud.manageCommercialAccount(values.get('account'),enrollment==='enroll');
+   status.textContent='Estado comercial atualizado.';
+  }catch{
+   status.textContent='Não foi possível atualizar o estado comercial.';
+  }finally{submit.disabled=false;}
+ });
+ function manager(){const fresh=newOrderCount();return `<div class="shop-admin-head"><h2>Gerenciar loja</h2><div class="shop-admin-actions">${button('new','＋ Adicionar produto','','primary')}${button('bulk','Gerenciamento em massa')}${data.can_manage_orders===false?'':button('manage_orders',`Pedidos${fresh?` (${fresh} novos)`:''}`)+button('settings','Entrega e condições')+button('promotions','Promoções',data.promotions_ready?'':'disabled')+button('coupons','Cupons e origem',data.promotions_ready?'':'disabled')}</div></div>${!data.shop_extensions?.gallery?'<p class="sub">Atualize a estrutura da loja no Supabase para ativar várias fotos e exclusão de produtos.</p>':''}${!data.promotions_ready?'<p class="sub">Promoções e cupons precisam da atualização de descontos no Supabase.</p>':''}${orderDashboard(false)}${commercialEnrollmentPanel()}<div class="shop-manage-list">${data.products.map(p=>`<div class="card shop-manage-row">${p.photo_url?`<img class="shop-manage-photo" src="${e(p.photo_url)}" alt="" width="64" height="64">`:''}<div class="shop-manage-copy"><strong>${e(p.name)}</strong><p class="sub">${C.money(p.price_cents)} · ${p.stock} disponíveis · ${p.active?'Publicado':'Rascunho'}</p></div><div class="shop-manage-tools">${button('edit','Editar',`data-id="${e(p.id)}"`)}${productLinkButton(p)}${data.shop_extensions?.duplicate_product?button('duplicate_product',duplicateIcon,`data-id="${e(p.id)}" aria-label="Duplicar produto" title="Duplicar produto"`,'icon-btn'):''}${button('delete_product',trash,`data-id="${e(p.id)}" aria-label="Excluir ${e(p.name)}" title="Excluir produto" ${data.shop_extensions?.delete_product?'':'disabled'}`,'icon-btn shop-delete-product')}</div></div>`).join('')||empty('Cadastre seu primeiro produto','Adicione fotos, descrição, preço e estoque para publicar.')}</div>`}
  function visibilityEditor(){
   if(!product.id||!data.shop_extensions?.member_visibility)return '';
   return `<details class="shop-product-visibility" data-shop-visibility="${e(product.id)}">

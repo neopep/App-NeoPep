@@ -169,5 +169,13 @@ window.NeoPublicShop=(()=>{
    mounted=false;
   };
  }
- return Object.freeze({route,context,mount,get active(){return mounted;}});
+ async function mountWithCloud(root,rows){
+  const cloud=window.NeoCloud;
+  if(cloud?.commercialPreview!==true)return null;
+  const account=await cloud.commercialAccount();
+  if(context(account)!=='commercial')return null;
+  return mount(root,{rows,account,readAccount:()=>cloud.commercialAccount(),
+   register:()=>cloud.commercialAccount(),openApp:id=>cloud.openCommercialOnboarding(id)});
+ }
+ return Object.freeze({route,context,mount,mountWithCloud,get active(){return mounted;}});
 })();
