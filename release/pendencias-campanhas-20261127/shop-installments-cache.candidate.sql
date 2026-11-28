@@ -72,7 +72,7 @@ begin
   -- No numeric advertising until the seller has checked the hosted checkout for the same account revision.
   if rev is null or not cfg.checkout_verified or cfg.verified_revision is distinct from rev then return '{"enabled":true,"quotes":[]}'::jsonb;end if;
   select coalesce(jsonb_agg(jsonb_build_object('amount_cents',c.amount_cents,'rows',c.rows,'observed_at',c.observed_at,'expires_at',c.expires_at)),'[]') into result
-  from neo_private.shop_installment_cache_v1 c where c.environment=env and c.account_revision=rev and c.amount_cents=any(amounts) and c.expires_at>now();
+  from neo_private.shop_installment_cache_v1 c where c.environment=env and c.account_revision=rev and (c.amount_cents=any(amounts) or c.amount_cents in (10000,99700)) and c.expires_at>now();
   return jsonb_build_object('enabled',true,'environment',env,'quotes',result);
  end if;
  if not public.neo_admin_access() then raise exception 'Acesso administrativo obrigatório.' using errcode='42501';end if;
@@ -118,8 +118,8 @@ begin
   insert into neo_private.shop_installment_queue_v1(environment,amount_cents)
    select env,price_cents from (select distinct price_cents from neo_private.shop_products where active and deleted_at is null and stock>0 and price_cents between 1 and 100000000 order by price_cents limit 100) p
    on conflict(environment,amount_cents) do update set seen_at=now();
-  select coalesce(array_agg(amount_cents order by attempted_at nulls first,amount_cents),'{}') into amounts from (
-   select amount_cents,attempted_at from neo_private.shop_installment_queue_v1 where environment=env order by attempted_at nulls first,amount_cents limit 12
+  select array[10000::bigint,99700::bigint]||coalesce(array_agg(amount_cents order by attempted_at nulls first,amount_cents),'{}') into amounts from (
+   select amount_cents,attempted_at from neo_private.shop_installment_queue_v1 where environment=env and amount_cents not in (10000,99700) order by attempted_at nulls first,amount_cents limit 4
   ) q;
   if cardinality(amounts)=0 then update neo_private.shop_installment_config_v1 set last_attempt=now(),last_result='no_products' where environment=env;return '{"status":"no_products"}';end if;
   lease:=gen_random_uuid();
