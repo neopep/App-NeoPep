@@ -389,23 +389,30 @@ const api={configured,commercialPreview,connectTestEnabled:connectEnabled,
   if(identityVersion!==version)throw Error('A conta mudou.');
  },
  async openCommercialOnboarding(expected){
+  if(!commercialPreview||typeof expected!=='string'||!expected||user?.id!==expected)throw Error('A conta mudou.');
+  const version=identityVersion;
   const account=await api.commercialAccount();
-  if(account?.id!==expected||account.commercialComplete!==true||account.onboardingComplete!==false)throw Error('A conta mudou.');
-  sessionStorage.setItem(commercialIntentKey,account.id);
+  if(identityVersion!==version||user?.id!==expected||account?.id!==expected||account.commercialComplete!==true||account.onboardingComplete!==false)throw Error('A conta mudou.');
+  const now=Date.now();
+  sessionStorage.setItem(commercialIntentKey,JSON.stringify({id:account.id,createdAt:now}));
   const url=new URL('/',location.origin);
   url.hash='onboarding';
   location.assign(url.href);
  },
  async consumeCommercialOnboarding(){
   if(!commercialPreview||location.hash!=='#onboarding')return false;
-  let expected;
+  let intent;
   try{
-   expected=sessionStorage.getItem(commercialIntentKey);
+   const raw=sessionStorage.getItem(commercialIntentKey);
    sessionStorage.removeItem(commercialIntentKey);
+   if(!raw)return false;
+   intent=JSON.parse(raw);
   }catch{return false;}
-  if(!expected||user?.id!==expected||onboarded)return false;
+  const now=Date.now(),ttl=10*60*1000;
+  if(!intent||typeof intent.id!=='string'||!Number.isSafeInteger(intent.createdAt)||intent.createdAt>now||now-intent.createdAt>=ttl||user?.id!==intent.id||onboarded)return false;
+  const version=identityVersion;
   const account=await api.commercialAccount().catch(()=>null);
-  return account?.id===expected&&account.commercialComplete===true&&account.onboardingComplete===false;
+  return identityVersion===version&&user?.id===intent.id&&!onboarded&&account?.id===intent.id&&account.commercialComplete===true&&account.onboardingComplete===false;
  },
  // END local commercial account adapter
  async oauth(provider,options={}){if(!configured||!config.providers?.[provider])throw Error('Este provedor ainda não foi configurado.');chooseRemember(options.remember);const redirectTo=authRedirect();ok(await client.auth.signInWithOAuth({provider,options:{redirectTo:redirectTo.href,scopes:provider==='apple'?'name email':'email profile'}}))},
