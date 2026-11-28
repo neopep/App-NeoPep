@@ -90,7 +90,7 @@ begin
    'ready',coalesce((select enabled from neo_private.campaign_wa_rich_control where singleton),false)
      and neo_private.campaign_wa_test_ready(actor,t.connection_id,t.group_jid)
      and exists(select 1 from neo_private.connect_wa_connections c join neo_private.connect_devices d on d.id=c.device_id
-       where c.id=t.connection_id and d.owner_id=actor and (d.version in ('0.2.12','0.2.13','0.2.14','0.2.15','0.2.16','0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28') or neo_private.campaign_album_device_ok_v1(d.version)) and d.state='approved'),
+       where c.id=t.connection_id and d.owner_id=actor and (d.version in ('0.2.12','0.2.13','0.2.14','0.2.15','0.2.16','0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28','0.2.29') or neo_private.campaign_album_device_ok_v1(d.version)) and d.state='approved'),
    'destination',t.connection_id::text||':'||t.group_jid,'max_blocks',6,'max_image_bytes',1048576,
    'originals_enabled',coalesce((select originals_enabled from neo_private.campaign_wa_rich_control where singleton),false));
  end if;
@@ -133,7 +133,7 @@ begin
  if not (select enabled from neo_private.campaign_wa_rich_control where singleton)
    or not neo_private.campaign_wa_test_ready(actor,t.connection_id,t.group_jid)
    or not exists(select 1 from neo_private.connect_wa_connections c join neo_private.connect_devices d on d.id=c.device_id
-      where c.id=t.connection_id and d.owner_id=actor and (d.version in ('0.2.12','0.2.13','0.2.14','0.2.15','0.2.16','0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28') or neo_private.campaign_album_device_ok_v1(d.version)) and d.state='approved') then
+      where c.id=t.connection_id and d.owner_id=actor and (d.version in ('0.2.12','0.2.13','0.2.14','0.2.15','0.2.16','0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28','0.2.29') or neo_private.campaign_album_device_ok_v1(d.version)) and d.state='approved') then
   raise exception 'rich_dispatch_not_ready' using errcode='42501';
  end if;
  req:=(p_data->>'request_id')::uuid;
@@ -197,11 +197,11 @@ begin
       or (exists(select 1 from storage.objects o where o.bucket_id='neo-campaign-originals' and o.name=bl->>'media_path'
           and case when coalesce(o.metadata->>'size','')~'^[0-9]{1,9}$' then (o.metadata->>'size')::bigint>(case when bl->>'media_path' like '%.pdf' then 5242880 else 26214400 end) else true end)
         and not exists(select 1 from neo_private.connect_wa_connections c join neo_private.connect_devices d on d.id=c.device_id
-          where c.id=t.connection_id and d.owner_id=actor and d.state='approved' and d.version='0.2.28' and d.last_seen>now()-interval '90 seconds'))
+          where c.id=t.connection_id and d.owner_id=actor and d.state='approved' and d.version in ('0.2.28','0.2.29') and d.last_seen>now()-interval '90 seconds'))
       or (exists(select 1 from storage.objects o where o.bucket_id='neo-campaign-originals' and o.name=bl->>'media_path'
            and case when coalesce(o.metadata->>'size','')~'^[0-9]{1,9}$' then ((o.metadata->>'size')::int>5242880 or bl->>'media_path' like '%.mov') else true end)
        and not exists(select 1 from neo_private.connect_wa_connections c join neo_private.connect_devices d on d.id=c.device_id
-         where c.id=t.connection_id and d.owner_id=actor and d.state='approved' and d.version in ('0.2.16','0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28') and (bl->>'media_path' not like '%.mov' or d.version in ('0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28')) and d.last_seen>now()-interval '90 seconds'))
+         where c.id=t.connection_id and d.owner_id=actor and d.state='approved' and d.version in ('0.2.16','0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28','0.2.29') and (bl->>'media_path' not like '%.mov' or d.version in ('0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28','0.2.29')) and d.last_seen>now()-interval '90 seconds'))
 
     then raise exception 'rich_original_unavailable' using errcode='22023';end if;
     image_bucket:='neo-campaign-originals';image_path:=bl->>'media_path';original_name:=bl->>'name';
@@ -311,7 +311,7 @@ begin
  then return null;end if;
  if p_action='delivery_receipt' then
   -- No recipient IDs, content or phone numbers persisted. Match only the authenticated device's own dispatch.
-  if d.version not in ('0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28') or coalesce(p_data->>'status','') not in ('server_ack','delivery_ack','send_error')
+  if d.version not in ('0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28','0.2.29') or coalesce(p_data->>'status','') not in ('server_ack','delivery_ack','send_error')
     or coalesce(length(p_data->>'message_id'),0) not between 1 and 160
     or coalesce(p_data->>'group_jid','') !~ '^[0-9-]{1,64}@g[.]us$' then
     raise exception 'campaign_delivery_receipt_invalid' using errcode='22023';end if;
@@ -336,15 +336,15 @@ begin
    where job.owner_id=actor and job.connection_id=t.connection_id and job.group_jid=t.group_jid
     and b.cancelled_at is null and job.state='waiting' and job.due_at<=now()
     and neo_private.campaign_parent_enabled(b.editor_id,'whatsapp') and neo_private.campaign_wa_review_allows(job.batch_id)
-    and (job.kind<>'file' or (d.version in ('0.2.14','0.2.15','0.2.16','0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28') and p_data->'originals_v1'='true'::jsonb and coalesce((select originals_enabled from neo_private.campaign_wa_rich_control where singleton),false)))
+    and (job.kind<>'file' or (d.version in ('0.2.14','0.2.15','0.2.16','0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28','0.2.29') and p_data->'originals_v1'='true'::jsonb and coalesce((select originals_enabled from neo_private.campaign_wa_rich_control where singleton),false)))
     
-    and (job.kind<>'file' or job.original_mime not in ('video/mp4','video/quicktime') or (d.version in ('0.2.26','0.2.27','0.2.28') and p_data->'native_video_v1'='true'::jsonb))
+    and (job.kind<>'file' or job.original_mime not in ('video/mp4','video/quicktime') or (d.version in ('0.2.26','0.2.27','0.2.28','0.2.29') and p_data->'native_video_v1'='true'::jsonb))
     and (job.kind<>'file' or exists(select 1 from storage.objects o
       where o.bucket_id='neo-campaign-originals' and o.name=job.media_path
       and case when coalesce(o.metadata->>'size','')~'^[0-9]{1,9}$' then
          ((o.metadata->>'size')::int between 8 and 5242880 and job.original_mime in ('application/pdf','video/mp4'))
-         or (d.version in ('0.2.16','0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28') and p_data->'originals_25mb'='true'::jsonb and (job.original_mime='video/mp4' or (job.original_mime='video/quicktime' and d.version in ('0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28') and p_data->'originals_mov'='true'::jsonb))
-             and (o.metadata->>'size')::int between 8 and 26214400) or (d.version='0.2.28' and p_data->'originals_50mb'='true'::jsonb and job.original_mime in ('application/pdf','video/mp4','video/quicktime') and (o.metadata->>'size')::int between 8 and 52428800)
+         or (d.version in ('0.2.16','0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28','0.2.29') and p_data->'originals_25mb'='true'::jsonb and (job.original_mime='video/mp4' or (job.original_mime='video/quicktime' and d.version in ('0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28','0.2.29') and p_data->'originals_mov'='true'::jsonb))
+             and (o.metadata->>'size')::int between 8 and 26214400) or (d.version in ('0.2.28','0.2.29') and p_data->'originals_50mb'='true'::jsonb and job.original_mime in ('application/pdf','video/mp4','video/quicktime') and (o.metadata->>'size')::int between 8 and 52428800)
          else false end))
     and (job.kind<>'album' or (neo_private.campaign_album_device_ok_v1(d.version) and p_data->'album_v1'='true'::jsonb and neo_private.campaign_album_items_valid_v1(actor,job.album_items)))
     and not exists(select 1 from neo_private.campaign_wa_rich_messages preceding
@@ -372,14 +372,14 @@ begin
   if exists(select 1 from neo_private.campaign_wa_rich_batches b where b.id=m.batch_id and not neo_private.campaign_parent_enabled(b.editor_id,'whatsapp')) then return null;end if;
   if not neo_private.campaign_wa_review_allows(m.batch_id) then raise exception 'review_required' using errcode='42501';end if;
   
- if m.kind='file' and m.original_mime in ('video/mp4','video/quicktime') and (d.version not in ('0.2.26','0.2.27','0.2.28') or p_data->'native_video_v1' is distinct from 'true'::jsonb) then raise exception 'native_video_required' using errcode='42501';end if;
+ if m.kind='file' and m.original_mime in ('video/mp4','video/quicktime') and (d.version not in ('0.2.26','0.2.27','0.2.28','0.2.29') or p_data->'native_video_v1' is distinct from 'true'::jsonb) then raise exception 'native_video_required' using errcode='42501';end if;
  if m.kind='file' and not exists(select 1 from storage.objects o where o.bucket_id='neo-campaign-originals' and o.name=m.media_path
     and case when coalesce(o.metadata->>'size','')~'^[0-9]{1,9}$' then
       ((o.metadata->>'size')::int between 8 and 5242880 and m.original_mime in ('application/pdf','video/mp4'))
-      or (d.version in ('0.2.16','0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28') and p_data->'originals_25mb'='true'::jsonb and (m.original_mime='video/mp4' or (m.original_mime='video/quicktime' and d.version in ('0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28') and p_data->'originals_mov'='true'::jsonb))
-          and (o.metadata->>'size')::int between 8 and 26214400) or (d.version='0.2.28' and p_data->'originals_50mb'='true'::jsonb and m.original_mime in ('application/pdf','video/mp4','video/quicktime') and (o.metadata->>'size')::int between 8 and 52428800)
+      or (d.version in ('0.2.16','0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28','0.2.29') and p_data->'originals_25mb'='true'::jsonb and (m.original_mime='video/mp4' or (m.original_mime='video/quicktime' and d.version in ('0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28','0.2.29') and p_data->'originals_mov'='true'::jsonb))
+          and (o.metadata->>'size')::int between 8 and 26214400) or (d.version in ('0.2.28','0.2.29') and p_data->'originals_50mb'='true'::jsonb and m.original_mime in ('application/pdf','video/mp4','video/quicktime') and (o.metadata->>'size')::int between 8 and 52428800)
       else false end) then raise exception 'rich_original_capacity' using errcode='42501';end if;
- if m.state<>'leased' or (m.kind='file' and (d.version not in ('0.2.14','0.2.15','0.2.16','0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28') or p_data->'originals_v1' is distinct from 'true'::jsonb or not coalesce((select originals_enabled from neo_private.campaign_wa_rich_control where singleton),false))) then raise exception 'rich_lease_not_available' using errcode='42501';end if;
+ if m.state<>'leased' or (m.kind='file' and (d.version not in ('0.2.14','0.2.15','0.2.16','0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28','0.2.29') or p_data->'originals_v1' is distinct from 'true'::jsonb or not coalesce((select originals_enabled from neo_private.campaign_wa_rich_control where singleton),false))) then raise exception 'rich_lease_not_available' using errcode='42501';end if;
   if m.kind='album' and (not neo_private.campaign_album_device_ok_v1(d.version) or p_data->'album_v1' is distinct from 'true'::jsonb or not neo_private.campaign_album_items_valid_v1(actor,m.album_items)) then raise exception 'rich_album_capacity' using errcode='42501';end if;
   update neo_private.campaign_wa_rich_messages set state='started' where id=m.id;
   insert into neo_private.campaign_wa_rich_audit(message_id,event,device_id) values(m.id,'started',p_device);
@@ -395,7 +395,7 @@ begin
     then jsonb_build_object('message_id',p_data->'album_receipt'->'message_id',
       'media',coalesce(p_data->'album_receipt'->'media','[]'::jsonb)) end,
    sent_at=now(),lease_until=null,
-   blocked_reason=case when outcome='refused' and receipt is null and ((d.version in ('0.2.25','0.2.26','0.2.27','0.2.28') and p_data->>'blocked_reason'='previous_421') or (d.version in ('0.2.26','0.2.27','0.2.28') and m.kind='file' and m.original_mime in ('video/mp4','video/quicktime') and p_data->>'blocked_reason'='video_conversion')) then p_data->>'blocked_reason' else null end
+   blocked_reason=case when outcome='refused' and receipt is null and ((d.version in ('0.2.25','0.2.26','0.2.27','0.2.28','0.2.29') and p_data->>'blocked_reason'='previous_421') or (d.version in ('0.2.26','0.2.27','0.2.28','0.2.29') and m.kind='file' and m.original_mime in ('video/mp4','video/quicktime') and p_data->>'blocked_reason'='video_conversion')) then p_data->>'blocked_reason' else null end
    where id=m.id;
  insert into neo_private.campaign_wa_rich_audit(message_id,event,device_id,receipt_present)
    values(m.id,outcome,p_device,receipt is not null and outcome='accepted');
@@ -404,4 +404,45 @@ begin
  end if;
  return jsonb_build_object('ok',true);
 end $function$;
+do $$ begin if (select md5(prosrc) from pg_proc where oid='neo_private.campaign_wa_auto_rebind(uuid,uuid,uuid)'::regprocedure) is distinct from '9d2eaf995715a9905853439d06ae4f7f' then raise exception 'rebind_contract_mismatch';end if;end $$;
+CREATE OR REPLACE FUNCTION neo_private.campaign_wa_auto_rebind(p_actor uuid, p_device uuid, p_connection uuid)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SET search_path TO 'pg_catalog'
+AS $function$
+declare cfg neo_private.campaign_wa_test_config%rowtype;
+begin
+ if p_actor is null or auth.uid() is distinct from p_actor
+ or not coalesce(neo_private.campaign_admin_allowed(),false)
+ or coalesce(nullif(current_setting('request.jwt.claims',true),'')::jsonb->>'iss','') <> 'https://qnuluspqfazdppciermw.supabase.co/auth/v1'
+ then return false;end if;
+ -- Fast path for ordinary heartbeat: no write or lock when the binding has not changed.
+ if not exists(select 1 from neo_private.campaign_wa_test_config f where singleton and enabled and owner_id=p_actor and connection_id<>p_connection) then return false;end if;
+ select * into cfg from neo_private.campaign_wa_test_config where singleton and enabled and owner_id=p_actor and connection_id<>p_connection for update skip locked;
+ if not found or coalesce((select paused from neo_private.connect_config where singleton),true) then return false;end if;
+ -- Explicit revocation only. A transient outage is not authority to change the sender.
+ if not exists(select 1 from neo_private.connect_wa_connections old
+  join neo_private.connect_wa_connections fresh on fresh.id=p_connection and fresh.created_at>old.created_at
+  where old.id=cfg.connection_id and old.owner_id=p_actor and old.device_id=p_device and old.status='revoked'
+   and fresh.owner_id=p_actor and fresh.device_id=p_device and fresh.status='connected') then return false;end if;
+ if (select count(*) from neo_private.connect_wa_connections where owner_id=p_actor and status='connected')<>1 then return false;end if;
+ if not exists(select 1 from neo_private.connect_wa_connections c
+  join neo_private.connect_devices d on d.id=c.device_id and d.owner_id=c.owner_id
+  join neo_private.campaign_dispatch_presence h on h.device_id=d.id and h.connection_id=c.id
+  where c.id=p_connection and c.owner_id=p_actor and c.device_id=p_device and c.status='connected'
+   and c.last_seen_at>now()-interval '90 seconds' and c.last_synced_at>now()-interval '24 hours'
+   and c.revision>0 and d.state='approved' and d.version in ('0.2.13','0.2.14','0.2.15','0.2.16','0.2.17','0.2.18','0.2.19','0.2.20','0.2.21','0.2.22','0.2.23','0.2.24','0.2.25','0.2.26','0.2.27','0.2.28','0.2.29')
+   and d.last_seen>now()-interval '90 seconds' and h.session_ready and h.bridge_version='wa-text-v1'
+   and h.seen_at>now()-interval '90 seconds'
+   and exists(select 1 from neo_private.connect_wa_selected_groups g where g.connection_id=c.id
+    and g.group_jid=cfg.group_jid)) then return false;end if;
+ -- No reassignment of destinations, reservations or batches. Fail closed while work is unresolved.
+ if exists(select 1 from neo_private.campaign_wa_rich_messages where state in ('waiting','leased','started','uncertain'))
+ or exists(select 1 from neo_private.campaign_wa_publications where dispatch_state in ('waiting','leased','started','uncertain'))
+ or exists(select 1 from neo_private.campaign_manual_claims where state='reserved') then return false;end if;
+ update neo_private.campaign_wa_test_config set connection_id=p_connection
+ where singleton and enabled and owner_id=p_actor and connection_id=cfg.connection_id;
+ if found then raise log 'NeoPep WhatsApp binding automatically updated (test)';return true;end if;
+ return false;
+end;$function$;
 commit;
