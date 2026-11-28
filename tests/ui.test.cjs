@@ -431,6 +431,7 @@ test('engajamento deduplica renderizações e descarta tempo de segundo plano',a
  }});
  Object.defineProperty(a.document,'visibilityState',{get:()=>visibility});
  await new Promise(setImmediate);
+ a.ctx.NeoWebPrivacy={allowed:()=>true};
  a.run("mode='cloud';page='inicio';render()");
  await new Promise(setImmediate);
  a.run('render();engagementView()');
@@ -462,7 +463,9 @@ test('qualidade mede apenas com consentimento e limita a frequência das amostra
  a.run("observeQuality('javascript_error')");
  await new Promise(setImmediate);
  assert.deepEqual(calls,[]);
- a.run("engagementAllowed=true;observeQuality('sync_response',350);observeQuality('sync_response',351)");
+ a.run("engagementAllowed=true;observeQuality('sync_response',349)");await new Promise(setImmediate);assert.deepEqual(calls,[],'sem consentimento de cookies não medir');
+ a.ctx.NeoWebPrivacy={allowed:()=>true};
+ a.run("observeQuality('sync_response',350);observeQuality('sync_response',351)");
  await new Promise(setImmediate);
  assert.deepEqual(calls,[['sync_response',350,'']]);
 });
