@@ -21,7 +21,7 @@ alter table neo_private.shop_customer_notices_v1 enable row level security;
 revoke all on neo_private.shop_notice_settings_v1,neo_private.shop_customer_notices_v1 from public,anon,authenticated,service_role;
 create function neo_private.shop_reminder_eligible_v1(o neo_private.shop_orders)
 returns boolean language sql stable set search_path=pg_catalog as $$
- select coalesce(o.status='awaiting_payment' and o.cancellation_status='none' and not o.stock_released
+ select coalesce(o.user_id is not null and o.status='awaiting_payment' and o.cancellation_status='none' and not o.stock_released
   and o.expires_at>now() and o.payment_id is null
   and (o.payment_lease is null or o.payment_lease<=now())
   and not exists(select 1 from neo_private.shop_payments p where p.order_id=o.id and p.status not in ('rejected','cancelled','canceled','expired','failed'))
@@ -31,7 +31,7 @@ revoke all on function neo_private.shop_reminder_eligible_v1(neo_private.shop_or
 create function neo_private.shop_customer_paid_notice_v1()
 returns trigger language plpgsql set search_path=pg_catalog as $$
 begin
- if new.status in ('paid','test_paid') and new.status is distinct from old.status then
+ if new.user_id is not null and new.status in ('paid','test_paid') and new.status is distinct from old.status then
   insert into neo_private.shop_customer_notices_v1(order_id,user_id,kind) values(new.id,new.user_id,'paid') on conflict(order_id,kind) do nothing;
  end if;
  return new;
@@ -99,7 +99,7 @@ begin
   oid:=split_part(j.event_key,':',2)::uuid;
   select * into o from neo_private.shop_orders where id=oid;
   select user_id into device_user from neo_private.push_devices where id=j.device_id;
-  if o.id is null or device_user is distinct from o.user_id then return '{"send":false}'::jsonb;end if;
+  if o.id is null or o.user_id is null or device_user is distinct from o.user_id or o.status not in ('paid','test_paid') then return '{"send":false}'::jsonb;end if;
   return '{"send":true,"notice":"payment_confirmed","ttl":300}'::jsonb;
  end if;
  return '{"send":true,"ttl":300}'::jsonb;
