@@ -12,7 +12,7 @@ test('cron de parcelas isolado ao projeto e desativado por padrão',()=>{const s
 
 test('operações financeiras exigem administrador efetivo e não moderador',()=>{const edge=fs.readFileSync('supabase/functions/shop-integrations/index.ts','utf8'),sql=fs.readFileSync('release/pendencias-campanhas-20261127/shop-financial-admin.candidate.sql','utf8');assert.ok(edge.includes("admin.rpc('neo_shop_financial_admin_v1'"));assert.ok(edge.includes('financialAdmin.data!==true'));assert.ok(!edge.includes("admin.rpc('neo_integration_admin'"));assert.ok(sql.includes('neo_private.admin_members'));assert.ok(!sql.includes('community_moderators'));assert.ok(sql.includes('to service_role'));});
 
-test('vitrine destaca somente parcelas e ordena valores crescentes sem divulgar taxas',()=>{
+test('vitrine destaca somente parcelas e ordena número de parcelas crescente sem divulgar taxas',()=>{
  const c={money:n=>(n/100).toFixed(2)},e=String;
  const opts=[{method:'visa',installments:2,installment_cents:5500,total_cents:11000,buyer_rate:10},{method:'master',installments:6,installment_cents:2000,total_cents:12000,buyer_rate:20},{method:'visa',installments:6,installment_cents:2100,total_cents:12600,buyer_rate:26},{method:'visa',installments:3,installment_cents:3800,total_cents:11400,buyer_rate:14}];
  const render=new Function('C','e','data','installmentState','installmentRows',s.slice(s.indexOf(' function installmentDisplay('),s.indexOf('\n }',s.indexOf(' function installmentDisplay('))+3)+';return installmentDisplay')(c,e,{}, {enabled:true,quotes:[]},()=>({rows:opts}));
@@ -21,8 +21,8 @@ test('vitrine destaca somente parcelas e ordena valores crescentes sem divulgar 
  assert.doesNotMatch(card,/Simulação|Visa|Mastercard|Confirme|%/);
  assert.doesNotMatch(detail,/Acréscimo|Visa|Mastercard|<th>Total|%/);
  assert.match(detail,/<th>Parcelas<\/th><th>Valor da parcela<\/th>/);
- assert.ok(detail.indexOf('6x</td>')<detail.indexOf('3x</td>'));
- assert.ok(detail.indexOf('3x</td>')<detail.indexOf('2x</td>'));
+ assert.ok(detail.indexOf('2x</td>')<detail.indexOf('3x</td>'));
+ assert.ok(detail.indexOf('3x</td>')<detail.indexOf('6x</td>'));
  assert.equal((detail.match(/6x<\/td>/g)||[]).length,1);
  assert.match(detail,/Confirme as condições no Mercado Pago/);
 });

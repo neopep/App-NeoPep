@@ -129,7 +129,7 @@ window.NeoShop=(()=>{
    if(!prev)grouped.set(r.installments,{installments:r.installments,min:r.installment_cents,max:r.installment_cents});
    else{prev.min=Math.min(prev.min,r.installment_cents);prev.max=Math.max(prev.max,r.installment_cents);}
   }
-  const plans=[...grouped.values()].sort((a,b)=>a.min-b.min||b.installments-a.installments);
+  const plans=[...grouped.values()].sort((a,b)=>a.installments-b.installments);
   if(!plans.length)return '<span class="shop-installment-hint shop-installment-unavailable">Consulte o parcelamento no Mercado Pago</span>';
   const best=plans.reduce((a,b)=>b.installments>a.installments?b:a);
   const summary='Até '+best.installments+'x '+(best.min!==best.max?'a partir de ':'de ')+C.money(best.min);
