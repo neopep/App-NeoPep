@@ -186,7 +186,7 @@ sealed partial class Connect {
         }
     }
     async Task<byte[]> PrepareNativeCampaignVideo(byte[] source){
-        if(source==null||source.Length<8||source.Length>25*1024*1024||provisioningVideoTools||videoPreviewBusy||(sibling!=null&&sibling.videoPreviewBusy))throw new IOException("video_conversion_unavailable");
+        if(source==null||source.Length<8||source.Length>50*1024*1024||provisioningVideoTools||videoPreviewBusy||(sibling!=null&&sibling.videoPreviewBusy))throw new IOException("video_conversion_unavailable");
         var runtime=Path.Combine(ConnectProfile.InstallFolder,ConnectVersion.Runtime);
         videoPreviewBusy=true;
         string work=null;
