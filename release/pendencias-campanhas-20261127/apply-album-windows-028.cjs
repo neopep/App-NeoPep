@@ -44,7 +44,7 @@ const edits={
   "connect/windows/WhatsApp.cs": [
     [
       "TaskCompletionSource<Tuple<string,string>> automatedSend;",
-      "TaskCompletionSource<Tuple<string,string>> automatedSend;\n    // Candidate remains disabled until explicit client and server homologation.\n    static readonly bool AlbumTransportApproved=false;\n    bool automatedAlbum;\n    Dictionary<string,object> automatedAlbumResult;\n    public bool CampaignAlbumReady { get { return AlbumTransportApproved&&!environment.IsProduction&&CampaignSessionReady; } }"
+      "TaskCompletionSource<Tuple<string,string>> automatedSend;\n    // Capability compiled for Teste only; local opt-in and the independent server gate authorize dispatch.\n    static readonly bool AlbumTransportApproved=true;\n    bool automatedAlbum;\n    Dictionary<string,object> automatedAlbumResult;\n    public bool CampaignAlbumReady { get { return AlbumTransportApproved&&!environment.IsProduction&&CampaignSessionReady&&canPublish!=null&&canPublish(); } }"
     ],
     [
       "    public async Task<Tuple<string,string>> DispatchCampaignImageAsync",
