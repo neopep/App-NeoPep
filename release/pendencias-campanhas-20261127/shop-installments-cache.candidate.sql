@@ -156,5 +156,11 @@ begin
 end $$;
 revoke all on function public.neo_shop_installment_worker_v1(text,jsonb) from public,anon,authenticated,service_role;
 grant execute on function public.neo_shop_installment_worker_v1(text,jsonb) to service_role;
+create function public.neo_shop_installment_active_environment_v1()
+returns text language sql stable security definer set search_path=pg_catalog as $
+ select payment_environment from neo_private.shop_settings where singleton and payments_ready
+$;
+revoke all on function public.neo_shop_installment_active_environment_v1() from public,anon,authenticated,service_role;
+grant execute on function public.neo_shop_installment_active_environment_v1() to service_role;
 notify pgrst,'reload schema';
 commit;
