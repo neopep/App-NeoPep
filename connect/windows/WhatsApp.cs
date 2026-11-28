@@ -70,11 +70,11 @@ sealed partial class WhatsApp : Form {
     Guid pendingSend=Guid.Empty;
     bool sendingText;
     TaskCompletionSource<Tuple<string,string>> automatedSend;
-    // Candidate remains disabled until explicit client and server homologation.
-    static readonly bool AlbumTransportApproved=false;
+    // Capability compiled for Teste only; local opt-in and the independent server gate authorize dispatch.
+    static readonly bool AlbumTransportApproved=true;
     bool automatedAlbum;
     Dictionary<string,object> automatedAlbumResult;
-    public bool CampaignAlbumReady { get { return AlbumTransportApproved&&!environment.IsProduction&&CampaignSessionReady; } }
+    public bool CampaignAlbumReady { get { return AlbumTransportApproved&&!environment.IsProduction&&CampaignSessionReady&&canPublish!=null&&canPublish(); } }
     Guid automatedRequest;
     readonly HashSet<string> sentRequests=new HashSet<string>(StringComparer.Ordinal);
     // Aggregate delivery evidence only; never store recipient identities.
