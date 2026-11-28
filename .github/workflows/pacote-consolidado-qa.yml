@@ -21,3 +21,53 @@ jobs:
       - run: npm run build
       - run: npm run check
       - run: npm test
+
+  album-windows-compile:
+    if: github.event.pull_request.head.ref == 'desenvolvimento/pacote-campanhas-estatisticas-teste-20261127'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+    steps:
+      - name: Checkout candidato Teste
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          path: candidate
+      - name: Checkout fonte exata Windows publicado
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          ref: 8b2430aaae1eccf1bd2cdef1c8988efd124e0d2c
+          persist-credentials: false
+          path: baseline
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.22.1'
+      - name: Validar e aplicar patch em worktree isolado
+        shell: pwsh
+        run: |
+          node candidate/release/pendencias-campanhas-20261127/qa-album-windows-028.cjs baseline
+          if ($LASTEXITCODE) { throw 'QA do album falhou' }
+          node candidate/release/pendencias-campanhas-20261127/apply-album-windows-028.cjs baseline
+          if ($LASTEXITCODE) { throw 'Patch do album falhou' }
+          node --check baseline/connect/whatsapp-lab/whatsapp-provider.mjs
+          if ($LASTEXITCODE) { throw 'Sintaxe provider invalida' }
+          node --check baseline/connect/whatsapp-lab/windows-bridge.mjs
+          if ($LASTEXITCODE) { throw 'Sintaxe bridge invalida' }
+      - name: Testar runtime com dependencias fixadas
+        working-directory: baseline/connect/whatsapp-lab
+        run: |
+          npm ci
+          if ($LASTEXITCODE) { throw 'npm ci falhou' }
+          npm test
+          if ($LASTEXITCODE) { throw 'Testes do runtime falharam' }
+      - name: Compilar candidato fechado, sem publicar artefato
+        shell: powershell
+        run: |
+          $output = Join-Path $env:RUNNER_TEMP 'neopep-album-compile-only'
+          & ./baseline/connect/windows/build.ps1 -Output $output -Perfil Teste -Version 0.2.29
+          if (!(Test-Path (Join-Path $output 'NeoPepConnectSetup.exe'))) { throw 'Compilacao incompleta' }
+          Remove-Item -LiteralPath $output -Recurse -Force
