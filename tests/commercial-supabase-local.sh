@@ -2,21 +2,56 @@
 # Disposable Auth, PostgREST and PostgreSQL. No remote project credentials.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-suffix="neopep-commercial-$$"
+for dependency in docker node curl grep; do
+ if ! command -v "$dependency" >/dev/null 2>&1; then
+  echo "Dependência local ausente: $dependency" >&2; exit 1
+ fi
+done
+# Never run this disposable test against a remote Docker daemon.
+if [[ -n "${DOCKER_CONTEXT:-}" ]]; then
+ docker_host="$(docker context inspect "$DOCKER_CONTEXT" --format '{{.Endpoints.docker.Host}}')"
+else
+ docker_host="${DOCKER_HOST:-$(docker context inspect --format '{{.Endpoints.docker.Host}}')}"
+fi
+case "$docker_host" in
+ unix://*|npipe://*) ;;
+ *) echo 'Ensaio cancelado: Docker deve usar um daemon local (unix/npipe).' >&2; exit 1 ;;
+esac
+if ! docker info >/dev/null 2>&1; then
+ echo 'Docker local indisponível; inicie o daemon antes de executar o ensaio.' >&2; exit 1
+fi
+images=(postgres:17.7 axllent/mailpit:v1.27.0 supabase/gotrue:v2.185.0 postgrest/postgrest:v13.0.7)
+# Fail before creating any network or containers if an image cannot be extracted.
+for image in "${images[@]}"; do
+ if ! docker image inspect "$image" >/dev/null 2>&1; then
+  if ! docker pull "$image"; then
+   echo "Falha ao preparar $image. Confira o espaço do daemon Docker (docker system df). Nenhuma limpeza automática será feita." >&2
+   docker system df >&2 || true
+   exit 1
+  fi
+ fi
+done
+suffix="neopep-commercial-$$$(node -p "require('node:crypto').randomInt(100000000,999999999)")"
 db="$suffix-db"
 auth="$suffix-auth"
 rest="$suffix-rest"
 mail="$suffix-mail"
+label="com.neopep.disposable-commercial=$suffix"
 cleanup() {
- docker rm -fv "$auth" "$rest" "$mail" "$db" >/dev/null 2>&1 || true
- docker network rm "$suffix" >/dev/null 2>&1 || true
+ local id
+ while IFS= read -r id; do
+  [[ -n "$id" ]] && docker rm -fv "$id" >/dev/null 2>&1 || true
+ done < <(docker ps -aq --filter "label=$label" 2>/dev/null || true)
+ while IFS= read -r id; do
+  [[ -n "$id" ]] && docker network rm "$id" >/dev/null 2>&1 || true
+ done < <(docker network ls -q --filter "label=$label" 2>/dev/null || true)
 }
 trap cleanup EXIT
 secret=$(node -p "require('node:crypto').randomBytes(48).toString('hex')")
 password=$(node -p "require('node:crypto').randomBytes(20).toString('hex')")
 database="postgres://postgres:$password@$db:5432/postgres"
-docker network create "$suffix" >/dev/null
-docker run --name "$db" --network "$suffix" -e "POSTGRES_PASSWORD=$password" -d postgres:17.7 >/dev/null
+docker network create --label "$label" "$suffix" >/dev/null
+docker run --label "$label" --name "$db" --network "$suffix" -e "POSTGRES_PASSWORD=$password" -d postgres:17.7 >/dev/null
 psql() { docker exec -i "$db" psql -X -v ON_ERROR_STOP=1 -U postgres "$@"; }
 ready=false
 for attempt in {1..60}; do
@@ -36,9 +71,9 @@ create function auth.uid() returns uuid language sql stable as $$
 $$;
 SQL
 psql -q -c "alter role authenticator password '$password'; grant usage on schema auth to authenticated;"
-docker run --name "$mail" --network "$suffix" -p 127.0.0.1::8025 -d axllent/mailpit:v1.27.0 >/dev/null
+docker run --label "$label" --name "$mail" --network "$suffix" -p 127.0.0.1::8025 -d axllent/mailpit:v1.27.0 >/dev/null
 mail_url="http://$(docker port "$mail" 8025/tcp)"
-docker run --name "$auth" --network "$suffix" -p 127.0.0.1::9999 -d \
+docker run --label "$label" --name "$auth" --network "$suffix" -p 127.0.0.1::9999 -d \
  -e GOTRUE_API_HOST=0.0.0.0 -e GOTRUE_API_PORT=9999 -e API_EXTERNAL_URL=http://127.0.0.1:9999 \
  -e GOTRUE_SITE_URL=http://127.0.0.1:4173 -e GOTRUE_DB_DRIVER=postgres \
  -e "GOTRUE_DB_DATABASE_URL=$database?search_path=auth" -e GOTRUE_DB_NAMESPACE=auth \
@@ -71,7 +106,7 @@ grant select,insert,delete on storage.objects to authenticated;
 create function storage.foldername(text) returns text[] language sql immutable as $$ select string_to_array($1,'/') $$;
 SQL
 cat supabase/migrations/*.sql | psql -q > /dev/null
-docker run --name "$rest" --network "$suffix" -p 127.0.0.1::3000 -d \
+docker run --label "$label" --name "$rest" --network "$suffix" -p 127.0.0.1::3000 -d \
  -e "PGRST_DB_URI=postgres://authenticator:$password@$db:5432/postgres" \
  -e PGRST_DB_ANON_ROLE=anon -e PGRST_DB_SCHEMAS=public -e "PGRST_JWT_SECRET=$secret" \
  postgrest/postgrest:v13.0.7 >/dev/null
