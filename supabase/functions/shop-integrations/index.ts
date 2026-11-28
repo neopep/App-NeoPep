@@ -2,6 +2,19 @@ import {createClient} from 'npm:@supabase/supabase-js@2.80.0';
 import {syncInstallments,stagingInstallmentConfig} from './installment-sync.ts';
 import {normalizeInstallments} from './installments.ts';
 import {encryptKey,decryptKey} from '../_shared/agent-providers.ts';
+// Safe startup diagnostic: random synthetic value only; never logs keys or credential values.
+if(Deno.env.get('SUPABASE_URL')==='https://qnuluspqfazdppciermw.supabase.co'){
+ void (async()=>{
+  try{
+   const fixture=crypto.randomUUID();
+   const envelope=await encryptKey(fixture,'staging-payment-crypto-probe');
+   const restored=await decryptKey(envelope,'staging-payment-crypto-probe');
+   console.info('neo_shop_crypto_probe:'+ (restored===fixture?'ready':'roundtrip_failed'));
+  }catch(e){
+   console.warn('neo_shop_crypto_probe:'+(e instanceof Error&&e.message==='encryption_configuration_pending'?'missing_or_invalid_master':'crypto_failed'));
+  }
+ })();
+}
 Deno.serve(async(req:Request)=>{
  const app=Deno.env.get('SHOP_APP_URL')||'',allowed=(Deno.env.get('ALLOWED_ORIGINS')||'').split(',').map(v=>v.trim()).filter(Boolean);try{allowed.push(new URL(app).origin)}catch{}const origin=req.headers.get('Origin')||'',permitted=origin==='https://teste.app.neopep.com.br';
  const headers={'Content-Type':'application/json','Cache-Control':'no-store',...(permitted?{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Headers':'authorization,apikey,content-type,x-client-info','Access-Control-Allow-Methods':'POST, OPTIONS','Vary':'Origin'}:{})},out=(status:number,data:object)=>new Response(JSON.stringify(data),{status,headers});
