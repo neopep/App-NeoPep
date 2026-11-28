@@ -1,6 +1,6 @@
 -- STAGING ONLY. Encrypted one-shot consultation; no plaintext results. Default closed.
 begin;
-create table neo_private.group_view_gate_v1(singleton boolean primary key default true check(singleton),enabled boolean not null default false,approved_version text check(approved_version is null or approved_version ~ '^0[.]2[.][0-9]{2,3}$'),owner_id uuid references auth.users(id) on delete cascade,connection_id uuid references neo_private.connect_wa_connections(id) on delete cascade,group_jid text check(group_jid ~ '^[0-9-]{1,64}@g[.]us),check(not enabled or (approved_version is not null and owner_id is not null and connection_id is not null and group_jid is not null)));
+create table neo_private.group_view_gate_v1(singleton boolean primary key default true check(singleton),enabled boolean not null default false,approved_version text check(approved_version is null or approved_version ~ '^0[.]2[.][0-9]{2,3}$'),owner_id uuid references auth.users(id) on delete cascade,connection_id uuid references neo_private.connect_wa_connections(id) on delete cascade,group_jid text check(group_jid ~ '^[0-9-]{1,64}@g[.]us$'),check(not enabled or (approved_version is not null and owner_id is not null and connection_id is not null and group_jid is not null)));
 insert into neo_private.group_view_gate_v1(singleton) values(true);
 alter table neo_private.group_view_gate_v1 enable row level security;
 revoke all on neo_private.group_view_gate_v1 from public,anon,authenticated,service_role;
