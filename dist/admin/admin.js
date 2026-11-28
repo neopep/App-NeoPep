@@ -177,6 +177,10 @@ function signupRow(row,observed={},geo={}){
   <div><dt>Último acesso</dt><dd>${signupDate(row.last_access,signupFullTime)}</dd></div>
   <div><dt>Identificador</dt><dd>${esc(row.id)}</dd></div>
   <div><dt>Primeiro dispositivo observado</dt><dd>${audienceDeviceSummary(observed.first_device)}</dd></div>
+  <div><dt>Primeiro uso como PWA observado</dt><dd>${observed.pwa_first_observed_at?signupDate(observed.pwa_first_observed_at,signupFullTime):'Não observado'}</dd></div>
+  <div><dt>Instalação sinalizada pelo navegador</dt><dd>${observed.pwa_native_confirmed_at?signupDate(observed.pwa_native_confirmed_at,signupFullTime):'Não confirmada pelo navegador'}</dd></div>
+  <div><dt>Plataforma PWA</dt><dd>${esc(observed.pwa_os||'Não observada')}</dd></div>
+  <div><dt>Sessões web observadas</dt><dd>${observed.web_visit_count==null?'—':esc(observed.web_visit_count)}</dd></div>
   <div><dt>Último dispositivo observado</dt><dd>${audienceDeviceSummary(observed.last_device)}</dd></div>
   <div><dt>Primeira origem / campanha observada</dt><dd>${audienceCampaignSummary(observed.first_campaign)}</dd></div>
   <div><dt>Última origem / campanha observada</dt><dd>${audienceCampaignSummary(observed.last_campaign)}</dd></div>
@@ -335,14 +339,15 @@ function mountAdminAudience(root,engagementOnly=false){
    if(request!==sequence||!root.isConnected||cloud.user?.id!==account)return;
    const kpis=[['Cadastros hoje (UTC)',d.today],['Cadastros em 7 dias',d.signups_7],['Cadastros em 30 dias',d.signups_30],
     ['Cadastros no período',d.period_signups],['Ativos em 24 h',d.active_1],['Ativos em 7 dias',d.active_7],['Ativos em 30 dias',d.active_30]];
+   if(d.web_statistics)kpis.push(['Contas PWA observadas (janela de consentimento)',d.web_statistics.pwa_accounts],['Instalações sinalizadas (contas)',d.web_statistics.native_accounts],['Sessões web observadas',d.web_statistics.sessions]);
    const group=(kind,title)=>audienceChart(title,d.groups.filter(row=>row.kind===kind).map(row=>({label:audienceLabels[row.label]||row.label,count:row.n,total:row.visible_total})));
-   results.innerHTML=`<div class="audience-kpis">${kpis.map(([label,count])=>`<div><small>${label}</small><strong>${Number(count).toLocaleString('pt-BR')}</strong></div>`).join('')}</div>
+   results.innerHTML=`<div class="audience-kpis">${kpis.map(([label,count])=>`<div><small>${label}</small><strong>${count==null?'—':Number(count).toLocaleString('pt-BR')}</strong></div>`).join('')}</div>
    <p class="sub">Último acesso registrado: ${signupDate(d.last_access,signupFullTime)}.</p>
    <div class="audience-charts">${audienceChart('Cadastros por dia',d.daily)}${audienceChart('Cadastros por mês',d.monthly)}
    ${audienceChart('Último acesso no período', [{label:'Contas criadas no período',count:d.new_active},{label:'Contas anteriores',count:d.returning_active}])}
    ${group('device','Tipos de dispositivo')}${group('os','Sistemas operacionais')}${group('browser','Navegadores')}${group('context','PWA e navegador')}
    ${group('referral','Referências identificadas')}${group('campaign','Campanhas identificadas')}</div>
-   <p class="sub">Dispositivos e campanhas usam observações autorizadas das contas cadastradas no período. Grupos pequenos são omitidos, e os percentuais representam os grupos exibidos.</p>
+   <p class="sub">Dispositivos e campanhas usam observações autorizadas das contas cadastradas no período. PWA e sessões web são observações autenticadas com consentimento vigente, não o total de instalações ou visitantes anônimos. No iPhone, a abertura pelo ícone é a evidência observável. Grupos pequenos são omitidos, e os percentuais representam os grupos exibidos.</p>
    <p class="sub">Geografia: localização indisponível para os cadastros. Conversão, frequência e retenção dependem de dados adicionais.</p>`;
    message.textContent='Período: '+d.from+' a '+d.to+' (UTC).';
    latest={d,kpis};exportButton.disabled=false;
