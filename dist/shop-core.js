@@ -27,5 +27,74 @@
   const validated=inventorySnapshot(value.records);
   return {count:validated.records.length};
  }
- return {money,cents,address,paymentURL,inventorySnapshot,inspectInventorySnapshot,snapshotMaxBytes};
+
+ // Complete private catalog archive. Metadata is supplied by the admin-only, read-only snapshot RPC.
+ const archiveFormat='neopep.private-catalog.v2',archiveMaxBytes=150*1024*1024;
+ const archiveArrays=['records','visibility_rules','visibility_members','promotions','acquisitions','costs','fx_rates','files'];
+ const safePhotoPath=p=>typeof p==='string'&&p.length<=300&&/^[a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)*$/.test(p)&&!p.split('/').some(s=>s==='.'||s==='..');
+ function checkArchiveMetadata(meta){
+  if(!meta||archiveArrays.some(key=>!Array.isArray(meta[key]))||meta.records.length>20000)throw Error('Manifesto de catálogo inválido.');
+  const products=new Set(),paths=new Set(),rules=new Set(),members=new Set(),files=new Set();
+  for(const row of meta.records){
+   snapshotRow(row);
+   if(products.has(row.id)||typeof row.featured!=='boolean'||typeof row.payment_name!=='string'||!Array.isArray(row.photo_paths))throw Error('Registro completo de produto inválido.');
+   products.add(row.id);
+   for(const path of [...row.photo_paths,row.photo_path].filter(p=>p!=null&&p!=='')){if(!safePhotoPath(path))throw Error('Caminho de imagem inválido.');paths.add(path);}
+  }
+  for(const rule of meta.visibility_rules){
+   if(!products.has(rule.product_id)||rules.has(rule.product_id)||!['public','blocklist','allowlist'].includes(rule.mode))throw Error('Regra de visibilidade inválida.');
+   rules.add(rule.product_id);
+  }
+  if(rules.size!==products.size)throw Error('Regras de visibilidade incompletas.');
+  for(const member of meta.visibility_members){
+   const k=member.product_id+'|'+member.list+'|'+member.user_id;
+   if(!products.has(member.product_id)||!['blocklist','allowlist'].includes(member.list)||typeof member.user_id!=='string'||!/^[a-f0-9-]{36}$/i.test(member.user_id)||members.has(k))throw Error('Lista de visibilidade inválida.');
+   members.add(k);
+  }
+  for(const file of meta.files){
+   if(!paths.has(file.path)||files.has(file.path)||file.exists!==true)throw Error('Uma imagem configurada está ausente. Backup cancelado.');
+   files.add(file.path);
+  }
+  if(files.size!==paths.size)throw Error('Manifesto de imagens incompleto.');
+  for(const group of ['acquisitions','costs'])for(const row of meta[group])if(!products.has(row.product_id))throw Error('Custo sem produto correspondente.');
+  return meta;
+ }
+ const encodePhoto=bytes=>{let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(binary);};
+ const hashPhoto=async bytes=>Array.from(new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256',bytes)),x=>x.toString(16).padStart(2,'0')).join('');
+ async function createCatalogArchive(readMeta,readPhoto,isCurrent,progress=()=>{}){
+  const ensure=()=>{if(!isCurrent())throw Error('A sessão mudou. Backup cancelado.');};
+  ensure();const metadata=checkArchiveMetadata(await readMeta());ensure();
+  const images=[];let estimate=new Blob([JSON.stringify(metadata)]).size;
+  for(const file of metadata.files){
+   ensure();const blob=await readPhoto(file.path);ensure();
+   if(!(blob instanceof Blob)||!blob.size||blob.size>5*1024*1024)throw Error('Imagem indisponível ou inválida. Backup cancelado.');
+   if(file.size!=null&&/^\d+$/.test(String(file.size))&&Number(file.size)!==blob.size)throw Error('O tamanho de uma imagem mudou. Backup cancelado.');
+   const bytes=new Uint8Array(await blob.arrayBuffer());ensure();
+   estimate+=Math.ceil(bytes.length/3)*4+512;
+   if(estimate>archiveMaxBytes)throw Error('Backup acima do limite de 150 MiB. Nenhum arquivo parcial foi gerado.');
+   images.push({path:file.path,mime:blob.type||'application/octet-stream',size:bytes.length,sha256:await hashPhoto(bytes),base64:encodePhoto(bytes)});
+   progress(images.length,metadata.files.length);
+  }
+  ensure();const after=checkArchiveMetadata(await readMeta());ensure();
+  if(JSON.stringify(after)!==JSON.stringify(metadata))throw Error('O catálogo mudou durante a exportação. Tente novamente.');
+  return {format:archiveFormat,created_at:new Date().toISOString(),metadata,images};
+ }
+ async function inspectCatalogArchive(text){
+  if(typeof text!=='string'||text.length>archiveMaxBytes)throw Error('Arquivo acima do limite de 150 MiB.');
+  let value;try{value=JSON.parse(text);}catch{throw Error('Arquivo JSON inválido.');}
+  if(value?.format!==archiveFormat)return {...inspectInventorySnapshot(text),complete:false,images:0};
+  const meta=checkArchiveMetadata(value.metadata),seen=new Set();
+  if(!Array.isArray(value.images)||value.images.length!==meta.files.length)throw Error('Backup de imagens incompleto.');
+  const files=new Map(meta.files.map(f=>[f.path,f]));
+  for(const image of value.images){
+   if(!files.has(image.path)||seen.has(image.path)||!Number.isSafeInteger(image.size)||image.size<1||image.size>5*1024*1024||typeof image.base64!=='string'||image.base64.length!==Math.ceil(image.size/3)*4)throw Error('Imagem inválida no backup.');
+   const bytes=Uint8Array.from(atob(image.base64),c=>c.charCodeAt(0));
+   if(bytes.length!==image.size||await hashPhoto(bytes)!==image.sha256)throw Error('Integridade de uma imagem não confere.');
+   const expected=files.get(image.path).size;
+   if(expected!=null&&/^\d+$/.test(String(expected))&&Number(expected)!==bytes.length)throw Error('Tamanho de uma imagem não confere.');
+   seen.add(image.path);
+  }
+  return {count:meta.records.length,complete:true,images:seen.size};
+ }
+ return {money,cents,address,paymentURL,inventorySnapshot,inspectInventorySnapshot,snapshotMaxBytes,createCatalogArchive,inspectCatalogArchive,archiveMaxBytes};
 });
