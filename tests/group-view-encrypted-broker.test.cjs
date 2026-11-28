@@ -1,0 +1,33 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),{webcrypto}=require('node:crypto');
+const editor=fs.readFileSync('dist/admin/campaign-editor.js','utf8'),sql=fs.readFileSync('release/pendencias-campanhas-20261127/015-group-view-encrypted-broker.candidate.sql','utf8');
+const start=editor.indexOf('  const groupViewBytes='),end=editor.indexOf('  function closeGroupView()',start);
+assert.ok(start>=0&&end>start);
+const {groupViewDecode,groupViewBase64}=new Function('crypto',editor.slice(start,end)+';return {groupViewDecode,groupViewBase64};')(webcrypto);
+test('consulta web decifra envelope somente com chave privada e vínculo da requisição',async()=>{
+ const subtle=webcrypto.subtle,id='00000000-0000-4000-8000-000000000001',kind='members';
+ const keys=await subtle.generateKey({name:'RSA-OAEP',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},false,['encrypt','decrypt']);
+ assert.equal(keys.privateKey.extractable,false);
+ assert.equal(groupViewBase64(await subtle.exportKey('spki',keys.publicKey)).length,392);
+ const raw=webcrypto.getRandomValues(new Uint8Array(32)),iv=webcrypto.getRandomValues(new Uint8Array(12)),aes=await subtle.importKey('raw',raw,{name:'AES-GCM'},false,['encrypt']);
+ const data={kind,rows:[{name:'Pessoa fictícia',phone:'12025550123',role:'admin',id:'hidden'},{name:'Sem número',phone:'123@lid',role:'member'}]};
+ const ciphertext=await subtle.encrypt({name:'AES-GCM',iv,additionalData:new TextEncoder().encode(id+':'+kind),tagLength:128},aes,new TextEncoder().encode(JSON.stringify(data)));
+ const wrapped=await subtle.encrypt({name:'RSA-OAEP'},keys.publicKey,raw);
+ const envelope={wrapped_key:groupViewBase64(wrapped),iv:groupViewBase64(iv),ciphertext:groupViewBase64(ciphertext)};
+ assert.equal(envelope.wrapped_key.length,344);assert.equal(envelope.iv.length,16);
+ assert.deepEqual(await groupViewDecode(envelope,keys.privateKey,id,kind),[{name:'Pessoa fictícia',phone:'12025550123',role:'admin'},{name:'Sem número',phone:'',role:'member'}]);
+ await assert.rejects(()=>groupViewDecode(envelope,keys.privateKey,'wrong',kind));
+ await assert.rejects(()=>groupViewDecode(envelope,keys.privateKey,id,'messages'));
+ await assert.rejects(()=>groupViewDecode({text:'plaintext'},keys.privateKey,id,kind));
+});
+test('gate fechado, isolamento de sessão e dispositivo, consumo único e limpeza',()=>{
+ assert.ok(sql.includes('enabled boolean not null default false'));
+ assert.ok(sql.includes('owner_id=actor and session_id=sid'));
+ assert.ok(sql.includes('neo_private.connect_wa_assert_device(p_device,p_secret)'));
+ assert.ok(sql.includes("fence::text=p_data->>'fence'"));
+ assert.ok(sql.includes('c.revision=p_revision'));
+ assert.ok(sql.includes('expires_at<=now()'));
+ assert.ok(sql.includes("if r.state='ready' then delete from neo_private.group_view_requests_v1"));
+ assert.ok(editor.includes("testWA&&groupViewEnabled&&row.state==='eligible'"));
+ assert.ok(editor.includes("view.output.textContent=''"));
+ assert.ok(editor.includes("item.textContent=kind==='members'"));
+});
