@@ -4,7 +4,7 @@ const libraryUploadTickets=new WeakMap();
 const C=window.NeoCore, config=window.NEO_CONFIG||{};
 let client=null,user=null,profileRevision=null,listener=null,consents=[],isAdmin=false,onboarded=false,identityVersion=0;
 // Mantém o callback já usado no Supabase ao abrir o aplicativo também na raiz.
-function authRedirect(){const current=new URL(location.href),target=new URL(config.authRedirectPath||'./',current);if(target.origin!==current.origin)throw Error('O retorno de autenticação deve permanecer neste site.');target.hash='';target.search='';return target;}
+function authRedirect(){const current=new URL(location.href),target=new URL(config.authRedirectPath||'./',current);if(target.origin!==current.origin)throw Error('O retorno de autenticação deve permanecer neste site.');target.hash='';target.search='';if(commercialPreview)rememberCommercialRoute(current,target);return target;}
 const official=config.supabaseUrl==='https://cpslafpzjtbpmoxxysaa.supabase.co';
 const connectAIHosts=Object.freeze({
  'https://teste.app.neopep.com.br':Object.freeze({project:'https://qnuluspqfazdppciermw.supabase.co',endpoint:'https://connect-teste.neopep.com.br'}),
@@ -22,6 +22,17 @@ const loopback=/^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::[0-9]+)?$/;
 const commercialPreview=config.commercialPreview===true&&loopback.test(location.origin)&&loopback.test(config.supabaseUrl);
 const commercialIntentKey='neo-commercial-onboarding';
 let commercialLoadedVersion=-1;
+function rememberCommercialRoute(current,target){
+ if(current.hash!=='#loja')return;
+ const product=current.searchParams.get('produto');
+ if(product!==null){
+  if(!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(product))return;
+  target.searchParams.set('produto',product.toLowerCase());
+ }else if(current.searchParams.get('loja')==='1')target.searchParams.set('loja','1');
+ else return;
+ target.hash='loja';
+}
+
 // END local commercial account configuration
 const configured=(commercialPreview||/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(config.supabaseUrl||''))&&C.isPublicSupabaseKey(config.supabasePublishableKey);
 const ok=r=>{if(r.error){const source=r.error,emailLimit=source.code==='over_email_send_rate_limit'||/email rate limit exceeded/i.test(source.message||'');const error=new Error(emailLimit?'O limite de envio de e-mails foi atingido. Aguarde antes de tentar novamente. Se o problema continuar, entre em contato com o responsável pelo aplicativo.':source.message||'Não foi possível acessar a nuvem.');error.code=source.code||null;error.status=source.status||null;throw error}return r.data};

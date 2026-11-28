@@ -10,10 +10,10 @@ const owner='11111111-0000-4000-8000-000000000001';
 const other='11111111-0000-4000-8000-000000000002';
 
 async function setup({origin='http://localhost:4173',url='http://localhost:54321',enabled=true,
- account={id:owner},admin=false,complete=false,storage=new Map()}={}){
+ account={id:owner},admin=false,complete=false,storage=new Map(),captchaRequired=false}={}){
  const calls=[];
  let callback,respondCommercial;
- const config={commercialPreview:enabled,supabaseUrl:url,supabasePublishableKey:'sb_publishable_syntheticexample'};
+ const config={commercialPreview:enabled,supabaseUrl:url,supabasePublishableKey:'sb_publishable_syntheticexample',authRedirectPath:'/neo/',providers:{email:true},captchaRequired};
  const location=new URL(origin+'/tests/fixtures/shop-public/?loja=1#loja');
  const redirects=[];
  location.assign=href=>redirects.push(href);
@@ -22,6 +22,8 @@ async function setup({origin='http://localhost:4173',url='http://localhost:54321
  const consents=complete?['terms','health'].map(purpose=>({purpose,version:'2026-11-v1',granted:true})):[];
  const sdk={
   auth:{
+   async signInWithPassword(args){calls.push(['login',args]);return {data:{user:account}};},
+   async resetPasswordForEmail(email,options){calls.push(['reset',{email,options}]);return {data:{}};},
    onAuthStateChange(fn){callback=fn;},
    async getSession(){return {data:{session:account?{user:account}:null}};},
    async getUser(){return {data:{user:account}};}
@@ -131,4 +133,20 @@ test('app restoration sends only an authorized local intent to the original onbo
   assert.deepEqual(visits,[expected]);
   assert.equal(reads,flags.commercialPreview&&!flags.onboardingComplete?1:0);
  }
+});
+
+test('CAPTCHA gate and callback context are scoped to the approved local destination',async()=>{
+ const s=await setup({captchaRequired:true});
+ s.location.href='http://localhost:4173/?produto='+owner+'&status=approved&next=https://example.test#loja';
+ await assert.rejects(s.cloud.email('login','fixture@example.test','synthetic',null),/verificação/);
+ await assert.rejects(s.cloud.email('reset','fixture@example.test',null,null),/verificação/);
+ assert.deepEqual(s.calls,[]);
+ await s.cloud.email('login','fixture@example.test','synthetic',null,{captchaToken:'fixture-token'});
+ assert.equal(s.calls.at(-1)[1].options.captchaToken,'fixture-token');
+ await s.cloud.email('reset','fixture@example.test',null,null,{captchaToken:'fixture-token'});
+ assert.equal(s.calls.at(-1)[1].options.redirectTo,'http://localhost:4173/neo/?produto='+owner+'#loja');
+ const original=await setup({origin:'https://app.neopep.com.br',url:'https://example.supabase.co'});
+ original.location.href='https://app.neopep.com.br/?loja=1#loja';
+ await original.cloud.email('reset','fixture@example.test',null,null);
+ assert.equal(original.calls.at(-1)[1].options.redirectTo,'https://app.neopep.com.br/neo/');
 });

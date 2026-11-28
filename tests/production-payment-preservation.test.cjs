@@ -4,6 +4,7 @@ test('release de Produção preserva o cliente financeiro ativo e bloqueia novas
  const preserved=cloud.replace(/ \/\/ BEGIN isolated (?:administrative quote|customer quote|seller tariff) adapter\n[\s\S]*? \/\/ END isolated (?:administrative quote|customer quote|seller tariff) adapter\n/g,'');
  const original=preserved
   .replace(/ *\/\/ BEGIN local commercial account (configuration|adapter)\n[\s\S]*? *\/\/ END local commercial account \1\n/g,'')
+  .replace('if(commercialPreview)rememberCommercialRoute(current,target);','')
   .replace('const configured=(commercialPreview||','const configured=')
   .replace(".test(config.supabaseUrl||''))&&C.isPublicSupabaseKey", ".test(config.supabaseUrl||'')&&C.isPublicSupabaseKey")
   .replace('const api={configured,commercialPreview,','const api={configured,')

@@ -6,8 +6,9 @@ suffix="neopep-commercial-$$"
 db="$suffix-db"
 auth="$suffix-auth"
 rest="$suffix-rest"
+mail="$suffix-mail"
 cleanup() {
- docker rm -fv "$auth" "$rest" "$db" >/dev/null 2>&1 || true
+ docker rm -fv "$auth" "$rest" "$mail" "$db" >/dev/null 2>&1 || true
  docker network rm "$suffix" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
@@ -35,13 +36,17 @@ create function auth.uid() returns uuid language sql stable as $$
 $$;
 SQL
 psql -q -c "alter role authenticator password '$password'; grant usage on schema auth to authenticated;"
+docker run --name "$mail" --network "$suffix" -p 127.0.0.1::8025 -d axllent/mailpit:v1.27.0 >/dev/null
+mail_url="http://$(docker port "$mail" 8025/tcp)"
 docker run --name "$auth" --network "$suffix" -p 127.0.0.1::9999 -d \
  -e GOTRUE_API_HOST=0.0.0.0 -e GOTRUE_API_PORT=9999 -e API_EXTERNAL_URL=http://127.0.0.1:9999 \
  -e GOTRUE_SITE_URL=http://127.0.0.1:4173 -e GOTRUE_DB_DRIVER=postgres \
  -e "GOTRUE_DB_DATABASE_URL=$database?search_path=auth" -e GOTRUE_DB_NAMESPACE=auth \
  -e "GOTRUE_JWT_SECRET=$secret" -e GOTRUE_JWT_AUD=authenticated \
  -e GOTRUE_JWT_DEFAULT_GROUP_NAME=authenticated -e GOTRUE_JWT_ADMIN_ROLES=service_role \
- -e GOTRUE_EXTERNAL_EMAIL_ENABLED=true -e GOTRUE_MAILER_AUTOCONFIRM=true \
+ -e GOTRUE_EXTERNAL_EMAIL_ENABLED=true -e GOTRUE_MAILER_AUTOCONFIRM=false -e "GOTRUE_SMTP_HOST=$mail" -e GOTRUE_SMTP_PORT=1025 \
+ -e GOTRUE_SMTP_ADMIN_EMAIL=neopep@example.test -e GOTRUE_SMTP_MAX_FREQUENCY=1s -e GOTRUE_RATE_LIMIT_EMAIL_SENT=100 \
+ -e 'GOTRUE_URI_ALLOW_LIST=http://127.0.0.1:4173/**' \
  supabase/gotrue:v2.185.0 >/dev/null
 auth_url="http://$(docker port "$auth" 9999/tcp)"
 wait_http() {
@@ -72,7 +77,7 @@ docker run --name "$rest" --network "$suffix" -p 127.0.0.1::3000 -d \
  postgrest/postgrest:v13.0.7 >/dev/null
 rest_url="http://$(docker port "$rest" 3000/tcp)"
 wait_http "$rest_url/" || { docker logs --tail 12 "$rest"; exit 1; }
-NEOPEP_AUTH_URL="$auth_url" NEOPEP_REST_URL="$rest_url" NEOPEP_DB_CONTAINER="$db" node tests/commercial-supabase-local.cjs
+NEOPEP_MAIL_URL="$mail_url" NEOPEP_AUTH_URL="$auth_url" NEOPEP_REST_URL="$rest_url" NEOPEP_DB_CONTAINER="$db" node tests/commercial-supabase-local.cjs
 
 rollback=release/production/rollback/20261128174500_shop_commercial_accounts.sql
 psql -q < "$rollback" >/dev/null
