@@ -127,5 +127,23 @@
   const result=compareCatalogMetadata(saved,live);ensure();
   return {checked,comparison:result};
  }
- return {money,cents,address,paymentURL,inventorySnapshot,inspectInventorySnapshot,snapshotMaxBytes,createCatalogArchive,inspectCatalogArchive,archiveMaxBytes,auditCatalogRecovery};
+
+ // Eligibility triage is local and non-authorizing: a category is not proof of content.
+ const normalizeReviewText=value=>String(value??'').normalize('NFKC').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLocaleLowerCase('pt-BR').replace(/\s+/g,' ');
+ const reviewCategories=new Set(['curso','cursos','treinamento','treinamentos','cursos e treinamentos','acompanhamento','acompanhamentos','protocolo','protocolos','protocolos digitais','protocolos educativos digitais']);
+ async function reviewCatalogEligibility(text,isCurrent){
+  const ensure=()=>{if(!isCurrent())throw Error('A sessão mudou. Revisão cancelada.');};
+  ensure();const checked=await inspectCatalogArchive(text);ensure();
+  if(!checked.complete)throw Error('O backup antigo não contém todas as configurações e imagens.');
+  const {records}=JSON.parse(text).metadata;
+  const counts={outsideScope:0,incomplete:0,pendingReview:0,approved:0};
+  const items=records.map(row=>{
+   const category=normalizeReviewText(row.category),hasDescription=typeof row.description==='string'&&row.description.trim().length>0;
+   const state=!reviewCategories.has(category)?'outsideScope':!hasDescription?'incomplete':'pendingReview';
+   counts[state]++;
+   return {name:row.name,category:row.category,description:row.description??'',state};
+  });
+  ensure();return {counts,items,canRestore:false};
+ }
+ return {money,cents,address,paymentURL,inventorySnapshot,inspectInventorySnapshot,snapshotMaxBytes,createCatalogArchive,inspectCatalogArchive,archiveMaxBytes,auditCatalogRecovery,reviewCatalogEligibility};
 });

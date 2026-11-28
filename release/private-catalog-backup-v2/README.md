@@ -7,3 +7,7 @@ Pré-requisitos para ativação: validar a SQL em banco isolado, confirmar o con
 ## Conferência de recuperação
 
 A comparação de leitura utiliza o manifesto do catálogo atual, valida os hashes das imagens no arquivo e apresenta somente contagens por seção: ausentes, diferentes, iguais e presentes apenas no destino. Não considera o manifesto atual uma verificação de bytes dos objetos atuais. Não grava, publica, recria ou substitui produtos, promoções, estoque, regras de visibilidade ou arquivos no servidor. Arquivos v1 são rejeitados nesta conferência completa. O catálogo atual e o arquivo permanecem inalterados.
+
+## Triagem de elegibilidade (somente leitura)
+
+A seleção local valida integridade e identifica categorias fora do escopo (cursos, treinamentos, acompanhamento e protocolos digitais), descrições ausentes e itens que aguardam revisão de conteúdo. Nenhum nome de categoria, campo de aprovação do arquivo ou declaração do usuário libera restauração. A revisão não envia conteúdo ao servidor, não cria uma lista autorizada e não efetua escrita. A identificação e aprovação substantiva de itens elegíveis ainda é necessária para um fluxo real de restauração.

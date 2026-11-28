@@ -50,3 +50,27 @@ test('recovery audit rejects incomplete archives and ignores a changed session',
  const invalid=metadata();invalid.promotions.push(invalid.promotions[0]);
  await assert.rejects(()=>C.auditCatalogRecovery(JSON.stringify(backup),async()=>invalid,()=>true),/duplicado/);
 });
+
+test('eligibility triage never grants approval from category labels or archive flags',async()=>{
+ const value=await make();
+ value.metadata.records[0].category='Cursos e treinamentos';value.metadata.records[0].description='Aula fictícia de desenho.';
+ value.metadata.records[0].approved=true;value.metadata.records[0].eligible=true;
+ const result=await C.reviewCatalogEligibility(JSON.stringify(value),()=>true);
+ assert.deepEqual(result.counts,{outsideScope:0,incomplete:0,pendingReview:1,approved:0});
+ assert.equal(result.canRestore,false);
+ assert.equal(result.items[0].state,'pendingReview');
+ value.metadata.records[0].category='Categoria diferente';
+ assert.equal((await C.reviewCatalogEligibility(JSON.stringify(value),()=>true)).counts.outsideScope,1);
+ value.metadata.records[0].category='Protocolos';value.metadata.records[0].description=' ';
+ assert.equal((await C.reviewCatalogEligibility(JSON.stringify(value),()=>true)).counts.incomplete,1);
+ value.metadata.records[0].category='ACOMPANHAMENTO';value.metadata.records[0].description='Atividade fictícia de desenho.';
+ assert.equal((await C.reviewCatalogEligibility(JSON.stringify(value),()=>true)).counts.pendingReview,1);
+ await assert.rejects(()=>C.reviewCatalogEligibility(JSON.stringify(value),()=>false),/sessão/);
+});
+test('eligibility review reads locally and renders untrusted archive text without HTML interpolation',()=>{
+ const shop=require('node:fs').readFileSync('dist/shop.js','utf8');
+ const section=shop.slice(shop.indexOf(' async function reviewInventoryEligibility('),shop.indexOf(' async function auditInventoryBackup('));
+ assert.match(section,/C\.reviewCatalogEligibility\(await file\.text\(\),current\)/);
+ assert.match(section,/description\.textContent=row\.description/);
+ assert.doesNotMatch(section,/innerHTML|insertAdjacentHTML|\brpc\(|\.upload\(|\.fetch\(|localStorage|sessionStorage/);
+});
