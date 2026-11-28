@@ -7,3 +7,7 @@
 5. **Planejado.** Preparar Capacitor, armazenamento seguro, callbacks nativos, mídia e APNs/FCM, além de moderação e material de revisão. Identificador do exemplo é **proposto**.
 
 Fontes: [Lançamento web e lojas](../LANCAMENTO-WEB-E-LOJAS.md) · [Mobile](../../mobile/README.md) · [Pendências](PENDENCIAS.md)
+
+## Vitrine pública e cadastro comercial
+
+**Em desenvolvimento.** A vitrine e a loja autenticada devem usar os mesmos componentes, temas e configurações comerciais. O cadastro comercial deve usar a mesma conta NeoPep e a conclusão do onboarding completo continua sendo uma etapa própria. [Auditoria inicial](../VITRINE-PUBLICA.md)
