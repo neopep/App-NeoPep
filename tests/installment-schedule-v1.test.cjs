@@ -1,0 +1,3 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
+const s=fs.readFileSync('supabase/functions/shop-installment-scheduled/index.ts','utf8'),w=fs.readFileSync('supabase/functions/shop-installment-scheduled/installment-sync.ts','utf8');
+test('scheduled quotation has one-use nonce and never calls a payment mutation',()=>{assert.match(s,/neo_installment_job_consume_v1/);assert.match(s,/auth.data!==true/);assert.match(s,/syncInstallments\(admin,'test',false\)/);assert.match(s,/qnuluspqfazdppciermw/);assert.doesNotMatch(w,/\/v1\/orders|\/v1\/payments|method:\s*['"]POST/);});
