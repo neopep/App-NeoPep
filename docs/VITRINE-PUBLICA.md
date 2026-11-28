@@ -23,3 +23,13 @@ A auditoria remota do Supabase consultou metadados de tabelas e colunas. Ambos o
 - Executar homologação isolada com catálogo sintético, incluindo autorização, callbacks, pagamentos de teste e paridade visual em iPhone, Android, desktop, PWA e WhatsApp. Conferir os requisitos de divulgação e comercialização antes de habilitar a vitrine.
 
 Nenhum produto foi consultado ou selecionado. Esta etapa não aplicou migrações nem alterou serviços. O rollback da consolidação de links consiste em reverter o commit correspondente na branch candidata.
+
+## Isolamento da jornada comercial
+
+A condição para entrar na experiência comercial combina o contexto de entrada e o estado de cadastro confirmado pelo servidor. Visitantes entram pela vitrine. Clientes com cadastro exclusivamente comercial mantêm a jornada comercial após autenticação e recarga. Usuários completos seguem o destino autenticado da loja existente ao abrir links externos, com a visibilidade por membro já aplicada pela loja.
+
+A experiência comercial deve omitir os convites e orientações de instalação no catálogo, na autenticação, no cadastro, no checkout, no retorno e no acompanhamento. O comportamento atual de `dist/install.js`, as preferências de instalação e a medição de instalações seguem disponíveis no aplicativo completo. A conversão voluntária pode começar pelo perfil comercial ou pelo convite exibido após a confirmação efetiva de compra. Registrar a dispensa do convite e permitir voltar à loja durante o onboarding complementar. A transição usa a conta original e conserva pedidos e endereços.
+
+O servidor deve gravar a origem validada ao criar o pedido. Pedidos legados seguem a semântica da loja interna. A integração existente usa a origem registrada para gerar o URL de retorno apropriado, preservando o destino atual de pedidos internos inclusive em retomadas. Na volta, verificar a sessão e a propriedade do pedido e consultar seu estado efetivo antes de renderizar. Os parâmetros da URL servem à navegação. A confirmação financeira continua sob responsabilidade dos mecanismos atuais do servidor. O retorno comercial deve representar pagamento confirmado, pendente, em processamento, recusado ou expirado. A confirmação comercial identifica o pedido e oferece acompanhamento e retorno ao catálogo.
+
+A regressão deve cobrir uma compra interna completa, link externo aberto por usuário completo, cadastro e nova compra comerciais, retorno e retomada em cada contexto, estados de pagamento, supressão dos convites de PWA na jornada comercial, comportamento original da instalação no app e conversão com preservação do histórico. Usar apenas dados sintéticos e validar Safari, Android, desktop, PWA e o navegador interno do WhatsApp.
