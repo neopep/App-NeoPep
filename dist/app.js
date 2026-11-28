@@ -1544,6 +1544,7 @@ async function syncAudience(){
   if(audienceAccount)audienceCampaignPending=false;
   audienceAccount=account;audienceAllowed=null;audienceCheck=null;audienceObservedAt=0;
  }
+ if(!window.NeoWebPrivacy?.allowed()){window.NeoWebPrivacy?.clear();return;}
  if(!account||!Cloud.audience||audienceCheck||document.visibilityState==='hidden'||navigator.onLine===false||audienceAllowed===false)return;
  const request={};audienceCheck=request;
  try{
@@ -1556,12 +1557,14 @@ async function syncAudience(){
   const result=await Cloud.audience('observe',audienceDevice(),audienceCampaignPending?audienceCampaign:null);
   if(audienceCheck!==request||Cloud.user?.id!==account)return;
   audienceAllowed=result.allowed===true;
+  if(audienceAllowed)window.NeoWebPrivacy?.observe(Cloud,account,audienceDevice());
   audienceObservedAt=Date.now();
   audienceCampaignPending=false;
  }catch{}finally{if(audienceCheck===request)audienceCheck=null}
 }
 
 window.addEventListener('pageshow',syncAudience);
+window.addEventListener('neo-web-statistics-change',()=>{audienceAllowed=null;audienceCheck=null;audienceObservedAt=0;resetEngagement(mode==='cloud'&&!demo?Cloud.user?.id:null);void syncAudience();void syncEngagement();});
 setInterval(syncAudience,300000);
 const engagementViews={
  inicio:'home_view',evolucao:'evolution_view',registros:'records_view',diario:'journal_view',
@@ -1582,7 +1585,7 @@ function resetEngagement(owner){
  engagementCalcStarted=false;
  qualityNext.clear();
 }
-function engagementVisible(){return document.visibilityState!=='hidden'&&mode==='cloud'&&!demo&&!!Cloud.user&&Cloud.user.id===engagementOwner}
+function engagementVisible(){return window.NeoWebPrivacy?.allowed()===true&&document.visibilityState!=='hidden'&&mode==='cloud'&&!demo&&!!Cloud.user&&Cloud.user.id===engagementOwner}
 function engagementTrack(event,area=engagementArea(page),seconds=0){
  if(!engagementAllowed||!engagementVisible()||!event||!window.crypto?.randomUUID)return;
  if(!Object.hasOwn(engagementViews,area)&&area!=='onboarding')return;
@@ -1599,7 +1602,7 @@ function engagementTrack(event,area=engagementArea(page),seconds=0){
 }
 window.NeoEngagement={track:engagementTrack,view:engagementView};
 async function flushEngagement(){
- if(!engagementAllowed||engagementBusy||!engagementQueue.length||navigator.onLine===false||Cloud.user?.id!==engagementOwner)return;
+ if(window.NeoWebPrivacy?.allowed()!==true||!engagementAllowed||engagementBusy||!engagementQueue.length||navigator.onLine===false||Cloud.user?.id!==engagementOwner)return;
  const queue=engagementQueue,owner=engagementOwner;
  engagementBusy=true;
  try{
@@ -1650,7 +1653,7 @@ for(const event of ['pageshow','focus'])window.addEventListener(event,()=>{geoCa
 const qualityNext=new Map();
 let qualityNavigationMeasured=false,vitalsOwner=null;
 function observeQuality(metric,duration=null,ending=false){
- const visible=()=>engagementVisible()||(ending&&mode==='cloud'&&!demo&&Cloud.user?.id===engagementOwner);
+ const visible=()=>engagementVisible()||(window.NeoWebPrivacy?.allowed()===true&&ending&&mode==='cloud'&&!demo&&Cloud.user?.id===engagementOwner);
  if(!engagementAllowed||!visible()||!Cloud.qualityObserve)return;
  const now=Date.now(),key=engagementOwner+':'+metric;
  if((qualityNext.get(key)||0)>now)return;
@@ -1813,6 +1816,7 @@ function privacyPreferencesPage(){
   ${initial?'<p class="form-help">Localização opcional: identifica sua cidade e estado. Você pode desmarcar antes de confirmar.</p>':''}
   <details class="space privacy-more"><summary>Mais informações</summary><p class="sub privacy-device-summary">Dispositivo atual: ${esc(deviceSummary||'Não identificado')}.</p><p class="form-help">Ao autorizar a localização, usamos a cidade e o estado estimados pela conexão (Vercel). Se o aparelho permitir, consultamos cidade e estado na BigDataCloud, que recebe coordenadas e IP. O NeoPep guarda apenas cidade, estado, país e fonte (não guarda coordenadas). Você pode revogar no Perfil.</p></details>
   <p class="sub" data-privacy-notice role="status">Consultando preferências…</p>
+  <button type="button" class="text-btn" data-web-privacy-open>Preferências de cookies</button>
   <a class="text-btn privacy-policy-link" href="#privacidade" target="_blank" rel="noopener">Política de Privacidade</a>
   <button type="submit" class="primary full" disabled>${initial?'OK':'Salvar preferências'}</button>
   ${initial?'<button type="submit" name="skip" class="text-btn full" disabled>Agora não</button>':''}
