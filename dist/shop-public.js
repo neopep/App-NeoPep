@@ -47,8 +47,12 @@ window.NeoPublicShop=(()=>{
   });
  }
 
+ function localPreviewRoute(){
+  return previewHosts.has(location.hostname)&&['http:','https:'].includes(location.protocol)&&Boolean(route(new URL(location.href)));
+ }
+
  function mount(root,{rows,account=null,register,readAccount,openApp}){
-  if(mounted||!Array.isArray(rows)||typeof register!=='function'||typeof readAccount!=='function'||typeof openApp!=='function'||!previewHosts.has(location.hostname)||!['http:','https:'].includes(location.protocol)||!route(new URL(location.href)))return null;
+  if(mounted||!Array.isArray(rows)||typeof register!=='function'||typeof readAccount!=='function'||typeof openApp!=='function'||!localPreviewRoute())return null;
   let access=context(account),accountID=account?.id;
   if(access==='app')return null;
   const products=visibleProducts(rows);
@@ -100,14 +104,16 @@ window.NeoPublicShop=(()=>{
    transitioning=true;
    button.disabled=true;
    try{
+    const destination=location.href;
     const current=await readAccount();
-    if(disposed)return;
+    if(disposed||!localPreviewRoute()||location.href!==destination)return;
     if(context(current)!=='commercial'||current.id!==accountID)throw new Error();
     await openApp(current.id);
    }catch{
     if(!disposed){
      message='Não foi possível confirmar a mesma conta. Reabra a loja para continuar.';
-     root.querySelector('[data-commercial-status]').textContent=message;
+     const status=root.querySelector('[data-commercial-status]');
+     if(status)status.textContent=message;
     }
    }finally{
     transitioning=false;
@@ -171,9 +177,10 @@ window.NeoPublicShop=(()=>{
  }
  async function mountWithCloud(root,rows){
   const cloud=window.NeoCloud;
-  if(cloud?.commercialPreview!==true)return null;
+  if(mounted||!localPreviewRoute()||cloud?.commercialPreview!==true)return null;
+  const destination=location.href;
   const account=await cloud.commercialAccount();
-  if(context(account)!=='commercial')return null;
+  if(mounted||window.NeoCloud!==cloud||cloud.commercialPreview!==true||!localPreviewRoute()||location.href!==destination||context(account)!=='commercial')return null;
   return mount(root,{rows,account,readAccount:()=>cloud.commercialAccount(),
    register:()=>cloud.commercialAccount(),openApp:id=>cloud.openCommercialOnboarding(id)});
  }
