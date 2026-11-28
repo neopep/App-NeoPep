@@ -25,3 +25,28 @@ test('archive rejects altered bytes, missing member rules and missing images; ol
  const b=await make();b.metadata.visibility_rules=[];await assert.rejects(()=>C.inspectCatalogArchive(JSON.stringify(b)),/incompletas/);
  const old=C.inventorySnapshot(metadata().records);assert.equal((await C.inspectCatalogArchive(JSON.stringify(old))).complete,false);
 });
+
+test('read-only recovery audit compares every archived section and does not return product payloads',async()=>{
+ const backup=await make();
+ const live=metadata();live.records[0].stock=7;live.visibility_rules[0].mode='blocklist';live.visibility_members.pop();live.promotions=[];live.discount_mode='different';live.files[0].version='new';
+ let reads=0;
+ const result=await C.auditCatalogRecovery(JSON.stringify(backup),async()=>{reads++;return live;},()=>true);
+ assert.equal(reads,1);
+ assert.deepEqual(result.comparison.products,{missing:0,different:1,unchanged:0,liveOnly:0});
+ assert.equal(result.comparison.visibilityRules.different,1);
+ assert.equal(result.comparison.visibilityMembers.missing,1);
+ assert.equal(result.comparison.promotions.missing,1);
+ assert.equal(result.comparison.imageReferences.different,1);
+ assert.equal(result.comparison.discountModeChanged,true);
+ assert.doesNotMatch(JSON.stringify(result),/Caderno fictício|fixture\/image.jpg|base64/);
+});
+test('recovery audit rejects incomplete archives and ignores a changed session',async()=>{
+ let reads=0;
+ await assert.rejects(()=>C.auditCatalogRecovery(JSON.stringify(C.inventorySnapshot(metadata().records)),async()=>{reads++;return metadata();},()=>true),/antigo/);
+ assert.equal(reads,0);
+ let current=true;
+ const backup=await make();
+ await assert.rejects(()=>C.auditCatalogRecovery(JSON.stringify(backup),async()=>{current=false;return metadata();},()=>current),/sessão/);
+ const invalid=metadata();invalid.promotions.push(invalid.promotions[0]);
+ await assert.rejects(()=>C.auditCatalogRecovery(JSON.stringify(backup),async()=>invalid,()=>true),/duplicado/);
+});

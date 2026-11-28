@@ -96,5 +96,36 @@
   }
   return {count:meta.records.length,complete:true,images:seen.size};
  }
- return {money,cents,address,paymentURL,inventorySnapshot,inspectInventorySnapshot,snapshotMaxBytes,createCatalogArchive,inspectCatalogArchive,archiveMaxBytes};
+
+ // Read-only recovery audit. No reconstructed product payloads, publication or database writes.
+ function compareCatalogMetadata(saved,live){
+  checkArchiveMetadata(saved);checkArchiveMetadata(live);
+  const canonical=value=>Array.isArray(value)?value.map(canonical):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k])])):value;
+  const equal=(a,b)=>JSON.stringify(canonical(a))===JSON.stringify(canonical(b));
+  const compare=(before,after,key,project=v=>v)=>{
+   const index=rows=>{const map=new Map();for(const row of rows){const id=key(row);if(typeof id!=='string'||!id||map.has(id))throw Error('Identificador ausente ou duplicado na conferência.');map.set(id,project(row));}return map;};
+   const a=index(before),b=index(after),counts={missing:0,different:0,unchanged:0,liveOnly:0};
+   for(const [id,value] of a){if(!b.has(id))counts.missing++;else if(!equal(value,b.get(id)))counts.different++;else counts.unchanged++;}
+   for(const id of b.keys())if(!a.has(id))counts.liveOnly++;
+   return counts;
+  };
+  const productFields=({id,name,description,category,price_cents,stock,active,featured,payment_name,photo_path,photo_paths})=>({id,name,description,category,price_cents,stock,active,featured,payment_name,photo_path,photo_paths});
+  const rules=compare(saved.visibility_rules,live.visibility_rules,r=>r.product_id);
+  const memberKey=r=>[r.product_id,r.list,r.user_id].join('|');
+  const byId=key=>compare(saved[key],live[key],r=>r.id);
+  return {products:compare(saved.records,live.records,r=>r.id,productFields),visibilityRules:rules,
+   visibilityMembers:compare(saved.visibility_members,live.visibility_members,memberKey),
+   promotions:byId('promotions'),acquisitions:byId('acquisitions'),costs:byId('costs'),fxRates:byId('fx_rates'),
+   imageReferences:compare(saved.files,live.files,r=>r.path),discountModeChanged:saved.discount_mode!==live.discount_mode};
+ }
+ async function auditCatalogRecovery(text,readLive,isCurrent){
+  const ensure=()=>{if(!isCurrent())throw Error('A sessão mudou. Conferência cancelada.');};
+  ensure();const checked=await inspectCatalogArchive(text);ensure();
+  if(!checked.complete)throw Error('O backup antigo não contém todas as configurações e imagens.');
+  const saved=JSON.parse(text).metadata;
+  const live=await readLive();ensure();
+  const result=compareCatalogMetadata(saved,live);ensure();
+  return {checked,comparison:result};
+ }
+ return {money,cents,address,paymentURL,inventorySnapshot,inspectInventorySnapshot,snapshotMaxBytes,createCatalogArchive,inspectCatalogArchive,archiveMaxBytes,auditCatalogRecovery};
 });
