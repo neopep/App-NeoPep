@@ -30,8 +30,8 @@ async function main(root){
  assert.equal(s.provider.valid([{image,caption:'A'},{image:Buffer.from([1,2,3,4,5]),caption:'B'}]),false);
  assert.equal(s.provider.valid([{image,caption:'A'.repeat(1001)},{image,caption:'B'}]),false);
  assert.throws(()=>patch({...input,'connect/windows/Connect.cs':'unexpected source'}));
- assert.ok(out['connect/windows/WhatsApp.cs'].includes('AlbumTransportApproved=false'));
- assert.ok(out['connect/windows/WhatsApp.cs'].includes('!environment.IsProduction&&CampaignSessionReady'));
+ assert.ok(out['connect/windows/WhatsApp.cs'].includes('AlbumTransportApproved=true'));
+ assert.ok(out['connect/windows/WhatsApp.cs'].includes('!environment.IsProduction&&CampaignSessionReady&&canPublish!=null&&canPublish()'));
  assert.ok(out['connect/windows/Connect.cs'].includes('originals_50mb=true,album_v1=window.CampaignAlbumReady'));
  assert.ok(out['connect/whatsapp-lab/windows-bridge.mjs'].includes('enableAlbums=false'));
  console.log('Album candidate mocks passed; exact source '+baseline+'; no real send or compilation.');
