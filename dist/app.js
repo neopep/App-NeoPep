@@ -1810,7 +1810,7 @@ function privacyPreferencesPage(){
   `<form id="privacyPreferences" class="card privacy-preferences" data-privacy-account="${esc(Cloud.user.id)}" data-privacy-page="${page}">
   ${initial?'<p class="sub">Confira e confirme. Altere quando quiser no Perfil.</p>':''}
   <fieldset disabled aria-label="Permissões opcionais">
-  ${privacyOptions.map(([key,label])=>`<label class="privacy-option" for="privacy-${key}"><span>${label}</span><input id="privacy-${key}" name="${key}" type="checkbox" role="switch"${initial&&(key!=='location'||locationObservationEnabled())?' checked':''}></label>`).join('')}
+  ${privacyOptions.map(([key,label])=>`<label class="privacy-option" for="privacy-${key}"><span>${label}</span><input id="privacy-${key}" name="${key}" type="checkbox" role="switch"${initial&&key!=='location'?' checked':''}></label>`).join('')}
   </fieldset>
   ${initial?'<button type="button" class="text-btn full" data-privacy-select-none>Desmarcar todas</button>':''}
   ${initial?'<p class="form-help">Localização opcional: identifica sua cidade e estado. Você pode desmarcar antes de confirmar.</p>':''}
@@ -1868,7 +1868,7 @@ function mountPrivacyPreferences(){
   baseline=values;
   for(const [key] of privacyOptions){
    const field=form.querySelector('[name='+key+']');
-   if(field)field.checked=initial&&values.pending&&(key!=='location'||locationObservationEnabled())?true:values[key]===true;
+   if(field)field.checked=initial&&values.pending&&key!=='location'?true:values[key]===true;
   }
   const locationField=form.querySelector('[name=location]');
   if(locationField)locationField.disabled=!values.location&&!locationObservationEnabled();
