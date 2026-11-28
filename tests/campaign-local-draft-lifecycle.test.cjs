@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
 const central=fs.readFileSync('dist/admin/campaign-central.js','utf8'),editor=fs.readFileSync('dist/admin/campaign-editor.js','utf8');
-const fn=central.slice(central.indexOf('  function localDrafts(){'),central.indexOf('  function localDraftCards(){'));
+const fn=central.slice(central.indexOf(' function stableDraft('),central.indexOf(' function canEditScheduled('))+'\n'+central.slice(central.indexOf('  function localDrafts(){'),central.indexOf('  function localDraftCards('));
 function fixture(entries,pending,publications=[]){
  const prefix='neo-campaign-editor:owner:whatsapp:group:',pointer='pointer',map=new Map(entries.map(([id,item])=>[prefix+id,JSON.stringify(item)]));
  if(pending)map.set(pointer,pending);
@@ -25,7 +25,7 @@ test('ponteiro de rascunho novo ainda sem registro permanece recuperável',()=>{
  assert.deepEqual(fixture([],'sent',[{id:'sent'}]).ids,[]);
 });
 test('envio confirmado limpa somente cópia local intacta e volta à Central',()=>{
- assert.match(editor,/if\(publication&&state\.dispatchConfirmed&&draftIsClean\(\)\)/);
+ assert.match(editor,/if\(publication&&draftIsClean\(\)&&!state\.attempt&&\(!state\.dispatchAttempt\|\|state\.dispatchConfirmed\)\)/);
  assert.match(editor,/localStorage\.getItem\(k\)===lastLocalWrite/);
  assert.match(editor,/state\.dispatchConfirmed=true;state\.dispatchAttempt=null/);
  assert.match(editor,/if\(publication&&persisted&&draftIsClean\(\)\)\{dialog\.close\(\);\}/);
