@@ -1,6 +1,6 @@
 -- STAGING ONLY. Encrypted one-shot consultation; no plaintext results. Default closed.
 begin;
-create table neo_private.group_view_gate_v1(singleton boolean primary key default true check(singleton),enabled boolean not null default false,approved_version text check(approved_version is null or approved_version ~ '^0[.]2[.][0-9]{2,3}$'),check(not enabled or approved_version is not null));
+create table neo_private.group_view_gate_v1(singleton boolean primary key default true check(singleton),enabled boolean not null default false,approved_version text check(approved_version is null or approved_version ~ '^0[.]2[.][0-9]{2,3}$'),owner_id uuid references auth.users(id) on delete cascade,connection_id uuid references neo_private.connect_wa_connections(id) on delete cascade,group_jid text check(group_jid ~ '^[0-9-]{1,64}@g[.]us),check(not enabled or (approved_version is not null and owner_id is not null and connection_id is not null and group_jid is not null)));
 insert into neo_private.group_view_gate_v1(singleton) values(true);
 alter table neo_private.group_view_gate_v1 enable row level security;
 revoke all on neo_private.group_view_gate_v1 from public,anon,authenticated,service_role;
@@ -24,8 +24,7 @@ returns boolean language sql stable set search_path=pg_catalog as $$
  select exists(select 1 from neo_private.connect_wa_connections c
  join neo_private.connect_devices d on d.id=c.device_id and d.owner_id=c.owner_id
  join neo_private.connect_wa_selected_groups g on g.connection_id=c.id and g.group_jid=p_jid
- join neo_private.group_view_gate_v1 v on v.singleton and v.enabled and v.approved_version=d.version
- join neo_private.campaign_wa_test_config t on t.singleton and t.enabled and t.owner_id=c.owner_id and t.connection_id=c.id and (t.group_jid is null or t.group_jid=g.group_jid)
+ join neo_private.group_view_gate_v1 v on v.singleton and v.enabled and v.approved_version=d.version and v.owner_id=c.owner_id and v.connection_id=c.id and v.group_jid=g.group_jid
  where c.owner_id=p_owner and c.device_id=p_device and c.id=p_connection and c.revision=p_revision
  and c.status='connected' and c.last_seen_at>now()-interval '5 minutes' and d.state='approved' and d.last_seen>now()-interval '90 seconds'
  and exists(select 1 from neo_private.admin_members a where a.user_id=p_owner))
@@ -59,7 +58,7 @@ returns jsonb language plpgsql security definer set search_path=pg_catalog as $$
 declare actor uuid:=auth.uid(); sid uuid; c neo_private.connect_wa_connections; r neo_private.group_view_requests_v1; rid uuid; key text; kind_value text; jid text;
 begin
  sid:=neo_private.group_view_browser_session_v1();
- if p_action='status' then return jsonb_build_object('enabled',coalesce((select enabled from neo_private.group_view_gate_v1 where singleton),false));end if;
+ if p_action='status' then return jsonb_build_object('enabled',coalesce((select enabled and owner_id=actor from neo_private.group_view_gate_v1 where singleton),false));end if;
  perform pg_advisory_xact_lock(hashtextextended('group_view:'||actor::text,0));
  delete from neo_private.group_view_requests_v1 where owner_id=actor and expires_at<=now();
  if p_action='request' then
