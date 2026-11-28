@@ -36,6 +36,8 @@ self.addEventListener('push',event=>{
   if(['community','support','library','shop','campaign'].includes(data?.kind))kind=data.kind;
   // Private conversation previews are shown only on devices that subscribed
   // to notifications. The server sends only messages authorized for this user.
+  if(kind==='shop'&&data?.notice==='payment_confirmed'){title='Compra confirmada';body='Seu pagamento foi aprovado. Acompanhe seu pedido no NeoPep.';}
+  else if(kind==='shop'&&data?.notice==='payment_pending'){title='Pagamento pendente';body='Confira o prazo e os detalhes da sua compra no NeoPep.';}
   if(kind==='support'){
    if(typeof data?.title==='string'&&data.title.trim())title=data.title.trim().slice(0,100);
    if(typeof data?.body==='string'&&data.body.trim())body=data.body.trim().slice(0,160);
