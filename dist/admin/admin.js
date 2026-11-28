@@ -94,7 +94,63 @@ function paymentPanel(){
  const base=window.NEO_CONFIG?.supabaseUrl;
  if(!base||!window.NeoCloud.shopPaymentIntegration)return '<section class="card space"><h2>Pagamento · Mercado Pago</h2><p class="sub">Integração indisponível nesta sessão.</p></section>';
  const root=paymentConfig||{},active=root.active_environment||root.environment||'test',c=root.environments?.[paymentSelected]||(root.environment===paymentSelected?root:{}),url=root.webhook_url||new URL('/functions/v1/mercadopago-webhook',base).href,saved=c.configured?' <span class="tag">✓ Salvo</span>':'',label=paymentSelected==='production'?'Produção':'Teste',message=paymentMessage||(c.validated_at?'Conexão validada · conta '+c.collector_id:c.configured?'Credenciais salvas. Teste esta conexão antes de ativar.':'Cadastre as credenciais de '+label+'.');return `<section class="card space"><div class="between"><div><h2>Pagamento · Mercado Pago</h2><p class="sub">Teste e Produção ficam salvos separadamente. Somente o ambiente ativo recebe novas compras.</p></div><span class="tag">Ativo: ${active==='production'?'Produção':'Teste'}</span></div><div class="segmented shop-payment-environments" role="tablist"><button type="button" data-admin-payment-environment="test" class="${paymentSelected==='test'?'active':''}" aria-selected="${paymentSelected==='test'}">Teste</button><button type="button" data-admin-payment-environment="production" class="${paymentSelected==='production'?'active':''}" aria-selected="${paymentSelected==='production'}">Produção</button></div><form id="adminPaymentForm" class="space"><input type="hidden" name="environment" value="${paymentSelected}"><label>Access Token${saved}<input name="access_token" type="password" autocomplete="new-password" placeholder="${c.configured?'Salvo · deixe vazio para manter':'Cole o Access Token deste ambiente'}"></label><label>Assinatura secreta do webhook${saved}<input name="webhook_secret" type="password" autocomplete="new-password" placeholder="${c.configured?'Salva · deixe vazio para manter':'Cole a assinatura secreta deste ambiente'}"></label><label>URL de notificação<input data-admin-webhook readonly value="${esc(url)}"></label><button class="secondary" type="button" data-admin-copy-webhook>Copiar URL do webhook</button><p class="notice" data-payment-status>${esc(message)}</p><div class="shop-admin-actions"><button class="secondary" ${paymentBusy?'disabled':''}>Salvar credenciais</button><button class="secondary" type="button" data-admin-payment-test ${!c.configured||paymentBusy?'disabled':''}>Testar conexão</button><button class="primary" type="button" data-admin-payment-activate ${!c.validated_at||active===paymentSelected||paymentBusy?'disabled':''}>${active===paymentSelected?'Ambiente ativo':'Ativar '+label}</button></div></form></section>`}
-const originalSettingsView=settingsView;settingsView=p=>{const html=originalSettingsView(p).replace('<div data-agent-admin></div>','<div data-agent-admin></div><div data-admin-payment>'+paymentPanel()+'</div>').replace(/<p class="sub">Mercado Pago:[\s\S]*?<\/details>/,'').replace('<h2>Pagamentos e entrega</h2>','<h2>Entrega e condições da loja</h2>');if(!paymentConfig&&!paymentBusy&&window.NEO_CONFIG?.supabaseUrl&&window.NeoCloud.shopPaymentIntegration)setTimeout(loadPaymentConfig);return html};
+const originalSettingsView=settingsView;settingsView=p=>{const html=originalSettingsView(p).replace('<div data-agent-admin></div>','<div data-agent-admin></div><div data-admin-payment>'+paymentPanel()+'</div><div data-admin-installment-host></div>').replace(/<p class="sub">Mercado Pago:[\s\S]*?<\/details>/,'').replace('<h2>Pagamentos e entrega</h2>','<h2>Entrega e condições da loja</h2>');if(!paymentConfig&&!paymentBusy&&window.NEO_CONFIG?.supabaseUrl&&window.NeoCloud.shopPaymentIntegration)setTimeout(loadPaymentConfig);setTimeout(mountAdminInstallments,0);return html};
+
+// Admin installment panel is scoped to the actual project, not the credential form's selected tab.
+function adminInstallmentPanel(c,production,busy,message){
+ const label=production?'Produção':'Teste',money=n=>Number.isSafeInteger(n)?(n/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'—';
+ const disabled=busy?'disabled':'',labels={not_synced:'Aguardando primeira atualização',success:'Atualizado',partial:'Atualização parcial',rate_limited:'Limite da API · aguarde',unsupported:'Consulta indisponível',provider_error:'Falha no provedor',configuration_pending:'Credencial pendente',running:'Sincronizando',no_options:'Sem opções',no_products:'Sem produtos',cooldown:'Aguarde o intervalo de segurança de 30 minutos.',busy:'Já existe uma consulta em execução.',disabled:'Consulta desativada'};
+ const last=c?.last_success&&Number.isFinite(Date.parse(c.last_success))?new Date(c.last_success).toLocaleString('pt-BR'):'Ainda não sincronizado';
+ const quotes=(Array.isArray(c?.quotes)?c.quotes:[]).filter(q=>Number.isSafeInteger(q.amount_cents)&&Date.parse(q.expires_at)>Date.now()&&Array.isArray(q.rows));
+ const rows=quotes.map(q=>'<details class="space"><summary>'+esc(money(q.amount_cents))+' · '+q.rows.length+' condições</summary><div class="shop-installment-table" style="overflow-x:auto"><table><thead><tr><th>Bandeira</th><th>Parcelas</th><th>Taxa</th><th>Total</th></tr></thead><tbody>'+q.rows.slice(0,240).map(r=>'<tr><td>'+esc(r.method==='visa'?'Visa':r.method==='master'?'Mastercard':'Outro')+'</td><td>'+esc(Number.isInteger(r.installments)?r.installments+'x '+money(r.installment_cents):'—')+'</td><td>'+esc(Number.isFinite(r.buyer_rate)?r.buyer_rate.toLocaleString('pt-BR')+'%':'—')+'</td><td>'+esc(money(r.total_cents))+'</td></tr>').join('')+'</tbody></table></div></details>').join('');
+ return '<section class="card space"><div class="between"><h2>Taxas de parcelamento · Mercado Pago</h2><span class="tag">'+label+'</span></div><p class="sub">Cotações reais por valor · Visa/Mastercard. Não representam as tarifas de recebimento do vendedor. As condições finais dependem do cartão e do checkout.</p><p role="status" class="notice">'+esc(message||(c?labels[c.last_result]||'Status consultado':'Consultando configuração…'))+'</p><p>Última atualização: '+esc(last)+'</p>'+
+ (c?'<form data-admin-installment-form class="space"><label><input type="checkbox" name="show" '+(c.show_enabled?'checked ':'')+(production?'disabled':disabled)+'> Exibir parcelamento nos produtos</label><label><input type="checkbox" name="auto" '+(c.auto_enabled?'checked ':'')+'disabled> Sincronização automática</label><p class="sub">Rotina automática ainda não liberada. '+(production?'Exibição na vitrine aguarda homologação.':'A exibição de valores depende da conferência no checkout.')+'</p><label>Frequência<select name="hours" '+disabled+'>'+[6,12,24].map(h=>'<option value="'+h+'" '+(c.frequency_hours===h?'selected':'')+'>'+h+' horas</option>').join('')+'</select></label><button type="submit" class="secondary" '+disabled+'>Salvar</button></form><div class="shop-admin-actions"><button type="button" class="primary" data-admin-installment-sync '+(busy||!c.configured||c.syncing?'disabled':'')+'>Sincronizar agora</button><button type="button" class="secondary" data-admin-installment-reload '+disabled+'>Atualizar status</button>'+(!production?'<button type="button" class="secondary" data-admin-installment-verify '+(busy||(!c.checkout_verified&&!quotes.length)?'disabled':'')+'>'+(c.checkout_verified?'Suspender exibição':'Confirmar conferência no checkout')+'</button>':'')+'</div><p class="sub">'+(c.checkout_verified&&!production?'Exibição de valores habilitada.':'Valores ainda não liberados na vitrine.')+'</p>'+(rows||'<p class="sub">As cotações por valor serão preenchidas após sincronizar.</p>'):'<button type="button" class="secondary" data-admin-installment-reload '+disabled+'>Atualizar status</button>')+'</section>';
+}
+function mountAdminInstallments(){
+ const host=document.querySelector('[data-admin-installment-host]'),project=window.NEO_CONFIG?.supabaseUrl,production=project==='https://cpslafpzjtbpmoxxysaa.supabase.co',staging=project==='https://qnuluspqfazdppciermw.supabase.co';
+ if(!host||host.dataset.mounted||!authorized||tab!=='settings'||(!production&&!staging))return;
+ host.dataset.mounted='1';
+ const gen=generation,account=window.NeoCloud.user?.id,environment=production?'production':'test';
+ let c=null,busy=false,message='';
+ const current=()=>host.isConnected&&generation===gen&&authorized&&tab==='settings'&&window.NeoCloud.user?.id===account;
+ const render=()=>{if(current())host.innerHTML=adminInstallmentPanel(c,production,busy,message);};
+ const request=async(action,payload={})=>production?window.NeoCloud.adminInstallmentRequest(action,{...payload,environment}):action==='sync'?window.NeoCloud.shopPaymentIntegration('installment_sync',{environment}):window.NeoCloud.shopInstallments(action,{...payload,environment});
+ const load=async(action='status',payload={})=>{
+  if(busy||!current())return;
+  busy=true;message=action==='sync'?'Consultando Mercado Pago…':'';render();
+  try{
+   if(action==='sync'){
+    const r=await request('sync');
+    if(!current())return;
+    const labels={success:'Consulta concluída.',partial:'Consulta parcialmente concluída.',cooldown:'Aguarde o intervalo de segurança de 30 minutos.',busy:'Já existe uma consulta em execução.',rate_limited:'Limite da API atingido. Aguarde.',unsupported:'Consulta indisponível para esta conta.',configuration_pending:'Credenciais ainda pendentes.',provider_error:'Falha na consulta ao Mercado Pago.',no_options:'Nenhuma condição retornada.',no_products:'Nenhum produto em estoque.',disabled:'Consulta desativada.'};
+    message=labels[r?.status]||'Consulta finalizada. Confira o status.';
+   }else if(action!=='status')await request(action,payload);
+   if(!current())return;
+   const status=await request('status');
+   if(!current())return;
+   if(status?.environment!==environment)throw Error('Ambiente da cotação incompatível.');
+   c=status;
+   if(action==='save')message='Configuração salva.';
+   if(action==='verify')message='Conferência atualizada.';
+  }catch(err){if(current())message=err?.message||'Não foi possível consultar o parcelamento.';}
+  finally{busy=false;render();}
+ };
+ host.addEventListener('submit',event=>{
+  if(!event.target.matches('[data-admin-installment-form]'))return;
+  event.preventDefault();if(!c||busy||!current())return;
+  const hours=Number(event.target.elements.hours.value);
+  if(![6,12,24].includes(hours))return;
+  void load('save',{frequency_hours:hours,show_enabled:production?false:event.target.elements.show.checked,auto_enabled:production?false:!!c.auto_enabled});
+ });
+ host.addEventListener('click',event=>{
+  if(!current()||busy)return;
+  if(event.target.closest('[data-admin-installment-sync]')&&c?.configured&&!c.syncing)void load('sync');
+  else if(event.target.closest('[data-admin-installment-reload]'))void load();
+  else if(!production&&c&&event.target.closest('[data-admin-installment-verify]')&&(c.checkout_verified||window.confirm('Você conferiu os valores no checkout do Mercado Pago Teste? Só confirme após a homologação real.')))void load('verify',{confirmed:!c.checkout_verified});
+ });
+ void load();
+}
+
 function redrawPayment(){const box=document.querySelector('[data-admin-payment]');if(box)box.innerHTML=paymentPanel()}
 async function loadPaymentConfig(){if(paymentBusy||!authorized||tab!=='settings')return;paymentBusy=true;redrawPayment();try{const first=!paymentConfig;paymentConfig=await window.NeoCloud.shopPaymentIntegration('status');if(first)paymentSelected=paymentConfig.active_environment||paymentConfig.environment||paymentSelected;paymentMessage=''}catch(err){paymentMessage=err.message}finally{paymentBusy=false;redrawPayment()}}
 document.addEventListener('submit',event=>{const form=event.target;if(form.id!=='adminPaymentForm')return;event.preventDefault();event.stopImmediatePropagation();if(paymentBusy||!form.reportValidity())return;const values=Object.fromEntries(new FormData(form));paymentBusy=true;paymentMessage='Salvando credenciais…';redrawPayment();window.NeoCloud.shopPaymentIntegration('save',values).then(()=>{paymentBusy=false;paymentMessage='Credenciais salvas no servidor.';return loadPaymentConfig()}).catch(err=>{paymentBusy=false;paymentMessage=err.message;redrawPayment()})},true);
