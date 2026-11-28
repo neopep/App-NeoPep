@@ -150,3 +150,48 @@ test('CAPTCHA gate and callback context are scoped to the approved local destina
  await original.cloud.email('reset','fixture@example.test',null,null);
  assert.equal(original.calls.at(-1)[1].options.redirectTo,'https://app.neopep.com.br/neo/');
 });
+
+test('local onboarding handoff expires and rejects malformed or future navigation markers',async()=>{
+ const s=await setup();
+ await s.cloud.load();
+ await s.cloud.openCommercialOnboarding(owner);
+ s.location.href=s.redirects[0];
+ const key='neo-commercial-onboarding';
+ for(const raw of [owner,'null','{}',JSON.stringify({id:owner,createdAt:Date.now()+60000}),JSON.stringify({id:owner,createdAt:Date.now()-600001})]){
+  s.storage.set(key,raw);
+  assert.equal(await s.cloud.consumeCommercialOnboarding(),false);
+  assert.equal(s.storage.has(key),false);
+ }
+ await s.cloud.openCommercialOnboarding(owner);
+ assert.equal(await s.cloud.consumeCommercialOnboarding(),true);
+ assert.equal(await s.cloud.consumeCommercialOnboarding(),false);
+});
+
+test('local handoff refuses a missing account and an account switched during the server check',async()=>{
+ const s=await setup();
+ await s.cloud.load();
+ let resolve;
+ s.respond(()=>new Promise(r=>{resolve=r;}));
+ const pending=s.cloud.openCommercialOnboarding(owner);
+ s.change(other);
+ resolve({data:{id:owner,commercialComplete:true}});
+ await assert.rejects(pending,/A conta mudou/);
+ assert.equal(s.storage.has('neo-commercial-onboarding'),false);
+ assert.deepEqual(s.redirects,[]);
+ s.change(null);
+ await assert.rejects(s.cloud.openCommercialOnboarding(null),/A conta mudou/);
+});
+
+test('local handoff is discarded when the account changes during consumption',async()=>{
+ const s=await setup();
+ await s.cloud.load();
+ await s.cloud.openCommercialOnboarding(owner);
+ s.location.href=s.redirects[0];
+ let resolve;
+ s.respond(()=>new Promise(r=>{resolve=r;}));
+ const pending=s.cloud.consumeCommercialOnboarding();
+ s.change(other);
+ resolve({data:{id:owner,commercialComplete:true}});
+ assert.equal(await pending,false);
+ assert.equal(s.storage.has('neo-commercial-onboarding'),false);
+});
