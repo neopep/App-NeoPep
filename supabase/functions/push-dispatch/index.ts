@@ -176,9 +176,15 @@ Deno.serve(async (request: Request) => {
             let notice: string|undefined, ttl=300;
             if(job.kind==='shop'){
               const checked=await client.rpc('neo_shop_notice_push_check_v1',{p_id:job.id});
-              if(!checked.error&&checked.data?.send===false){await client.rpc('neo_event_push_finish',{p_id:job.id,p_outcome:'sent'});return;}
-              if(checked.error)throw new Error('shop_notice_check');
-              notice=checked.data?.notice;ttl=checked.data?.ttl||300;
+              if(checked.error||typeof checked.data?.send!=='boolean')throw new Error('shop_notice_check');
+              if(checked.data.send===false){
+                const dismissed=await client.rpc('neo_event_push_finish',{p_id:job.id,p_outcome:'sent'});
+                if(dismissed.error)throw new Error('shop_notice_finish');
+                return;
+              }
+              const checkedTTL=checked.data.ttl;
+              if(!Number.isSafeInteger(checkedTTL)||checkedTTL<1||checkedTTL>300)throw new Error('shop_notice_ttl');
+              notice=checked.data.notice;ttl=checkedTTL;
             }
             const payload: {
               tag: string;
