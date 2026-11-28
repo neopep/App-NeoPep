@@ -1,0 +1,39 @@
+name: NeoPep - QA isolado da candidata
+on:
+  push:
+    branches:
+      - desenvolvimento/vitrine-publica-neopep
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-vitrine-local-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qa:
+    if: github.ref == 'refs/heads/desenvolvimento/vitrine-publica-neopep'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Dependencias versionadas
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Verificacoes de sintaxe e configuracao
+        run: npm run check
+      - name: Suite completa local
+        run: npm test
+      - name: Isolamento da previa e preservacao da integracao original
+        run: node --test tests/commercial-release-isolation.test.cjs
+      - name: Preflight Docker simulado (sem daemon real)
+        run: bash tests/commercial-docker-preflight.test.sh
