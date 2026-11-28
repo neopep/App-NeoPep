@@ -1,7 +1,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),crypto=require('node:crypto');
 const shop=fs.readFileSync('dist/shop.js','utf8'),cloud=fs.readFileSync('src/cloud.js','utf8');
 test('release de Produção preserva o cliente financeiro ativo e bloqueia novas operações',()=>{
- const preserved=cloud.replace(/ \/\/ BEGIN isolated (?:administrative quote|customer quote|seller tariff|private catalog backup) adapter\n[\s\S]*? \/\/ END isolated (?:administrative quote|customer quote|seller tariff) adapter\n/g,'');
+ const preserved=cloud.replace(/ \/\/ BEGIN isolated (?:administrative quote|customer quote|seller tariff|private catalog backup) adapter\n[\s\S]*? \/\/ END isolated (?:administrative quote|customer quote|seller tariff|private catalog backup) adapter\n/g,'');
  const blob=crypto.createHash('sha1').update('blob '+Buffer.byteLength(preserved)+'\0').update(preserved).digest('hex');
  assert.equal(blob,'d8c51590b6b801268e1ceb342130943efae0162b');
  assert.match(shop,/const newFinancialFeatures=false;/);
