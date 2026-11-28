@@ -1,5 +1,6 @@
 import {createClient} from 'npm:@supabase/supabase-js@2.80.0';
 import {syncInstallments,stagingInstallmentConfig} from './installment-sync.ts';
+import {syncSellerFees} from './seller-fee-sync.ts';
 import {normalizeInstallments} from './installments.ts';
 import {encryptKey,decryptKey} from '../_shared/agent-providers.ts';
 // Safe startup diagnostic: random synthetic value only; never logs keys or credential values.
@@ -30,6 +31,14 @@ Deno.serve(async(req:Request)=>{
  const admin=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false,autoRefreshToken:false}}),auth=await admin.auth.getUser(token);if(auth.error||!auth.data.user)return out(401,{error:'auth'});
  try{const body=await req.json(),action=String(body.action||'status');const financialAdmin=await admin.rpc('neo_shop_financial_admin_v1',{p_actor:auth.data.user.id});if(financialAdmin.error||financialAdmin.data!==true)throw Error('forbidden');
   if(action==='status'){const r=await admin.rpc('neo_shop_payment_integration',{p_actor:auth.data.user.id,p_action:'status',p_payload:{}});if(r.error)throw r.error;return out(200,{...r.data,webhook_url:new URL('/functions/v1/mercadopago-webhook',Deno.env.get('SUPABASE_URL')).href})}
+  // Candidate endpoints use the same financial-admin gate and staging credentials.
+  if(action==='seller_fees_status'||action==='seller_fees_sync'){
+   if(body.environment!=='test')return out(400,{error:'environment'});
+   if(action==='seller_fees_sync')return out(200,await syncSellerFees(admin,'test',()=>stagingInstallmentConfig(admin)));
+   const fees=await admin.rpc('neo_shop_fee_sync_v1',{p_action:'status',p_environment:'test',p_payload:{}});
+   if(fees.error){if(['PGRST202','42883'].includes(fees.error.code))return out(200,{status:'not_installed',enabled:false,rows:[]});throw Error('fee_database');}
+   return out(200,fees.data);
+  }
   if(action==='installment_sync'){
    const environment=body.environment;if(environment!=='test')return out(400,{error:'environment'});
    return out(200,await syncInstallments(admin,environment,true));
