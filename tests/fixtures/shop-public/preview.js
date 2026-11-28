@@ -19,7 +19,9 @@
     account = {id:'conta-ficticia', onboardingComplete:false, commercialComplete:true};
     return account;
    },
-   openApp: () => {
+   readAccount: async () => account,
+   openApp: async (id) => {
+    if (id !== account?.id) throw new Error();
     unmount();
     root.innerHTML = '<section class="card"><h1>Prévia da transição</h1><p>O cadastro complementar começaria aqui com a mesma conta fictícia.</p><button type="button" class="secondary">Voltar à loja</button></section>';
     root.querySelector('button').addEventListener('click', showStore);

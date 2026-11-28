@@ -11,7 +11,7 @@ const restricted = '11111111-0000-4000-8000-000000000003';
 const closed = '11111111-0000-4000-8000-000000000004';
 const product = {id:first, name:'Caderno pautado', description:'<script>alert(1)</script>',
  category:'Papelaria', price_cents:1800, active:true, available:true, publicEligible:true, restricted:false,
- photos:['/fixtures/caderno.jpg','https://externo.example/caderno.jpg','/fixtures/capa.jpg'],
+ photos:['/tests/fixtures/shop-public/caderno.jpg','https://externo.example/caderno.jpg','/private/caderno.jpg','/tests/fixtures/shop-public/capa.jpg'],
  offer:{price_cents:1500,valid_until:'2099-01-01'},cost_cents:99999, supplier:'Fornecedor privado'};
 const data = [product,
  {...product,id:second,name:'Caneca',category:'Casa',available:false,offer:null},
@@ -37,8 +37,9 @@ function boot(url='http://localhost/?loja=1#loja'){
   vm.runInContext(fs.readFileSync('dist/'+file+'.js','utf8'),sandbox);
  }
  let transitions=0;
- const options = {rows:data,register:async()=>({id:'synthetic',commercialComplete:true,onboardingComplete:false}),
-  openApp:()=>{transitions++;}};
+ const account={id:'synthetic',commercialComplete:true,onboardingComplete:false};
+ const options = {rows:data,register:async()=>account,readAccount:async()=>account,
+  openApp:id=>{assert.equal(id,account.id);transitions++;}};
  return {window,document,root,location,storage,install:window.NeoInstall,shop:window.NeoPublicShop,
   mount:(overrides={})=>window.NeoPublicShop.mount(root,{...options,...overrides}),
   click:selector=>root.querySelector(selector).dispatchEvent(new window.Event('click',{bubbles:true})),
@@ -72,7 +73,7 @@ test('synthetic browsing reuses catalogue, offers and gallery while excluding in
  assert.equal(b.location.search,'?produto='+first);
  assert.equal(b.root.querySelectorAll('.shop-gallery-thumb').length,2);
  b.click('[data-index="1"]');
- assert.equal(b.root.querySelector('.shop-detail-photo img').getAttribute('src'),'/fixtures/capa.jpg');
+ assert.equal(b.root.querySelector('.shop-detail-photo img').getAttribute('src'),'/tests/fixtures/shop-public/capa.jpg');
  assert.equal(b.root.querySelector('script'),null);
  b.click('[data-shop=buy]');
  assert.match(b.root.querySelector('[role=status]').textContent,/desativadas/);
@@ -89,6 +90,8 @@ test('synthetic browsing reuses catalogue, offers and gallery while excluding in
 test('commercial signup simulation preserves the product and suppresses PWA prompts only while mounted',async()=>{
  const b=boot('http://localhost/?produto='+first+'#loja');
  assert.equal(b.install.blocking,true);
+ b.window.dispatchEvent(new b.window.Event('beforeinstallprompt',{cancelable:true}));
+ assert.doesNotMatch(b.install.guide(),/data-install-native hidden/);
  const close=b.mount();
  assert.equal(b.install.blocking,false);
  assert.equal(b.install.guide(),'');
@@ -107,8 +110,26 @@ test('commercial signup simulation preserves the product and suppresses PWA prom
  assert.equal(b.location.search,'?produto='+first);
  assert.match(b.root.textContent,/Cadastro fictício concluído/);
  b.click('[data-commercial=app]');
+ await new Promise(setImmediate);
  assert.equal(b.transitions(),1);
  close();
  assert.equal(b.install.blocking,true);
  assert.match(b.install.loginNotice(),/Ainda não tem o aplicativo/);
+ assert.doesNotMatch(b.install.guide(),/data-install-native hidden/);
+});
+
+test('voluntary onboarding rejects a changed account and ignores duplicate clicks',async()=>{
+ const b=boot();
+ const account={id:'synthetic',commercialComplete:true,onboardingComplete:false};
+ let resolveAccount;
+ let reads=0;
+ b.mount({account,readAccount:()=>{reads++;return new Promise(resolve=>{resolveAccount=resolve;});}});
+ b.click('[data-commercial=app]');
+ b.click('[data-commercial=app]');
+ assert.equal(reads,1);
+ resolveAccount({...account,id:'other-synthetic'});
+ await new Promise(setImmediate);
+ assert.equal(b.transitions(),0);
+ assert.match(b.root.querySelector('[role=status]').textContent,/mesma conta/);
+ assert.equal(b.install.blocking,false);
 });
