@@ -40,7 +40,7 @@ async function observeCurrent(native=false){
  finally{busy=false;}
 }
 window.NeoWebPrivacy={allowed,open(){mount();show(true);},observe(cloud,account,device){if(!allowed()||!account||cloud.user?.id!==account){active=null;pendingNativeAccount=null;return;}if(active?.account!==account)pendingNativeAccount=null;active={cloud,account,device};void observeCurrent();},clear(){active=null;pendingNativeAccount=null;},addLink(root){if(!root||root.querySelector('[data-web-privacy-open]'))return;const link=document.createElement('button');link.type='button';link.className='text-btn neo-web-privacy-link';link.setAttribute('data-web-privacy-open','');link.textContent='Preferências de cookies';root.append(link);}};
-window.addEventListener('appinstalled',()=>{if(allowed()&&active?.cloud.user?.id===active.account)void observeCurrent(true);});
+window.addEventListener('appinstalled',()=>{if(allowed()&&active&&active.cloud.user?.id===active.account)void observeCurrent(true);});
 document.addEventListener('click',event=>{if(event.target.closest('[data-web-privacy-open]')){event.preventDefault();window.NeoWebPrivacy.open();}});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
 })();
