@@ -2,12 +2,29 @@
 import {createInterface} from 'node:readline';
 import {fileURLToPath} from 'node:url';
 import {Writable} from 'node:stream';
-import {createBaileysProvider,validCampaignFile,CAMPAIGN_FILE_MAX} from './whatsapp-provider.mjs';
+import {createPublicKey,publicEncrypt,randomBytes,createCipheriv,constants} from 'node:crypto';
+import {createBaileysProvider,validCampaignFile,CAMPAIGN_FILE_MAX,validNativeAlbum} from './whatsapp-provider.mjs';
 
-export function createBridge({emit,providerFactory=createBaileysProvider,renderQr}){
+// Results are encrypted in the bridge before IPC or network transport.
+export function encryptGroupView(browserKey,id,kind,rows){
+ if(!/^[a-f0-9-]{36}$/.test(id)||!['members','messages'].includes(kind)||typeof browserKey!=='string'||browserKey.length!==392||!/^[A-Za-z0-9+/]+$/.test(browserKey)||!Array.isArray(rows)||rows.length>(kind==='members'?1024:50))throw Error('Invalid consultation.');
+ const key=createPublicKey({key:Buffer.from(browserKey,'base64'),format:'der',type:'spki'});
+ if(key.asymmetricKeyType!=='rsa'||key.asymmetricKeyDetails?.modulusLength!==2048)throw Error('Invalid key.');
+ const safe=rows.map(p=>kind==='members'?{name:typeof p?.name==='string'?p.name.slice(0,120):'',phone:/^[0-9]{6,15}$/.test(p?.phone||'')?p.phone:'',role:['admin','superadmin','member'].includes(p?.role)?p.role:'unknown'}:{text:typeof p?.text==='string'?p.text.slice(0,500):''});
+ const secret=randomBytes(32),iv=randomBytes(12);
+ try{
+  const cipher=createCipheriv('aes-256-gcm',secret,iv);cipher.setAAD(Buffer.from(id+':'+kind,'utf8'));
+  const ciphertext=Buffer.concat([cipher.update(JSON.stringify({kind,rows:safe}),'utf8'),cipher.final(),cipher.getAuthTag()]).toString('base64');
+  if(ciphertext.length>1048576)throw Error('Oversize consultation.');
+  const wrapped_key=publicEncrypt({key,padding:constants.RSA_PKCS1_OAEP_PADDING,oaepHash:'sha256'},secret).toString('base64');
+  return {wrapped_key,iv:iv.toString('base64'),ciphertext};
+ }finally{secret.fill(0);}
+}
+export function createBridge({emit,providerFactory=createBaileysProvider,renderQr,enableAlbums=false,enableGroupView=false}){
  let current,generation=0,qrVersion=0,state='desconectado',checking=false,sending=false,diagnosing=false,closed=false;
  // Refuse replay of original-file request IDs during the runtime session, including uncertain sends.
- const fileAttempts=new Set(),tracked=new Map(),earlyReceipts=new Map();
+ const fileAttempts=new Set(),tracked=new Map(),earlyReceipts=new Map(),albumAttempts=new Set();
+ let groupView=null;
  const output=(type,value)=>{if(!closed)emit({type,value});};
  function update(next){state=next;++qrVersion;output('state',next);}
  const receiptKey=r=>r.group_jid+':'+r.message_id;
@@ -28,7 +45,7 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
    if(closed)return;
    try{
     if(message.action==='connect'){
-     const revision=++generation;tracked.clear();earlyReceipts.clear();
+     const revision=++generation;groupView=null;tracked.clear();earlyReceipts.clear();
      await current?.close();current=null;update('conectando');
      const candidate=await providerFactory({
       serialized:typeof message.vault==='string'?message.vault:null,
@@ -54,6 +71,7 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
       },
       onState:value=>{
        if(revision!==generation)return;
+       if(value!=='conectado')groupView=null;
        update(value);
        if(value==='conectado'){
         const account=current?.account?.();
@@ -89,6 +107,57 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
         posting:['admins','all'].includes(row.posting)?row.posting:'unknown',
         settings:['admins','all'].includes(row.settings)?row.settings:'unknown'})));
      }finally{checking=false;}
+    }else if(message.action==='group_view_cancel'){
+     if(groupView?.request===message.request_id){groupView=null;current?.stopGroupMessageView?.();}
+    }else if(message.action==='group_view_query'){
+     const jid=message.group_jid,request=message.request_id,kind=message.kind;
+     if(typeof request!=='string'||!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(request)||typeof jid!=='string'||!/^[0-9-]{1,64}@g[.]us$/.test(jid))return;
+     const report=(status,extra={})=>output('group_view_result',{request_id:request,group_jid:jid,status,...extra});
+     if(!enableGroupView||message.confirmed!==true||state!=='conectado'||!current||checking||sending||diagnosing||groupView||!['members','messages'].includes(kind)||typeof message.browser_key!=='string'||message.browser_key.length!==392)return report('denied');
+     const revision=generation,provider=current,view={request,jid};groupView=view;diagnosing=true;
+     const active=()=>groupView===view&&revision===generation&&state==='conectado'&&provider===current;
+     try{
+      let rows=[];
+      if(kind==='members'){const result=await provider.listGroupMembers(jid);if(!Array.isArray(result?.rows)||result.rows.length>1024)throw Error('Invalid result');rows=result.rows;}
+      else{
+       const done=new Promise(resolve=>{view.complete=resolve;});
+       await provider.startGroupMessageView(jid,item=>{if(active()&&rows.length<50)rows.push({text:item.text});},reason=>view.complete(reason));
+       if(!active()){provider.stopGroupMessageView();return;}
+       const reason=await done;
+       if(reason!=='complete'){if(active())report('denied');return;}
+      }
+      if(active())report('ready',{result:encryptGroupView(message.browser_key,request,kind,rows)});
+     }catch{if(active())report('denied');}
+     finally{if(groupView===view)groupView=null;diagnosing=false;}
+    }else if(message.action==='group_messages_stop'){
+     if(groupView?.request===message.request_id){groupView=null;current?.stopGroupMessageView?.();}
+    }else if(message.action==='group_messages_start'){
+     const jid=message.group_jid,request=message.request_id;
+     if(typeof request!=='string'||!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(request)||typeof jid!=='string'||!/^[0-9-]{1,64}@g[.]us$/.test(jid))return;
+     const report=(status,extra={})=>output('group_messages',{request_id:request,group_jid:jid,status,...extra});
+     if(!enableGroupView||message.confirmed!==true||state!=='conectado'||!current||checking||sending||diagnosing||groupView||typeof current.startGroupMessageView!=='function')return report('unavailable');
+     const revision=generation,provider=current,view={request,jid};groupView=view;diagnosing=true;
+     try{
+      await provider.startGroupMessageView(jid,item=>{
+       if(groupView===view&&revision===generation&&state==='conectado'&&typeof item?.text==='string')report('message',{text:item.text.slice(0,500)});
+      },()=>{if(groupView===view){groupView=null;report('stopped');}});
+      if(groupView===view&&revision===generation&&state==='conectado')report('started');
+      else provider.stopGroupMessageView?.();
+     }catch{if(groupView===view){groupView=null;report('unavailable');}}
+     finally{diagnosing=false;}
+    }else if(message.action==='group_members'){
+     const jid=message.group_jid,request=message.request_id;
+     if(typeof request!=='string'||!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(request)||typeof jid!=='string'||!/^[0-9-]{1,64}@g[.]us$/.test(jid))return;
+     const report=(status,total=0,rows=[])=>output('group_members',{request_id:request,group_jid:jid,status,total,rows});
+     if(message.confirmed!==true||state!=='conectado'||!current||checking||sending||diagnosing||typeof current.listGroupMembers!=='function')return report('unavailable');
+     diagnosing=true;const revision=generation,provider=current;
+     try{
+      const r=await provider.listGroupMembers(jid);
+      if(revision!==generation||state!=='conectado')return;
+      if(!Number.isSafeInteger(r?.total)||r.total<0||!Array.isArray(r.rows)||r.rows.length>1024||r.rows.length>r.total)return report('unavailable');
+      const rows=r.rows.map(p=>({name:typeof p?.name==='string'?p.name.replace(/[\p{Cc}\p{Cf}]/gu,' ').slice(0,120):'',phone:/^[0-9]{6,15}$/.test(p?.phone||'')?p.phone:'',role:['admin','superadmin','member'].includes(p?.role)?p.role:'unknown'}));
+      report('ok',r.total,rows);
+     }catch{if(revision===generation)report('unavailable');}finally{diagnosing=false;}
     }else if(message.action==='revalidate_group_availability'){
      const jid=message.group_jid;
      if(typeof jid!=='string'||!/^[0-9-]{1,64}@g\.us$/.test(jid))return;
@@ -140,6 +209,28 @@ export function createBridge({emit,providerFactory=createBaileysProvider,renderQ
      try{const result=await provider.diagnoseGroup(jid);if(revision===generation)report(result);}
      catch{if(revision===generation)report();}
      finally{diagnosing=false;}
+    }else if(message.action==='send_album'){
+     const requestId=message.request_id;
+     if(typeof requestId!=='string'||!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(requestId))return;
+     const report=(status,extra={})=>output('send_result',{request_id:requestId,status,...extra});
+     if(!enableAlbums||sending||diagnosing||state!=='conectado'||typeof current?.sendAlbum!=='function')return report('rejected');
+     if(albumAttempts.has(requestId.toLowerCase())||albumAttempts.size>=4096)return report('uncertain');
+     if(typeof message.group_jid!=='string'||!/^[0-9-]{1,64}@g[.]us$/.test(message.group_jid)||!Array.isArray(message.images)||message.images.length<2||message.images.length>4)return report('rejected');
+     const images=[];
+     for(const item of message.images){
+      if(typeof item?.image!=='string'||item.image.length>1398104)return report('rejected');
+      const image=Buffer.from(item.image,'base64');
+      if(image.toString('base64')!==item.image)return report('rejected');
+      images.push({image,caption:item.caption});
+     }
+     if(!validNativeAlbum(images))return report('rejected');
+     albumAttempts.add(requestId.toLowerCase());sending=true;
+     const revision=generation,provider=current;
+     try{
+      const receipt=await provider.sendAlbum(message.group_jid,images);
+      if(receipt?.blocked==='previous_421')return report('rejected',{reason_code:'previous_421'});
+      report(revision===generation&&state==='conectado'&&receipt?.status==='accepted'?'accepted':'uncertain',{message_id:receipt?.messageId??null,media:receipt?.media??[]});
+     }catch{report('uncertain');}finally{sending=false;}
     }else if((message.action==='send_text'||message.action==='send_image'||message.action==='send_file')){
      const requestId=typeof message.request_id==='string'&&/^[a-f0-9-]{36}$/i.test(message.request_id)?message.request_id:null;
      if(!requestId)return;
@@ -223,7 +314,7 @@ export function isolateProtocolOutput(stdout){
 }
 if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){
  const emit=isolateProtocolOutput(process.stdout);
- const bridge=createBridge({emit});
+ const bridge=createBridge({emit,enableAlbums:process.env.NEO_CONNECT_ALBUM_V1==='1',enableGroupView:process.env.NEO_CONNECT_GROUP_VIEW_V1==='1'});
  const lines=createInterface({input:process.stdin,terminal:false});
  const stop=async()=>{try{await bridge.close()}finally{process.exit(0)}};
  lines.on('close',()=>{void stop()});

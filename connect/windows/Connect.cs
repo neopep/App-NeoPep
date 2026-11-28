@@ -438,6 +438,29 @@ sealed partial class Connect : Form {
             p_action=action,p_device=Value(local,"device"),p_secret=Value(local,"secret"),p_data=data
         },true);
     }
+    bool groupViewBusy;
+    Task<Dictionary<string,object>> GroupViewRpc(string action,object data){
+        return Post("/rest/v1/rpc/neo_group_view_device_v1",new {p_action=action,p_device=Value(local,"device"),p_secret=Value(local,"secret"),p_data=data},true);
+    }
+    async Task TickGroupView(){
+        if(profile.IsProduction||groupViewBusy||!deviceApproved||!SessionReady())return;
+        var window=whatsapp;if(window==null||!window.GroupViewAvailable)return;
+        var connection=window.CampaignConnection;var owner=sessionOwner;var device=Value(local,"device");
+        groupViewBusy=true;
+        try{
+            var job=await GroupViewRpc("claim",new {connection_id=connection});
+            if(job==null||Value(job,"state")!="claimed")return;
+            Guid id;DateTime expiry;
+            var fence=Value(job,"fence");
+            Dictionary<string,object> result=null;
+            if(Guid.TryParse(Value(job,"id"),out id)&&DateTime.TryParse(Value(job,"expires_at"),null,System.Globalization.DateTimeStyles.AdjustToUniversal,out expiry)&&whatsapp==window&&window.CampaignConnection==connection&&sessionOwner==owner&&Value(local,"device")==device&&deviceApproved&&SessionReady())
+                result=await window.RunRemoteGroupView(id,Value(job,"group_jid"),Value(job,"kind"),Value(job,"browser_key"),expiry.ToUniversalTime());
+            if(whatsapp!=window||window.CampaignConnection!=connection||sessionOwner!=owner||Value(local,"device")!=device||!deviceApproved||!SessionReady())return;
+            if(result==null)await GroupViewRpc("deny",new {connection_id=connection,id=Value(job,"id"),fence=fence});
+            else await GroupViewRpc("finish",new {connection_id=connection,id=Value(job,"id"),fence=fence,confirmed=true,result=result});
+        }catch(Exception){/* No content, identifiers or secrets logged. Server expires unavailable requests. */}
+        finally{groupViewBusy=false;}
+    }
     async Task<byte[]> LoadRichCampaignJpeg(string bucket,string path) {
         if((bucket!="neo-campaign-images"&&bucket!="neo-shop-products")
            ||path==null||!System.Text.RegularExpressions.Regex.IsMatch(path,
@@ -469,21 +492,40 @@ sealed partial class Connect : Form {
     async Task TickRichCampaign(WhatsApp window,Guid connection) {
         // Em ambos os perfis, a fila rica exige opt-in local, JWT do ambiente e gate/allowlist do servidor.
         if(Value(local,"campaign_worker_enabled")!="1"||!deviceApproved||!SessionReady()||!window.CampaignSessionReady)return;
-        var lease=await RichCampaign("claim",new {originals_v1=true,originals_25mb=true,originals_mov=true,native_video_v1=true,originals_50mb=true});
+        var lease=await RichCampaign("claim",new {originals_v1=true,originals_25mb=true,originals_mov=true,native_video_v1=true,originals_50mb=true,album_v1=window.CampaignAlbumReady});
         if(lease==null)return;
         var id=Value(lease,"id");var fence=Value(lease,"fence");
         var started=false;
         var dispatchClock=System.Diagnostics.Stopwatch.StartNew();
+        Dictionary<string,object> albumReceipt=null;
         var outcome=Tuple.Create("uncertain",(string)null);
         try {
-            var job=await RichCampaign("start",new {id=id,fence=fence,originals_v1=true,originals_25mb=true,originals_mov=true,native_video_v1=true,originals_50mb=true});
+            var job=await RichCampaign("start",new {id=id,fence=fence,originals_v1=true,originals_25mb=true,originals_mov=true,native_video_v1=true,originals_50mb=true,album_v1=window.CampaignAlbumReady});
             if(job==null)return;
             started=true;
             Guid request;
             if(whatsapp==window&&window.CampaignConnection==connection&&window.CampaignSessionReady
                 &&Guid.TryParse(fence,out request)){
                 var kind=Value(job,"kind");
-                if(kind=="image"||(kind=="product"&&!String.IsNullOrEmpty(Value(job,"media_path")))){
+                if(kind=="album"&&window.CampaignAlbumReady){
+                    object raw;
+                    var entries=job.TryGetValue("album_items",out raw)?raw as System.Collections.IList:null;
+                    if(entries==null||entries.Count<2||entries.Count>4)throw new InvalidOperationException();
+                    var images=new List<Tuple<byte[],string>>();
+                    foreach(var entry in entries){
+                        var image=entry as Dictionary<string,object>;
+                        if(image==null)throw new InvalidOperationException();
+                        var bytes=await LoadRichCampaignJpeg("neo-campaign-images",Value(image,"media_path"));
+                        images.Add(Tuple.Create(bytes,Value(image,"text")));
+                    }
+                    if(dispatchClock.Elapsed.TotalSeconds<85&&whatsapp==window&&window.CampaignConnection==connection&&window.CampaignAlbumReady&&deviceApproved&&SessionReady()&&Value(local,"campaign_worker_enabled")=="1"){
+                        albumReceipt=await window.DispatchCampaignAlbumAsync(request,Value(job,"group_jid"),images);
+                        var parent=Value(albumReceipt,"message_id");
+                        var status=Value(albumReceipt,"status");
+                        outcome=status=="accepted"&&!String.IsNullOrWhiteSpace(parent)?Tuple.Create("accepted",parent):Tuple.Create("uncertain",(string)null);
+                        if(!albumReceipt.ContainsKey("media"))albumReceipt=null;
+                    }
+                }else if(kind=="image"||(kind=="product"&&!String.IsNullOrEmpty(Value(job,"media_path")))){
                     var bytes=await LoadRichCampaignJpeg(Value(job,"media_bucket"),Value(job,"media_path"));
                     if(whatsapp==window&&window.CampaignSessionReady)
                         outcome=await window.DispatchCampaignImageAsync(request,Value(job,"group_jid"),Value(job,"text"),bytes);
@@ -504,7 +546,7 @@ sealed partial class Connect : Form {
         }catch(Exception){Record("rich_campaign_uncertain");}
         // C# 5 / .NET Framework: nao usar await no bloco finally.
         if(started)try{await RichCampaign("finish",new {id=id,fence=fence,
-            outcome=outcome.Item1,receipt_id=outcome.Item1=="accepted"?outcome.Item2:null,blocked_reason=outcome.Item1=="refused"&&(outcome.Item2=="previous_421"||outcome.Item2=="video_conversion")?outcome.Item2:null});}
+            outcome=outcome.Item1,receipt_id=outcome.Item1=="accepted"?outcome.Item2:null,album_receipt=albumReceipt,blocked_reason=outcome.Item1=="refused"&&(outcome.Item2=="previous_421"||outcome.Item2=="video_conversion")?outcome.Item2:null});}
         catch(Exception){Record("rich_campaign_finalization_uncertain");}
     }
     async Task TickCampaignDispatch() {
@@ -653,7 +695,8 @@ sealed partial class Connect : Form {
                 tray.ShowBalloonTip(5000);
             }
             var previewTask=TickVideoPreview();
-            await TickCampaignDispatch();
+            if(!groupViewBusy)await TickCampaignDispatch();
+            var groupViewTask=TickGroupView();
             if(profile.IsProduction)return;
             var job=await RPC("claim",new { });
             if(job==null)return;

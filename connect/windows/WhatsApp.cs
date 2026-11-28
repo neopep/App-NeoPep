@@ -43,6 +43,18 @@ sealed partial class WhatsApp : Form {
     static string GroupMode(string value){return value=="pn"?"PN":value=="lid"?"LID":"—";}
     static string GroupRole(string value){return value=="superadmin"?"Criador / admin":value=="admin"?"Administrador":value=="member"?"Membro":"—";}
     static string GroupPermission(string value){return value=="admins"?"Só admins":value=="all"?"Todos":"—";}
+    Guid remoteGroupViewRequest=Guid.Empty;
+    string remoteGroupViewGroup="";
+    TaskCompletionSource<Dictionary<string,object>> remoteGroupViewCompletion;
+    public bool GroupViewAvailable { get {return !environment.IsProduction&&CampaignSessionReady&&!sendingText&&automatedSend==null&&remoteGroupViewRequest==Guid.Empty&&messageViewRequest==Guid.Empty&&membersRequest==Guid.Empty;} }
+    Guid messageViewRequest=Guid.Empty;
+    string messageViewGroup="";
+    Form messageViewDialog;
+    TextBox messageViewText;
+    Guid membersRequest=Guid.Empty;
+    string membersGroup="";
+    Form membersDialog;
+    TextBox membersText;
     readonly List<Dictionary<string,object>> groupRows=new List<Dictionary<string,object>>();
     readonly HashSet<string> selected=new HashSet<string>(StringComparer.Ordinal);
     bool drawingGroups,syncing;
@@ -58,6 +70,11 @@ sealed partial class WhatsApp : Form {
     Guid pendingSend=Guid.Empty;
     bool sendingText;
     TaskCompletionSource<Tuple<string,string>> automatedSend;
+    // Candidate remains disabled until explicit client and server homologation.
+    static readonly bool AlbumTransportApproved=false;
+    bool automatedAlbum;
+    Dictionary<string,object> automatedAlbumResult;
+    public bool CampaignAlbumReady { get { return AlbumTransportApproved&&!environment.IsProduction&&CampaignSessionReady; } }
     Guid automatedRequest;
     readonly HashSet<string> sentRequests=new HashSet<string>(StringComparer.Ordinal);
     // Aggregate delivery evidence only; never store recipient identities.
@@ -121,7 +138,7 @@ sealed partial class WhatsApp : Form {
         groups.ItemChecked+=delegate(object sender,ItemCheckedEventArgs args){
             if(drawingGroups||!ready)return;
             string id=(string)args.Item.Tag;
-            if(args.Item.Checked)selected.Add(id);else selected.Remove(id);
+            if(args.Item.Checked)selected.Add(id);else {selected.Remove(id);ClearGroupMembers();ClearGroupMessages();CancelRemoteGroupView();}
             ShowGroupStatus();RefreshComposerGroups();
         };
         var refresh=Action("Atualizar grupos",RefreshGroups);
@@ -133,6 +150,10 @@ sealed partial class WhatsApp : Form {
         sync.Click+=async delegate{await SyncSelection();};
         groupTools.Controls.Add(sync);
         groupTools.Controls.Add(Action("Diagnosticar grupo",OpenGroupDiagnostic));
+        if(!environment.IsProduction){
+            groupTools.Controls.Add(Action("Consultar participantes",RequestGroupMembers));
+            groupTools.Controls.Add(Action("Consultar mensagens",OpenGroupMessages));
+        }
         Format(groupStatus);groupStatus.Text="Conecte o WhatsApp para consultar grupos.";groupStatus.Dock=DockStyle.Bottom;
         Format(groupAccount);groupAccount.Dock=DockStyle.Bottom;groupAccount.Font=new Font("Segoe UI",9);groupAccount.ForeColor=ConnectTheme.Muted;
         listing.Controls.Add(groups);listing.Controls.Add(groupTools);listing.Controls.Add(groupStatus);listing.Controls.Add(groupAccount);
@@ -247,6 +268,107 @@ sealed partial class WhatsApp : Form {
         }
         if(diagnosticGroup.Items.Count>0)diagnosticGroup.SelectedIndex=index>=0?index:0;
         ShowGroupDiagnostic();
+    }
+    void CancelRemoteGroupView(){
+        var request=remoteGroupViewRequest;remoteGroupViewRequest=Guid.Empty;remoteGroupViewGroup="";
+        if(request!=Guid.Empty&&pipe!=null)try{pipe.WriteLine(json.Serialize(new {action="group_view_cancel",request_id=request.ToString()}));}catch{}
+        var done=remoteGroupViewCompletion;remoteGroupViewCompletion=null;if(done!=null)done.TrySetResult(null);
+        if(request!=Guid.Empty){sendingText=false;UpdateComposer();}
+    }
+    public async Task<Dictionary<string,object>> RunRemoteGroupView(Guid request,string jid,string kind,string key,DateTime expiresAt){
+        if(!GroupViewAvailable||request==Guid.Empty||!selected.Contains(jid)||!(kind=="members"||kind=="messages")||key==null||key.Length!=392||DateTime.UtcNow.AddSeconds(140)>=expiresAt)return null;
+        var group=groupRows.Find(row=>TextValue(row,"id")==jid);
+        if(group==null)return null;
+        var answer=MessageBox.Show("Grupo: "+TextValue(group,"name")+Environment.NewLine+Environment.NewLine+"O NeoPep web solicitou "+(kind=="members"?"a lista de participantes":"até 50 novas mensagens de texto por dois minutos")+" do grupo selecionado. Confirme a autorização. O resultado será cifrado para a sessão que fez a solicitação, sem histórico ou cópia em texto aberto no servidor.","Autorizar consulta web",MessageBoxButtons.YesNo,MessageBoxIcon.Question);
+        if(answer!=DialogResult.Yes||!GroupViewAvailable||!selected.Contains(jid)||DateTime.UtcNow.AddSeconds(140)>=expiresAt)return null;
+        var done=new TaskCompletionSource<Dictionary<string,object>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        remoteGroupViewCompletion=done;remoteGroupViewRequest=request;remoteGroupViewGroup=jid;sendingText=true;UpdateComposer();
+        try{
+            pipe.WriteLine(json.Serialize(new {action="group_view_query",request_id=request.ToString(),group_jid=jid,kind=kind,browser_key=key,confirmed=true}));
+            if(await Task.WhenAny(done.Task,Task.Delay(TimeSpan.FromSeconds(140)))==done.Task&&remoteGroupViewRequest==request&&CampaignSessionReady&&selected.Contains(jid)&&DateTime.UtcNow<expiresAt)return await done.Task;
+            return null;
+        }catch{return null;}finally{if(remoteGroupViewRequest==request)CancelRemoteGroupView();}
+    }
+    void ShowRemoteGroupViewResult(Dictionary<string,object> result){
+        if(result==null||remoteGroupViewRequest==Guid.Empty||TextValue(result,"request_id")!=remoteGroupViewRequest.ToString()||TextValue(result,"group_jid")!=remoteGroupViewGroup||remoteGroupViewCompletion==null)return;
+        object raw;
+        var envelope=TextValue(result,"status")=="ready"&&result.TryGetValue("result",out raw)?raw as Dictionary<string,object>:null;
+        remoteGroupViewCompletion.TrySetResult(envelope);
+    }
+    void ClearGroupMessages(){
+        var request=messageViewRequest;messageViewRequest=Guid.Empty;messageViewGroup="";
+        if(request!=Guid.Empty&&pipe!=null)try{pipe.WriteLine(json.Serialize(new {action="group_messages_stop",request_id=request.ToString()}));}catch{}
+        if(messageViewText!=null){messageViewText.Clear();messageViewText=null;}
+        var dialog=messageViewDialog;messageViewDialog=null;if(dialog!=null&&!dialog.IsDisposed)dialog.Close();
+    }
+    async void OpenGroupMessages(){
+        if(environment.IsProduction||!CampaignSessionReady||sendingText||automatedSend!=null||messageViewRequest!=Guid.Empty||membersRequest!=Guid.Empty||groups.SelectedItems.Count!=1)return;
+        string jid=Convert.ToString(groups.SelectedItems[0].Tag);
+        if(!selected.Contains(jid)){MessageBox.Show("Selecione e marque o grupo primeiro.","Mensagens");return;}
+        if(MessageBox.Show("Consultar somente novas mensagens de texto deste grupo por até 2 minutos, no máximo 50 mensagens? A conta precisa ser administradora. Sem histórico anterior, identificação de remetentes, armazenamento ou envio ao NeoPep. Confirme que você tem autorização para visualizar estas mensagens.","Consulta temporária",MessageBoxButtons.YesNo,MessageBoxIcon.Question)!=DialogResult.Yes)return;
+        var request=Guid.NewGuid();messageViewRequest=request;messageViewGroup=jid;
+        var dialog=new Form{Text="Mensagens recentes — consulta temporária",Width=630,Height=520,StartPosition=FormStartPosition.CenterParent,ShowInTaskbar=false};
+        var view=new TextBox{Dock=DockStyle.Fill,Multiline=true,ReadOnly=true,ScrollBars=ScrollBars.Vertical,Font=new Font("Segoe UI",10),Text="Verificando acesso ao grupo…"+Environment.NewLine};
+        dialog.Controls.Add(view);messageViewDialog=dialog;messageViewText=view;
+        dialog.FormClosed+=delegate{if(messageViewDialog==dialog){view.Clear();messageViewDialog=null;messageViewText=null;ClearGroupMessages();}};
+        dialog.Show(this);
+        try{pipe.WriteLine(json.Serialize(new {action="group_messages_start",request_id=request.ToString(),group_jid=jid,confirmed=true}));}catch{ClearGroupMessages();return;}
+        await Task.Delay(TimeSpan.FromSeconds(155));
+        if(messageViewRequest==request)ClearGroupMessages();
+    }
+    void ShowGroupMessage(Dictionary<string,object> result){
+        if(result==null||messageViewRequest==Guid.Empty||TextValue(result,"request_id")!=messageViewRequest.ToString()||TextValue(result,"group_jid")!=messageViewGroup||messageViewText==null)return;
+        if(!ready||!selected.Contains(messageViewGroup)||environment.IsProduction||closing){ClearGroupMessages();return;}
+        string status=TextValue(result,"status");
+        if(status=="started"){messageViewText.AppendText("Aguardando novas mensagens…"+Environment.NewLine);return;}
+        if(status=="message"){
+            string value=System.Text.RegularExpressions.Regex.Replace(TextValue(result,"text"),@"[\p{Cc}\p{Cf}]+"," ").Trim();
+            if(value.Length>500)value=value.Substring(0,500);
+            if(value.Length>0&&messageViewText.TextLength<30000)messageViewText.AppendText(value+Environment.NewLine+Environment.NewLine);
+            return;
+        }
+        ClearGroupMessages();
+    }
+    void ClearGroupMembers(){
+        membersRequest=Guid.Empty;membersGroup="";
+        if(membersText!=null){membersText.Clear();membersText=null;}
+        var dialog=membersDialog;membersDialog=null;if(dialog!=null&&!dialog.IsDisposed)dialog.Close();
+    }
+    async void RequestGroupMembers(){
+        if(environment.IsProduction||!CampaignSessionReady||sendingText||automatedSend!=null||membersRequest!=Guid.Empty||groups.SelectedItems.Count!=1)return;
+        string jid=Convert.ToString(groups.SelectedItems[0].Tag);
+        if(!selected.Contains(jid)){MessageBox.Show("Selecione e marque o grupo primeiro.","Participantes");return;}
+        if(MessageBox.Show("Consultar participantes deste grupo, somente nesta sessão? A conta conectada precisa ser administradora. Os dados não serão enviados ao NeoPep nem salvos.","Consulta local",MessageBoxButtons.YesNo,MessageBoxIcon.Question)!=DialogResult.Yes)return;
+        ClearGroupMembers();
+        var request=Guid.NewGuid();membersRequest=request;membersGroup=jid;
+        try{pipe.WriteLine(json.Serialize(new {action="group_members",request_id=request.ToString(),group_jid=jid,confirmed=true}));}
+        catch{ClearGroupMembers();return;}
+        await Task.Delay(TimeSpan.FromSeconds(35));
+        if(membersRequest==request){ClearGroupMembers();if(ready&&!closing)MessageBox.Show("A consulta não retornou a tempo.","Participantes");}
+    }
+    void ShowGroupMembers(Dictionary<string,object> result){
+        if(result==null||membersRequest==Guid.Empty||TextValue(result,"request_id")!=membersRequest.ToString()||TextValue(result,"group_jid")!=membersGroup)return;
+        string jid=membersGroup;membersRequest=Guid.Empty;membersGroup="";
+        if(!ready||!selected.Contains(jid)||environment.IsProduction||closing)return;
+        if(TextValue(result,"status")!="ok"){MessageBox.Show("Consulta indisponível. Verifique a conexão e se a conta é administradora.","Participantes");return;}
+        int total;if(!Int32.TryParse(TextValue(result,"total"),out total)||total<0)return;
+        object raw;var rows=result.TryGetValue("rows",out raw)?raw as System.Collections.IList:null;
+        if(rows==null||rows.Count>1024||rows.Count>total)return;
+        ClearGroupMembers();
+        var dialog=new Form{Text="Participantes — consulta local",Width=630,Height=520,StartPosition=FormStartPosition.CenterParent,ShowInTaskbar=false};
+        var text=new TextBox{Dock=DockStyle.Fill,Multiline=true,ReadOnly=true,WordWrap=false,ScrollBars=ScrollBars.Both,Font=new Font("Segoe UI",10)};
+        var lines=new List<string>();lines.Add("Participantes consultados: "+rows.Count+" de "+total);lines.Add("Números não disponibilizados pelo WhatsApp permanecem ocultos.");lines.Add("");
+        int index=0;foreach(var value in rows){
+            var row=value as Dictionary<string,object>;if(row==null)continue;
+            string number=TextValue(row,"phone"),name=TextValue(row,"name");
+            if(!System.Text.RegularExpressions.Regex.IsMatch(number,@"\A[0-9]{6,15}\z"))number="";
+            name=System.Text.RegularExpressions.Regex.Replace(name,@"[\p{Cc}\p{Cf}]+"," ").Trim();
+            if(name.Length>120)name=name.Substring(0,120);
+            lines.Add((++index).ToString()+". "+(name.Length==0?"Participante":name)+(number.Length==0?" — número indisponível":" (+"+number+")")+" — "+GroupRole(TextValue(row,"role")));
+        }
+        text.Lines=lines.ToArray();dialog.Controls.Add(text);membersDialog=dialog;membersText=text;
+        dialog.FormClosed+=delegate{if(membersDialog==dialog){membersDialog=null;membersText=null;}text.Clear();dialog.Dispose();};
+        dialog.Show(this);
     }
     void OpenGroupDiagnostic(){
         if(diagnosticPage==null)return;
@@ -451,6 +573,27 @@ sealed partial class WhatsApp : Form {
         }catch{return Tuple.Create("uncertain",(string)null);}
         finally{automatedSend=null;automatedRequest=Guid.Empty;sendingText=false;UpdateComposer();}
     }
+    public async Task<Dictionary<string,object>> DispatchCampaignAlbumAsync(Guid request,string group,List<Tuple<byte[],string>> images) {
+        var uncertain=new Dictionary<string,object>{{"status","uncertain"}};
+        if(!CampaignAlbumReady||pendingSend!=Guid.Empty||automatedSend!=null||!selected.Contains(group)||request==Guid.Empty
+           ||canPublish==null||!canPublish()||images==null||images.Count<2||images.Count>4)return uncertain;
+        var payload=new List<object>();
+        foreach(var image in images){
+            if(image==null||image.Item1==null||image.Item1.Length<5||image.Item1.Length>1048576||image.Item2==null||image.Item2.Length>1000)return uncertain;
+            var bytes=image.Item1;
+            if(bytes[0]!=255||bytes[1]!=216||bytes[2]!=255||bytes[bytes.Length-2]!=255||bytes[bytes.Length-1]!=217)return uncertain;
+            payload.Add(new {image=Convert.ToBase64String(bytes),caption=image.Item2});
+        }
+        var completion=new TaskCompletionSource<Tuple<string,string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        automatedAlbum=true;automatedAlbumResult=null;automatedSend=completion;automatedRequest=request;sendingText=true;UpdateComposer();
+        try {
+            pipe.WriteLine(json.Serialize(new {action="send_album",request_id=request.ToString(),group_jid=group,images=payload}));
+            if(await Task.WhenAny(completion.Task,Task.Delay(TimeSpan.FromSeconds(120)))==completion.Task)
+                return automatedAlbumResult??uncertain;
+            return uncertain;
+        }catch{return uncertain;}
+        finally{automatedAlbum=false;automatedAlbumResult=null;automatedSend=null;automatedRequest=Guid.Empty;sendingText=false;UpdateComposer();}
+    }
     public async Task<Tuple<string,string>> DispatchCampaignImageAsync(Guid request,string group,string caption,byte[] jpeg) {
         if(!CampaignSessionReady||pendingSend!=Guid.Empty||automatedSend!=null||!selected.Contains(group)
             ||caption==null||caption.Length>2000||jpeg==null||jpeg.Length<4||jpeg.Length>1048576
@@ -489,6 +632,7 @@ sealed partial class WhatsApp : Form {
         finally{automatedSend=null;automatedRequest=Guid.Empty;sendingText=false;UpdateComposer();}
     }
     void ClearGroups(){
+        ClearGroupMembers();ClearGroupMessages();CancelRemoteGroupView();
         sync.Enabled=false;
         groupRows.Clear();selected.Clear();groupReadAt=null;RenderGroups();
         groupStatus.Text="Conecte o WhatsApp para consultar grupos.";
@@ -565,6 +709,8 @@ sealed partial class WhatsApp : Form {
                 RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Utf8
             };
             start.EnvironmentVariables.Remove("NODE_OPTIONS");start.EnvironmentVariables.Remove("NODE_PATH");
+            start.EnvironmentVariables["NEO_CONNECT_ALBUM_V1"]=AlbumTransportApproved&&!environment.IsProduction?"1":"0";
+            start.EnvironmentVariables["NEO_CONNECT_GROUP_VIEW_V1"]=environment.IsProduction?"0":"1";
             var child=new Process{StartInfo=start,EnableRaisingEvents=true};
             int revision=++generation;
             bridgeNoiseRecorded=false;
@@ -628,6 +774,7 @@ sealed partial class WhatsApp : Form {
             }else if(type=="state"){
                 phase="ESTADO";
                 ready=value=="conectado";
+                if(!ready){ClearGroupMembers();ClearGroupMessages();CancelRemoteGroupView();}
                 if(value!="aguardando_qr")ClearQr();
                 if(!ready){
                     if(value=="conectando"||value=="reconectando"){sync.Enabled=false;groupReadAt=null;groups.Items.Clear();}
@@ -672,6 +819,12 @@ sealed partial class WhatsApp : Form {
                 if(rows!=null)foreach(Dictionary<string,object> item in rows)groupRows.Add(item);
                 selected.IntersectWith(groupRows.ConvertAll(item=>TextValue(item,"id")));
                 groupReadAt=DateTime.Now;RenderGroups();ShowGroupStatus();RefreshComposerGroups();RefreshDiagnosticGroups();
+            }else if(type=="group_view_result"&&ready&&!forgetting){
+                phase="GRUPO_CONSULTA_WEB";ShowRemoteGroupViewResult(message["value"] as Dictionary<string,object>);
+            }else if(type=="group_messages"&&ready&&!forgetting){
+                phase="GRUPO_MENSAGENS";ShowGroupMessage(message["value"] as Dictionary<string,object>);
+            }else if(type=="group_members"&&ready&&!forgetting){
+                phase="GRUPO_PARTICIPANTES";ShowGroupMembers(message["value"] as Dictionary<string,object>);
             }else if((type=="group_check"||type=="group_diagnostic")&&ready&&!forgetting){
                 phase="GRUPO_METADADOS";
                 var check=message["value"] as Dictionary<string,object>;
@@ -776,6 +929,7 @@ sealed partial class WhatsApp : Form {
                 var result=message["value"] as Dictionary<string,object>;
                 if(result!=null&&automatedSend!=null&&TextValue(result,"request_id")==automatedRequest.ToString()){
                     var outcome=TextValue(result,"status");
+                    if(automatedAlbum)automatedAlbumResult=new Dictionary<string,object>(result);
                     var receipt=TextValue(result,"message_id");
                     var accepted=outcome=="accepted"&&!String.IsNullOrWhiteSpace(receipt);
                     automatedSend.TrySetResult(Tuple.Create(accepted?"accepted":outcome=="rejected"?"refused":"uncertain",

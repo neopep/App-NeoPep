@@ -3,6 +3,9 @@ const loadModules=()=>Promise.all([import('@whiskeysockets/baileys'),import('pin
 
 // Up to 50 MiB originals; native video output stays limited to 16 MiB. Base64 fits 72 MiB IPC.
 export const CAMPAIGN_FILE_MAX=50*1024*1024;
+export function validNativeAlbum(items){
+ return Array.isArray(items)&&items.length>=2&&items.length<=4&&items.every(item=>typeof item?.caption==='string'&&item.caption.length<=1000&&Buffer.isBuffer(item.image)&&item.image.length>=5&&item.image.length<=1048576&&item.image[0]===255&&item.image[1]===216&&item.image[2]===255&&item.image.at(-2)===255&&item.image.at(-1)===217);
+}
 export function validCampaignFile(bytes,mime,name){
  if(!Buffer.isBuffer(bytes)||bytes.length<8||bytes.length>CAMPAIGN_FILE_MAX||typeof name!=='string'||!name.trim()||name.length>160||/[\\/:*?"<>|\x00-\x1f\x7f]/.test(name))return false;
  if(mime==='application/pdf')return /\.pdf$/i.test(name)&&bytes.subarray(0,5).toString('ascii')==='%PDF-'&&bytes.subarray(Math.max(0,bytes.length-1024)).includes(Buffer.from('%%EOF'));
@@ -115,6 +118,14 @@ export async function createBaileysProvider(
  const keys=new Map(Array.isArray(stored?.keys)?stored.keys:[]);
  const recoveredGroups=new Set(),changedGroups=new Set(),rejectedGroups=new Set(),revalidatedGroups=new Set();
  let maintenanceEnabled=automaticMaintenance===true;
+ let messageView=null;
+ function stopMessageView(reason='aborted'){
+  const view=messageView;messageView=null;
+  if(!view)return;
+  cancel(view.timer);view.socket.ev.off('messages.upsert',view.listener);
+  try{view.onStop(reason);}catch{}
+ }
+
  const save=()=>{if(!closed)onCredentials(JSON.stringify({creds,keys:[...keys]},BufferJSON.replacer));};
  const auth={creds,keys:{
   async get(type,ids){
@@ -135,6 +146,7 @@ export async function createBaileysProvider(
   }
  }};
  function detach(current){
+  if(messageView?.socket===current)stopMessageView();
   if(!current)return;
   current.ev.removeAllListeners('connection.update');
   current.ev.removeAllListeners('creds.update');
@@ -172,6 +184,7 @@ export async function createBaileysProvider(
    }
    if(pendingGroup?.socket===current&&pendingGroup.jid===event?.id)pendingGroup.changed=true;
    if(pendingDiagnostic?.socket===current&&pendingDiagnostic.jid===event?.id)pendingDiagnostic.changed=true;
+   if(messageView?.socket===current&&messageView.jid===event?.id)stopMessageView();
   });
   // A generated message key is not delivery evidence.
   const validKey=key=>key?.fromMe===true&&/^[0-9-]{1,64}@g\.us$/.test(key.remoteJid||'')&&typeof key.id==='string'&&key.id.length>0&&key.id.length<=160;
@@ -378,6 +391,60 @@ export async function createBaileysProvider(
    }catch{return {code:'verification_failed'};}
    finally{if(pendingDiagnostic===task)pendingDiagnostic=null;}
   },
+  stopGroupMessageView(){stopMessageView();},
+  async startGroupMessageView(jid,onMessage,onStop){
+   stopMessageView();
+   const current=socket;
+   if(!connected||!current||pendingGroup||pendingDiagnostic||typeof jid!=='string'||!/^[0-9-]{1,64}@g[.]us$/.test(jid)||typeof onMessage!=='function'||typeof onStop!=='function')throw Error('Consulta indisponível.');
+   const task={socket:current,jid,changed:false};pendingDiagnostic=task;
+   try{
+    const groups=await current.groupFetchAllParticipating();
+    if(!connected||socket!==current||task.changed||!Object.values(groups||{}).some(g=>g?.id===jid))throw Error('Grupo indisponível.');
+    const row=await current.groupMetadata(jid);
+    if(!connected||socket!==current||task.changed||row?.id!==jid||!Array.isArray(row.participants)||Number(row.ephemeralDuration||0)>0)throw Error('Metadados indisponíveis ou grupo temporário.');
+    if(!['admin','superadmin'].includes(groupDiagnostics(row,[current.user?.id,current.user?.lid,creds.me?.id,creds.me?.lid]).role))throw Error('Consulta restrita ao administrador.');
+    const started=Date.now(),seen=new Set(),view={socket:current,jid,onStop,listener:null,timer:null};
+    view.listener=event=>{
+     if(messageView!==view||!connected||socket!==current||Date.now()-started>=120000){if(messageView===view)stopMessageView();return;}
+     if(event?.type!=='notify'||!Array.isArray(event.messages))return;
+     for(const item of event.messages){
+      if(messageView!==view)return;
+      const key=item?.key,id=key?.id,stamp=Number(item?.messageTimestamp)*1000;
+      if(key?.remoteJid!==jid||typeof id!=='string'||!id||id.length>160||seen.has(id)||!Number.isFinite(stamp)||stamp<Math.floor(started/1000)*1000||stamp>Date.now()+1000)continue;
+      const msg=item.message;
+      if(!msg||msg.ephemeralMessage||msg.viewOnceMessage||msg.viewOnceMessageV2||msg.viewOnceMessageV2Extension||msg.extendedTextMessage?.contextInfo?.expiration||msg.extendedTextMessage?.contextInfo?.ephemeralSettingTimestamp)continue;
+      const value=typeof msg.conversation==='string'?msg.conversation:typeof msg.extendedTextMessage?.text==='string'?msg.extendedTextMessage.text:'';
+      const text=value.replace(/[\p{Cc}\p{Cf}]/gu,' ').trim().slice(0,500);
+      if(!text)continue;
+      seen.add(id);
+      try{onMessage({text});}catch{stopMessageView();return;}
+      if(seen.size>=50){stopMessageView('complete');return;}
+     }
+    };
+    messageView=view;view.timer=schedule(()=>{if(messageView===view)stopMessageView('complete');},120000);
+    current.ev.on('messages.upsert',view.listener);
+   }finally{if(pendingDiagnostic===task)pendingDiagnostic=null;}
+  },
+  async listGroupMembers(jid){
+   const current=socket;
+   if(!connected||!current||pendingGroup||pendingDiagnostic||typeof jid!=='string'||!/^[0-9-]{1,64}@g[.]us$/.test(jid))throw Error('Consulta indisponível.');
+   const task={socket:current,jid,changed:false};pendingDiagnostic=task;
+   try{
+    const groups=await current.groupFetchAllParticipating();
+    if(!connected||socket!==current||task.changed||!Object.values(groups||{}).some(g=>g?.id===jid))throw Error('Grupo indisponível.');
+    const row=await current.groupMetadata(jid);
+    if(!connected||socket!==current||task.changed||row?.id!==jid||!Array.isArray(row.participants))throw Error('Metadados indisponíveis.');
+    const own=[current.user?.id,current.user?.lid,creds.me?.id,creds.me?.lid];
+    if(!['admin','superadmin'].includes(groupDiagnostics(row,own).role))throw Error('Consulta restrita ao administrador do grupo.');
+    const safeName=v=>typeof v==='string'?v.replace(/[\p{Cc}\p{Cf}]/gu,' ').trim().slice(0,120):'';
+    const rows=row.participants.slice(0,1024).map(p=>{
+     // Phone only when explicitly exposed as a phone-number JID or phoneNumber; never derive a phone from a LID.
+     const phone=[p?.phoneNumber,p?.id].map(v=>typeof v==='string'?(/^(?:\+)?([0-9]{6,15})(?::[0-9]+)?@s[.]whatsapp[.]net$/.exec(v)?.[1]||(/^\+?[0-9]{6,15}$/.test(v)&&v===p?.phoneNumber?v.replace(/^\+/,''):'')):'').find(Boolean)||'';
+     return {name:safeName(p?.name||p?.notify||p?.verifiedName),phone,role:p?.admin==='superadmin'||p?.isSuperAdmin===true?'superadmin':p?.admin==='admin'||p?.isAdmin===true?'admin':'member'};
+    });
+    return {total:row.participants.length,rows};
+   }finally{if(pendingDiagnostic===task)pendingDiagnostic=null;}
+  },
   async listGroups(){
    const current=socket;
    if(!connected||!current)throw Error('Sem sessão ativa.');
@@ -398,6 +465,36 @@ export async function createBaileysProvider(
    if(typeof caption!=='string'||caption.length>2000||!Buffer.isBuffer(image)||image.length<4||image.length>1024*1024)
     throw Error('Imagem ou legenda inválida.');
    return sendToParticipatingGroup(groupJid,{image,caption:caption.trim(),mimetype:'image/jpeg'});
+  },
+  async sendAlbum(groupJid,images){
+   if(!validNativeAlbum(images))throw Error('Álbum inválido.');
+   const current=socket;
+   if(!connected||!current||pendingGroup||pendingDiagnostic||typeof groupJid!=='string'||!/^[0-9-]{1,64}@g[.]us$/.test(groupJid))throw Error('Álbum indisponível.');
+   if(rejectedGroups.has(groupJid))return {status:'rejected',blocked:'previous_421',messageId:null,media:[]};
+   const groups=await current.groupFetchAllParticipating();
+   if(!connected||socket!==current||pendingGroup||pendingDiagnostic||rejectedGroups.has(groupJid))throw Error('A sessão mudou.');
+   const listed=Object.values(groups||{}).find(group=>group?.id===groupJid);
+   if(!listed)throw Error('A conta não participa deste grupo.');
+   const task={socket:current,jid:groupJid,listed,changed:false};
+   pendingGroup=task;
+   const result={status:'uncertain',messageId:null,media:[]};
+   const active=()=>connected&&socket===current&&pendingGroup===task&&!task.changed&&!rejectedGroups.has(groupJid);
+   try{
+    // Native album does not trigger maintenance, retry, or individual-image fallback.
+    if(!active())return result;
+    const parent=await current.sendMessage(groupJid,{album:{expectedImageCount:images.length,expectedVideoCount:0}},{useCachedGroupMetadata:true});
+    if(typeof parent?.key?.id!=='string'||!parent.key.id||parent.key.id.length>160)return result;
+    result.messageId=parent.key.id;
+    for(const [index,item] of images.entries()){
+     if(!active())return result;
+     const child=await current.sendMessage(groupJid,{image:item.image,mimetype:'image/jpeg',caption:item.caption,albumParentKey:parent.key},{useCachedGroupMetadata:true});
+     const id=child?.key?.id;
+     if(typeof id!=='string'||!id||id.length>160||id===result.messageId||result.media.some(x=>x.messageId===id))return result;
+     result.media.push({index,messageId:id});
+    }
+    if(active())result.status='accepted';
+   }catch{}finally{if(pendingGroup===task)pendingGroup=null;}
+   return result;
   },
   async sendFile(groupJid,caption,bytes,mime,name){
    if(typeof caption!=='string'||caption.length>1000||!validCampaignFile(bytes,mime,name))throw Error('Arquivo ou legenda inválido.');
