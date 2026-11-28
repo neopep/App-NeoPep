@@ -18,13 +18,14 @@ Deno.serve(async(req:Request)=>{
  const batch=await client.rpc('neo_push_claim');if(batch.error)throw Error('claim');
  const community=await client.rpc('neo_community_push_claim'); // An unavailable community queue must not stop personal reminders.
  const support=await client.rpc('neo_support_push_claim');
+ await client.rpc('neo_shop_notice_sweep_v1').catch(()=>null);
  const events=await client.rpc('neo_event_push_claim');
  const campaigns=Deno.env.get('SUPABASE_URL')==='https://qnuluspqfazdppciermw.supabase.co'&&Deno.env.get('NEO_STAGING_CAMPAIGN_PUSH')==='1'
   ?await client.rpc('neo_campaign_push_claim'):null;
  const jobs=[...(!campaigns||campaigns.error?[]:(campaigns.data||[])),...(batch.data||[]),...(community.error?[]:(community.data||[])),...(support.error?[]:(support.data||[])),...(events.error?[]:(events.data||[]))];
  let sent=0,failed=0;
  await Promise.all(jobs.map(async(job:{id:string,endpoint:string,kind?:string,title?:string,body?:string,keys:{p256dh:string,auth:string}})=>{let outcome='retry';
-  try{if(!validEndpoint(job.endpoint))throw Error('endpoint');const payload:{tag:string,kind?:string}={tag:job.id};if(['community','support','library','shop','campaign'].includes(job.kind||''))payload.kind=job.kind;await webpush.sendNotification({endpoint:job.endpoint,keys:job.keys},JSON.stringify(payload),{TTL:300,urgency:job.kind==='support'?'high':'normal',topic:job.id.replaceAll('-',''),timeout:10000});outcome='sent';sent++;}catch(error){const code=(error as {statusCode?:number}).statusCode;if(code===404||code===410)outcome='gone';failed++;}
+  try{if(!validEndpoint(job.endpoint))throw Error('endpoint');let notice:string|undefined,ttl=300;if(job.kind==='shop'){const checked=await client.rpc('neo_shop_notice_push_check_v1',{p_id:job.id});if(!checked.error&&checked.data?.send===false){await client.rpc('neo_event_push_finish',{p_id:job.id,p_outcome:'sent'});return;}if(checked.error)throw Error('shop_notice_check');notice=checked.data?.notice;ttl=checked.data?.ttl||300;}const payload:{tag:string,kind?:string,notice?:string}={tag:job.id,...(notice?{notice}:{})};if(['community','support','library','shop','campaign'].includes(job.kind||''))payload.kind=job.kind;await webpush.sendNotification({endpoint:job.endpoint,keys:job.keys},JSON.stringify(payload),{TTL:ttl,urgency:job.kind==='support'?'high':'normal',topic:job.id.replaceAll('-',''),timeout:10000});outcome='sent';sent++;}catch(error){const code=(error as {statusCode?:number}).statusCode;if(code===404||code===410)outcome='gone';failed++;}
   const finish=job.kind==='campaign'?'neo_campaign_push_finish':job.kind==='support'?'neo_support_push_finish':job.kind==='community'?'neo_community_push_finish':['library','shop'].includes(job.kind||'')?'neo_event_push_finish':'neo_push_finish';const done=await client.rpc(finish,{p_id:job.id,p_outcome:outcome});if(done.error)throw Error('finish');
  }));
  return out(200,{sent,failed,...(community.error?{community_available:false}:{})});
