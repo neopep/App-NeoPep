@@ -1247,8 +1247,68 @@
      session.busy=false;if(communityShareActive(session))button.disabled=false;
     }
    }
-   async function chooseLibraryShare(row,trigger){
+   async function chooseProductOffer(row,trigger){
+   const token=catalogToken,signal=catalogController?.signal;
+   const valid=()=>signal&&catalogCurrent(token,signal);
+   if(!valid()||trigger.disabled)return;
+   trigger.disabled=true;let mediaId=null,committed=false;
+   try{
+    const item=await endpoint(cloud,'public_offer',{id:row.id});
+    if(!valid())return;
+    if(!item||item.id!==row.id){tell('Produto indisponível. Atualize as referências.');return;}
+    const offer=item.offer,base=Number(item.price_cents),sale=Number(offer?.price_cents);
+    const expiry=offer?.valid_until?Date.parse(offer.valid_until):null;
+    if(!offer||!Number.isSafeInteger(base)||!Number.isSafeInteger(sale)||sale<1||sale>=base||Number(offer.original_price_cents)!==base||(expiry!==null&&(!Number.isFinite(expiry)||expiry<=Date.now()))||!item.photo_path){
+     addCatalogReference(row);return;
+    }
+    const percent=Math.floor((base-sale)*10000/base)/100;
+    if(percent<=0){addCatalogReference(row);return;}
+    const pct=percent.toLocaleString('pt-BR',{maximumFractionDigits:2});
+    if(!window.confirm('Incluir o selo da oferta pública atual na imagem da campanha? Será criada uma cópia estática; confira a validade antes de publicar ou agendar. Cancelar mantém apenas a referência normal ao produto.')){if(valid())addCatalogReference(row);return;}
+    if(!valid())return;
+    const planned=draft.planned_local?Date.parse(draft.planned_local+'-03:00'):null;
+    if(expiry!==null&&planned!==null&&planned>=expiry)throw Error('A oferta termina antes do horário planejado. Altere a data ou adicione a referência normal.');
+    if(draft.blocks.length+2>32)throw Error('São necessários dois blocos para a imagem e a referência.');
+    const url=new URL(await cloud.shopPhotoURL(item.photo_path));
+    if(!valid())return;
+    if(url.protocol!=='https:'||url.origin!==new URL(window.NEO_CONFIG.supabaseUrl).origin||url.username||url.password||!url.pathname.startsWith('/storage/v1/object/sign/neo-shop-products/'))throw Error('Origem da imagem não autorizada.');
+    const response=await fetch(url.href,{signal,cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer',redirect:'error'});
+    if(!response.ok||Number(response.headers.get('content-length'))>10*1024*1024)throw Error('Imagem indisponível.');
+    const source=await response.blob();
+    if(!/^image\/(jpeg|png|webp)$/.test(source.type)||!source.size||source.size>10*1024*1024)throw Error('Imagem inválida.');
+    const local=URL.createObjectURL(source);
+    let rendered;
+    try{
+     const img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=local;});
+     if(!valid())return;
+     if(!img.naturalWidth||!img.naturalHeight||img.naturalWidth*img.naturalHeight>40000000)throw Error('Resolução inválida.');
+     const scale=Math.min(1,1280/Math.max(img.naturalWidth,img.naturalHeight)),canvas=document.createElement('canvas');
+     canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
+     const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);
+     const edge=Math.min(canvas.width,canvas.height),diameter=edge*.22,r=diameter/2,margin=edge*.03,x=margin+r,y=margin+r;
+     ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle='#161616';ctx.fill();ctx.lineWidth=Math.max(1,diameter*.025);ctx.strokeStyle='#ffdb37';ctx.stroke();
+     ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#ffdb37';ctx.font='bold '+Math.max(5,diameter*.15)+'px sans-serif';ctx.fillText('OFERTA',x,y-r*.28,diameter*.83);
+     ctx.fillStyle='#fff';ctx.font='bold '+Math.max(7,diameter*.25)+'px sans-serif';ctx.fillText('-'+pct+'%',x,y+r*.28,diameter*.85);
+     rendered=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error('Imagem indisponível.')),'image/jpeg',.9));
+    }finally{URL.revokeObjectURL(local);}
+    if(!valid())return;
+    const jpeg=await jpegForDispatch(rendered);if(!valid())return;
+    if(expiry!==null&&expiry<=Date.now())throw Error('A oferta expirou durante a preparação.');
+    if(editing&&!commitEdit())throw Error('Confirme o texto em edição.');
+    if(draft.blocks.length+2>32)throw Error('Limite de 32 blocos por rascunho.');
+    mediaId=uuid();await storeMedia('readwrite',store=>store.put(jpeg,mediaKey(mediaId)));
+    if(!valid())return;
+    const date=new Date().toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
+    const caption='Oferta consultada em '+date+'. '+(expiry!==null?'Validade informada: '+new Date(expiry).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'})+'. ':'')+'Confira as condições atuais no aplicativo.';
+    const target=new URL('/?produto='+encodeURIComponent(row.id)+'#loja',window.NEO_CONFIG?.campaignPublicOrigin||location.origin).href;
+    draft.blocks.push({id:mediaId,type:'image',layout:'caption',text:caption,name:'imagem-oferta.jpg'},{id:uuid(),type:'link',url:target,text:'Consultar produto e condições atuais'});
+    committed=true;render();changed();closeSheet();saveLocal();tell('Imagem com selo e link adicionados ao rascunho. Confira a validade antes de publicar. Nenhum envio realizado.');
+   }catch(error){if(valid())tell(error.message||'Não foi possível preparar o selo. Seu rascunho foi preservado.');}
+   finally{if(mediaId&&!committed)await storeMedia('readwrite',store=>store.delete(mediaKey(mediaId))).catch(()=>{});if(valid())trigger.disabled=false;}
+  }
+  async function chooseLibraryShare(row,trigger){
     if(row.kind==='community'){await chooseCommunityShare(row,trigger);return;}
+    if(row.kind==='product'){await chooseProductOffer(row,trigger);return;}
    if(row.kind!=='document'||typeof cloud.library!=='function'){addCatalogReference(row);return;}
    openPane('library_share',trigger);
    const s=libraryShare={row,file:null,preview:null,policy:null,busy:false};
