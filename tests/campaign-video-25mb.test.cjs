@@ -2,22 +2,21 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const editor=fs.readFileSync('dist/admin/campaign-editor.js','utf8');
 const source=fs.readFileSync('src/cloud.js','utf8');
 const community=fs.readFileSync('dist/community.js','utf8');
-test('seletor exclusivo MP4 e limites separados, incluindo originais da biblioteca',()=>{
+test('seletor de vídeo e limite de 50 MiB, incluindo originais da biblioteca',()=>{
  assert.match(editor,/tile\('video','Vídeo','video'\)/);
  assert.match(editor,/choose_video/);
  const limit=new Function(editor.slice(editor.indexOf(' const videoOriginal='),editor.indexOf(' const labels='))+'return originalLimit')();
- assert.equal(limit('video/mp4'),26214400);assert.equal(limit('video/quicktime'),26214400);
- assert.equal(limit('application/pdf'),5242880);
+ assert.equal(limit('video/mp4'),52428800);assert.equal(limit('video/quicktime'),52428800);
+ assert.equal(limit('application/pdf'),52428800);assert.equal(limit('text/plain'),5242880);
  assert.match(editor,/short\?512000:originalLimit\(file\.mime\)/);
 });
-test('upload conserva 25 MiB sem recodificação e recusa excesso e PDF maior que 5 MiB',async()=>{
+test('upload conserva 50 MiB MP4/MOV/PDF sem recodificação e recusa excesso',async()=>{
  const owner='00000000-0000-4000-8000-000000000001',base=owner+'/00000000-0000-4000-8000-000000000002',calls=[];
  const body=source.slice(source.indexOf(' async campaignOriginalUpload('),source.indexOf(' async campaignOriginalURL(')).trim().replace(/,$/,'');
  const api=vm.runInNewContext('({'+body+'})',{need:()=>({storage:{from:()=>({upload:async(path,bytes,opts)=>{calls.push({path,bytes,opts});return {data:{path}};}})}}),identityVersion:0,user:{id:owner},ok:r=>r.data});
- const bytes=new ArrayBuffer(26214400);await api.campaignOriginalUpload(base+'.mp4',{type:'video/mp4',size:bytes.byteLength,arrayBuffer:async()=>bytes});
- assert.equal(calls[0].bytes,bytes);
- await assert.rejects(api.campaignOriginalUpload(base+'.mp4',{type:'video/mp4',size:26214401,arrayBuffer:async()=>{throw Error('not read')}}),/inválido/);
- await assert.rejects(api.campaignOriginalUpload(base+'.pdf',{type:'application/pdf',size:5242881,arrayBuffer:async()=>{throw Error('not read')}}),/inválido/);
+ const bytes=new ArrayBuffer(52428800);for(const [ext,mime] of [['mp4','video/mp4'],['mov','video/quicktime'],['pdf','application/pdf']]){await api.campaignOriginalUpload(base+'.'+ext,{type:mime,size:bytes.byteLength,arrayBuffer:async()=>bytes});assert.equal(calls.at(-1).bytes,bytes);}
+ await assert.rejects(api.campaignOriginalUpload(base+'.mp4',{type:'video/mp4',size:52428801,arrayBuffer:async()=>{throw Error('not read')}}),/inválido/);
+ await assert.rejects(api.campaignOriginalUpload(base+'.pdf',{type:'application/pdf',size:52428801,arrayBuffer:async()=>{throw Error('not read')}}),/inválido/);
 });
 test('download somente quando autorizado e com URL assinada renovada',()=>{
  assert.match(community,/!draftFile&&!editorFile&&f.allow_download===true/);
@@ -44,7 +43,7 @@ test('fototeca: MP4 com MIME ausente ou QuickTime é normalizado sem mudar bytes
  }
  const mov=bytes.slice();mov.set(Buffer.from('qt  '),8);
  const original=await choose(new File([mov],'IMG_002.MOV',{type:'video/quicktime'}));assert.equal(original.type,'video/quicktime');assert.equal(original.name,'IMG_002.mov');assert.deepEqual(new Uint8Array(await original.arrayBuffer()),mov);
- await assert.rejects(choose({size:26214401,arrayBuffer:()=>{throw Error('must not read')}}),/25 MB/);
+ await assert.rejects(choose({size:52428801,arrayBuffer:()=>{throw Error('must not read')}}),/50 MB/);
  await assert.rejects(choose(new File(['invalid bytes'],'x.mp4',{type:'video/mp4'})),/incompatível/);
  assert.match(editor,/data-video-select-status role="status"/);
  assert.match(editor,/if\(localMedia.has\(id\)\)return localMedia.get\(id\)/);
