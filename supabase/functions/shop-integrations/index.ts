@@ -20,15 +20,10 @@ Deno.serve(async(req:Request)=>{
  const app=Deno.env.get('SHOP_APP_URL')||'',allowed=(Deno.env.get('ALLOWED_ORIGINS')||'').split(',').map(v=>v.trim()).filter(Boolean);try{allowed.push(new URL(app).origin)}catch{}const origin=req.headers.get('Origin')||'',permitted=origin==='https://teste.app.neopep.com.br';
  const headers={'Content-Type':'application/json','Cache-Control':'no-store',...(permitted?{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Headers':'authorization,apikey,content-type,x-client-info','Access-Control-Allow-Methods':'POST, OPTIONS','Vary':'Origin'}:{})},out=(status:number,data:object)=>new Response(JSON.stringify(data),{status,headers});
  if(Deno.env.get('SUPABASE_URL')!=='https://qnuluspqfazdppciermw.supabase.co')return out(503,{error:'environment_mismatch'});
- if(req.method==='POST'&&!origin&&(req.headers.has('x-neo-installment-cron')||req.headers.has('x-neo-job-nonce'))){
-  const nonce=req.headers.get('x-neo-job-nonce');if(nonce!==null){
-   if(!/^[a-f0-9]{64}$/.test(nonce))return out(403,{error:'forbidden'});
-  }else{
+ if(req.method==='POST'&&!origin&&req.headers.has('x-neo-installment-cron')){
   const secret=Deno.env.get('NEO_INSTALLMENT_CRON_SECRET')||'',provided=req.headers.get('x-neo-installment-cron')||'';
   if(secret.length<32||provided!==secret)return out(403,{error:'forbidden'});
-  }
   const admin=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false,autoRefreshToken:false}});
-  if(nonce!==null){const consumed=await admin.rpc('neo_installment_job_consume_v1',{p_nonce:nonce});if(consumed.error||consumed.data!==true)return out(403,{error:'forbidden'});}
   try{const active=await admin.rpc('neo_shop_installment_active_environment_v1');if(active.error||active.data!=='test')return out(200,{status:'disabled'});const quotes=await syncInstallments(admin,active.data,false);let fees;try{fees=await syncSellerFees(admin,'test',()=>stagingInstallmentConfig(admin));}catch{fees={status:'fee_sync_unavailable'}}return out(200,{...quotes,seller_fees:fees});}catch{return out(503,{error:'sync_failed'});}
  }
  if(!permitted)return out(403,{error:'origin'});if(req.method==='OPTIONS')return new Response(null,{status:204,headers});if(req.method!=='POST')return out(405,{error:'method'});
