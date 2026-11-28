@@ -6,7 +6,7 @@ function verify(source,css,sql){
  const get=(a,b)=>{const i=source.indexOf(a),j=source.indexOf(b,i+1);check(i>=0&&j>i,'anchors '+a);return source.slice(i,j)};
  const e=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  new Function(source);
- const api=new Function('C','e',get(' function activeOffer(p){',' function catalogue(){')+'return {activeOffer,displayPrice,offerBadge,offerPrice};')({money:v=>'R$ '+(v/100).toFixed(2)},e);
+ const api=new Function('C','e',get(' function activeOffer(p){'," document.addEventListener('click'")+get(' const offerBadge=',' function catalogue(){')+'return {activeOffer,displayPrice,offerBadge,offerPrice};')({money:v=>'R$ '+(v/100).toFixed(2)},e);
  const p={active:true,stock:5,price_cents:99700,offer:{original_price_cents:99700,price_cents:79760,valid_until:'2099-01-01T00:00:00Z'}};
  check(api.activeOffer(p).percent==='20'&&api.displayPrice(p)===79760,'percent and price');
  check(api.offerPrice(p).includes('<del>R$ 997.00</del>')&&api.offerPrice(p).includes('R$ 797.60'),'original and sale');
