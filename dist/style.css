@@ -1340,3 +1340,6 @@ dialog.neo-structured-editor::backdrop{background:#192720}
  [data-shop-label-dialog] .shop-label-sheet:last-child{break-after:auto;page-break-after:auto}
  [data-shop-label-dialog] .shop-label-sheet .shop-label-print{page:auto;width:var(--label-width)!important;max-width:none!important;height:var(--label-height)!important;min-height:0!important;border:1px solid #222!important;break-after:auto!important;page-break-after:auto!important}
 }
+
+/* Parcelamento com dados do Mercado Pago */
+.shop-installment-hint{display:block;font-size:.76rem;color:var(--muted);line-height:1.4}.shop-installment-details{margin:.5rem 0;font-size:.85rem}.shop-installment-details summary{cursor:pointer;color:var(--ink);font-weight:600}.shop-installment-table{overflow-x:auto;max-width:100%;margin:.5rem 0}.shop-installment-table table{width:100%;font-size:.78rem;white-space:nowrap}.shop-installment-table th,.shop-installment-table td{padding:.35rem .45rem;text-align:left;border-bottom:1px solid var(--border)}
